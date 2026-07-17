@@ -8,7 +8,8 @@
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts",
-    "./postcss.config": "./postcss.config.mjs"
+    "./postcss.config": "./postcss.config.mjs",
+    "./icons/*": "./src/icons/*.tsx"
   },
   "scripts": {
     "check-types": "tsc --noEmit"
