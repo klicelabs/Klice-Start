@@ -189,9 +189,10 @@ export function AddSiteDialog({
 
 				<form
 					onSubmit={handleSubmit}
-					className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+					className="flex min-h-0 flex-1 flex-col gap-4"
 				>
-					<div className="space-y-4 px-0.5">
+					<div className="min-h-0 flex-1 overflow-y-auto -mr-6">
+						<div className="space-y-4 px-0.5 pr-6 py-2">
 						<div className="flex items-center gap-3">
 							<Label htmlFor="card-url" className={labelClass}>
 								Link
@@ -289,6 +290,9 @@ export function AddSiteDialog({
 									</div>
 								)}
 
+								<span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 mt-4 mb-2">
+									Pastas
+								</span>
 								<div
 									className={cn(
 										"rounded-xl border",
@@ -386,12 +390,10 @@ export function AddSiteDialog({
 									)}
 								</div>
 
+								<span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 mt-6 mb-3">
+									Recomendados
+								</span>
 								<div className="space-y-2">
-									<Label
-										className={cn("text-[13px]", glassText(isLiquid, "muted"))}
-									>
-										Recommended
-									</Label>
 									<div className="grid grid-cols-5 gap-1.5">
 										{RECOMMENDED_SITES.map((site) => (
 											<button
@@ -422,6 +424,7 @@ export function AddSiteDialog({
 								</div>
 							</>
 						)}
+						</div>
 					</div>
 
 					<DialogFooter className="shrink-0 pt-1" />
