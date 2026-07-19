@@ -8,6 +8,12 @@ html.dark body {
 	min-height: 100vh;
 }
 
+/* Reserve scrollbar space permanently — eliminates layout shift when
+   navigating between pages with/without scroll. */
+html {
+	scrollbar-gutter: stable;
+}
+
 /* Switch — verde quando ativo, thumb branco sempre */
 [data-slot="switch"][data-checked] {
 	background-color: #22c55e !important;
@@ -22,23 +28,29 @@ html.dark body {
 
 @layer base {
 	:root {
-		--tile-w: 148px;
-		--tile-h: 116px;
+		--tile-w: 160px;
+		/* Fallback height only — the grid overrides --tile-h with a value derived
+		   from --tile-w × the active aspect ratio (see DialGrid). Kept ≈1.12× so
+		   any fallback still reads slightly-taller-than-wide, Vivaldi-style. */
+		--tile-h: 179px;
 		--grid-gap: 22px;
 		--grid-max-width: 1216px;
-		--radius-card: 18px;
+		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
+		--card-footer-h: 30px;
 		--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 	}
 }
 
-/* data-tile no wrapper, NÃO no :root */
+/* data-tile lives on the grid wrapper, NOT on :root. Only the WIDTH changes
+   across size variants — the aspect ratio (and thus the card proportions) is
+   identical for Small / Medium / Large. */
 [data-tile="small"] {
-	--tile-w: 116px;
-	--tile-h: 90px;
+	--tile-w: 132px;
+	--tile-h: 148px;
 }
 [data-tile="large"] {
-	--tile-w: 190px;
-	--tile-h: 148px;
+	--tile-w: 196px;
+	--tile-h: 220px;
 }
 
 /* =========================================================
@@ -61,6 +73,17 @@ html.dark body {
 
 .dial-grid > * {
 	animation: cardIn 0.3s var(--ease-spring) both;
+}
+
+/* Card-layout cells (cards + folders + the empty "new folder" placeholder) all
+   derive their height STRICTLY from the fixed track width via a shared
+   aspect-ratio, so every tile keeps the exact same Vivaldi proportion and none
+   can stretch tall-and-narrow at the Small size. Icon layout opts out. */
+.dial-grid[data-layout="card"] .dial-cell {
+	aspect-ratio: var(--cell-aspect, 0.89);
+	display: flex;
+	flex-direction: column;
+	height: auto;
 }
 
 .dial-grid > *:nth-child(1) {
@@ -110,6 +133,51 @@ html.dark body {
 	}
 }
 
+/* Empty landing — unified stack entrance */
+@keyframes emptyLandingIn {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Toolbar leading (back + breadcrumb) — enter from left */
+@keyframes toolbarLeadingEnter {
+	from {
+		opacity: 0;
+		transform: translateX(-8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+/* Toolbar leading — exit to left */
+@keyframes toolbarLeadingExit {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(-8px);
+	}
+}
+
+.toolbar-leading-enter {
+	animation: toolbarLeadingEnter 200ms ease-out both;
+}
+
+.toolbar-leading-exit {
+	animation: toolbarLeadingExit 150ms ease-in both;
+	pointer-events: none;
+}
+
 /* =========================================================
    8.2 — prefers-reduced-motion
    ========================================================= */
@@ -127,13 +195,6 @@ html.dark body {
 	:root {
 		--grid-gap: 16px;
 	}
-	.topbar {
-		grid-template-columns: 1fr !important;
-		gap: 8px !important;
-	}
-	.topbar-actions {
-		justify-self: center !important;
-	}
 	.clock-time {
 		font-size: 42px !important;
 	}
@@ -142,8 +203,8 @@ html.dark body {
 @media (max-width: 480px) {
 	:root {
 		--grid-gap: 12px;
-		--tile-w: 130px;
-		--tile-h: 100px;
+		--tile-w: 132px;
+		--tile-h: 148px;
 	}
 	.hero {
 		padding-top: 24px !important;
@@ -152,16 +213,16 @@ html.dark body {
 	.clock-time {
 		font-size: 32px !important;
 	}
-	.search-pill {
-		max-width: 100% !important;
-		margin: 0 12px;
-	}
-	.folder-tabs-scroll {
-		gap: 0 !important;
-	}
-	.folder-tab {
-		font-size: 12px !important;
-		padding: 4px 10px !important;
+}
+
+/* =========================================================
+   8.3b — Toolbar responsive (new HIG toolbar)
+   ========================================================= */
+@media (max-width: 640px) {
+	header[style*="grid-template-columns"] {
+		grid-template-columns: auto 1fr auto !important;
+		padding-left: 8px !important;
+		padding-right: 8px !important;
 	}
 }
 
@@ -188,10 +249,14 @@ html.dark body {
 /* =========================================================
    8.5 — Focus states
    ========================================================= */
-:focus-visible {
-	outline: 2px solid rgba(255, 255, 255, 0.5);
-	outline-offset: 2px;
-	border-radius: 4px;
+/* Browser-native focus indicators are normalized in packages/ui globals.css
+   via @layer base { * { outline-0 } }. Tailwind v4 component tokens handle
+   focus rings with ring-1 ring-ring/20. The search input override remains
+   unlayered to win against Tailwind utilities for its specific use case. */
+[data-search-input]:focus,
+[data-search-input]:focus-visible {
+	outline: none;
+	border-radius: 0;
 }
 
 /* =========================================================
