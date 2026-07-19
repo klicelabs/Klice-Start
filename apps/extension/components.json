@@ -11,6 +11,9 @@
     "prefix": ""
   },
   "iconLibrary": "lucide",
+  "rtl": false,
+  "menuColor": "default-translucent",
+  "menuAccent": "subtle",
   "aliases": {
     "components": "@perch/ui/components",
     "utils": "@perch/ui/lib/utils",
@@ -18,8 +21,7 @@
     "lib": "@perch/ui/lib",
     "hooks": "@perch/ui/hooks"
   },
-  "menuColor": "default-translucent",
-  "menuAccent": "subtle",
-  "rtl": false,
-  "registries": {}
+  "registries": {
+    "@glasscn": "https://glasscn-components.vercel.app/r/{name}.json"
+  }
 }
