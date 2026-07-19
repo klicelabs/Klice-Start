@@ -57,14 +57,37 @@ export const GRADIENTS: GradientDef[] = [
 	},
 ];
 
+/**
+ * Grid tile widths per size. Heights are DERIVED from CARD_ASPECT_RATIO —
+ * these height values feed only fallbacks/icon layout. Small was bumped so it
+ * no longer reads as a cramped thumbnail.
+ */
 export const TILE_SIZE_DIMENSIONS: Record<
 	string,
 	{ width: number; height: number }
 > = {
-	small: { width: 116, height: 78 },
-	medium: { width: 148, height: 100 },
-	large: { width: 190, height: 128 },
+	small: { width: 132, height: 146 },
+	medium: { width: 160, height: 176 },
+	large: { width: 196, height: 216 },
 };
+
+/**
+ * Card height as a multiple of the tile width, per aspect choice.
+ *
+ * Vivaldi's Speed Dial cards are slightly TALLER than wide — the thumbnail is
+ * landscape and the footer sits beneath it, so the whole card lands just over
+ * 1:1. This ratio is applied to the tile WIDTH and is identical across the
+ * Small / Medium / Large size variants, so the proportions never change when
+ * the grid size is toggled.
+ */
+export const CARD_ASPECT_RATIO: Record<string, number> = {
+	horizontal: 0.82,
+	square: 1,
+	vertical: 1.12,
+};
+
+/** Uniform footer height (favicon + site name + breathing room). */
+export const CARD_FOOTER_HEIGHT_PX = 30;
 
 export const GRID_GAP_PX = 22;
 export const GRID_PADDING_X_PX = 24;
@@ -106,6 +129,8 @@ export interface SearchEngineDef {
 	label: string;
 	/** Query template; "%s" is replaced with the URL-encoded search terms. */
 	queryUrl: string;
+	/** Origin used to derive the engine's favicon for the in-input logo. */
+	homepage: string;
 }
 
 export const SEARCH_ENGINES: SearchEngineDef[] = [
@@ -113,28 +138,39 @@ export const SEARCH_ENGINES: SearchEngineDef[] = [
 		id: "google",
 		label: "Google",
 		queryUrl: "https://www.google.com/search?q=%s",
+		homepage: "https://www.google.com",
 	},
-	{ id: "bing", label: "Bing", queryUrl: "https://www.bing.com/search?q=%s" },
+	{
+		id: "bing",
+		label: "Bing",
+		queryUrl: "https://www.bing.com/search?q=%s",
+		homepage: "https://www.bing.com",
+	},
 	{
 		id: "duckduckgo",
 		label: "DuckDuckGo",
 		queryUrl: "https://duckduckgo.com/?q=%s",
+		homepage: "https://duckduckgo.com",
 	},
 	{
 		id: "brave",
 		label: "Brave",
 		queryUrl: "https://search.brave.com/search?q=%s",
+		homepage: "https://search.brave.com",
 	},
 	{
 		id: "ecosia",
 		label: "Ecosia",
 		queryUrl: "https://www.ecosia.org/search?q=%s",
+		homepage: "https://www.ecosia.org",
 	},
 ];
 
 export const DEFAULT_SEARCH: SearchSettings = {
 	enabled: true,
 	engine: "google",
+	placeholder: "",
+	iconMode: "search",
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -143,12 +179,16 @@ export const DEFAULT_SETTINGS: Settings = {
 	showTitle: true,
 	showDeleteButton: true,
 	openInNewTab: false,
-	iconRadius: 18,
+	iconRadius: 14,
+	dialLayout: "card",
+	cardAspect: "vertical",
+	iconShowLabel: true,
 	thumbnailCapture: { ...DEFAULT_THUMBNAIL_CAPTURE },
 	background: { ...DEFAULT_BACKGROUND },
 	clock: { ...DEFAULT_CLOCK },
 	greeting: { ...DEFAULT_GREETING },
 	search: { ...DEFAULT_SEARCH },
+	appearanceMode: "liquid",
 };
 
 export const DEFAULT_SETUP: Setup = {

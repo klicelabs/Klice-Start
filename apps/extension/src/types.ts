@@ -53,7 +53,23 @@ export interface GreetingSettings {
 export interface SearchSettings {
 	enabled: boolean;
 	engine: string;
+	/**
+	 * Placeholder text. When empty, the UI shows a dynamic default that names
+	 * the active engine (e.g. `Buscar com "Google"`).
+	 */
+	placeholder: string;
+	/** Leading glyph: the engine's own logo, or a classic magnifying glass. */
+	iconMode: "engine" | "search";
 }
+
+/** Top-level look: rich CSS glass material vs flat shadcn surfaces. */
+export type AppearanceMode = "liquid" | "classic";
+
+/** Speed Dial display mode: full cards vs app-launcher icons. */
+export type DialLayout = "card" | "icon";
+
+/** Card shape in card layout. Vertical is taller than wide (Vivaldi-style). */
+export type CardAspect = "square" | "horizontal" | "vertical";
 
 export interface Settings {
 	tileSize: "small" | "medium" | "large";
@@ -62,11 +78,18 @@ export interface Settings {
 	showDeleteButton: boolean;
 	openInNewTab: boolean;
 	iconRadius: number;
+	/** Speed Dial display mode. */
+	dialLayout: DialLayout;
+	/** Card aspect ratio (card layout only). */
+	cardAspect: CardAspect;
+	/** Show the site title under the icon in icon layout. */
+	iconShowLabel: boolean;
 	thumbnailCapture: ThumbnailCaptureSettings;
 	background: BackgroundSettings;
 	clock: ClockSettings;
 	greeting: GreetingSettings;
 	search: SearchSettings;
+	appearanceMode: AppearanceMode;
 }
 
 export interface Setup {

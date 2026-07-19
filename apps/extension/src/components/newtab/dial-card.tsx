@@ -1,18 +1,27 @@
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@perch/ui/components/context-menu";
 import { Icon } from "@perch/ui/icons/icon";
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useState } from "react";
+import { glassCardFooter } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
-import { cn, colorFromString } from "../../lib/utils";
+import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 import type { Card } from "../../types";
+import { useAppearance } from "./appearance-provider";
 
 interface DialCardProps {
 	card: Card;
 	onEdit: (id: string) => void;
 	onDelete: (id: string) => void;
-	/** Drag-and-drop props from useDragAndDrop.getItemProps(card.id). */
 	dragProps?: Record<string, unknown>;
 	className?: string;
+	style?: CSSProperties;
 }
 
 export function DialCard({
@@ -21,15 +30,15 @@ export function DialCard({
 	onDelete,
 	dragProps,
 	className,
+	style,
 }: DialCardProps) {
+	const { isLiquid } = useAppearance();
 	const getThumbnail = useImageStore((s) => s.getThumbnail);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const showDelete = useSetupStore((s) => s.settings.showDeleteButton);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
-	const iconRadius = useSetupStore((s) => s.settings.iconRadius);
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
-	// Guard against out-of-order resolution when thumbId changes quickly.
 	useEffect(() => {
 		let cancelled = false;
 		if (!card.thumbId) {
@@ -44,74 +53,111 @@ export function DialCard({
 		};
 	}, [card.thumbId, getThumbnail]);
 
-	const fallbackColor = colorFromString(card.url);
+	const fallbackColor = softGradientFromString(card.url);
 	const initial = (card.title || card.url).trim().charAt(0).toUpperCase();
 	const label = card.title || card.url;
 
+	function handleOpenNewTab() {
+		window.open(card.url, "_blank");
+	}
+
 	return (
-		<a
-			href={card.url}
-			target={openInNewTab ? "_blank" : "_self"}
-			rel={openInNewTab ? "noopener noreferrer" : undefined}
-			aria-label={label}
-			className={cn(
-				"squircle dial-card relative flex min-h-[var(--tile-h,100px)] cursor-pointer flex-col overflow-hidden border border-white/[0.06] bg-white/[0.04] transition-all duration-200 hover:translate-y-[-1px] hover:bg-white/[0.08] active:scale-[1.01]",
-				className,
-			)}
-			style={{ borderRadius: `${iconRadius}px` }}
-			onContextMenu={(e) => {
-				e.preventDefault();
-				onEdit(card.id);
-			}}
-			{...dragProps}
-		>
-			{thumbUrl ? (
-				<img
-					src={thumbUrl}
-					alt=""
-					className="thumb h-full w-full object-cover"
-					loading="lazy"
-				/>
-			) : (
-				<div
-					className="thumb-fallback flex flex-1 items-center justify-center font-semibold text-2xl text-white/60"
-					style={{ background: fallbackColor }}
-				>
-					{initial}
-				</div>
-			)}
-
-			{showTitle && (
-				<div className="card-footer flex items-center gap-1.5 p-1.5">
-					<img
-						src={card.favicon || faviconUrl(card.url)}
-						alt=""
-						className="favicon h-4 w-4 shrink-0 rounded-full"
-						onError={(e) => {
-							(e.target as HTMLImageElement).onerror = null;
-							(e.target as HTMLImageElement).src = faviconUrl(card.url);
-						}}
+		<ContextMenu>
+			<ContextMenuTrigger
+				className={cn(
+					"dial-card squircle isolate group relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
+					className,
+				)}
+				style={style}
+				render={
+					<a
+						href={card.url}
+						target={openInNewTab ? "_blank" : "_self"}
+						rel={openInNewTab ? "noopener noreferrer" : undefined}
+						aria-label={label}
+						{...dragProps}
 					/>
-					<span className="title truncate font-medium text-[11px] text-white/70">
-						{label}
-					</span>
-				</div>
-			)}
+				}
+			>
+				{thumbUrl ? (
+					<img
+						src={thumbUrl}
+						alt=""
+						className="thumb block min-h-0 w-full flex-1 object-cover"
+						loading="lazy"
+					/>
+				) : (
+					<div
+						className="thumb-fallback flex min-h-0 flex-1 items-center justify-center font-semibold text-2xl text-white/60"
+						style={{ background: fallbackColor }}
+					>
+						<span className="flex h-full w-full items-center justify-center">
+							{initial}
+						</span>
+					</div>
+				)}
 
-			{showDelete && (
-				<button
-					type="button"
-					aria-label={`Remove ${label}`}
-					className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 hover:bg-red-500 hover:text-white"
-					onClick={(e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						onDelete(card.id);
-					}}
+				{showTitle && (
+					<div
+						className={cn(
+							"card-footer flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2",
+							glassCardFooter(isLiquid),
+						)}
+						style={{ height: "var(--card-footer-h, 30px)" }}
+					>
+						<img
+							src={card.favicon || faviconUrl(card.url)}
+							alt=""
+							className="favicon h-4 w-4 shrink-0 rounded-full"
+							onError={(e) => {
+								(e.target as HTMLImageElement).onerror = null;
+								(e.target as HTMLImageElement).src = faviconUrl(card.url);
+							}}
+						/>
+						<span className="title truncate font-medium text-[11px]">
+							{label}
+						</span>
+					</div>
+				)}
+
+				{showDelete && (
+					<button
+						type="button"
+						aria-label={`Remove ${label}`}
+						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 hover:bg-red-500 hover:text-white"
+						onClick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							onDelete(card.id);
+						}}
+					>
+						<Icon name="x" size={13} />
+					</button>
+				)}
+			</ContextMenuTrigger>
+
+			<ContextMenuContent>
+				<ContextMenuItem onClick={handleOpenNewTab}>
+					<Icon name="globe" size={15} />
+					Open in new tab
+				</ContextMenuItem>
+				<ContextMenuItem onClick={() => onEdit(card.id)}>
+					<Icon name="pencil" size={15} />
+					Rename
+				</ContextMenuItem>
+				<ContextMenuItem onClick={() => onEdit(card.id)}>
+					<Icon name="globe" size={15} />
+					Edit URL
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					variant="destructive"
+					onClick={() => onDelete(card.id)}
 				>
-					<Icon name="x" size={13} />
-				</button>
-			)}
-		</a>
+					<Icon name="trash" size={15} />
+					Delete
+				</ContextMenuItem>
+			</ContextMenuContent>
+		</ContextMenu>
 	);
 }
