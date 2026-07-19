@@ -675,7 +675,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
 									<div className="px-1 pt-1 pb-2">
 										<Input
-											placeholder={`Buscar com "${
+											placeholder={`Search with "${
 												(
 													SEARCH_ENGINES.find((e) => e.id === search.engine) ??
 													SEARCH_ENGINES[0]

@@ -34,9 +34,9 @@ export function SearchBar() {
 		SEARCH_ENGINES.find((s) => s.id === engineId) ?? SEARCH_ENGINES[0];
 
 	// Placeholder: user's custom string wins; otherwise a dynamic default that
-	// names the active engine, e.g. `Buscar com "Google"`.
+	// names the active engine, e.g. `Search with "Google"`.
 	const placeholder =
-		customPlaceholder.trim() || `Buscar com "${engine.label}"`;
+		customPlaceholder.trim() || `Search with "${engine.label}"`;
 
 	const showEngineLogo = iconMode === "engine" && !logoFailed;
 

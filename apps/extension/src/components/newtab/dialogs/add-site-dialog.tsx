@@ -291,7 +291,7 @@ export function AddSiteDialog({
 								)}
 
 								<span className={cn("block text-[11px] font-medium mb-3", glassText(isLiquid, "secondary"))}>
-									Pastas
+									Folders
 								</span>
 								<div
 									className={cn(
@@ -316,7 +316,7 @@ export function AddSiteDialog({
 											}`}
 										/>
 										<Icon name="folder" size={15} className="shrink-0" />
-										New folder
+										Create folder
 									</button>
 									{showNewFolder && (
 										<div
@@ -391,7 +391,7 @@ export function AddSiteDialog({
 								</div>
 
 								<span className={cn("block text-[11px] font-medium mb-3", glassText(isLiquid, "secondary"))}>
-									Recomendados
+									Recommended
 								</span>
 								<div className="space-y-2">
 									<div className="grid grid-cols-5 gap-1.5">

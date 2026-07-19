@@ -145,18 +145,18 @@ export function PageContextMenu({
 					onClick={onOpenBackgroundSettings}
 				>
 					<Sliders className={iconClassName} />
-					Editar configurações do plano de fundo
+					Edit background settings
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={itemClassName}
 					onClick={onOpenShortcutSettings}
 				>
 					<Link className={iconClassName} />
-					Editar configurações de links rápidos
+					Edit shortcut settings
 				</ContextMenuItem>
 				<ContextMenuItem className={itemClassName} onClick={onAddQuickLink}>
 					<PlusCircle className={iconClassName} />
-					Adicionar novo link rápido
+					Add new quick link
 				</ContextMenuItem>
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}
@@ -166,7 +166,7 @@ export function PageContextMenu({
 					onClick={handleDownloadBackground}
 				>
 					<Download className={iconClassName} />
-					Baixar plano de fundo
+					Download background
 				</ContextMenuItem>
 				<ContextMenuItem className={itemClassName} onClick={handleToggleLock}>
 					{background.unsplashLocked ? (
@@ -175,15 +175,15 @@ export function PageContextMenu({
 						<Lock className={iconClassName} />
 					)}
 					{background.unsplashLocked
-						? "Desbloquear plano de fundo atual"
-						: "Bloquear plano de fundo atual"}
+						? "Unlock current background"
+						: "Lock current background"}
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={itemClassName}
 					onClick={handleNextBackground}
 				>
 					<RefreshCw className={iconClassName} />
-					Próximo plano de fundo
+					Next background
 				</ContextMenuItem>
 			</ContextMenuContent>
 		</ContextMenu>
