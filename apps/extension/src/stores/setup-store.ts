@@ -254,7 +254,7 @@ export const useSetupStore = create<SetupStore>()(
 			replaceSetup: (setup) => set(normalizeState(setup)),
 
 			resetAll: async () => {
-				await chrome.storage.local.clear();
+				await chrome.storage.local.remove("perch-setup");
 				await useImageStore.getState().clearAll();
 				set(normalizeState(null));
 			},
@@ -262,6 +262,12 @@ export const useSetupStore = create<SetupStore>()(
 		{
 			name: "perch-setup",
 			storage: chromeStorageAdapter,
+			partialize: (s) => ({
+				folders: s.folders,
+				cards: s.cards,
+				activeFolderId: s.activeFolderId,
+				settings: s.settings,
+			}),
 		},
 	),
 );

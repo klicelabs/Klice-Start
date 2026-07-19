@@ -104,9 +104,56 @@ export function normalizeState(
 	return state;
 }
 
+// --- Coalesced persist ---
+
+let _pendingSetItem: { name: string; value: StorageValue<Setup> } | null = null;
+let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
+let _lastWrittenJSON: string | null = null;
+
+function _doWrite(name: string, value: StorageValue<Setup>): Promise<void> {
+	const json = JSON.stringify(value);
+	return chrome.storage.local.set({ [name]: json }).then(() => {
+		_lastWrittenJSON = json;
+	});
+}
+
+/**
+ * Immediately flush any pending coalesced write to chrome.storage.
+ * Returns a promise that resolves when the write completes.
+ */
+export function flushPersist(): Promise<void> {
+	if (_setItemTimer) clearTimeout(_setItemTimer);
+	_setItemTimer = null;
+	const snap = _pendingSetItem;
+	_pendingSetItem = null;
+	if (!snap) return Promise.resolve();
+	return _doWrite(snap.name, snap.value);
+}
+
+/**
+ * Returns the JSON string of the last successfully completed write,
+ * used by the cross-tab sync guard to detect our own echoes.
+ */
+export function getLastWrittenJSON(): string | null {
+	return _lastWrittenJSON;
+}
+
+// Flush pending writes before the tab closes or hides.
+if (typeof window !== "undefined") {
+	const onFlush = () => { flushPersist(); };
+	window.addEventListener("beforeunload", onFlush);
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "hidden") flushPersist();
+	});
+}
+
 /**
  * Zustand persist storage adapter backed by chrome.storage.local.
  * Uses chrome.* API directly since it's always available in extension pages.
+ *
+ * Writes are coalesced — rapid setItem calls are debounced so only the
+ * latest snapshot is persisted. Call `flushPersist()` to force an
+ * immediate write (e.g. on slider release).
  */
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
@@ -116,8 +163,20 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		parsed.state = normalizeState(parsed.state as Partial<Setup>);
 		return parsed;
 	},
-	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
-		await chrome.storage.local.set({ [name]: JSON.stringify(value) });
+	setItem: (name: string, value: StorageValue<Setup>): Promise<void> => {
+		_pendingSetItem = { name, value };
+		if (_setItemTimer) clearTimeout(_setItemTimer);
+		return new Promise((resolve) => {
+			_setItemTimer = setTimeout(() => {
+				const snap = _pendingSetItem;
+				_pendingSetItem = null;
+				if (!snap) { resolve(); return; }
+				_doWrite(snap.name, snap.value).then(resolve, (err) => {
+					console.warn("[perch] chrome.storage.local.set failed", err);
+					resolve();
+				});
+			}, 200);
+		});
 	},
 	removeItem: async (name: string): Promise<void> => {
 		await chrome.storage.local.remove(name);

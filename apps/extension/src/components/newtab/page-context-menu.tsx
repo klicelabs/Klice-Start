@@ -44,17 +44,28 @@ export function PageContextMenu({
 	onAddQuickLink,
 }: PageContextMenuProps) {
 	const { isLiquid } = useAppearance();
-	const background = useSetupStore((s) => s.settings.background);
+	const bgType = useSetupStore((s) => s.settings.background.type);
+	const bgUnsplashSig = useSetupStore(
+		(s) => s.settings.background.unsplashSig,
+	);
+	const bgUnsplashUrl = useSetupStore(
+		(s) => s.settings.background.unsplashUrl,
+	);
+	const bgUnsplashDownloadUrl = useSetupStore(
+		(s) => s.settings.background.unsplashDownloadUrl,
+	);
+	const bgUnsplashLocked = useSetupStore(
+		(s) => s.settings.background.unsplashLocked,
+	);
 	const updateBackground = useSetupStore((s) => s.updateBackground);
 	const [open, setOpen] = useState(false);
 	const suppressNextOpen = useRef(false);
 
 	const ensureUnsplashBackground = useCallback(() => {
-		const sig = background.unsplashSig || Date.now();
-		const url = background.unsplashUrl || unsplashImageUrl(sig);
-		const downloadUrl =
-			background.unsplashDownloadUrl || unsplashDownloadUrl(sig);
-		if (background.type !== "unsplash" || !background.unsplashUrl) {
+		const sig = bgUnsplashSig || Date.now();
+		const url = bgUnsplashUrl || unsplashImageUrl(sig);
+		const downloadUrl = bgUnsplashDownloadUrl || unsplashDownloadUrl(sig);
+		if (bgType !== "unsplash" || !bgUnsplashUrl) {
 			updateBackground({
 				type: "unsplash",
 				unsplashSig: sig,
@@ -63,7 +74,7 @@ export function PageContextMenu({
 			});
 		}
 		return { url, downloadUrl };
-	}, [background, updateBackground]);
+	}, [bgType, bgUnsplashSig, bgUnsplashUrl, bgUnsplashDownloadUrl, updateBackground]);
 
 	function handleContextMenu(event: MouseEvent) {
 		const target = event.target as Element | null;
@@ -93,7 +104,7 @@ export function PageContextMenu({
 		const { url, downloadUrl } = ensureUnsplashBackground();
 		updateBackground({
 			type: "unsplash",
-			unsplashLocked: !background.unsplashLocked,
+			unsplashLocked: !bgUnsplashLocked,
 			unsplashUrl: url,
 			unsplashDownloadUrl: downloadUrl,
 		});
@@ -169,12 +180,12 @@ export function PageContextMenu({
 					Download background
 				</ContextMenuItem>
 				<ContextMenuItem className={itemClassName} onClick={handleToggleLock}>
-					{background.unsplashLocked ? (
+					{bgUnsplashLocked ? (
 						<Unlock className={iconClassName} />
 					) : (
 						<Lock className={iconClassName} />
 					)}
-					{background.unsplashLocked
+					{bgUnsplashLocked
 						? "Unlock current background"
 						: "Lock current background"}
 				</ContextMenuItem>

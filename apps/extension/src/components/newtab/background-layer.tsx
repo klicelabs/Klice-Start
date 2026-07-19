@@ -6,28 +6,42 @@ import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 
 export function BackgroundLayer() {
-	const background = useSetupStore((s) => s.settings.background);
+	// Source fields (only these re-resolve bgCss)
+	const type = useSetupStore((s) => s.settings.background.type);
+	const imageId = useSetupStore((s) => s.settings.background.imageId);
+	const gradientId = useSetupStore((s) => s.settings.background.gradientId);
+	const color = useSetupStore((s) => s.settings.background.color);
+	const unsplashUrl = useSetupStore((s) => s.settings.background.unsplashUrl);
+	const unsplashSig = useSetupStore((s) => s.settings.background.unsplashSig);
+	const unsplashLocked = useSetupStore(
+		(s) => s.settings.background.unsplashLocked,
+	);
+
+	// Filter fields (applied directly in style — no effect re-run)
+	const blur = useSetupStore((s) => s.settings.background.blur);
+	const brightness = useSetupStore((s) => s.settings.background.brightness);
+	const opacity = useSetupStore((s) => s.settings.background.opacity);
+
 	const updateBackground = useSetupStore((s) => s.updateBackground);
 	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 	const [bgCss, setBgCss] = useState<string>(
-		background.color || DEFAULT_BACKGROUND.color,
+		color || DEFAULT_BACKGROUND.color,
 	);
 
+	// Resolve background source (only when source fields change)
 	useEffect(() => {
 		let cancelled = false;
 
 		(async () => {
-			if (background.type === "unsplash") {
-				const url =
-					background.unsplashUrl ||
-					unsplashImageUrl(background.unsplashSig || 1);
+			if (type === "unsplash") {
+				const url = unsplashUrl || unsplashImageUrl(unsplashSig || 1);
 				if (!cancelled) setBgCss(`${cssUrl(url)} center / cover no-repeat`);
 				return;
 			}
 
-			if (background.type === "image" && background.imageId) {
+			if (type === "image" && imageId) {
 				try {
-					const dataUrl = await getBackgroundImage(background.imageId);
+					const dataUrl = await getBackgroundImage(imageId);
 					if (dataUrl && !cancelled) {
 						setBgCss(`${cssUrl(dataUrl)} center / cover no-repeat`);
 						return;
@@ -37,38 +51,39 @@ export function BackgroundLayer() {
 				}
 			}
 
-			if (background.type === "gradient" && background.gradientId) {
+			if (type === "gradient" && gradientId) {
 				const g =
-					GRADIENTS.find((x) => x.id === background.gradientId) || GRADIENTS[0];
+					GRADIENTS.find((x) => x.id === gradientId) || GRADIENTS[0];
 				if (!cancelled) setBgCss(g.css);
 				return;
 			}
 
-			if (!cancelled) setBgCss(background.color || "#0A0A0C");
+			if (!cancelled) setBgCss(color || "#0A0A0C");
 		})();
 
 		return () => {
 			cancelled = true;
 		};
-	}, [background, getBackgroundImage]);
+	}, [type, imageId, gradientId, color, unsplashUrl, unsplashSig, getBackgroundImage]);
 
+	// Unsplash auto-refresh with visibility gate
 	useEffect(() => {
-		if (background.type !== "unsplash" || background.unsplashLocked) return;
+		if (type !== "unsplash" || unsplashLocked) return;
 
-		const interval = window.setInterval(
-			() => {
-				const sig = Date.now();
-				updateBackground({
-					unsplashSig: sig,
-					unsplashUrl: unsplashImageUrl(sig),
-					unsplashDownloadUrl: unsplashImageUrl(sig),
-				});
-			},
-			10 * 60 * 1000,
-		);
+		function maybeNext() {
+			if (document.visibilityState === "hidden") return;
+			const sig = Date.now();
+			updateBackground({
+				unsplashSig: sig,
+				unsplashUrl: unsplashImageUrl(sig),
+				unsplashDownloadUrl: unsplashImageUrl(sig),
+			});
+		}
+
+		const interval = window.setInterval(maybeNext, 10 * 60 * 1000);
 
 		return () => window.clearInterval(interval);
-	}, [background.type, background.unsplashLocked, updateBackground]);
+	}, [type, unsplashLocked, updateBackground]);
 
 	return (
 		<div
@@ -76,8 +91,8 @@ export function BackgroundLayer() {
 			className="fixed inset-0 -z-10"
 			style={{
 				background: bgCss,
-				filter: `blur(${background.blur || 0}px) brightness(${background.brightness || 100}%)`,
-				opacity: (background.opacity ?? 100) / 100,
+				filter: `blur(${blur || 0}px) brightness(${brightness || 100}%)`,
+				opacity: (opacity ?? 100) / 100,
 			}}
 		/>
 	);

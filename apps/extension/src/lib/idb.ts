@@ -13,18 +13,38 @@ export const STORE_BG = "backgrounds";
 
 export type ImageStoreName = typeof STORE_THUMBS | typeof STORE_BG;
 
+let _dbPromise: Promise<IDBDatabase> | null = null;
+
+function resetDBPromise() {
+	_dbPromise = null;
+}
+
 export function openIDB(): Promise<IDBDatabase> {
-	const { promise, resolve, reject } = Promise.withResolvers<IDBDatabase>();
-	const req = indexedDB.open(DB_NAME, DB_VERSION);
-	req.onupgradeneeded = () => {
-		const db = req.result;
-		if (!db.objectStoreNames.contains(STORE_THUMBS))
-			db.createObjectStore(STORE_THUMBS);
-		if (!db.objectStoreNames.contains(STORE_BG)) db.createObjectStore(STORE_BG);
-	};
-	req.onsuccess = () => resolve(req.result);
-	req.onerror = () => reject(req.error);
-	return promise;
+	if (_dbPromise) return _dbPromise;
+	_dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
+		const req = indexedDB.open(DB_NAME, DB_VERSION);
+		req.onupgradeneeded = () => {
+			const db = req.result;
+			if (!db.objectStoreNames.contains(STORE_THUMBS))
+				db.createObjectStore(STORE_THUMBS);
+			if (!db.objectStoreNames.contains(STORE_BG))
+				db.createObjectStore(STORE_BG);
+		};
+		req.onsuccess = () => {
+			const db = req.result;
+			db.onclose = resetDBPromise;
+			db.onversionchange = () => {
+				db.close();
+				resetDBPromise();
+			};
+			resolve(db);
+		};
+		req.onerror = () => {
+			resetDBPromise();
+			reject(req.error);
+		};
+	});
+	return _dbPromise;
 }
 
 export async function idbPut(

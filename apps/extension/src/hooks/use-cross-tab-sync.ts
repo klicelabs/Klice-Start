@@ -1,31 +1,19 @@
-import { useEffect, useRef } from "react";
-import { normalizeState } from "../lib/storage";
+import { useEffect } from "react";
+import { getLastWrittenJSON, normalizeState } from "../lib/storage";
 import { useSetupStore } from "../stores/setup-store";
 import type { Setup } from "../types";
 
-/** Helper to serialize only the database state fields, ensuring key order. */
-function serializeSetupState(state: Setup): string {
-	return JSON.stringify({
-		folders: state.folders,
-		cards: state.cards,
-		activeFolderId: state.activeFolderId,
-		settings: state.settings,
-	});
-}
-
 /**
  * Listen for storage changes from other tabs and update the store.
- * Uses a strict echo guard that compares only serializable state fields.
+ *
+ * Echo guard: compares the raw incoming JSON against the last successfully
+ * written JSON string from the storage adapter. If they match exactly, the
+ * change was written by this tab — skip it. This prevents the classic
+ * out-of-order write race (write A completes → onChanged fires with A →
+ * store gets overwritten with stale value).
  */
 export function useCrossTabSync() {
-	const lastKnownJSON = useRef(serializeSetupState(useSetupStore.getState()));
-
 	useEffect(() => {
-		// Keep lastKnownJSON in sync whenever store changes (including from persist)
-		const unsub = useSetupStore.subscribe((state) => {
-			lastKnownJSON.current = serializeSetupState(state);
-		});
-
 		const handler = (
 			changes: Record<string, chrome.storage.StorageChange>,
 			area: string,
@@ -35,21 +23,21 @@ export function useCrossTabSync() {
 			const newValue = changes["perch-setup"].newValue;
 			if (!newValue) return;
 
+			const raw =
+				typeof newValue === "string" ? newValue : JSON.stringify(newValue);
+
+			// Our own echo — skip
+			if (raw === getLastWrittenJSON()) return;
+
 			try {
 				const parsed =
 					typeof newValue === "string" ? JSON.parse(newValue) : newValue;
 
-				// Ensure we got a valid Zustand persist state shape
 				if (!parsed || typeof parsed !== "object" || !("state" in parsed))
 					return;
 
 				const current = useSetupStore.getState();
 				const incoming = normalizeState(parsed.state as Partial<Setup>);
-
-				const incomingJSON = serializeSetupState(incoming);
-				if (incomingJSON === lastKnownJSON.current) return;
-
-				lastKnownJSON.current = incomingJSON;
 
 				// Apply incoming state, keeping the active folder if it still exists
 				const keepActive = current.activeFolderId;
@@ -65,7 +53,6 @@ export function useCrossTabSync() {
 		chrome.storage.onChanged.addListener(handler);
 		return () => {
 			chrome.storage.onChanged.removeListener(handler);
-			unsub();
 		};
 	}, []);
 }

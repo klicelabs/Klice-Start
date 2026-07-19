@@ -57,8 +57,12 @@ function computeGreeting(date: Date, name: string): string {
 }
 
 export function useClock(): ClockState {
-	const clock = useSetupStore((s) => s.settings.clock);
-	const greeting = useSetupStore((s) => s.settings.greeting);
+	const enabled = useSetupStore((s) => s.settings.clock.enabled);
+	const format24 = useSetupStore((s) => s.settings.clock.format24);
+	const showSeconds = useSetupStore((s) => s.settings.clock.showSeconds);
+	const timezone = useSetupStore((s) => s.settings.clock.timezone);
+	const greetingEnabled = useSetupStore((s) => s.settings.greeting.enabled);
+	const name = useSetupStore((s) => s.settings.greeting.name);
 	const [now, setNow] = useState(new Date());
 
 	useEffect(() => {
@@ -66,14 +70,14 @@ export function useClock(): ClockState {
 		return () => clearInterval(timer);
 	}, []);
 
-	if (!clock.enabled) {
+	if (!enabled) {
 		return { time: "", date: "", greeting: "", visible: false };
 	}
 
 	return {
-		time: formatTime(now, clock.format24, clock.showSeconds, clock.timezone),
-		date: formatDate(now, clock.timezone),
-		greeting: greeting.enabled ? computeGreeting(now, greeting.name) : "",
+		time: formatTime(now, format24, showSeconds, timezone),
+		date: formatDate(now, timezone),
+		greeting: greetingEnabled ? computeGreeting(now, name) : "",
 		visible: true,
 	};
 }

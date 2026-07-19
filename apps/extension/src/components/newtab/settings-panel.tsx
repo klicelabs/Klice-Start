@@ -27,7 +27,8 @@ import { Slider } from "@perch/ui/components/slider";
 import { Switch } from "@perch/ui/components/switch";
 import type { IconName } from "@perch/ui/icons/icon";
 import { Icon } from "@perch/ui/icons/icon";
-import { type ChangeEvent, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { flushPersist } from "../../lib/storage";
 import { GRADIENTS, SEARCH_ENGINES } from "../../lib/constants";
 import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
 import { SvgIcon } from "../shared/svg-icon";
@@ -88,12 +89,19 @@ function SliderRow({
 	step?: number;
 	onChange: (value: number) => void;
 }) {
+	const [local, setLocal] = useState(value);
+	const dragging = useRef(false);
+
+	useEffect(() => {
+		if (!dragging.current) setLocal(value);
+	}, [value]);
+
 	return (
 		<div className="flex min-h-[44px] items-center gap-4 border-border/50 border-b px-1 py-2.5 last:border-b-0">
 			<div className="flex min-w-0 shrink-0 basis-[46%] flex-col">
 				<span className="text-foreground text-sm">{label}</span>
 				<span className="text-muted-foreground text-xs tabular-nums">
-					{value}
+					{local}
 					{suffix}
 				</span>
 			</div>
@@ -101,8 +109,16 @@ function SliderRow({
 				min={min}
 				max={max}
 				step={step}
-				value={[value]}
-				onValueChange={(v) => onChange(v[0])}
+				value={[local]}
+				onValueChange={([v]) => {
+					dragging.current = true;
+					setLocal(v);
+					onChange(v);
+				}}
+				onValueCommit={() => {
+					dragging.current = false;
+					flushPersist();
+				}}
 				className="flex-1"
 				aria-label={label}
 			/>
