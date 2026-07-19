@@ -1,13 +1,16 @@
-import { useCallback, useMemo, useState } from "react";
-import { AddShortcutButton } from "../../src/components/newtab/add-shortcut-button";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppearanceProvider } from "../../src/components/newtab/appearance-provider";
 import { BackgroundLayer } from "../../src/components/newtab/background-layer";
 import { ClockWidget } from "../../src/components/newtab/clock-widget";
 import { DialGrid } from "../../src/components/newtab/dial-grid";
-import { SearchBar } from "../../src/components/newtab/search-bar";
+import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
+import { AddFolderDialog } from "../../src/components/newtab/dialogs/add-folder-dialog";
+import { AddSiteDialog } from "../../src/components/newtab/dialogs/add-site-dialog";
+import { EmptyLanding } from "../../src/components/newtab/empty-landing";
+import { GlobalSearch } from "../../src/components/newtab/search/global-search";
+import { SearchBar } from "../../src/components/newtab/search/search-bar";
 import { SettingsPanel } from "../../src/components/newtab/settings-panel";
-import { Topbar } from "../../src/components/newtab/topbar";
-import { CardDialog } from "../../src/components/shared/card-dialog";
-import { FolderDialog } from "../../src/components/shared/folder-dialog";
+import { NavigationToolbar } from "../../src/components/newtab/toolbar/navigation-toolbar";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
 import {
 	getBreadcrumb,
@@ -35,7 +38,6 @@ export default function App() {
 	const moveFolder = useSetupStore((s) => s.moveFolder);
 	const reorderFolders = useSetupStore((s) => s.reorderFolders);
 
-	// Cycle-safe check used by folder drop targets before nesting.
 	const canNestFolder = useCallback(
 		(folderId: string, targetFolderId: string) =>
 			folderId !== targetFolderId &&
@@ -43,9 +45,6 @@ export default function App() {
 		[folders],
 	);
 
-	// ⚠️ IMPORTANTE: Nunca criar novos objetos dentro do selector do Zustand!
-	// Isso causa loop infinito com useSyncExternalStore + React 19 + Zustand v5 (error #185).
-	// A filtragem é feita AQUI no corpo do componente, não no selector.
 	const allCards = useSetupStore((s) => s.cards as Card[]);
 	const cards = useMemo(
 		() =>
@@ -55,7 +54,6 @@ export default function App() {
 		[allCards, activeFolderId],
 	);
 
-	// Hierarchy-derived view state.
 	const subfolders = useMemo(
 		() => getChildren(folders, activeFolderId),
 		[folders, activeFolderId],
@@ -66,7 +64,8 @@ export default function App() {
 	);
 	const activeRootId = breadcrumb[0]?.id ?? activeFolderId;
 	const rootFolders = useMemo(() => getChildren(folders, null), [folders]);
-	// Item count per folder (cards only) for the folder-tile badge.
+
+	// Item count per folder (cards only).
 	const cardCounts = useMemo(() => {
 		const counts: Record<string, number> = {};
 		for (const c of allCards)
@@ -74,11 +73,53 @@ export default function App() {
 		return counts;
 	}, [allCards]);
 
+	// Preview cards per subfolder (first ≤4 cards) for the mini Speed-Dial
+	// mosaic. We pass card refs (thumbId + favicon) so each tile can show the
+	// real thumbnail with a favicon fallback.
+	const previewCards = useMemo(() => {
+		const map: Record<string, FolderPreviewItem[]> = {};
+		for (const folder of subfolders) {
+			map[folder.id] = allCards
+				.filter((c) => c.folderId === folder.id)
+				.sort((a, b) => a.order - b.order)
+				.slice(0, 4)
+				.map((c) => ({
+					id: c.id,
+					thumbId: c.thumbId,
+					favicon: c.favicon || faviconUrl(c.url),
+				}));
+		}
+		return map;
+	}, [allCards, subfolders]);
+
+	// Whether the current folder is empty (no cards and no subfolders).
+	const isEmpty = cards.length === 0 && subfolders.length === 0;
+
+	// Current folder name for the empty landing badge.
+	const currentFolderName = useMemo(() => {
+		const folder = folders.find((f) => f.id === activeFolderId);
+		return folder?.name ?? "Home";
+	}, [folders, activeFolderId]);
+
+	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
 	const [showCardDialog, setShowCardDialog] = useState(false);
 	const [editingCardId, setEditingCardId] = useState<string | null>(null);
 	const [showFolderDialog, setShowFolderDialog] = useState(false);
 	const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+	const [showSearch, setShowSearch] = useState(false);
+
+	// Keyboard shortcut: Ctrl+K / Cmd+K opens search.
+	useEffect(() => {
+		function handleKey(e: KeyboardEvent) {
+			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+				e.preventDefault();
+				setShowSearch((prev) => !prev);
+			}
+		}
+		document.addEventListener("keydown", handleKey);
+		return () => document.removeEventListener("keydown", handleKey);
+	}, []);
 
 	const handleOpenCardDialog = useCallback((cardId: string | null = null) => {
 		setEditingCardId(cardId);
@@ -159,94 +200,130 @@ export default function App() {
 	);
 
 	return (
-		<div className="relative flex min-h-screen flex-col text-white">
-			<BackgroundLayer />
+		<AppearanceProvider>
+			<div className="relative flex min-h-screen flex-col text-white">
+				<BackgroundLayer />
 
-			<Topbar
-				rootFolders={rootFolders}
-				activeRootId={activeRootId}
-				onSelectFolder={setActiveFolder}
-				onAddFolder={() => {
-					setEditingFolderId(null);
-					setShowFolderDialog(true);
-				}}
-				onOpenSettings={() => setShowSettings(true)}
-				onEditFolder={(id) => {
-					setEditingFolderId(id);
-					setShowFolderDialog(true);
-				}}
-				onReorderFolders={(fromId, toId) =>
-					useSetupStore.getState().reorderFolders(fromId, toId)
-				}
-				onDropCard={(cardId, folderId) => moveCard(cardId, folderId)}
-				onMoveFolder={(folderId, targetId) => moveFolder(folderId, targetId)}
-				canNestFolder={canNestFolder}
-			/>
+				<NavigationToolbar
+					folders={folders}
+					rootFolders={rootFolders}
+					activeFolderId={activeFolderId}
+					activeRootId={activeRootId}
+					onSelectFolder={setActiveFolder}
+					onAddFolder={() => {
+						setEditingFolderId(null);
+						setShowFolderDialog(true);
+					}}
+					onOpenSettings={() => setShowSettings(true)}
+					onOpenSearch={() => setShowSearch(true)}
+					onAddFavorite={() => handleOpenCardDialog(null)}
+					onEditFolder={(id) => {
+						setEditingFolderId(id);
+						setShowFolderDialog(true);
+					}}
+					onDeleteFolder={handleFolderDelete}
+					onReorderFolders={(fromId, toId) =>
+						useSetupStore.getState().reorderFolders(fromId, toId)
+					}
+					onDropCard={(cardId, folderId) => moveCard(cardId, folderId)}
+					onMoveFolder={(folderId, targetId) => moveFolder(folderId, targetId)}
+					canNestFolder={canNestFolder}
+				/>
 
-			<main className="hero flex flex-col items-center gap-8 pt-12 pb-8">
-				<ClockWidget />
-				<SearchBar />
-			</main>
+				{/* Hero is a single, unified global wrapper rendered in EVERY state
+				    (empty folders included) so the clock + date always mount once and
+				    read size/format straight from the central store — no per-page
+				    clock instance that could reset when a subfolder is empty. */}
+				<div className="pb-20">
+					<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
+						<ClockWidget />
+						<SearchBar />
+					</main>
 
-			<DialGrid
-				cards={cards}
-				subfolders={subfolders}
-				folders={folders}
-				activeFolderId={activeFolderId}
-				cardCounts={cardCounts}
-				onEdit={(id) => handleOpenCardDialog(id)}
-				onDelete={handleCardDelete}
-				onReorder={(fromId, toId) =>
-					useSetupStore.getState().reorderCardsInActiveFolder(fromId, toId)
-				}
-				onAdd={() => handleOpenCardDialog(null)}
-				onOpenFolder={setActiveFolder}
-				onEditFolder={(id) => {
-					setEditingFolderId(id);
-					setShowFolderDialog(true);
-				}}
-				onNavigate={setActiveFolder}
-				onMoveCard={(cardId, folderId) => moveCard(cardId, folderId)}
-				onReorderFolders={(fromId, toId) => reorderFolders(fromId, toId)}
-				onMoveFolder={(folderId, targetFolderId) =>
-					moveFolder(folderId, targetFolderId)
-				}
-				canNestFolder={canNestFolder}
-			/>
+					{isEmpty ? (
+						<EmptyLanding
+							folderName={currentFolderName}
+							onAdd={() => handleOpenCardDialog(null)}
+						/>
+					) : (
+						<DialGrid
+							cards={cards}
+							subfolders={subfolders}
+							cardCounts={cardCounts}
+							previewCards={previewCards}
+							onEdit={(id) => handleOpenCardDialog(id)}
+							onDelete={handleCardDelete}
+							onDeleteFolder={handleFolderDelete}
+							onReorder={(fromId, toId) =>
+								useSetupStore
+									.getState()
+									.reorderCardsInActiveFolder(fromId, toId)
+							}
+							onAdd={() => handleOpenCardDialog(null)}
+							onAddFolder={() => {
+								setEditingFolderId(null);
+								setShowFolderDialog(true);
+							}}
+							onOpenFolder={setActiveFolder}
+							onEditFolder={(id) => {
+								setEditingFolderId(id);
+								setShowFolderDialog(true);
+							}}
+							onMoveCard={(cardId, folderId) => moveCard(cardId, folderId)}
+							onReorderFolders={(fromId, toId) => reorderFolders(fromId, toId)}
+							onMoveFolder={(folderId, targetFolderId) =>
+								moveFolder(folderId, targetFolderId)
+							}
+							canNestFolder={canNestFolder}
+						/>
+					)}
+				</div>
 
-			<AddShortcutButton onClick={() => handleOpenCardDialog(null)} />
+				{/* Global Search overlay (Spotlight-style) */}
+				<GlobalSearch
+					open={showSearch}
+					onClose={() => setShowSearch(false)}
+					onNavigateFolder={(id) => {
+						setActiveFolder(id);
+						setShowSearch(false);
+					}}
+				/>
 
-			<CardDialog
-				open={showCardDialog}
-				editingCardId={editingCardId}
-				folderId={activeFolderId}
-				onSave={handleCardSave}
-				onClose={() => {
-					setShowCardDialog(false);
-					setEditingCardId(null);
-				}}
-			/>
+				{/* Add/Edit Site dialog */}
+				<AddSiteDialog
+					open={showCardDialog}
+					editingCardId={editingCardId}
+					folderId={activeFolderId}
+					onSave={handleCardSave}
+					onClose={() => {
+						setShowCardDialog(false);
+						setEditingCardId(null);
+					}}
+				/>
 
-			<FolderDialog
-				open={showFolderDialog}
-				editingFolder={folders.find((f) => f.id === editingFolderId) ?? null}
-				folders={folders}
-				defaultParentId={activeFolderId}
-				canDelete={
-					folders.filter((f) => (f.parentId ?? null) === null).length > 1
-				}
-				onSave={handleFolderSave}
-				onDelete={handleFolderDelete}
-				onClose={() => {
-					setShowFolderDialog(false);
-					setEditingFolderId(null);
-				}}
-			/>
+				{/* Add/Edit Folder dialog */}
+				<AddFolderDialog
+					open={showFolderDialog}
+					editingFolder={folders.find((f) => f.id === editingFolderId) ?? null}
+					folders={folders}
+					defaultParentId={activeFolderId}
+					canDelete={
+						folders.filter((f) => (f.parentId ?? null) === null).length > 1
+					}
+					onSave={handleFolderSave}
+					onDelete={handleFolderDelete}
+					onClose={() => {
+						setShowFolderDialog(false);
+						setEditingFolderId(null);
+					}}
+				/>
 
-			<SettingsPanel
-				open={showSettings}
-				onClose={() => setShowSettings(false)}
-			/>
-		</div>
+				{/* Settings panel (no glass — stays shadcn) */}
+				<SettingsPanel
+					open={showSettings}
+					onClose={() => setShowSettings(false)}
+				/>
+			</div>
+		</AppearanceProvider>
 	);
 }
