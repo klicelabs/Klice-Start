@@ -290,7 +290,7 @@ export function AddSiteDialog({
 									</div>
 								)}
 
-								<span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 mt-4 mb-2">
+								<span className={cn("block text-[11px] font-medium mb-3", glassText(isLiquid, "secondary"))}>
 									Pastas
 								</span>
 								<div
@@ -390,7 +390,7 @@ export function AddSiteDialog({
 									)}
 								</div>
 
-								<span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground/50 mt-6 mb-3">
+								<span className={cn("block text-[11px] font-medium mb-3", glassText(isLiquid, "secondary"))}>
 									Recomendados
 								</span>
 								<div className="space-y-2">
