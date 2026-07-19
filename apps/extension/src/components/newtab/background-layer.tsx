@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { DEFAULT_BACKGROUND, GRADIENTS } from "../../lib/constants";
+import { unsplashImageUrl } from "../../lib/unsplash";
 import { cssUrl } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 
 export function BackgroundLayer() {
 	const background = useSetupStore((s) => s.settings.background);
+	const updateBackground = useSetupStore((s) => s.updateBackground);
 	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 	const [bgCss, setBgCss] = useState<string>(
 		background.color || DEFAULT_BACKGROUND.color,
@@ -15,6 +17,14 @@ export function BackgroundLayer() {
 		let cancelled = false;
 
 		(async () => {
+			if (background.type === "unsplash") {
+				const url =
+					background.unsplashUrl ||
+					unsplashImageUrl(background.unsplashSig || 1);
+				if (!cancelled) setBgCss(`${cssUrl(url)} center / cover no-repeat`);
+				return;
+			}
+
 			if (background.type === "image" && background.imageId) {
 				try {
 					const dataUrl = await getBackgroundImage(background.imageId);
@@ -41,6 +51,24 @@ export function BackgroundLayer() {
 			cancelled = true;
 		};
 	}, [background, getBackgroundImage]);
+
+	useEffect(() => {
+		if (background.type !== "unsplash" || background.unsplashLocked) return;
+
+		const interval = window.setInterval(
+			() => {
+				const sig = Date.now();
+				updateBackground({
+					unsplashSig: sig,
+					unsplashUrl: unsplashImageUrl(sig),
+					unsplashDownloadUrl: unsplashImageUrl(sig),
+				});
+			},
+			10 * 60 * 1000,
+		);
+
+		return () => window.clearInterval(interval);
+	}, [background.type, background.unsplashLocked, updateBackground]);
 
 	return (
 		<div

@@ -7,7 +7,6 @@ import { useAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
 import { FolderTabsOverflow } from "./folder-tabs-overflow";
 import { ToolbarActions } from "./toolbar-actions";
-import { ToolbarAddMenu } from "./toolbar-add-menu";
 import { ToolbarBack } from "./toolbar-back";
 import { ToolbarBreadcrumb } from "./toolbar-breadcrumb";
 
@@ -138,9 +137,6 @@ export function NavigationToolbar({
 	const visibleFolders = sorted.slice(0, visibleCount);
 	const hiddenFolders = sorted.slice(visibleCount);
 
-	// Add menu state.
-	const [addMenuOpen, setAddMenuOpen] = useState(false);
-
 	// Top-fade intensity: soft at rest, a touch stronger once the page scrolls
 	// so content passing under the toolbar stays gently masked.
 	const [scrolled, setScrolled] = useState(false);
@@ -263,20 +259,11 @@ export function NavigationToolbar({
 
 				{/* Right: actions — matches leading width so center stays centered */}
 				<div className="flex w-44 shrink-0 items-center justify-end">
-					<div className="relative">
-						<ToolbarActions
-							onSearch={onOpenSearch}
-							onSettings={onOpenSettings}
-							onAdd={() => setAddMenuOpen(!addMenuOpen)}
-							addOpen={addMenuOpen}
-						/>
-						<ToolbarAddMenu
-							open={addMenuOpen}
-							onClose={() => setAddMenuOpen(false)}
-							onAddFavorite={onAddFavorite}
-							onAddFolder={onAddFolder}
-						/>
-					</div>
+					<ToolbarActions
+						onSearch={onOpenSearch}
+						onSettings={onOpenSettings}
+						onAddFavorite={onAddFavorite}
+					/>
 				</div>
 			</header>
 

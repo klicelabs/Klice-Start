@@ -6,12 +6,16 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@perch/ui/components/dialog";
+import { GlassButton } from "@perch/ui/components/glass-button";
 import { Input } from "@perch/ui/components/input";
 import { Label } from "@perch/ui/components/label";
 import { type FormEvent, useEffect, useState } from "react";
 import { getSubtreeIds } from "../../../lib/folder-tree";
+import { glassText } from "../../../lib/glass";
+import { cn } from "../../../lib/utils";
 import type { Folder } from "../../../types";
 import { FolderTreePicker } from "../../shared/folder-tree-picker";
+import { useAppearance } from "../appearance-provider";
 
 export interface AddFolderDialogSavePayload {
 	name: string;
@@ -31,10 +35,6 @@ interface AddFolderDialogProps {
 	onClose: () => void;
 }
 
-/**
- * Viewport-safe add/edit folder dialog. Fixed header + footer with scrollable
- * content area. Never exceeds viewport height.
- */
 export function AddFolderDialog({
 	open,
 	editingFolder,
@@ -45,6 +45,8 @@ export function AddFolderDialog({
 	onDelete,
 	onClose,
 }: AddFolderDialogProps) {
+	const { isLiquid } = useAppearance();
+	const glassV = isLiquid ? "liquid" : "classic";
 	const [name, setName] = useState("");
 	const [parentId, setParentId] = useState<string | null>(defaultParentId);
 	const [error, setError] = useState<string | null>(null);
@@ -87,46 +89,67 @@ export function AddFolderDialog({
 			}}
 		>
 			<DialogContent
-				className="flex flex-col sm:max-w-[400px]"
-				style={{ maxHeight: "calc(100vh - 2rem)" }}
+				glassVariant={glassV}
+				className="flex flex-col sm:max-w-[460px]"
+				style={{ maxHeight: "calc(100vh - 6rem)" }}
 			>
-				{/* Fixed header */}
 				<DialogHeader className="shrink-0">
-					<DialogTitle>
+					<DialogTitle className={cn(isLiquid && "text-white")}>
 						{editingFolder ? "Edit folder" : "New folder"}
 					</DialogTitle>
 				</DialogHeader>
 
-				{/* Scrollable content */}
 				<form
 					onSubmit={handleSubmit}
 					className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
 				>
 					<div className="space-y-4 px-0.5">
-						<div className="space-y-2">
-							<Label htmlFor="folder-name">Folder name</Label>
+						<div className="flex items-center gap-3">
+							<Label
+								htmlFor="folder-name"
+								className={cn(
+									"w-24 shrink-0 font-medium text-sm",
+									glassText(isLiquid, "secondary"),
+								)}
+							>
+								Folder name
+							</Label>
 							<Input
 								id="folder-name"
 								value={name}
 								autoFocus
+								glassVariant={glassV}
 								onChange={(e) => {
 									setName(e.target.value);
 									if (error) setError(null);
 								}}
 								placeholder="e.g. Work"
 								aria-invalid={error ? true : undefined}
+								className="flex-1"
 							/>
 						</div>
 
-						<FolderTreePicker
-							folders={folders}
-							value={parentId}
-							onChange={setParentId}
-							label="Parent folder"
-							excludeIds={excludedIds}
-							allowRoot
-							rootLabel="No parent (top level)"
-						/>
+						<div className="flex items-center gap-3">
+							<Label
+								className={cn(
+									"w-24 shrink-0 font-medium text-sm",
+									glassText(isLiquid, "secondary"),
+								)}
+							>
+								Parent
+							</Label>
+							<FolderTreePicker
+								folders={folders}
+								value={parentId}
+								onChange={setParentId}
+								label="Parent folder"
+								excludeIds={excludedIds}
+								allowRoot
+								rootLabel="No parent (top level)"
+								className="flex-1"
+								isLiquid={isLiquid}
+							/>
+						</div>
 
 						{error && (
 							<p className="text-[13px] text-red-400" role="alert">
@@ -146,16 +169,19 @@ export function AddFolderDialog({
 						)}
 					</div>
 
-					{/* Fixed footer */}
 					<DialogFooter
-						className={`shrink-0 border-border/30 border-t pt-3 ${editingFolder && canDelete ? "sm:justify-between" : ""}`}
+						className={cn(
+							"shrink-0 border-t pt-3",
+							isLiquid ? "border-white/[0.10]" : "border-border/30",
+							editingFolder && canDelete ? "sm:justify-between" : "",
+						)}
 					>
 						{editingFolder &&
 							canDelete &&
 							(confirmingDelete ? (
 								<Button
 									type="button"
-									className="bg-red-500 text-white hover:bg-red-600"
+									className="bg-destructive text-destructive-foreground hover:bg-destructive/80"
 									onClick={() => onDelete(editingFolder.id)}
 								>
 									Delete permanently
@@ -164,17 +190,34 @@ export function AddFolderDialog({
 								<Button
 									type="button"
 									variant="outline"
-									className="border-red-500/30 text-red-500 hover:bg-red-500/10"
+									className="border-destructive/30 text-destructive hover:bg-destructive/10"
 									onClick={() => setConfirmingDelete(true)}
 								>
 									Delete
 								</Button>
 							))}
 						<div className="flex gap-2 sm:ml-auto">
-							<Button type="button" variant="ghost" onClick={onClose}>
-								Cancel
-							</Button>
-							<Button type="submit">Save</Button>
+							{isLiquid ? (
+								<GlassButton
+									type="button"
+									variant="ghost"
+									glassVariant="liquid"
+									onClick={onClose}
+								>
+									Cancel
+								</GlassButton>
+							) : (
+								<Button type="button" variant="ghost" onClick={onClose}>
+									Cancel
+								</Button>
+							)}
+							{isLiquid ? (
+								<GlassButton type="submit" glassVariant="liquid">
+									Save
+								</GlassButton>
+							) : (
+								<Button type="submit">Save</Button>
+							)}
 						</div>
 					</DialogFooter>
 				</form>

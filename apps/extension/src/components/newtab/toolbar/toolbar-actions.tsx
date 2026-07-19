@@ -12,8 +12,7 @@ import { ToolbarIconButton } from "./toolbar-icon-button";
 interface ToolbarActionsProps {
 	onSearch: () => void;
 	onSettings: () => void;
-	onAdd: () => void;
-	addOpen: boolean;
+	onAddFavorite: () => void;
 }
 
 /**
@@ -24,8 +23,7 @@ interface ToolbarActionsProps {
 export function ToolbarActions({
 	onSearch,
 	onSettings,
-	onAdd,
-	addOpen,
+	onAddFavorite,
 }: ToolbarActionsProps) {
 	const { isLiquid } = useAppearance();
 
@@ -53,8 +51,8 @@ export function ToolbarActions({
 				</button>
 				<button
 					type="button"
-					className={iconButton(addOpen)}
-					onClick={onAdd}
+					className={iconButton(false)}
+					onClick={onAddFavorite}
 					aria-label="Add new"
 				>
 					<Icon name="plus" size={TOOLBAR.iconSize} />

@@ -6,8 +6,9 @@ import {
 	ContextMenuTrigger,
 } from "@perch/ui/components/context-menu";
 import { Icon } from "@perch/ui/icons/icon";
+import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { type CSSProperties, useEffect, useState } from "react";
-import { glassCardFooter } from "../../lib/glass";
+import { glassCardFooter, glassDropdownItem } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
@@ -64,8 +65,9 @@ export function DialCard({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
+				data-local-context-menu
 				className={cn(
-					"dial-card squircle isolate group relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
+					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
 					className,
 				)}
 				style={style}
@@ -136,21 +138,44 @@ export function DialCard({
 				)}
 			</ContextMenuTrigger>
 
-			<ContextMenuContent>
-				<ContextMenuItem onClick={handleOpenNewTab}>
+			<ContextMenuContent
+				className={cn(
+					"min-w-48",
+					isLiquid
+						? cn(
+								glassVariantStyles.liquid,
+								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
+								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
+							)
+						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+				)}
+			>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={handleOpenNewTab}
+				>
 					<Icon name="globe" size={15} />
 					Open in new tab
 				</ContextMenuItem>
-				<ContextMenuItem onClick={() => onEdit(card.id)}>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onEdit(card.id)}
+				>
 					<Icon name="pencil" size={15} />
 					Rename
 				</ContextMenuItem>
-				<ContextMenuItem onClick={() => onEdit(card.id)}>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onEdit(card.id)}
+				>
 					<Icon name="globe" size={15} />
 					Edit URL
 				</ContextMenuItem>
-				<ContextMenuSeparator />
+				<ContextMenuSeparator
+					className={isLiquid ? "bg-white/10" : undefined}
+				/>
 				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
 					variant="destructive"
 					onClick={() => onDelete(card.id)}
 				>

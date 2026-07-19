@@ -3,10 +3,11 @@ import { AppearanceProvider } from "../../src/components/newtab/appearance-provi
 import { BackgroundLayer } from "../../src/components/newtab/background-layer";
 import { ClockWidget } from "../../src/components/newtab/clock-widget";
 import { DialGrid } from "../../src/components/newtab/dial-grid";
-import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
 import { AddFolderDialog } from "../../src/components/newtab/dialogs/add-folder-dialog";
 import { AddSiteDialog } from "../../src/components/newtab/dialogs/add-site-dialog";
 import { EmptyLanding } from "../../src/components/newtab/empty-landing";
+import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
+import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { GlobalSearch } from "../../src/components/newtab/search/global-search";
 import { SearchBar } from "../../src/components/newtab/search/search-bar";
 import { SettingsPanel } from "../../src/components/newtab/settings-panel";
@@ -201,129 +202,142 @@ export default function App() {
 
 	return (
 		<AppearanceProvider>
-			<div className="relative flex min-h-screen flex-col text-white">
-				<BackgroundLayer />
+			<PageContextMenu
+				onOpenBackgroundSettings={() => setShowSettings(true)}
+				onOpenShortcutSettings={() => setShowSettings(true)}
+				onAddQuickLink={() => handleOpenCardDialog(null)}
+			>
+				<div className="relative flex min-h-screen flex-col text-white">
+					<BackgroundLayer />
 
-				<NavigationToolbar
-					folders={folders}
-					rootFolders={rootFolders}
-					activeFolderId={activeFolderId}
-					activeRootId={activeRootId}
-					onSelectFolder={setActiveFolder}
-					onAddFolder={() => {
-						setEditingFolderId(null);
-						setShowFolderDialog(true);
-					}}
-					onOpenSettings={() => setShowSettings(true)}
-					onOpenSearch={() => setShowSearch(true)}
-					onAddFavorite={() => handleOpenCardDialog(null)}
-					onEditFolder={(id) => {
-						setEditingFolderId(id);
-						setShowFolderDialog(true);
-					}}
-					onDeleteFolder={handleFolderDelete}
-					onReorderFolders={(fromId, toId) =>
-						useSetupStore.getState().reorderFolders(fromId, toId)
-					}
-					onDropCard={(cardId, folderId) => moveCard(cardId, folderId)}
-					onMoveFolder={(folderId, targetId) => moveFolder(folderId, targetId)}
-					canNestFolder={canNestFolder}
-				/>
+					<NavigationToolbar
+						folders={folders}
+						rootFolders={rootFolders}
+						activeFolderId={activeFolderId}
+						activeRootId={activeRootId}
+						onSelectFolder={setActiveFolder}
+						onAddFolder={() => {
+							setEditingFolderId(null);
+							setShowFolderDialog(true);
+						}}
+						onOpenSettings={() => setShowSettings(true)}
+						onOpenSearch={() => setShowSearch(true)}
+						onAddFavorite={() => handleOpenCardDialog(null)}
+						onEditFolder={(id) => {
+							setEditingFolderId(id);
+							setShowFolderDialog(true);
+						}}
+						onDeleteFolder={handleFolderDelete}
+						onReorderFolders={(fromId, toId) =>
+							useSetupStore.getState().reorderFolders(fromId, toId)
+						}
+						onDropCard={(cardId, folderId) => moveCard(cardId, folderId)}
+						onMoveFolder={(folderId, targetId) =>
+							moveFolder(folderId, targetId)
+						}
+						canNestFolder={canNestFolder}
+					/>
 
-				{/* Hero is a single, unified global wrapper rendered in EVERY state
+					{/* Hero is a single, unified global wrapper rendered in EVERY state
 				    (empty folders included) so the clock + date always mount once and
 				    read size/format straight from the central store — no per-page
 				    clock instance that could reset when a subfolder is empty. */}
-				<div className="pb-20">
-					<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
-						<ClockWidget />
-						<SearchBar />
-					</main>
+					<div className="pb-20">
+						<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
+							<ClockWidget />
+							<SearchBar />
+						</main>
 
-					{isEmpty ? (
-						<EmptyLanding
-							folderName={currentFolderName}
-							onAdd={() => handleOpenCardDialog(null)}
-						/>
-					) : (
-						<DialGrid
-							cards={cards}
-							subfolders={subfolders}
-							cardCounts={cardCounts}
-							previewCards={previewCards}
-							onEdit={(id) => handleOpenCardDialog(id)}
-							onDelete={handleCardDelete}
-							onDeleteFolder={handleFolderDelete}
-							onReorder={(fromId, toId) =>
-								useSetupStore
-									.getState()
-									.reorderCardsInActiveFolder(fromId, toId)
-							}
-							onAdd={() => handleOpenCardDialog(null)}
-							onAddFolder={() => {
-								setEditingFolderId(null);
-								setShowFolderDialog(true);
-							}}
-							onOpenFolder={setActiveFolder}
-							onEditFolder={(id) => {
-								setEditingFolderId(id);
-								setShowFolderDialog(true);
-							}}
-							onMoveCard={(cardId, folderId) => moveCard(cardId, folderId)}
-							onReorderFolders={(fromId, toId) => reorderFolders(fromId, toId)}
-							onMoveFolder={(folderId, targetFolderId) =>
-								moveFolder(folderId, targetFolderId)
-							}
-							canNestFolder={canNestFolder}
-						/>
-					)}
+						{isEmpty ? (
+							<EmptyLanding
+								folderName={currentFolderName}
+								onAdd={() => handleOpenCardDialog(null)}
+							/>
+						) : (
+							<DialGrid
+								cards={cards}
+								subfolders={subfolders}
+								cardCounts={cardCounts}
+								previewCards={previewCards}
+								onEdit={(id) => handleOpenCardDialog(id)}
+								onDelete={handleCardDelete}
+								onDeleteFolder={handleFolderDelete}
+								onReorder={(fromId, toId) =>
+									useSetupStore
+										.getState()
+										.reorderCardsInActiveFolder(fromId, toId)
+								}
+								onAdd={() => handleOpenCardDialog(null)}
+								onAddFolder={() => {
+									setEditingFolderId(null);
+									setShowFolderDialog(true);
+								}}
+								onOpenFolder={setActiveFolder}
+								onEditFolder={(id) => {
+									setEditingFolderId(id);
+									setShowFolderDialog(true);
+								}}
+								onMoveCard={(cardId, folderId) => moveCard(cardId, folderId)}
+								onReorderFolders={(fromId, toId) =>
+									reorderFolders(fromId, toId)
+								}
+								onMoveFolder={(folderId, targetFolderId) =>
+									moveFolder(folderId, targetFolderId)
+								}
+								canNestFolder={canNestFolder}
+							/>
+						)}
+					</div>
+
+					{/* Global Search overlay (Spotlight-style) */}
+					<GlobalSearch
+						open={showSearch}
+						onClose={() => setShowSearch(false)}
+						onNavigateFolder={(id) => {
+							setActiveFolder(id);
+							setShowSearch(false);
+						}}
+					/>
+
+					{/* Add/Edit Site dialog */}
+					<AddSiteDialog
+						open={showCardDialog}
+						editingCardId={editingCardId}
+						folderId={activeFolderId}
+						onSave={handleCardSave}
+						onAddFolder={(name, parentId) => addFolder(name, parentId)}
+						onClose={() => {
+							setShowCardDialog(false);
+							setEditingCardId(null);
+						}}
+					/>
+
+					{/* Add/Edit Folder dialog */}
+					<AddFolderDialog
+						open={showFolderDialog}
+						editingFolder={
+							folders.find((f) => f.id === editingFolderId) ?? null
+						}
+						folders={folders}
+						defaultParentId={activeFolderId}
+						canDelete={
+							folders.filter((f) => (f.parentId ?? null) === null).length > 1
+						}
+						onSave={handleFolderSave}
+						onDelete={handleFolderDelete}
+						onClose={() => {
+							setShowFolderDialog(false);
+							setEditingFolderId(null);
+						}}
+					/>
+
+					{/* Settings panel (no glass — stays shadcn) */}
+					<SettingsPanel
+						open={showSettings}
+						onClose={() => setShowSettings(false)}
+					/>
 				</div>
-
-				{/* Global Search overlay (Spotlight-style) */}
-				<GlobalSearch
-					open={showSearch}
-					onClose={() => setShowSearch(false)}
-					onNavigateFolder={(id) => {
-						setActiveFolder(id);
-						setShowSearch(false);
-					}}
-				/>
-
-				{/* Add/Edit Site dialog */}
-				<AddSiteDialog
-					open={showCardDialog}
-					editingCardId={editingCardId}
-					folderId={activeFolderId}
-					onSave={handleCardSave}
-					onClose={() => {
-						setShowCardDialog(false);
-						setEditingCardId(null);
-					}}
-				/>
-
-				{/* Add/Edit Folder dialog */}
-				<AddFolderDialog
-					open={showFolderDialog}
-					editingFolder={folders.find((f) => f.id === editingFolderId) ?? null}
-					folders={folders}
-					defaultParentId={activeFolderId}
-					canDelete={
-						folders.filter((f) => (f.parentId ?? null) === null).length > 1
-					}
-					onSave={handleFolderSave}
-					onDelete={handleFolderDelete}
-					onClose={() => {
-						setShowFolderDialog(false);
-						setEditingFolderId(null);
-					}}
-				/>
-
-				{/* Settings panel (no glass — stays shadcn) */}
-				<SettingsPanel
-					open={showSettings}
-					onClose={() => setShowSettings(false)}
-				/>
-			</div>
+			</PageContextMenu>
 		</AppearanceProvider>
 	);
 }

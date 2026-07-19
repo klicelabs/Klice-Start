@@ -10,7 +10,7 @@ import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { type DragEvent, useEffect, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
 import { getDragId, isDragKind } from "../../../lib/dnd";
-import { glassCardFooter } from "../../../lib/glass";
+import { glassCardFooter, glassDropdownItem } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
 import { useImageStore } from "../../../stores/image-store";
 import { useAppearance } from "../appearance-provider";
@@ -99,6 +99,7 @@ export function FolderPreviewCard({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
+				data-local-context-menu
 				className={cn(
 					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
 					isLiquid
@@ -175,17 +176,40 @@ export function FolderPreviewCard({
 				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent>
-				<ContextMenuItem onClick={() => onOpen(id)}>
+			<ContextMenuContent
+				className={cn(
+					"min-w-48",
+					isLiquid
+						? cn(
+								glassVariantStyles.liquid,
+								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
+								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
+							)
+						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+				)}
+			>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onOpen(id)}
+				>
 					<Icon name="folder" size={15} />
 					Open
 				</ContextMenuItem>
-				<ContextMenuItem onClick={() => onEdit(id)}>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onEdit(id)}
+				>
 					<Icon name="pencil" size={15} />
 					Rename
 				</ContextMenuItem>
-				<ContextMenuSeparator />
-				<ContextMenuItem variant="destructive" onClick={() => onDelete(id)}>
+				<ContextMenuSeparator
+					className={isLiquid ? "bg-white/10" : undefined}
+				/>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					variant="destructive"
+					onClick={() => onDelete(id)}
+				>
 					<Icon name="trash" size={15} />
 					Delete
 				</ContextMenuItem>

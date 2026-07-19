@@ -10,16 +10,18 @@ import {
 	EmptyTitle,
 } from "@perch/ui/components/empty";
 import { Icon } from "@perch/ui/icons/icon";
+import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { useDragAndDrop } from "../../hooks/use-drag-and-drop";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
+import { glassDropdownItem } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
 import { useAppearance } from "./appearance-provider";
 import { DialCard } from "./dial-card";
 import {
-	type FolderPreviewItem,
 	FolderPreviewCard,
+	type FolderPreviewItem,
 } from "./folders/folder-preview-card";
 
 interface DialGridProps {
@@ -89,6 +91,7 @@ export function DialGrid({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
+				data-local-context-menu
 				render={
 					<section
 						className="dial-grid-wrap mx-auto w-full px-6"
@@ -151,7 +154,9 @@ export function DialGrid({
 								onDelete={onDeleteFolder}
 								onDropCard={onMoveCard}
 								onDropFolder={onMoveFolder}
-								canAcceptFolder={(draggedId) => canNestFolder(draggedId, folder.id)}
+								canAcceptFolder={(draggedId) =>
+									canNestFolder(draggedId, folder.id)
+								}
 								dragProps={folderDnd.getItemProps(folder.id)}
 								className="dial-cell"
 							/>
@@ -170,7 +175,7 @@ export function DialGrid({
 									dragProps={itemProps}
 									className={cn(
 										"dial-cell transition-transform duration-150",
-										isOver && "outline-2 outline-dashed outline-white/40",
+										isOver && "outline-dashed outline-2 outline-white/40",
 									)}
 									style={{
 										opacity: isDragging ? 0.4 : 1,
@@ -184,12 +189,29 @@ export function DialGrid({
 			</ContextMenuTrigger>
 
 			{/* Empty space context menu */}
-			<ContextMenuContent>
-				<ContextMenuItem onClick={onAddFolder}>
+			<ContextMenuContent
+				className={cn(
+					"min-w-48",
+					isLiquid
+						? cn(
+								glassVariantStyles.liquid,
+								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
+								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
+							)
+						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+				)}
+			>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={onAddFolder}
+				>
 					<Icon name="folder-plus" size={15} />
 					New Folder
 				</ContextMenuItem>
-				<ContextMenuItem onClick={onAdd}>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={onAdd}
+				>
 					<Icon name="bookmark" size={15} />
 					Add Link
 				</ContextMenuItem>

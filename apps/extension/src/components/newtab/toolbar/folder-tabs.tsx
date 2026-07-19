@@ -6,9 +6,11 @@ import {
 	ContextMenuTrigger,
 } from "@perch/ui/components/context-menu";
 import { Icon } from "@perch/ui/icons/icon";
+import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { type DragEvent, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
 import { getDragId, isDragKind, setDragData } from "../../../lib/dnd";
+import { glassDropdownItem } from "../../../lib/glass";
 import {
 	TOOLBAR,
 	toolbarControlClassic,
@@ -170,6 +172,7 @@ function FolderTab({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
+				data-local-context-menu
 				className={cn(
 					TOOLBAR.controlHeight,
 					TOOLBAR.radius,
@@ -200,17 +203,37 @@ function FolderTab({
 				{folder.name}
 			</ContextMenuTrigger>
 
-			<ContextMenuContent>
-				<ContextMenuItem onClick={() => onSelectFolder(folder.id)}>
+			<ContextMenuContent
+				className={cn(
+					"min-w-48",
+					isLiquid
+						? cn(
+								glassVariantStyles.liquid,
+								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
+								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
+							)
+						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+				)}
+			>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onSelectFolder(folder.id)}
+				>
 					<Icon name="folder" size={15} />
 					Open
 				</ContextMenuItem>
-				<ContextMenuItem onClick={() => onEditFolder?.(folder.id)}>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onEditFolder?.(folder.id)}
+				>
 					<Icon name="pencil" size={15} />
 					Rename
 				</ContextMenuItem>
-				<ContextMenuSeparator />
+				<ContextMenuSeparator
+					className={isLiquid ? "bg-white/10" : undefined}
+				/>
 				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
 					variant="destructive"
 					onClick={() => onDeleteFolder?.(folder.id)}
 				>

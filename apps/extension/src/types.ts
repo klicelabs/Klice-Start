@@ -26,10 +26,14 @@ export interface ThumbnailCaptureSettings {
 }
 
 export interface BackgroundSettings {
-	type: "solid" | "gradient" | "image";
+	type: "solid" | "gradient" | "image" | "unsplash";
 	color: string;
 	gradientId: string | null;
 	imageId: string | null;
+	unsplashUrl: string | null;
+	unsplashDownloadUrl: string | null;
+	unsplashLocked: boolean;
+	unsplashSig: number;
 	blur: number;
 	brightness: number;
 	opacity: number;
