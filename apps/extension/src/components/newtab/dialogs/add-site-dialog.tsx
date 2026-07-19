@@ -11,19 +11,18 @@ import { Input } from "@perch/ui/components/input";
 import { Label } from "@perch/ui/components/label";
 import { Icon } from "@perch/ui/icons/icon";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { RECOMMENDED_SITES } from "../../lib/recommended-sites";
+import { RECOMMENDED_SITES } from "../../../lib/recommended-sites";
 import {
 	canonicalUrl,
 	deriveTitleFromUrl,
 	faviconUrl,
 	isValidUrl,
 	normalizeUrl,
-} from "../../lib/url";
-import { useSetupStore } from "../../stores/setup-store";
-import type { Card } from "../../types";
-import { FolderTreePicker } from "./folder-tree-picker";
+} from "../../../lib/url";
+import { useSetupStore } from "../../../stores/setup-store";
+import { FolderTreePicker } from "../../shared/folder-tree-picker";
 
-interface CardDialogProps {
+interface AddSiteDialogProps {
 	open: boolean;
 	editingCardId: string | null;
 	/** Folder pre-selected when adding a new card. */
@@ -39,13 +38,17 @@ interface CardDialogProps {
 
 type UrlStatus = "empty" | "invalid" | "duplicate" | "valid";
 
-export function CardDialog({
+/**
+ * Viewport-safe add/edit site dialog. Fixed header + footer with scrollable
+ * content area. Never exceeds viewport height.
+ */
+export function AddSiteDialog({
 	open,
 	editingCardId,
 	folderId,
 	onSave,
 	onClose,
-}: CardDialogProps) {
+}: AddSiteDialogProps) {
 	const cards = useSetupStore((s) => s.cards);
 	const folders = useSetupStore((s) => s.folders);
 
@@ -63,8 +66,6 @@ export function CardDialog({
 	const [titleTouched, setTitleTouched] = useState(false);
 	const urlInputRef = useRef<HTMLInputElement>(null);
 
-	// Hydrate from the card being edited, or reset for a fresh add. This is the
-	// fix for the previous data-loss bug where edit opened blank and overwrote.
 	useEffect(() => {
 		if (!open) return;
 		if (editingCard) {
@@ -89,8 +90,6 @@ export function CardDialog({
 
 	const targetFolder = destination ?? folderId;
 
-	// Duplicate detection: same canonical URL already in the destination folder,
-	// ignoring the card currently being edited.
 	const duplicateExists = useMemo(() => {
 		const canon = canonicalUrl(url);
 		if (!canon) return false;
@@ -148,8 +147,12 @@ export function CardDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-			<DialogContent className="sm:max-w-[460px]">
-				<DialogHeader>
+			<DialogContent
+				className="flex flex-col sm:max-w-[460px]"
+				style={{ maxHeight: "calc(100vh - 2rem)" }}
+			>
+				{/* Fixed header */}
+				<DialogHeader className="shrink-0">
 					<DialogTitle>{editingCardId ? "Edit link" : "Add link"}</DialogTitle>
 					<DialogDescription>
 						{editingCardId
@@ -158,97 +161,104 @@ export function CardDialog({
 					</DialogDescription>
 				</DialogHeader>
 
-				<form onSubmit={handleSubmit} className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="card-url">Link</Label>
-						<div className="relative">
-							<Input
-								id="card-url"
-								ref={urlInputRef}
-								value={url}
-								inputMode="url"
-								autoComplete="off"
-								spellCheck={false}
-								aria-invalid={
-									urlStatus === "invalid" || urlStatus === "duplicate"
-								}
-								aria-describedby={errorMessage ? "card-url-error" : undefined}
-								onChange={(e) => {
-									setUrl(e.target.value);
-									if (!titleTouched) setTitle("");
-								}}
-								placeholder="example.com"
-							/>
-							{urlStatus === "valid" && (
-								<img
-									src={faviconUrl(url)}
-									alt=""
-									className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 rounded-sm"
+				{/* Scrollable content */}
+				<form
+					onSubmit={handleSubmit}
+					className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+				>
+					<div className="space-y-4 px-0.5">
+						<div className="space-y-2">
+							<Label htmlFor="card-url">Link</Label>
+							<div className="relative">
+								<Input
+									id="card-url"
+									ref={urlInputRef}
+									value={url}
+									inputMode="url"
+									autoComplete="off"
+									spellCheck={false}
+									aria-invalid={
+										urlStatus === "invalid" || urlStatus === "duplicate"
+									}
+									aria-describedby={errorMessage ? "card-url-error" : undefined}
+									onChange={(e) => {
+										setUrl(e.target.value);
+										if (!titleTouched) setTitle("");
+									}}
+									placeholder="example.com"
 								/>
+								{urlStatus === "valid" && (
+									<img
+										src={faviconUrl(url)}
+										alt=""
+										className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 rounded-sm"
+									/>
+								)}
+							</div>
+							{errorMessage && (
+								<p
+									id="card-url-error"
+									className="flex items-center gap-1.5 text-[12px] text-red-400"
+								>
+									<Icon name="alert" size={12} />
+									{errorMessage}
+								</p>
 							)}
 						</div>
-						{errorMessage && (
-							<p
-								id="card-url-error"
-								className="flex items-center gap-1.5 text-[12px] text-red-400"
-							>
-								<Icon name="alert" size={12} />
-								{errorMessage}
-							</p>
+
+						<div className="space-y-2">
+							<Label htmlFor="card-title">Title</Label>
+							<Input
+								id="card-title"
+								value={title}
+								onChange={(e) => {
+									setTitle(e.target.value);
+									setTitleTouched(true);
+								}}
+								placeholder={suggestedTitle || "Site name"}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label>Folder</Label>
+							<FolderTreePicker
+								folders={folders}
+								value={destination}
+								onChange={setDestination}
+								allowRoot={false}
+							/>
+						</div>
+
+						{!editingCardId && (
+							<div className="space-y-2">
+								<Label className="text-muted-foreground">Recommended</Label>
+								<div className="grid grid-cols-4 gap-1.5">
+									{RECOMMENDED_SITES.map((site) => (
+										<button
+											key={site.url}
+											type="button"
+											onClick={() => handleRecommended(site)}
+											title={`Add ${site.name}`}
+											aria-label={`Add ${site.name}`}
+											className="flex flex-col items-center gap-1 rounded-xl border border-white/8 bg-white/[0.03] px-1 py-2 transition-colors hover:bg-white/[0.08]"
+										>
+											<img
+												src={faviconUrl(site.url, 32)}
+												alt=""
+												className="h-5 w-5 rounded"
+											/>
+											<span className="w-full truncate text-center text-[10px] text-white/60">
+												{site.name}
+											</span>
+										</button>
+									))}
+								</div>
+							</div>
 						)}
 					</div>
 
-					<div className="space-y-2">
-						<Label htmlFor="card-title">Title</Label>
-						<Input
-							id="card-title"
-							value={title}
-							onChange={(e) => {
-								setTitle(e.target.value);
-								setTitleTouched(true);
-							}}
-							placeholder={suggestedTitle || "Site name"}
-						/>
-					</div>
-
-					<div className="space-y-2">
-						<Label>Folder</Label>
-						<FolderTreePicker
-							folders={folders}
-							value={destination}
-							onChange={setDestination}
-							allowRoot={false}
-						/>
-					</div>
-
-					{!editingCardId && (
-						<div className="space-y-2">
-							<Label className="text-muted-foreground">Recommended</Label>
-							<div className="grid grid-cols-4 gap-1.5">
-								{RECOMMENDED_SITES.map((site) => (
-									<button
-										key={site.url}
-										type="button"
-										onClick={() => handleRecommended(site)}
-										title={`Add ${site.name}`}
-										aria-label={`Add ${site.name}`}
-										className="flex flex-col items-center gap-1 rounded-xl border border-white/8 bg-white/[0.03] px-1 py-2 transition-colors hover:bg-white/[0.08]"
-									>
-										<img
-											src={faviconUrl(site.url, 32)}
-											alt=""
-											className="h-5 w-5 rounded"
-										/>
-										<span className="w-full truncate text-center text-[10px] text-white/60">
-											{site.name}
-										</span>
-									</button>
-								))}
-							</div>
-						</div>
-					)}
-
-					<DialogFooter>
+					{/* Fixed footer */}
+					<DialogFooter className="shrink-0 border-border/30 border-t pt-3">
 						<Button type="button" variant="ghost" onClick={onClose}>
 							Cancel
 						</Button>
@@ -261,5 +271,3 @@ export function CardDialog({
 		</Dialog>
 	);
 }
-
-export type { Card };

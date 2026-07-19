@@ -9,29 +9,33 @@ import {
 import { Input } from "@perch/ui/components/input";
 import { Label } from "@perch/ui/components/label";
 import { type FormEvent, useEffect, useState } from "react";
-import { getSubtreeIds } from "../../lib/folder-tree";
-import type { Folder } from "../../types";
-import { FolderTreePicker } from "./folder-tree-picker";
+import { getSubtreeIds } from "../../../lib/folder-tree";
+import type { Folder } from "../../../types";
+import { FolderTreePicker } from "../../shared/folder-tree-picker";
 
-export interface FolderDialogSavePayload {
+export interface AddFolderDialogSavePayload {
 	name: string;
 	folderId: string | null;
 	parentId: string | null;
 }
 
-interface FolderDialogProps {
+interface AddFolderDialogProps {
 	open: boolean;
 	editingFolder: Folder | null;
 	folders: Folder[];
-	/** Parent pre-selected when creating a new folder (e.g. the active folder). */
+	/** Parent pre-selected when creating a new folder. */
 	defaultParentId: string | null;
 	canDelete: boolean;
-	onSave: (data: FolderDialogSavePayload) => void;
+	onSave: (data: AddFolderDialogSavePayload) => void;
 	onDelete: (folderId: string) => void;
 	onClose: () => void;
 }
 
-export function FolderDialog({
+/**
+ * Viewport-safe add/edit folder dialog. Fixed header + footer with scrollable
+ * content area. Never exceeds viewport height.
+ */
+export function AddFolderDialog({
 	open,
 	editingFolder,
 	folders,
@@ -40,7 +44,7 @@ export function FolderDialog({
 	onSave,
 	onDelete,
 	onClose,
-}: FolderDialogProps) {
+}: AddFolderDialogProps) {
 	const [name, setName] = useState("");
 	const [parentId, setParentId] = useState<string | null>(defaultParentId);
 	const [error, setError] = useState<string | null>(null);
@@ -59,12 +63,10 @@ export function FolderDialog({
 		setConfirmingDelete(false);
 	}, [open, editingFolder, defaultParentId]);
 
-	// When editing, a folder cannot be moved into itself or a descendant.
 	const subtreeIds = editingFolder
 		? getSubtreeIds(folders, editingFolder.id)
 		: [];
 	const excludedIds = subtreeIds;
-	// Everything that would be removed by a recursive delete.
 	const descendantCount = subtreeIds.length - 1;
 
 	function handleSubmit(e: FormEvent) {
@@ -84,57 +86,69 @@ export function FolderDialog({
 				if (!o) onClose();
 			}}
 		>
-			<DialogContent className="sm:max-w-[400px]">
-				<DialogHeader>
+			<DialogContent
+				className="flex flex-col sm:max-w-[400px]"
+				style={{ maxHeight: "calc(100vh - 2rem)" }}
+			>
+				{/* Fixed header */}
+				<DialogHeader className="shrink-0">
 					<DialogTitle>
 						{editingFolder ? "Edit folder" : "New folder"}
 					</DialogTitle>
 				</DialogHeader>
-				<form onSubmit={handleSubmit} className="space-y-4">
-					<div className="space-y-2">
-						<Label htmlFor="folder-name">Folder name</Label>
-						<Input
-							id="folder-name"
-							value={name}
-							autoFocus
-							onChange={(e) => {
-								setName(e.target.value);
-								if (error) setError(null);
-							}}
-							placeholder="e.g. Work"
-							aria-invalid={error ? true : undefined}
+
+				{/* Scrollable content */}
+				<form
+					onSubmit={handleSubmit}
+					className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto"
+				>
+					<div className="space-y-4 px-0.5">
+						<div className="space-y-2">
+							<Label htmlFor="folder-name">Folder name</Label>
+							<Input
+								id="folder-name"
+								value={name}
+								autoFocus
+								onChange={(e) => {
+									setName(e.target.value);
+									if (error) setError(null);
+								}}
+								placeholder="e.g. Work"
+								aria-invalid={error ? true : undefined}
+							/>
+						</div>
+
+						<FolderTreePicker
+							folders={folders}
+							value={parentId}
+							onChange={setParentId}
+							label="Parent folder"
+							excludeIds={excludedIds}
+							allowRoot
+							rootLabel="No parent (top level)"
 						/>
+
+						{error && (
+							<p className="text-[13px] text-red-400" role="alert">
+								{error}
+							</p>
+						)}
+
+						{confirmingDelete && editingFolder && (
+							<p
+								className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-300"
+								role="alert"
+							>
+								{descendantCount > 0
+									? `This deletes "${editingFolder.name}", its ${descendantCount} subfolder(s), and all links inside. This can't be undone.`
+									: `This deletes "${editingFolder.name}" and all its links. This can't be undone.`}
+							</p>
+						)}
 					</div>
 
-					<FolderTreePicker
-						folders={folders}
-						value={parentId}
-						onChange={setParentId}
-						label="Parent folder"
-						excludeIds={excludedIds}
-						allowRoot
-						rootLabel="No parent (top level)"
-					/>
-
-					{error && (
-						<p className="text-[13px] text-red-400" role="alert">
-							{error}
-						</p>
-					)}
-
-					{confirmingDelete && editingFolder && (
-						<p
-							className="rounded-lg bg-red-500/10 px-3 py-2 text-[12px] text-red-300"
-							role="alert"
-						>
-							{descendantCount > 0
-								? `This deletes "${editingFolder.name}", its ${descendantCount} subfolder(s), and all links inside. This can't be undone.`
-								: `This deletes "${editingFolder.name}" and all its links. This can't be undone.`}
-						</p>
-					)}
-
+					{/* Fixed footer */}
 					<DialogFooter
-						className={editingFolder && canDelete ? "sm:justify-between" : ""}
+						className={`shrink-0 border-border/30 border-t pt-3 ${editingFolder && canDelete ? "sm:justify-between" : ""}`}
 					>
 						{editingFolder &&
 							canDelete &&
