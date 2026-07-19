@@ -2,9 +2,12 @@ import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { Icon } from "@perch/ui/icons/icon";
 import { type FormEvent, useState } from "react";
 import { SEARCH_ENGINES } from "../../../lib/constants";
+import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
 import { useSetupStore } from "../../../stores/setup-store";
+import { SvgIcon } from "../../shared/svg-icon";
+import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { useAppearance } from "../appearance-provider";
 
 /**
@@ -38,6 +41,8 @@ export function SearchBar() {
 	const placeholder =
 		customPlaceholder.trim() || `Search with "${engine.label}"`;
 
+	const svglTitle = iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[engineId] : null;
+	const { svgXml, isLoading } = useSvgIcon(svglTitle);
 	const showEngineLogo = iconMode === "engine" && !logoFailed;
 
 	function handleSubmit(e: FormEvent) {
@@ -62,7 +67,13 @@ export function SearchBar() {
 					: "border border-border bg-card shadow-sm hover:bg-muted focus-within:ring-2 focus-within:ring-ring",
 			)}
 		>
-			{showEngineLogo ? (
+			{showEngineLogo && svgXml && !isLoading ? (
+				<SvgIcon
+					svgXml={svgXml}
+					className="h-[18px] w-[18px] shrink-0"
+					alt={engine.label}
+				/>
+			) : showEngineLogo ? (
 				<img
 					src={faviconUrl(engine.homepage)}
 					alt=""

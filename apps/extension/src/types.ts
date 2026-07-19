@@ -108,3 +108,17 @@ export interface SiteSuggestion {
 	name: string;
 	url: string;
 }
+
+// ── SVGL API ─────────────────────────────────────────────────────────────────
+
+export type SVGLThemeOptions = { dark: string; light: string };
+
+export interface SVGLItem {
+	id: number;
+	title: string;
+	category: string | string[];
+	route: string | SVGLThemeOptions;
+	url: string;
+	wordmark?: string | SVGLThemeOptions;
+	brandUrl?: string;
+}
