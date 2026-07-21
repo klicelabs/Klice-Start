@@ -25,7 +25,6 @@ interface PexelsResponse {
 	photos: PexelsPhoto[];
 }
 
-/** Score a photo: higher is better for wallpaper use. Favors 16:9 + high res. */
 function scorePhoto(photo: PexelsPhoto): number {
 	const resolution = photo.width * photo.height;
 	const aspectRatio = photo.width / photo.height;
@@ -34,23 +33,37 @@ function scorePhoto(photo: PexelsPhoto): number {
 	return resolution + aspectScore;
 }
 
-/** Pick the best photo from a list, filtering below minimum resolution. */
 function pickBest(photos: PexelsPhoto[]): PexelsPhoto | null {
+	if (photos.length === 0) return null;
+
 	const filtered = photos.filter(
 		(p) => p.width >= MIN_WIDTH && p.height >= MIN_HEIGHT,
 	);
-	if (filtered.length === 0) return null;
-	filtered.sort((a, b) => scorePhoto(b) - scorePhoto(a));
-	return filtered[0];
+	const candidates = filtered.length > 0 ? filtered : photos;
+	candidates.sort((a, b) => scorePhoto(b) - scorePhoto(a));
+
+	// Pick randomly from top N candidates (up to 8) to avoid repeating identical image
+	const topCandidates = candidates.slice(0, Math.min(candidates.length, 8));
+	const randomIndex = Math.floor(Math.random() * topCandidates.length);
+	return topCandidates[randomIndex];
 }
 
 export async function POST(req: Request) {
 	try {
-		const { query, perPage = 40, color = "black" } = (await req.json()) as {
+		let body: {
 			query?: string;
 			perPage?: number;
 			color?: string;
-		};
+			page?: number;
+		} = {};
+
+		try {
+			body = (await req.json()) as typeof body;
+		} catch {
+			// Empty or non-JSON body ok
+		}
+
+		const { query, perPage = 40, color, page } = body;
 
 		if (!PEXELS_API_KEY) {
 			return NextResponse.json(
@@ -59,51 +72,74 @@ export async function POST(req: Request) {
 			);
 		}
 
-		// When no query is provided, use the /v1/curated endpoint which returns
-		// hand-picked high-quality photos from the Pexels team.
-		// When a query is provided, use /v1/search with a dark color filter.
 		const useCurated = !query || !query.trim();
 
-		let url: string;
-		if (useCurated) {
-			const params = new URLSearchParams({
-				per_page: String(Math.min(perPage, 80)),
-				orientation: "landscape",
-			});
-			url = `${PEXELS_API_BASE}/curated?${params.toString()}`;
-		} else {
-			const params = new URLSearchParams({
-				query,
-				per_page: String(Math.min(perPage, 80)),
-				orientation: "landscape",
-				size: "large",
-				color,
-			});
-			url = `${PEXELS_API_BASE}/search?${params.toString()}`;
-		}
+		let fetchUrl = (isCurated: boolean, searchPage?: number) => {
+			const randomPage = isCurated
+				? Math.floor(Math.random() * 15) + 1
+				: Math.floor(Math.random() * 8) + 1;
+			const targetPage = searchPage ?? page ?? randomPage;
 
-		const res = await fetch(url, {
+			const params = new URLSearchParams({
+				per_page: String(Math.min(perPage, 80)),
+				orientation: "landscape",
+				page: String(targetPage),
+			});
+
+			if (!isCurated && query) {
+				params.append("query", query);
+				params.append("size", "large");
+				if (color && color.trim()) {
+					params.append("color", color.trim());
+				}
+			}
+
+			const endpoint = isCurated ? "curated" : "search";
+			return `${PEXELS_API_BASE}/${endpoint}?${params.toString()}`;
+		};
+
+		let res = await fetch(fetchUrl(useCurated), {
 			headers: { Authorization: PEXELS_API_KEY },
 		});
 
-		if (!res.ok) {
-			const text = await res.text();
+		if (res.status === 429) {
+			const retryAfter = res.headers.get("Retry-After") || "60";
 			return NextResponse.json(
-				{ error: `Pexels API error: ${res.status}`, details: text },
-				{ status: res.status },
+				{ error: "Rate limited", retryAfter },
+				{
+					status: 429,
+					headers: { "Retry-After": retryAfter },
+				},
 			);
 		}
 
-		const data = (await res.json()) as PexelsResponse;
+		let data: PexelsResponse | null = null;
+		if (res.ok) {
+			data = (await res.json()) as PexelsResponse;
+		}
 
-		if (!data.photos?.length) {
-			return NextResponse.json({ error: "No photos found" }, { status: 404 });
+		// Fallback: If search returned 0 photos or non-200, try curated fallback
+		if ((!useCurated && (!res.ok || !data?.photos?.length)) || !data) {
+			res = await fetch(fetchUrl(true), {
+				headers: { Authorization: PEXELS_API_KEY },
+			});
+			if (res.ok) {
+				data = (await res.json()) as PexelsResponse;
+			}
+		}
+
+		if (!res.ok || !data?.photos?.length) {
+			const text = res.ok ? "No photos found" : await res.text();
+			return NextResponse.json(
+				{ error: `Pexels API error: ${res.status}`, details: text },
+				{ status: res.status >= 400 ? res.status : 404 },
+			);
 		}
 
 		const best = pickBest(data.photos);
 		if (!best) {
 			return NextResponse.json(
-				{ error: "No photos meet minimum resolution (1920x1080)" },
+				{ error: "No photos available" },
 				{ status: 404 },
 			);
 		}

@@ -81,16 +81,46 @@ interface PexelsPhotoResponse {
 	height: number;
 }
 
+async function fetchWithRetry(
+	input: RequestInfo | URL,
+	init?: RequestInit,
+	maxRetries = 2,
+): Promise<Response> {
+	let lastError: unknown;
+	for (let i = 0; i <= maxRetries; i++) {
+		try {
+			const res = await fetch(input, init);
+			if (res.ok || res.status === 404 || res.status === 400) return res;
+			if (res.status === 429) {
+				const retryAfter = res.headers.get("Retry-After");
+				const delay = retryAfter
+					? Number.parseInt(retryAfter, 10) * 1000
+					: Math.min((i + 1) * 2000, 10_000);
+				await new Promise((r) => setTimeout(r, delay));
+				continue;
+			}
+			if (res.status >= 500 && i < maxRetries) {
+				await new Promise((r) => setTimeout(r, (i + 1) * 1000));
+				continue;
+			}
+			return res;
+		} catch (err) {
+			lastError = err;
+			if (i < maxRetries) {
+				await new Promise((r) => setTimeout(r, (i + 1) * 1000));
+			}
+		}
+	}
+	throw lastError ?? new Error("fetchWithRetry exhausted retries");
+}
+
+let refreshPromise: Promise<void> | null = null;
+
 async function fetchPexelsPhoto(
 	query: string,
 	period?: DaylightPeriod,
 ): Promise<PexelsPhotoResponse | null> {
 	try {
-		// When the query is still the default (user hasn't customized it),
-		// send no query so the proxy uses the /v1/curated endpoint —
-		// hand-picked photos from the Pexels team.
-		// When the user has typed their own query, send it with a dark color
-		// filter for search.
 		const isDefaultQuery =
 			!query.trim() || query === DEFAULT_BACKGROUND.pexelsQuery;
 
@@ -98,14 +128,15 @@ async function fetchPexelsPhoto(
 			perPage: 40,
 		};
 
-		if (!isDefaultQuery) {
-			body.query = period
-				? `${query}, ${periodModifier(period)}`
-				: query;
-			body.color = "black";
+		if (period) {
+			body.query = isDefaultQuery
+				? `${periodModifier(period)} landscape`
+				: `${query}, ${periodModifier(period)}`;
+		} else if (!isDefaultQuery) {
+			body.query = query;
 		}
 
-		const res = await fetch(pexelsProxyUrl(), {
+		const res = await fetchWithRetry(pexelsProxyUrl(), {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(body),
@@ -134,41 +165,64 @@ async function downloadImage(url: string): Promise<Blob | null> {
 }
 
 export async function refreshWallpaper(force = false): Promise<void> {
-	const state = useSetupStore.getState();
-	const bg = state.settings.background;
-
-	if (bg.type !== "pexels") return;
-
-	const frequency = bg.pexelsFrequency || "daily";
-
-	if (
-		!force &&
-		!shouldFetch(frequency, bg.pexelsLastFetched, bg.pexelsLastPeriod)
-	) {
-		return;
+	if (refreshPromise) {
+		if (!force) return refreshPromise;
+		try {
+			await refreshPromise;
+		} catch {
+			// ignore previous failure
+		}
 	}
 
-	const period = frequency === "daylight" ? getCurrentPeriod() : undefined;
+	const executeRefresh = async () => {
+		const state = useSetupStore.getState();
+		const bg = state.settings.background;
 
-	const photo = await fetchPexelsPhoto(bg.pexelsQuery, period);
-	if (!photo) return;
+		if (bg.type !== "pexels") return;
 
-	const imageBlob = await downloadImage(photo.src.large2x);
-	if (!imageBlob) return;
+		const frequency = bg.pexelsFrequency || "daily";
 
-	const dataUrl = await blobToDataUrl(imageBlob);
-	const imageId = await saveBackground(dataUrl);
+		if (
+			!force &&
+			!shouldFetch(frequency, bg.pexelsLastFetched, bg.pexelsLastPeriod)
+		) {
+			return;
+		}
 
-	useSetupStore.getState().updateBackground({
-		type: "pexels",
-		pexelsImageId: imageId,
-		pexelsLastFetched: Date.now(),
-		pexelsLastPeriod: period || null,
+		const period = frequency === "daylight" ? getCurrentPeriod() : undefined;
+
+		const photo = await fetchPexelsPhoto(bg.pexelsQuery, period);
+		if (!photo) return;
+
+		const imageBlob = await downloadImage(photo.src.large2x);
+		if (!imageBlob) return;
+
+		const dataUrl = await blobToDataUrl(imageBlob);
+		const imageId = await saveBackground(dataUrl);
+
+		// Re-check type & state after async ops
+		const currentBg = useSetupStore.getState().settings.background;
+		if (currentBg.type !== "pexels") {
+			useImageStore.getState().deleteBackgroundImage(imageId);
+			return;
+		}
+
+		const oldImageId = currentBg.pexelsImageId;
+
+		useSetupStore.getState().updateBackground({
+			pexelsImageId: imageId,
+			pexelsLastFetched: Date.now(),
+			pexelsLastPeriod: period || null,
+		});
+
+		if (oldImageId && oldImageId !== imageId) {
+			useImageStore.getState().deleteBackgroundImage(oldImageId);
+		}
+	};
+
+	refreshPromise = executeRefresh().finally(() => {
+		refreshPromise = null;
 	});
 
-	// Delete old background image from IDB to avoid bloat
-	const oldImageId = bg.pexelsImageId;
-	if (oldImageId && oldImageId !== imageId) {
-		useImageStore.getState().deleteBackgroundImage(oldImageId);
-	}
+	return refreshPromise;
 }

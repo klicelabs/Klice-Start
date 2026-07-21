@@ -13,6 +13,12 @@ export function BackgroundLayer() {
 	const pexelsImageId = useSetupStore(
 		(s) => s.settings.background.pexelsImageId,
 	);
+	const pexelsQuery = useSetupStore(
+		(s) => s.settings.background.pexelsQuery,
+	);
+	const pexelsFrequency = useSetupStore(
+		(s) => s.settings.background.pexelsFrequency,
+	);
 
 	const blur = useSetupStore((s) => s.settings.background.blur);
 	const brightness = useSetupStore((s) => s.settings.background.brightness);
@@ -21,9 +27,8 @@ export function BackgroundLayer() {
 	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 	const [bgCss, setBgCss] = useState<string>(color || DEFAULT_BACKGROUND.color);
 
-	const fetchedRef = useRef(false);
+	const lastFetchedKeyRef = useRef<string>("");
 
-	/** Resolve store-based image to a CSS background value, or null if not found. */
 	async function resolveImage(
 		imageId: string,
 	): Promise<string | null> {
@@ -36,7 +41,6 @@ export function BackgroundLayer() {
 		return null;
 	}
 
-	/** Set background from a store image ID. */
 	async function applyImage(imageId: string) {
 		const css = await resolveImage(imageId);
 		if (css) setBgCss(css);
@@ -47,25 +51,25 @@ export function BackgroundLayer() {
 
 		(async () => {
 			if (type === "pexels") {
-				// Already have an image loaded? Apply it immediately so the user
-				// sees the previous wallpaper while a fresh one is fetched.
-				const hadImage = !!pexelsImageId;
+				let loadedFromCache = false;
 				if (pexelsImageId) {
 					const css = await resolveImage(pexelsImageId);
 					if (css && !cancelled) {
 						setBgCss(css);
-						if (cancelled) return;
+						loadedFromCache = true;
 					}
+					if (cancelled) return;
 				}
 
-				// Fetch a fresh wallpaper (skipped if shouldFetch says no).
-				if (!fetchedRef.current || !hadImage) {
-					fetchedRef.current = true;
-					await refreshWallpaper();
+				// If pexelsImageId exists but failed to resolve from IDB, force refresh to recover cache
+				const needsCacheRecovery = Boolean(pexelsImageId && !loadedFromCache);
+
+				const fetchKey = `${pexelsQuery}|${pexelsFrequency}`;
+				if (lastFetchedKeyRef.current !== fetchKey || needsCacheRecovery) {
+					lastFetchedKeyRef.current = fetchKey;
+					await refreshWallpaper(needsCacheRecovery);
 				}
 
-				// Read the NEW image id from the store and apply it immediately,
-				// rather than waiting for a React re-render to pick it up.
 				if (!cancelled) {
 					const freshId =
 						useSetupStore.getState().settings.background.pexelsImageId;
@@ -77,25 +81,27 @@ export function BackgroundLayer() {
 			}
 
 			if (type === "image" && imageId) {
+				lastFetchedKeyRef.current = "";
 				await applyImage(imageId);
 				return;
 			}
 
 			if (type === "gradient" && gradientId) {
+				lastFetchedKeyRef.current = "";
 				const g = GRADIENTS.find((x) => x.id === gradientId) || GRADIENTS[0];
 				if (!cancelled) setBgCss(g.css);
 				return;
 			}
 
+			lastFetchedKeyRef.current = "";
 			if (!cancelled) setBgCss(color || "#0A0A0C");
 		})();
 
 		return () => {
 			cancelled = true;
 		};
-		// Intentionally only re-run when the background SOURCE changes.
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [type, imageId, gradientId, color]);
+	}, [type, pexelsImageId, pexelsQuery, pexelsFrequency, imageId, gradientId, color]);
 
 	return (
 		<div

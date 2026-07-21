@@ -212,6 +212,43 @@ function IconChoiceRow<T extends string>({
 	);
 }
 
+function PexelsQueryInput({
+	value,
+	onChange,
+}: {
+	value: string;
+	onChange: (val: string) => void;
+}) {
+	const [localVal, setLocalVal] = useState(value);
+	const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+	useEffect(() => {
+		setLocalVal(value);
+	}, [value]);
+
+	return (
+		<Input
+			value={localVal}
+			onChange={(e) => {
+				const val = e.target.value;
+				setLocalVal(val);
+				if (timerRef.current) clearTimeout(timerRef.current);
+				timerRef.current = setTimeout(() => {
+					onChange(val);
+				}, 500);
+			}}
+			onBlur={() => {
+				if (timerRef.current) clearTimeout(timerRef.current);
+				if (localVal !== value) {
+					onChange(localVal);
+				}
+			}}
+			placeholder="minimalist background, dark architecture"
+			className="mt-1 rounded-xl border-border bg-secondary px-3 py-2 text-foreground text-sm"
+		/>
+	);
+}
+
 function SectionCard({
 	title,
 	children,
@@ -584,6 +621,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 												pexelsImageId: null,
 												pexelsLastFetched: null,
 												pexelsLastPeriod: null,
+												pexelsPreviousFrequency: null,
 											} as Partial<Settings["background"]>);
 										}
 									}}
@@ -596,15 +634,14 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 										<Label className="text-muted-foreground text-xs">
 											Search query
 										</Label>
-										<Input
+										<PexelsQueryInput
 											value={bg.pexelsQuery}
-											onChange={(e) =>
+											onChange={(newQuery) => {
 												updateBackground({
-													pexelsQuery: e.target.value,
-												} as Partial<Settings["background"]>)
-											}
-											placeholder="minimalist background, dark architecture"
-											className="mt-1 rounded-xl border-border bg-secondary px-3 py-2 text-foreground text-sm"
+													pexelsQuery: newQuery,
+												} as Partial<Settings["background"]>);
+												refreshWallpaper(true);
+											}}
 										/>
 									</div>
 									<div>
@@ -613,12 +650,28 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 										</Label>
 										<Select
 											value={bg.pexelsFrequency}
-											onValueChange={(v) =>
-												v &&
-												updateBackground({
-													pexelsFrequency: v as WallpaperFrequency,
-												} as Partial<Settings["background"]>)
-											}
+											onValueChange={(v) => {
+												if (!v) return;
+												const newFreq = v as WallpaperFrequency;
+												const currentFreq = bg.pexelsFrequency;
+												if (newFreq === currentFreq) return;
+
+												if (newFreq === "locked") {
+													updateBackground({
+														pexelsFrequency: "locked",
+														pexelsPreviousFrequency:
+															currentFreq !== "locked"
+																? currentFreq
+																: bg.pexelsPreviousFrequency || "daily",
+													} as Partial<Settings["background"]>);
+												} else {
+													updateBackground({
+														pexelsFrequency: newFreq,
+														pexelsPreviousFrequency: null,
+													} as Partial<Settings["background"]>);
+													refreshWallpaper(true);
+												}
+											}}
 										>
 											<SelectTrigger
 												size="sm"
