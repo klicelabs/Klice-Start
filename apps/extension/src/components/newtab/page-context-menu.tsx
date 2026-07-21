@@ -23,8 +23,9 @@ import {
 	useState,
 } from "react";
 import { glassDropdownItem } from "../../lib/glass";
-import { unsplashDownloadUrl, unsplashImageUrl } from "../../lib/unsplash";
 import { cn } from "../../lib/utils";
+import { refreshWallpaper } from "../../services/wallpaper";
+import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 import { useAppearance } from "./appearance-provider";
 
@@ -45,36 +46,47 @@ export function PageContextMenu({
 }: PageContextMenuProps) {
 	const { isLiquid } = useAppearance();
 	const bgType = useSetupStore((s) => s.settings.background.type);
-	const bgUnsplashSig = useSetupStore(
-		(s) => s.settings.background.unsplashSig,
+	const pexelsImageId = useSetupStore(
+		(s) => s.settings.background.pexelsImageId,
 	);
-	const bgUnsplashUrl = useSetupStore(
-		(s) => s.settings.background.unsplashUrl,
-	);
-	const bgUnsplashDownloadUrl = useSetupStore(
-		(s) => s.settings.background.unsplashDownloadUrl,
-	);
-	const bgUnsplashLocked = useSetupStore(
-		(s) => s.settings.background.unsplashLocked,
+	const pexelsFrequency = useSetupStore(
+		(s) => s.settings.background.pexelsFrequency,
 	);
 	const updateBackground = useSetupStore((s) => s.updateBackground);
+	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 	const [open, setOpen] = useState(false);
 	const suppressNextOpen = useRef(false);
 
-	const ensureUnsplashBackground = useCallback(() => {
-		const sig = bgUnsplashSig || Date.now();
-		const url = bgUnsplashUrl || unsplashImageUrl(sig);
-		const downloadUrl = bgUnsplashDownloadUrl || unsplashDownloadUrl(sig);
-		if (bgType !== "unsplash" || !bgUnsplashUrl) {
-			updateBackground({
-				type: "unsplash",
-				unsplashSig: sig,
-				unsplashUrl: url,
-				unsplashDownloadUrl: downloadUrl,
-			});
+	const isPexels = bgType === "pexels";
+
+	const handleDownloadBackground = useCallback(async () => {
+		if (pexelsImageId) {
+			const dataUrl = await getBackgroundImage(pexelsImageId);
+			if (dataUrl) {
+				const a = document.createElement("a");
+				a.href = dataUrl;
+				a.download = `perch-wallpaper-${Date.now()}.jpg`;
+				a.click();
+			}
 		}
-		return { url, downloadUrl };
-	}, [bgType, bgUnsplashSig, bgUnsplashUrl, bgUnsplashDownloadUrl, updateBackground]);
+	}, [pexelsImageId, getBackgroundImage]);
+
+	const handleToggleLock = useCallback(() => {
+		if (isPexels) {
+			updateBackground({
+				pexelsFrequency: pexelsFrequency === "locked" ? "daily" : "locked",
+			});
+		} else {
+			updateBackground({ type: "pexels", pexelsFrequency: "per-tab" });
+		}
+	}, [isPexels, pexelsFrequency, updateBackground]);
+
+	const handleNextBackground = useCallback(async () => {
+		if (!isPexels) {
+			updateBackground({ type: "pexels", pexelsFrequency: "per-tab" });
+		}
+		await refreshWallpaper(true);
+	}, [isPexels, updateBackground]);
 
 	function handleContextMenu(event: MouseEvent) {
 		const target = event.target as Element | null;
@@ -93,31 +105,6 @@ export function PageContextMenu({
 			return;
 		}
 		setOpen(nextOpen);
-	}
-
-	function handleDownloadBackground() {
-		const { downloadUrl } = ensureUnsplashBackground();
-		window.open(downloadUrl, "_blank", "noopener,noreferrer");
-	}
-
-	function handleToggleLock() {
-		const { url, downloadUrl } = ensureUnsplashBackground();
-		updateBackground({
-			type: "unsplash",
-			unsplashLocked: !bgUnsplashLocked,
-			unsplashUrl: url,
-			unsplashDownloadUrl: downloadUrl,
-		});
-	}
-
-	function handleNextBackground() {
-		const sig = Date.now();
-		updateBackground({
-			type: "unsplash",
-			unsplashSig: sig,
-			unsplashUrl: unsplashImageUrl(sig),
-			unsplashDownloadUrl: unsplashDownloadUrl(sig),
-		});
 	}
 
 	const itemClassName = cn(
@@ -172,30 +159,37 @@ export function PageContextMenu({
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}
 				/>
-				<ContextMenuItem
-					className={itemClassName}
-					onClick={handleDownloadBackground}
-				>
-					<Download className={iconClassName} />
-					Download background
-				</ContextMenuItem>
-				<ContextMenuItem className={itemClassName} onClick={handleToggleLock}>
-					{bgUnsplashLocked ? (
-						<Unlock className={iconClassName} />
-					) : (
-						<Lock className={iconClassName} />
-					)}
-					{bgUnsplashLocked
-						? "Unlock current background"
-						: "Lock current background"}
-				</ContextMenuItem>
-				<ContextMenuItem
-					className={itemClassName}
-					onClick={handleNextBackground}
-				>
-					<RefreshCw className={iconClassName} />
-					Next background
-				</ContextMenuItem>
+				{isPexels && (
+					<>
+						<ContextMenuItem
+							className={itemClassName}
+							onClick={handleDownloadBackground}
+						>
+							<Download className={iconClassName} />
+							Download background
+						</ContextMenuItem>
+						<ContextMenuItem
+							className={itemClassName}
+							onClick={handleToggleLock}
+						>
+							{pexelsFrequency === "locked" ? (
+								<Unlock className={iconClassName} />
+							) : (
+								<Lock className={iconClassName} />
+							)}
+							{pexelsFrequency === "locked"
+								? "Unlock current background"
+								: "Lock current background"}
+						</ContextMenuItem>
+						<ContextMenuItem
+							className={itemClassName}
+							onClick={handleNextBackground}
+						>
+							<RefreshCw className={iconClassName} />
+							Next background
+						</ContextMenuItem>
+					</>
+				)}
 			</ContextMenuContent>
 		</ContextMenu>
 	);

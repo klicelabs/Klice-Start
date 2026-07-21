@@ -28,14 +28,14 @@ export async function buildBackup(): Promise<BackupPayload> {
 	}
 
 	const backgrounds: Record<string, string> = {};
+	const bg = state.settings.background;
 	if (
-		state.settings.background.type === "image" &&
-		state.settings.background.imageId
+		(bg.type === "image" && bg.imageId) ||
+		(bg.type === "pexels" && bg.pexelsImageId)
 	) {
-		const dataUrl = await images.getBackgroundImage(
-			state.settings.background.imageId,
-		);
-		if (dataUrl) backgrounds[state.settings.background.imageId] = dataUrl;
+		const id = bg.type === "image" ? bg.imageId! : bg.pexelsImageId!;
+		const dataUrl = await images.getBackgroundImage(id);
+		if (dataUrl) backgrounds[id] = dataUrl;
 	}
 
 	return {

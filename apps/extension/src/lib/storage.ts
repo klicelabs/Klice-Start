@@ -65,10 +65,18 @@ export function normalizeState(
 				...defaults.settings.thumbnailCapture,
 				...(sourceSettings?.thumbnailCapture ?? {}),
 			},
-			background: {
-				...defaults.settings.background,
-				...(sourceSettings?.background ?? {}),
-			},
+			background: (() => {
+				const raw = sourceSettings?.background as
+					| Record<string, unknown>
+					| undefined;
+				const bg = { ...defaults.settings.background, ...raw };
+				if (raw?.type === "unsplash") {
+					bg.type = "pexels";
+					bg.pexelsFrequency = "daily";
+					bg.pexelsQuery = defaults.settings.background.pexelsQuery;
+				}
+				return bg as typeof defaults.settings.background;
+			})(),
 			clock: {
 				...defaults.settings.clock,
 				...(sourceSettings?.clock ?? {}),
@@ -140,7 +148,9 @@ export function getLastWrittenJSON(): string | null {
 
 // Flush pending writes before the tab closes or hides.
 if (typeof window !== "undefined") {
-	const onFlush = () => { flushPersist(); };
+	const onFlush = () => {
+		flushPersist();
+	};
 	window.addEventListener("beforeunload", onFlush);
 	document.addEventListener("visibilitychange", () => {
 		if (document.visibilityState === "hidden") flushPersist();
@@ -170,7 +180,10 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 			_setItemTimer = setTimeout(() => {
 				const snap = _pendingSetItem;
 				_pendingSetItem = null;
-				if (!snap) { resolve(); return; }
+				if (!snap) {
+					resolve();
+					return;
+				}
 				_doWrite(snap.name, snap.value).then(resolve, (err) => {
 					console.warn("[perch] chrome.storage.local.set failed", err);
 					resolve();

@@ -25,18 +25,26 @@ export interface ThumbnailCaptureSettings {
 	delayMs: number;
 }
 
+export type WallpaperFrequency =
+	| "per-tab"
+	| "hourly"
+	| "daily"
+	| "daylight"
+	| "locked";
+
 export interface BackgroundSettings {
-	type: "solid" | "gradient" | "image" | "unsplash";
+	type: "solid" | "gradient" | "image" | "pexels";
 	color: string;
 	gradientId: string | null;
 	imageId: string | null;
-	unsplashUrl: string | null;
-	unsplashDownloadUrl: string | null;
-	unsplashLocked: boolean;
-	unsplashSig: number;
 	blur: number;
 	brightness: number;
 	opacity: number;
+	pexelsQuery: string;
+	pexelsFrequency: WallpaperFrequency;
+	pexelsLastFetched: number | null;
+	pexelsLastPeriod: "morning" | "afternoon" | "night" | null;
+	pexelsImageId: string | null;
 }
 
 export interface ClockSettings {

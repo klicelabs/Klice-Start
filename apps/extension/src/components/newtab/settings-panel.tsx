@@ -28,16 +28,17 @@ import { Switch } from "@perch/ui/components/switch";
 import type { IconName } from "@perch/ui/icons/icon";
 import { Icon } from "@perch/ui/icons/icon";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
-import { flushPersist } from "../../lib/storage";
-import { GRADIENTS, SEARCH_ENGINES } from "../../lib/constants";
-import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
-import { SvgIcon } from "../shared/svg-icon";
 import { useSvgIcon } from "../../hooks/use-svg-icon";
+import { GRADIENTS, SEARCH_ENGINES } from "../../lib/constants";
+import { flushPersist } from "../../lib/storage";
+import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
 import { exportBackup, importBackup } from "../../services/backup";
 import { importBrowserBookmarks } from "../../services/bookmarks-import";
+import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
-import type { Settings } from "../../types";
+import type { Settings, WallpaperFrequency } from "../../types";
+import { SvgIcon } from "../shared/svg-icon";
 
 function EngineIcon({ engineId }: { engineId: string }) {
 	const svglTitle = SEARCH_ENGINE_TO_SVGL[engineId];
@@ -46,13 +47,15 @@ function EngineIcon({ engineId }: { engineId: string }) {
 	if (isLoading || !svgXml) {
 		const label = SEARCH_ENGINES.find((e) => e.id === engineId)?.label ?? "?";
 		return (
-			<span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-muted text-[9px] font-bold text-muted-foreground">
+			<span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-muted font-bold text-[9px] text-muted-foreground">
 				{label.charAt(0)}
 			</span>
 		);
 	}
 
-	return <SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />;
+	return (
+		<SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />
+	);
 }
 
 interface SettingsPanelProps {
@@ -274,6 +277,13 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 		updateBackground({ type: "image", imageId } as Partial<
 			Settings["background"]
 		>);
+	}
+
+	async function handlePexels() {
+		updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
+	}
+	async function handlePexelsRefresh() {
+		await refreshWallpaper(true);
 	}
 
 	// === Bookmarks ===
@@ -558,6 +568,84 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									} as Partial<Settings["background"]>)
 								}
 							/>
+
+							<Separator className="my-2" />
+
+							<div className="flex items-center justify-between">
+								<span className="font-medium text-foreground text-sm">
+									Pexels Wallpaper
+								</span>
+								{bg.type !== "pexels" ? (
+									<Button
+										variant="secondary"
+										size="sm"
+										className="rounded-xl text-xs"
+										onClick={handlePexels}
+									>
+										Enable
+									</Button>
+								) : (
+									<Button
+										variant="secondary"
+										size="sm"
+										className="rounded-xl text-xs"
+										onClick={handlePexelsRefresh}
+									>
+										Refresh
+									</Button>
+								)}
+							</div>
+
+							{bg.type === "pexels" && (
+								<div className="mt-2 space-y-2">
+									<div>
+										<Label className="text-muted-foreground text-xs">
+											Search query
+										</Label>
+										<Input
+											value={bg.pexelsQuery}
+											onChange={(e) =>
+												updateBackground({
+													pexelsQuery: e.target.value,
+												} as Partial<Settings["background"]>)
+											}
+											placeholder="minimalist background, dark architecture"
+											className="mt-1 rounded-xl border-border bg-secondary px-3 py-2 text-foreground text-sm"
+										/>
+									</div>
+									<div>
+										<Label className="text-muted-foreground text-xs">
+											Frequency
+										</Label>
+										<Select
+											value={bg.pexelsFrequency}
+											onValueChange={(v) =>
+												v &&
+												updateBackground({
+													pexelsFrequency: v as WallpaperFrequency,
+												} as Partial<Settings["background"]>)
+											}
+										>
+											<SelectTrigger
+												size="sm"
+												className="mt-1 min-w-[130px]"
+												aria-label="Wallpaper frequency"
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="per-tab">A cada aba</SelectItem>
+												<SelectItem value="hourly">A cada hora</SelectItem>
+												<SelectItem value="daily">Diariamente</SelectItem>
+												<SelectItem value="daylight">
+													Conforme a Luz do dia
+												</SelectItem>
+												<SelectItem value="locked">Bloqueado</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+								</div>
+							)}
 						</SectionCard>
 
 						{/* === Clock === */}
