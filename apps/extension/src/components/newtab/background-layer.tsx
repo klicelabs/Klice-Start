@@ -23,38 +23,62 @@ export function BackgroundLayer() {
 
 	const fetchedRef = useRef(false);
 
+	/** Resolve store-based image to a CSS background value, or null if not found. */
+	async function resolveImage(
+		imageId: string,
+	): Promise<string | null> {
+		try {
+			const dataUrl = await getBackgroundImage(imageId);
+			if (dataUrl) return `${cssUrl(dataUrl)} center / cover no-repeat`;
+		} catch {
+			// fall through
+		}
+		return null;
+	}
+
+	/** Set background from a store image ID. */
+	async function applyImage(imageId: string) {
+		const css = await resolveImage(imageId);
+		if (css) setBgCss(css);
+	}
+
 	useEffect(() => {
 		let cancelled = false;
 
 		(async () => {
 			if (type === "pexels") {
-				if (!fetchedRef.current) {
+				// Already have an image loaded? Apply it immediately so the user
+				// sees the previous wallpaper while a fresh one is fetched.
+				const hadImage = !!pexelsImageId;
+				if (pexelsImageId) {
+					const css = await resolveImage(pexelsImageId);
+					if (css && !cancelled) {
+						setBgCss(css);
+						if (cancelled) return;
+					}
+				}
+
+				// Fetch a fresh wallpaper (skipped if shouldFetch says no).
+				if (!fetchedRef.current || !hadImage) {
 					fetchedRef.current = true;
 					await refreshWallpaper();
 				}
-				if (pexelsImageId) {
-					try {
-						const dataUrl = await getBackgroundImage(pexelsImageId);
-						if (dataUrl && !cancelled) {
-							setBgCss(`${cssUrl(dataUrl)} center / cover no-repeat`);
-							return;
-						}
-					} catch {
-						// fall through
+
+				// Read the NEW image id from the store and apply it immediately,
+				// rather than waiting for a React re-render to pick it up.
+				if (!cancelled) {
+					const freshId =
+						useSetupStore.getState().settings.background.pexelsImageId;
+					if (freshId && freshId !== pexelsImageId) {
+						await applyImage(freshId);
 					}
 				}
+				return;
 			}
 
 			if (type === "image" && imageId) {
-				try {
-					const dataUrl = await getBackgroundImage(imageId);
-					if (dataUrl && !cancelled) {
-						setBgCss(`${cssUrl(dataUrl)} center / cover no-repeat`);
-						return;
-					}
-				} catch {
-					// fall through
-				}
+				await applyImage(imageId);
+				return;
 			}
 
 			if (type === "gradient" && gradientId) {
@@ -69,7 +93,9 @@ export function BackgroundLayer() {
 		return () => {
 			cancelled = true;
 		};
-	}, [type, imageId, gradientId, color, pexelsImageId, getBackgroundImage]);
+		// Intentionally only re-run when the background SOURCE changes.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [type, imageId, gradientId, color]);
 
 	return (
 		<div

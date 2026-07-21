@@ -279,12 +279,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 		>);
 	}
 
-	async function handlePexels() {
-		updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
-	}
-	async function handlePexelsRefresh() {
-		await refreshWallpaper(true);
-	}
+
 
 	// === Bookmarks ===
 	async function handleImportBookmarks() {
@@ -575,25 +570,24 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 								<span className="font-medium text-foreground text-sm">
 									Pexels Wallpaper
 								</span>
-								{bg.type !== "pexels" ? (
-									<Button
-										variant="secondary"
-										size="sm"
-										className="rounded-xl text-xs"
-										onClick={handlePexels}
-									>
-										Enable
-									</Button>
-								) : (
-									<Button
-										variant="secondary"
-										size="sm"
-										className="rounded-xl text-xs"
-										onClick={handlePexelsRefresh}
-									>
-										Refresh
-									</Button>
-								)}
+								<Switch
+									checked={bg.type === "pexels"}
+									onCheckedChange={(enabled) => {
+										if (enabled) {
+											updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
+											refreshWallpaper(true);
+										} else {
+											updateBackground({
+												type: "solid",
+												gradientId: null,
+												imageId: null,
+												pexelsImageId: null,
+												pexelsLastFetched: null,
+												pexelsLastPeriod: null,
+											} as Partial<Settings["background"]>);
+										}
+									}}
+								/>
 							</div>
 
 							{bg.type === "pexels" && (

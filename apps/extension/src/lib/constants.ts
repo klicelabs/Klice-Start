@@ -101,7 +101,7 @@ export const DEFAULT_THUMBNAIL_CAPTURE: ThumbnailCaptureSettings = {
 };
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
-	type: "solid",
+	type: "pexels",
 	color: "#0A0A0C",
 	gradientId: null,
 	imageId: null,
