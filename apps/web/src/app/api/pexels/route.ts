@@ -48,6 +48,13 @@ function pickBest(photos: PexelsPhoto[]): PexelsPhoto | null {
 	return topCandidates[randomIndex];
 }
 
+const ALLOWED_CATEGORIES = [
+	"city architecture landscape",
+	"nature landscape",
+	"beach ocean landscape",
+	"mountain landscape",
+];
+
 export async function POST(req: Request) {
 	try {
 		let body: {
@@ -72,33 +79,38 @@ export async function POST(req: Request) {
 			);
 		}
 
-		const useCurated = !query || !query.trim();
+		const isDefaultQuery =
+			!query ||
+			!query.trim() ||
+			query.toLowerCase().includes("curated");
 
-		let fetchUrl = (isCurated: boolean, searchPage?: number) => {
-			const randomPage = isCurated
-				? Math.floor(Math.random() * 15) + 1
-				: Math.floor(Math.random() * 8) + 1;
+		const getRandomCategory = () =>
+			ALLOWED_CATEGORIES[
+				Math.floor(Math.random() * ALLOWED_CATEGORIES.length)
+			];
+
+		let fetchUrl = (targetQuery: string, searchPage?: number) => {
+			const randomPage = Math.floor(Math.random() * 8) + 1;
 			const targetPage = searchPage ?? page ?? randomPage;
 
 			const params = new URLSearchParams({
+				query: targetQuery,
 				per_page: String(Math.min(perPage, 80)),
 				orientation: "landscape",
+				size: "large",
 				page: String(targetPage),
 			});
 
-			if (!isCurated && query) {
-				params.append("query", query);
-				params.append("size", "large");
-				if (color && color.trim()) {
-					params.append("color", color.trim());
-				}
+			if (color && color.trim()) {
+				params.append("color", color.trim());
 			}
 
-			const endpoint = isCurated ? "curated" : "search";
-			return `${PEXELS_API_BASE}/${endpoint}?${params.toString()}`;
+			return `${PEXELS_API_BASE}/search?${params.toString()}`;
 		};
 
-		let res = await fetch(fetchUrl(useCurated), {
+		const activeQuery = isDefaultQuery ? getRandomCategory() : query.trim();
+
+		let res = await fetch(fetchUrl(activeQuery), {
 			headers: { Authorization: PEXELS_API_KEY },
 		});
 
@@ -118,9 +130,9 @@ export async function POST(req: Request) {
 			data = (await res.json()) as PexelsResponse;
 		}
 
-		// Fallback: If search returned 0 photos or non-200, try curated fallback
-		if ((!useCurated && (!res.ok || !data?.photos?.length)) || !data) {
-			res = await fetch(fetchUrl(true), {
+		// Fallback: If custom search returned 0 photos or non-200, search one of the 4 allowed categories
+		if (!res.ok || !data?.photos?.length) {
+			res = await fetch(fetchUrl(getRandomCategory()), {
 				headers: { Authorization: PEXELS_API_KEY },
 			});
 			if (res.ok) {

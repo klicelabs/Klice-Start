@@ -57,11 +57,11 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 function periodModifier(period: DaylightPeriod): string {
 	switch (period) {
 		case "morning":
-			return "morning sunlight";
+			return "morning mountain nature landscape";
 		case "afternoon":
-			return "afternoon golden hour";
+			return "afternoon beach ocean landscape";
 		case "night":
-			return "night dark";
+			return "night city skyline landscape";
 	}
 }
 
