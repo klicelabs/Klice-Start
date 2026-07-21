@@ -38,6 +38,8 @@ export function DialCard({
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const showDelete = useSetupStore((s) => s.settings.showDeleteButton);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
+	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
+	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -81,45 +83,66 @@ export function DialCard({
 					/>
 				}
 			>
-				{thumbUrl ? (
-					<img
-						src={thumbUrl}
-						alt=""
-						className="thumb block min-h-0 w-full flex-1 object-cover"
-						loading="lazy"
-					/>
-				) : (
-					<div
-						className="thumb-fallback flex min-h-0 flex-1 items-center justify-center font-semibold text-2xl text-white/60"
-						style={{ background: fallbackColor }}
-					>
-						<span className="flex h-full w-full items-center justify-center">
-							{initial}
-						</span>
-					</div>
-				)}
-
-				{showTitle && (
-					<div
-						className={cn(
-							"card-footer flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2",
-							glassCardFooter(isLiquid),
-						)}
-						style={{ height: "var(--card-footer-h, 30px)" }}
-					>
+				{dialLayout === "icon" ? (
+					<div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-2">
 						<img
 							src={card.favicon || faviconUrl(card.url)}
 							alt=""
-							className="favicon h-4 w-4 shrink-0 rounded-full"
+							className="h-9 w-9 shrink-0 rounded-full"
 							onError={(e) => {
 								(e.target as HTMLImageElement).onerror = null;
 								(e.target as HTMLImageElement).src = faviconUrl(card.url);
 							}}
 						/>
-						<span className="title truncate font-medium text-[11px]">
-							{label}
-						</span>
+						{iconShowLabel && (
+							<span className="max-w-full truncate text-center text-[11px] font-medium leading-tight">
+								{label}
+							</span>
+						)}
 					</div>
+				) : (
+					<>
+						{thumbUrl ? (
+							<img
+								src={thumbUrl}
+								alt=""
+								className="thumb block min-h-0 w-full flex-1 object-cover"
+								loading="lazy"
+							/>
+						) : (
+							<div
+								className="thumb-fallback flex min-h-0 flex-1 items-center justify-center font-semibold text-2xl text-white/60"
+								style={{ background: fallbackColor }}
+							>
+								<span className="flex h-full w-full items-center justify-center">
+									{initial}
+								</span>
+							</div>
+						)}
+
+						{showTitle && (
+							<div
+								className={cn(
+									"card-footer flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2",
+									glassCardFooter(isLiquid),
+								)}
+								style={{ height: "var(--card-footer-h, 30px)" }}
+							>
+								<img
+									src={card.favicon || faviconUrl(card.url)}
+									alt=""
+									className="favicon h-4 w-4 shrink-0 rounded-full"
+									onError={(e) => {
+										(e.target as HTMLImageElement).onerror = null;
+										(e.target as HTMLImageElement).src = faviconUrl(card.url);
+									}}
+								/>
+								<span className="title truncate font-medium text-[11px]">
+									{label}
+								</span>
+							</div>
+						)}
+					</>
 				)}
 
 				{showDelete && (
