@@ -126,7 +126,7 @@ export function DialCard({
 					<button
 						type="button"
 						aria-label={`Remove ${label}`}
-						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 hover:bg-red-500 hover:text-white"
+						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-red-500 hover:text-white"
 						onClick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();
