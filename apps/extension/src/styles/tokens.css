@@ -41,6 +41,11 @@ html {
 	}
 }
 
+/* Icon layout uses tighter spacing so icons feel closer together. */
+.dial-grid[data-layout="icon"] {
+	--grid-gap: 10px;
+}
+
 /* data-tile lives on the grid wrapper, NOT on :root. Only the WIDTH changes
    across size variants — the aspect ratio (and thus the card proportions) is
    identical for Small / Medium / Large. */
