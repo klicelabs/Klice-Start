@@ -84,7 +84,7 @@ export function DialCard({
 				}
 			>
 				{dialLayout === "icon" ? (
-					<div className="flex flex-1 flex-col items-center justify-center gap-1.5 px-2">
+					<div className="flex flex-col items-center gap-1 p-2.5">
 						<img
 							src={card.favicon || faviconUrl(card.url)}
 							alt=""
