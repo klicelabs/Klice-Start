@@ -251,15 +251,22 @@ html {
 	display: none;
 }
 
+.settings-sheet {
+	scrollbar-width: thin;
+	scrollbar-color: var(--border) transparent;
+}
+
+.settings-sheet::-webkit-scrollbar {
+	width: 8px;
+}
+
 .settings-sheet::-webkit-scrollbar-thumb {
-	background: hsl(var(--foreground) / 0.25);
+	background: var(--border);
 	border-radius: 8px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
 }
 
 .settings-sheet::-webkit-scrollbar-track {
-	background: hsl(var(--foreground) / 0.05);
+	background: transparent;
 }
 
 /* =========================================================
