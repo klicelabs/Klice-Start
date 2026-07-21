@@ -6,6 +6,7 @@ import type {
 	Settings,
 	Setup,
 	ThumbnailCaptureSettings,
+	WallpaperFrequency,
 } from "../types";
 
 export interface GradientDef {
@@ -104,13 +105,14 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 	color: "#0A0A0C",
 	gradientId: null,
 	imageId: null,
-	unsplashUrl: null,
-	unsplashDownloadUrl: null,
-	unsplashLocked: false,
-	unsplashSig: 1,
 	blur: 0,
 	brightness: 100,
 	opacity: 100,
+	pexelsQuery: "curated wallpaper",
+	pexelsFrequency: "daily" as WallpaperFrequency,
+	pexelsLastFetched: null,
+	pexelsLastPeriod: null,
+	pexelsImageId: null,
 };
 
 export const DEFAULT_CLOCK: ClockSettings = {
