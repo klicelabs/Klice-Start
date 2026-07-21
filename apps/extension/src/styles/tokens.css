@@ -251,6 +251,12 @@ html {
 	display: none;
 }
 
+.settings-sheet::-webkit-scrollbar-thumb {
+	background: hsl(var(--border));
+	border: none;
+	background-clip: unset;
+}
+
 /* =========================================================
    8.5 — Focus states
    ========================================================= */

@@ -364,7 +364,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			>
 				<SheetContent
 					side="right"
-					className="w-[520px] overflow-y-auto sm:w-[580px]"
+					className="settings-sheet w-[540px] overflow-y-auto sm:w-[600px]"
 				>
 					<SheetHeader>
 						<SheetTitle>Settings</SheetTitle>
