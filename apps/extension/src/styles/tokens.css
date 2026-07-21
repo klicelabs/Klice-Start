@@ -252,9 +252,14 @@ html {
 }
 
 .settings-sheet::-webkit-scrollbar-thumb {
-	background: hsl(var(--border));
-	border: none;
-	background-clip: unset;
+	background: hsl(var(--foreground) / 0.25);
+	border-radius: 8px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+
+.settings-sheet::-webkit-scrollbar-track {
+	background: hsl(var(--foreground) / 0.05);
 }
 
 /* =========================================================
