@@ -73,8 +73,13 @@ export function PageContextMenu({
 
 	const handleToggleLock = useCallback(() => {
 		if (isPexels) {
+			const isLocked = pexelsFrequency === "locked";
 			updateBackground({
-				pexelsFrequency: pexelsFrequency === "locked" ? "daily" : "locked",
+				pexelsFrequency: isLocked
+					? (useSetupStore.getState().settings.background
+							.pexelsPreviousFrequency || "daily")
+					: "locked",
+				pexelsPreviousFrequency: isLocked ? null : pexelsFrequency,
 			});
 		} else {
 			updateBackground({ type: "pexels", pexelsFrequency: "per-tab" });

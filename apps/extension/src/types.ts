@@ -42,6 +42,8 @@ export interface BackgroundSettings {
 	opacity: number;
 	pexelsQuery: string;
 	pexelsFrequency: WallpaperFrequency;
+	/** Previous frequency saved before locking — restored on unlock. */
+	pexelsPreviousFrequency: WallpaperFrequency | null;
 	pexelsLastFetched: number | null;
 	pexelsLastPeriod: "morning" | "afternoon" | "night" | null;
 	pexelsImageId: string | null;

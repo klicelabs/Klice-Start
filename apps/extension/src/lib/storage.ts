@@ -75,6 +75,9 @@ export function normalizeState(
 					bg.pexelsFrequency = "daily";
 					bg.pexelsQuery = defaults.settings.background.pexelsQuery;
 				}
+				if (bg.pexelsPreviousFrequency === undefined) {
+					bg.pexelsPreviousFrequency = null;
+				}
 				return bg as typeof defaults.settings.background;
 			})(),
 			clock: {

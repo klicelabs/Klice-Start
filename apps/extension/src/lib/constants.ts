@@ -110,6 +110,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 	opacity: 100,
 	pexelsQuery: "curated wallpaper",
 	pexelsFrequency: "daily" as WallpaperFrequency,
+	pexelsPreviousFrequency: null,
 	pexelsLastFetched: null,
 	pexelsLastPeriod: null,
 	pexelsImageId: null,
