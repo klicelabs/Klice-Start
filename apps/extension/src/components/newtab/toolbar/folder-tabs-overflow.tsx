@@ -15,6 +15,7 @@ interface FolderTabsOverflowProps {
 	hiddenFolders: Folder[];
 	activeRootId: string;
 	onSelectFolder: (id: string) => void;
+	onAddFolder: (name: string) => string;
 }
 
 /**
@@ -24,16 +25,20 @@ export function FolderTabsOverflow({
 	hiddenFolders,
 	activeRootId,
 	onSelectFolder,
+	onAddFolder,
 }: FolderTabsOverflowProps) {
 	const { isLiquid } = useAppearance();
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
+	const [creating, setCreating] = useState(false);
+	const [newName, setNewName] = useState("");
 	const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
 		null,
 	);
 	const menuRef = useRef<HTMLDivElement>(null);
 	const buttonRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const createInputRef = useRef<HTMLInputElement>(null);
 
 	const filtered = query.trim()
 		? hiddenFolders.filter((f) =>
@@ -49,6 +54,30 @@ export function FolderTabsOverflow({
 		},
 		[onSelectFolder],
 	);
+
+	const handleCreate = useCallback(() => {
+		const name = newName.trim();
+		if (!name) return;
+		const id = onAddFolder(name);
+		setCreating(false);
+		setNewName("");
+		setQuery("");
+		onSelectFolder(id);
+		setOpen(false);
+	}, [newName, onAddFolder, onSelectFolder]);
+
+	useEffect(() => {
+		if (!creating) return;
+		const id = setTimeout(() => createInputRef.current?.focus(), 30);
+		return () => clearTimeout(id);
+	}, [creating]);
+
+	const closeMenu = useCallback(() => {
+		setOpen(false);
+		setQuery("");
+		setCreating(false);
+		setNewName("");
+	}, []);
 
 	// Anchor the dropdown with fixed positioning off the button's viewport rect,
 	// so it escapes the toolbar's overflow-hidden clip (which was breaking the
@@ -83,25 +112,23 @@ export function FolderTabsOverflow({
 				buttonRef.current &&
 				!buttonRef.current.contains(e.target as Node)
 			) {
-				setOpen(false);
-				setQuery("");
+				closeMenu();
 			}
 		}
 		document.addEventListener("mousedown", handleClick);
 		return () => document.removeEventListener("mousedown", handleClick);
-	}, [open]);
+	}, [open, closeMenu]);
 
 	useEffect(() => {
 		if (!open) return;
 		function handleKey(e: KeyboardEvent) {
 			if (e.key === "Escape") {
-				setOpen(false);
-				setQuery("");
+				closeMenu();
 			}
 		}
 		document.addEventListener("keydown", handleKey);
 		return () => document.removeEventListener("keydown", handleKey);
-	}, [open]);
+	}, [open, closeMenu]);
 
 	return (
 		<div className="shrink-0" ref={buttonRef}>
@@ -116,7 +143,7 @@ export function FolderTabsOverflow({
 				<div
 					ref={menuRef}
 					className={cn(
-						"fixed z-50 min-w-[200px] max-w-[280px] -translate-x-full",
+						"fixed z-50 flex min-w-[200px] max-w-[280px] -translate-x-full flex-col",
 						glassDropdown(isLiquid),
 					)}
 					style={{
@@ -125,22 +152,71 @@ export function FolderTabsOverflow({
 						maxHeight: "320px",
 					}}
 				>
-					<div className="px-2 pb-1.5">
-						<input
-							ref={inputRef}
-							type="text"
-							placeholder="Search folders..."
-							value={query}
-							onChange={(e) => setQuery(e.target.value)}
-							className={cn(
-								"w-full",
-								glassInput(isLiquid),
-								"py-1.5 text-[12px]",
-							)}
-						/>
+					<div className="flex flex-col gap-1.5 p-1.5">
+						<div className="flex items-center gap-1.5">
+							<input
+								ref={inputRef}
+								type="text"
+								placeholder="Search folders..."
+								value={query}
+								onChange={(e) => setQuery(e.target.value)}
+								className={cn(
+									"h-8 min-w-0 flex-1",
+									glassInput(isLiquid),
+									"rounded-lg px-2.5 py-0 text-[13px]",
+								)}
+							/>
+							<button
+								type="button"
+								aria-label="New folder"
+								aria-expanded={creating}
+								onClick={() => {
+									setQuery("");
+									setNewName("");
+									setCreating(true);
+								}}
+								className={cn(
+									"flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+									isLiquid
+										? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+										: "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-accent",
+								)}
+							>
+								<Icon name="plus" size={15} />
+							</button>
+						</div>
+
+						{creating && (
+							<input
+								ref={createInputRef}
+								type="text"
+								placeholder="Folder name"
+								value={newName}
+								onChange={(e) => setNewName(e.target.value)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										e.preventDefault();
+										handleCreate();
+									} else if (e.key === "Escape") {
+										e.stopPropagation();
+										setCreating(false);
+										setNewName("");
+									}
+								}}
+								onBlur={() => {
+									setCreating(false);
+									setNewName("");
+								}}
+								className={cn(
+									"h-8 w-full min-w-0",
+									glassInput(isLiquid),
+									"rounded-lg px-2.5 py-0 text-[13px]",
+								)}
+							/>
+						)}
 					</div>
 
-					<div className="max-h-[260px] overflow-y-auto">
+					<div className="max-h-[260px] min-h-0 flex-1 overflow-y-auto">
 						{filtered.length === 0 ? (
 							<div
 								className={cn(

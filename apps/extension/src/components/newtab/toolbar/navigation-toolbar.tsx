@@ -16,7 +16,7 @@ interface NavigationToolbarProps {
 	activeFolderId: string;
 	activeRootId: string;
 	onSelectFolder: (id: string) => void;
-	onAddFolder: () => void;
+	onAddFolder: (name: string) => string;
 	onOpenSettings: () => void;
 	onOpenSearch: () => void;
 	onAddFavorite: () => void;
@@ -230,6 +230,7 @@ export function NavigationToolbar({
 								hiddenFolders={hiddenFolders}
 								activeRootId={activeRootId}
 								onSelectFolder={onSelectFolder}
+								onAddFolder={onAddFolder}
 							/>
 						)}
 					</div>

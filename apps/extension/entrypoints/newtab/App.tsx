@@ -216,10 +216,7 @@ export default function App() {
 						activeFolderId={activeFolderId}
 						activeRootId={activeRootId}
 						onSelectFolder={setActiveFolder}
-						onAddFolder={() => {
-							setEditingFolderId(null);
-							setShowFolderDialog(true);
-						}}
+						onAddFolder={(name) => addFolder(name, null)}
 						onOpenSettings={() => setShowSettings(true)}
 						onOpenSearch={() => setShowSearch(true)}
 						onAddFavorite={() => handleOpenCardDialog(null)}
