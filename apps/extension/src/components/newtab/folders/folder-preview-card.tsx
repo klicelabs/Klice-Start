@@ -101,7 +101,7 @@ export function FolderPreviewCard({
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-all duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
+					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-all duration-200 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[1.01]",
 					isLiquid
 						? glassVariantStyles.liquid
 						: "border border-border bg-card shadow-sm",

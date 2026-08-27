@@ -31,7 +31,7 @@ export default function App() {
 				active: true,
 				currentWindow: true,
 			});
-			if (!tab || !tab.url || !/^https?:/.test(tab.url)) {
+			if (!tab?.url || !/^https?:/.test(tab.url)) {
 				setBlocked(true);
 				return;
 			}
@@ -99,8 +99,6 @@ export default function App() {
 			className="p-4 text-white"
 			style={{
 				width: 300,
-				fontFamily:
-					"-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif",
 			}}
 		>
 			{blocked ? (

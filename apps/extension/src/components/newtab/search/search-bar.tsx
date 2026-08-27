@@ -1,13 +1,13 @@
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { Icon } from "@perch/ui/icons/icon";
+import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
 import { type FormEvent, useState } from "react";
+import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
 import { useSetupStore } from "../../../stores/setup-store";
 import { SvgIcon } from "../../shared/svg-icon";
-import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { useAppearance } from "../appearance-provider";
 
 /**
@@ -23,15 +23,11 @@ export function SearchBar() {
 	const { isLiquid } = useAppearance();
 	const enabled = useSetupStore((s) => s.settings.search.enabled);
 	const engineId = useSetupStore((s) => s.settings.search.engine);
-	const customPlaceholder = useSetupStore(
-		(s) => s.settings.search.placeholder,
-	);
+	const customPlaceholder = useSetupStore((s) => s.settings.search.placeholder);
 	const iconMode = useSetupStore((s) => s.settings.search.iconMode);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const [query, setQuery] = useState("");
-	const [logoFailed, setLogoFailed] = useState(false);
-
-	if (!enabled) return null;
+	const [logoFailedFor, setLogoFailedFor] = useState<string | null>(null);
 
 	const engine =
 		SEARCH_ENGINES.find((s) => s.id === engineId) ?? SEARCH_ENGINES[0];
@@ -41,9 +37,12 @@ export function SearchBar() {
 	const placeholder =
 		customPlaceholder.trim() || `Search with "${engine.label}"`;
 
-	const svglTitle = iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[engineId] : null;
+	const svglTitle =
+		iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[engineId] : null;
 	const { svgXml, isLoading } = useSvgIcon(svglTitle);
-	const showEngineLogo = iconMode === "engine" && !logoFailed;
+	const showEngineLogo = iconMode === "engine" && logoFailedFor !== engineId;
+
+	if (!enabled) return null;
 
 	function handleSubmit(e: FormEvent) {
 		e.preventDefault();
@@ -63,8 +62,11 @@ export function SearchBar() {
 				// the exact same shared "liquid" glass variant as every other
 				// surface; in flat mode a solid opaque card.
 				isLiquid
-					? cn(glassVariantStyles.liquid, "focus-within:ring-2 focus-within:ring-white/25")
-					: "border border-border bg-card shadow-sm hover:bg-muted focus-within:ring-2 focus-within:ring-ring",
+					? cn(
+							glassVariantStyles.liquid,
+							"focus-within:ring-2 focus-within:ring-white/25",
+						)
+					: "border border-border bg-card shadow-sm focus-within:ring-2 focus-within:ring-ring hover:bg-muted",
 			)}
 		>
 			{showEngineLogo && svgXml && !isLoading ? (
@@ -78,7 +80,7 @@ export function SearchBar() {
 					src={faviconUrl(engine.homepage)}
 					alt=""
 					className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
-					onError={() => setLogoFailed(true)}
+					onError={() => setLogoFailedFor(engineId)}
 				/>
 			) : (
 				<Icon

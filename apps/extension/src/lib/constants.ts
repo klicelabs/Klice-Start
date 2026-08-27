@@ -121,7 +121,7 @@ export const DEFAULT_CLOCK: ClockSettings = {
 	format24: true,
 	showSeconds: false,
 	analog: false,
-	size: 100,
+	size: 200,
 	timezone: "auto",
 	dateFormat: "auto",
 };
@@ -177,7 +177,7 @@ export const DEFAULT_SEARCH: SearchSettings = {
 	enabled: true,
 	engine: "google",
 	placeholder: "",
-	iconMode: "search",
+	iconMode: "engine",
 };
 
 export const DEFAULT_SETTINGS: Settings = {

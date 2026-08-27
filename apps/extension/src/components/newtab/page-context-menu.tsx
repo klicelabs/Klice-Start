@@ -76,8 +76,8 @@ export function PageContextMenu({
 			const isLocked = pexelsFrequency === "locked";
 			updateBackground({
 				pexelsFrequency: isLocked
-					? (useSetupStore.getState().settings.background
-							.pexelsPreviousFrequency || "daily")
+					? useSetupStore.getState().settings.background
+							.pexelsPreviousFrequency || "daily"
 					: "locked",
 				pexelsPreviousFrequency: isLocked ? null : pexelsFrequency,
 			});
@@ -123,8 +123,11 @@ export function PageContextMenu({
 
 	return (
 		<ContextMenu open={open} onOpenChange={handleOpenChange}>
+			{/* w-full, never a viewport-width unit: viewport units ignore the
+			    scrollbar gutter reserved by `scrollbar-gutter: stable` and overflow
+			    horizontally on Firefox/Zen (classic, non-overlay scrollbars). */}
 			<ContextMenuTrigger
-				className="block h-screen w-screen"
+				className="block min-h-screen w-full"
 				onContextMenu={handleContextMenu}
 				render={<div />}
 			>

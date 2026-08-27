@@ -1,11 +1,20 @@
 /* Override shadcn/globals.css body background so BackgroundLayer (-z-10) is visible.
    Without this, bg-background (dark opaque color) covers the BackgroundLayer entirely. */
 html.dark {
-	background-color: #0a0a0c !important;
+	background-color: #0a0a0c;
 }
 html.dark body {
-	background: transparent !important;
+	background: transparent;
 	min-height: 100vh;
+}
+
+/* System-blue accent (Apple HIG). Dark variant declared after :root so it
+   wins the cascade under .dark. */
+:root {
+	--apple-blue: #007aff;
+}
+.dark {
+	--apple-blue: #0a84ff;
 }
 
 /* Reserve scrollbar space permanently — eliminates layout shift when
@@ -14,16 +23,16 @@ html {
 	scrollbar-gutter: stable;
 }
 
-/* Switch — verde quando ativo, thumb branco sempre */
-[data-slot="switch"][data-checked] {
-	background-color: #22c55e !important;
-	border-color: #22c55e !important;
+/* Switch — system blue when active, white thumb always */
+html [data-slot="switch"][data-checked] {
+	background-color: var(--apple-blue);
+	border-color: var(--apple-blue);
 }
-[data-slot="switch"] [data-slot="switch-thumb"] {
-	background-color: #ffffff !important;
+html [data-slot="switch"] [data-slot="switch-thumb"] {
+	background-color: #ffffff;
 }
-[data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
-	background-color: #ffffff !important;
+html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
+	background-color: #ffffff;
 }
 
 @layer base {

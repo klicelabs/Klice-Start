@@ -69,7 +69,7 @@ export function DialCard({
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 hover:translate-y-[-1px] active:scale-[1.01]",
+					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[1.01]",
 					className,
 				)}
 				style={style}
@@ -95,7 +95,7 @@ export function DialCard({
 							}}
 						/>
 						{iconShowLabel && (
-							<span className="max-w-full truncate text-center text-[11px] font-medium leading-tight">
+							<span className="max-w-full truncate text-center font-medium text-[11px] leading-tight">
 								{label}
 							</span>
 						)}
@@ -149,7 +149,7 @@ export function DialCard({
 					<button
 						type="button"
 						aria-label={`Remove ${label}`}
-						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 group-hover:opacity-100 hover:bg-red-500 hover:text-white"
+						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 hover:bg-red-500 hover:text-white group-hover:opacity-100"
 						onClick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();
