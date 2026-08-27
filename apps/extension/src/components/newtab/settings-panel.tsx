@@ -32,8 +32,10 @@ import { useSvgIcon } from "../../hooks/use-svg-icon";
 import { GRADIENTS, SEARCH_ENGINES } from "../../lib/constants";
 import { flushPersist } from "../../lib/storage";
 import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
-import { exportBackup, importBackup } from "../../services/backup";
-import { importBrowserBookmarks } from "../../services/bookmarks-import";
+import {
+	exportBookmarksHtml,
+	importBookmarksHtml,
+} from "../../services/bookmarks-html";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
@@ -259,12 +261,12 @@ function SectionCard({
 	className?: string;
 }) {
 	return (
-		<div className="flex flex-col gap-4">
-			<h3 className="left-1 m-0 px-3 font-medium text-muted-foreground text-sm">
+		<div className="flex flex-col">
+			<h3 className="m-0 mb-1.5 px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
 				{title}
 			</h3>
 			<div
-				className={`squircle relative mb-4 rounded-[3rem] border border-border/30 bg-card p-4 pb-3 shadow-sm first:mt-2 ${className}`}
+				className={`relative mb-4 rounded-2xl border border-border/40 bg-card/60 px-4 py-1 ${className}`}
 			>
 				{children}
 			</div>
@@ -316,13 +318,15 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 		>);
 	}
 
-
-
 	// === Bookmarks ===
-	async function handleImportBookmarks() {
+	async function handleImportBookmarksFile(e: ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0];
+		if (!file) return;
 		setImportStatus("Reading bookmarks…");
 		try {
-			const { foldersCreated, cardsCreated } = await importBrowserBookmarks();
+			const { foldersCreated, cardsCreated } = await importBookmarksHtml(
+				await file.text(),
+			);
 			setImportStatus(
 				`Done: ${foldersCreated} folder(s) and ${cardsCreated} link(s) imported.`,
 			);
@@ -331,22 +335,17 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 				err instanceof Error ? err.message : "Could not import bookmarks.",
 			);
 		}
+		e.target.value = "";
 	}
 
-	// === Data ===
-	async function handleExport() {
-		await exportBackup();
-	}
-	async function handleImport(e: ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (!file) return;
+	async function handleExportBookmarks() {
 		try {
-			await importBackup(await file.text());
-			setImportStatus("Data imported successfully.");
-		} catch {
-			setImportStatus("Invalid file.");
+			await exportBookmarksHtml();
+		} catch (err) {
+			setImportStatus(
+				err instanceof Error ? err.message : "Could not export bookmarks.",
+			);
 		}
-		e.target.value = "";
 	}
 
 	const bg = settings.background;
@@ -512,6 +511,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 							<div className="mt-2 grid grid-cols-4 gap-2">
 								{GRADIENTS.map((g) => (
 									<button
+										type="button"
 										key={g.id}
 										className="flex aspect-[4/3] items-center justify-center rounded-2xl border-2 border-transparent bg-center bg-cover font-medium text-[10px] text-white/80 shadow-sm transition-transform hover:scale-[1.04]"
 										style={{
@@ -524,6 +524,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									</button>
 								))}
 								<button
+									type="button"
 									className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-border/60 border-dashed font-medium text-[10px] text-muted-foreground transition-transform hover:scale-[1.04]"
 									style={{ backgroundColor: bg.color }}
 									onClick={() => handleSolidColor(bg.color)}
@@ -532,6 +533,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 								</button>
 								<label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-border/60 border-dashed font-medium text-[10px] text-muted-foreground transition-transform hover:scale-[1.04]">
 									<svg
+										aria-hidden="true"
 										width="14"
 										height="14"
 										viewBox="0 0 24 24"
@@ -611,7 +613,9 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									checked={bg.type === "pexels"}
 									onCheckedChange={(enabled) => {
 										if (enabled) {
-											updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
+											updateBackground({ type: "pexels" } as Partial<
+												Settings["background"]
+											>);
 											refreshWallpaper(true);
 										} else {
 											updateBackground({
@@ -681,13 +685,11 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 												<SelectValue />
 											</SelectTrigger>
 											<SelectContent>
-												<SelectItem value="per-tab">A cada aba</SelectItem>
-												<SelectItem value="hourly">A cada hora</SelectItem>
-												<SelectItem value="daily">Diariamente</SelectItem>
-												<SelectItem value="daylight">
-													Conforme a Luz do dia
-												</SelectItem>
-												<SelectItem value="locked">Bloqueado</SelectItem>
+												<SelectItem value="per-tab">Every tab</SelectItem>
+												<SelectItem value="hourly">Hourly</SelectItem>
+												<SelectItem value="daily">Daily</SelectItem>
+												<SelectItem value="daylight">Daylight</SelectItem>
+												<SelectItem value="locked">Locked</SelectItem>
 											</SelectContent>
 										</Select>
 									</div>
@@ -840,53 +842,48 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									}
 								/>
 							</SettingRow>
-							<div className="px-1 pt-1">
-								<Button
-									variant="secondary"
-									className="w-full rounded-xl text-sm"
-									onClick={handleImportBookmarks}
-								>
-									Import bookmarks
-								</Button>
+							<div className="px-1 py-2">
+								<div className="flex gap-2">
+									<Button
+										variant="secondary"
+										className="flex-1 rounded-xl text-sm"
+										onClick={() => importFileRef.current?.click()}
+									>
+										Import Bookmarks
+									</Button>
+									<Button
+										variant="secondary"
+										className="flex-1 rounded-xl text-sm"
+										onClick={handleExportBookmarks}
+									>
+										Export Bookmarks
+									</Button>
+								</div>
 								{importStatus && (
 									<p className="mt-2 text-muted-foreground text-xs">
 										{importStatus}
 									</p>
 								)}
 							</div>
-							<div className="flex gap-2 px-1 pt-3">
-								<Button
-									variant="secondary"
-									className="flex-1 rounded-xl text-sm"
-									onClick={handleExport}
-								>
-									Export JSON
-								</Button>
-								<Button
-									variant="secondary"
-									className="flex-1 rounded-xl text-sm"
-									onClick={() => importFileRef.current?.click()}
-								>
-									Import JSON
-								</Button>
-							</div>
 							<input
 								ref={importFileRef}
 								type="file"
-								accept="application/json"
+								accept="text/html,.htm,.html"
 								className="hidden"
-								onChange={handleImport}
+								onChange={handleImportBookmarksFile}
 							/>
-							<div className="px-1 pt-3 pb-1">
-								<Button
-									variant="ghost"
-									className="w-full rounded-xl border border-red-500/30 text-red-500 text-sm hover:bg-red-500/10"
-									onClick={() => setConfirmReset(true)}
-								>
-									Reset all
-								</Button>
-							</div>
 						</SectionCard>
+
+						{/* === Reset === */}
+						<div className="pt-4 pb-2 text-center">
+							<button
+								type="button"
+								className="rounded-sm border-0 bg-transparent text-muted-foreground text-xs transition-colors hover:text-red-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
+								onClick={() => setConfirmReset(true)}
+							>
+								Reset all data
+							</button>
+						</div>
 					</div>
 				</SheetContent>
 			</Sheet>
@@ -902,8 +899,8 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 						<DialogTitle>Reset everything?</DialogTitle>
 						<DialogDescription>
 							This permanently deletes all folders, links, thumbnails, and
-							background images. This cannot be undone. Export a backup first if
-							you want to keep your data.
+							background images. This cannot be undone. Export your bookmarks
+							first if you want to keep your links.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
