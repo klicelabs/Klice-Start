@@ -118,4 +118,28 @@ perch/
 - `bun run env:production`: Sync local env files to the Vercel production environment
 - `bun run deploy`: Create a Vercel preview deployment
 - `bun run deploy:prod`: Deploy to Vercel production
+
 - `bun run deploy:check`: Dry-run a deploy to preview framework detection and included files without uploading
+## Browser Extension (Firefox / AMO submission)
+
+The browser extension lives in `apps/extension` and is built with
+[WXT](https://wxt.dev) (Vite + React + TypeScript).
+
+To reproduce the extension ZIP submitted to Mozilla Add-ons:
+
+```bash
+# Requires Bun >= 1.3 (https://bun.sh)
+bun install --frozen-lockfile
+cd apps/extension
+bun run zip:firefox
+```
+
+This produces:
+
+- `.output/extension-<version>-firefox.zip` — the built extension (matches the submitted add-on file)
+- `.output/extension-<version>-sources.zip` — this source archive
+
+The build step bundles and minifies TypeScript/React sources with Vite/Rolldown;
+the minified output in the submitted XPI is generated entirely from the code in
+this repository. No additional environment variables or services are required to
+build it.
