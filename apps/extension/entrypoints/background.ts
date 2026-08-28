@@ -1,8 +1,9 @@
+import { getChildren } from "../src/lib/folder-tree";
 import { saveThumbnail } from "../src/lib/idb";
 import { normalizeState } from "../src/lib/storage";
 import { canonicalUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
-import type { Setup } from "../src/types";
+import type { Folder, Setup } from "../src/types";
 
 // Persistent identifiers from the Perch era — kept verbatim so existing
 // installs keep their data and context-menu registration after the rename.
@@ -27,6 +28,120 @@ async function writeSetup(setup: Setup): Promise<void> {
 	});
 }
 
+// Context menu: "Save page to Klice Start" is a parent item with one entry
+// per Klice Start folder (nested folders become nested submenus).
+const FOLDER_MENU_PREFIX = "klice-folder:";
+const MAX_MENU_TITLE_LENGTH = 60;
+
+/** Menu id for a folder item; stable across restarts and updates. */
+function folderMenuId(folderId: string): string {
+	return `${FOLDER_MENU_PREFIX}${folderId}`;
+}
+
+/**
+ * Escape "&" (contextMenus treats it as a mnemonic accelerator on some
+ * platforms) and truncate very long names so submenus stay usable.
+ */
+function menuTitle(name: string): string {
+	const trimmed = name.trim() || "Untitled";
+	const short =
+		trimmed.length > MAX_MENU_TITLE_LENGTH
+			? `${trimmed.slice(0, MAX_MENU_TITLE_LENGTH)}…`
+			: trimmed;
+	return short.replaceAll("&", "&&");
+}
+
+/**
+ * Create one menu item per folder, mirroring the folder hierarchy.
+ * Parents are created before their children so every parentId resolves,
+ * and siblings follow the app's folder-tree ordering (order, then name —
+ * see getChildren). normalizeState already repaired orphans and cycles,
+ * so walking parentId chains always terminates at a root.
+ */
+function createFolderMenuItems(folders: Folder[]): void {
+	const createLevel = (parentId: string | null, parentMenuId: string): void => {
+		for (const folder of getChildren(folders, parentId)) {
+			const id = folderMenuId(folder.id);
+			safeCreateMenuItem({
+				id,
+				parentId: parentMenuId,
+				title: menuTitle(folder.name),
+				contexts: ["page"],
+			});
+			createLevel(folder.id, id);
+		}
+	};
+	createLevel(null, MENU_ID);
+}
+
+/**
+ * contextMenus.create reports duplicate-id errors asynchronously through
+ * runtime.lastError (and can throw synchronously), so swallow both: a
+ * duplicate here is harmless because rebuildMenus always removeAll()s first.
+ */
+function safeCreateMenuItem(
+	properties: Parameters<typeof browser.contextMenus.create>[0],
+): void {
+	try {
+		browser.contextMenus.create(properties, () => {
+			void browser.runtime.lastError;
+		});
+	} catch {
+		// Duplicate id or invalid properties — safe to ignore, see above.
+	}
+}
+
+/**
+ * Rebuild the whole context menu from the persisted setup. removeAll-then-
+ * create is the race-safe pattern: no stale or duplicate items can survive
+ * restarts, resets, or folder changes.
+ */
+async function rebuildMenus(): Promise<void> {
+	await browser.contextMenus.removeAll();
+
+	// Parent item. It has children, so it can never receive a click itself —
+	// every folder leaf handles its own click.
+	safeCreateMenuItem({
+		id: MENU_ID,
+		title: "Save page to Klice Start",
+		contexts: ["page"],
+	});
+
+	const setup = (await readSetup()) ?? normalizeState(null);
+	const folders = setup.folders;
+
+	if (folders.length === 0) {
+		// Should be unreachable — normalizeState guarantees a default Home
+		// folder — but never ship an empty submenu.
+		safeCreateMenuItem({
+			id: folderMenuId("default"),
+			parentId: MENU_ID,
+			title: "Save to Home",
+			contexts: ["page"],
+		});
+		return;
+	}
+
+	createFolderMenuItems(folders);
+}
+
+// Serialize rebuilds so overlapping triggers never interleave their
+// removeAll/create sequences.
+let rebuildChain: Promise<void> = Promise.resolve();
+function scheduleRebuild(): void {
+	rebuildChain = rebuildChain.then(rebuildMenus).catch(() => {
+		// A failed rebuild is retried by the next trigger.
+	});
+}
+
+// Trailing debounce for storage.onChanged: zustand persist coalesces writes
+// but can still fire several changes in a row; keep a single pending timer.
+let rebuildTimer: ReturnType<typeof setTimeout> | undefined;
+function scheduleRebuildDebounced(): void {
+	clearTimeout(rebuildTimer);
+	rebuildTimer = setTimeout(scheduleRebuild, 150);
+}
+
 /**
  * Capture the visible tab. windowId is optional in the API (defaults to the
  * current window), so we only pass it when we actually have one.
@@ -47,15 +162,31 @@ const pendingThumbnailCaptures = new Map<
 
 export default defineBackground(() => {
 	browser.runtime.onInstalled.addListener(() => {
-		browser.contextMenus.create({
-			id: MENU_ID,
-			title: "Save page to Klice Start",
-			contexts: ["page"],
-		});
+		scheduleRebuild();
 	});
 
-	browser.contextMenus.onClicked.addListener((_info, tab) => {
-		if (tab) captureAndAdd(tab);
+	// Covers browser restarts: the service worker's menu registrations persist,
+	// but rebuilding guarantees they match the current setup.
+	browser.runtime.onStartup.addListener(() => {
+		scheduleRebuild();
+	});
+
+	// Keep the menu in sync with folder create/delete/rename/move, import,
+	// reset, and cross-tab writes — everything persists to this one key.
+	browser.storage.onChanged.addListener((changes, area) => {
+		if (area !== "local" || !(STORAGE_KEY in changes)) return;
+		scheduleRebuildDebounced();
+	});
+
+	browser.contextMenus.onClicked.addListener((info, tab) => {
+		if (!tab) return;
+		const menuItemId = info.menuItemId;
+		if (
+			typeof menuItemId === "string" &&
+			menuItemId.startsWith(FOLDER_MENU_PREFIX)
+		) {
+			captureAndAdd(tab, menuItemId.slice(FOLDER_MENU_PREFIX.length));
+		}
 	});
 
 	browser.commands.onCommand.addListener((command) => {
@@ -87,13 +218,16 @@ export default defineBackground(() => {
 	});
 });
 
-async function captureAndAdd(tab: {
-	id?: number;
-	url?: string;
-	title?: string;
-	windowId?: number;
-	favIconUrl?: string;
-}) {
+async function captureAndAdd(
+	tab: {
+		id?: number;
+		url?: string;
+		title?: string;
+		windowId?: number;
+		favIconUrl?: string;
+	},
+	targetFolderId?: string,
+) {
 	if (!tab?.url || !/^https?:/.test(tab.url)) {
 		flashBadge("✕", "#FF453A");
 		return;
@@ -106,7 +240,17 @@ async function captureAndAdd(tab: {
 		const thumbId = await saveThumbnail(dataUrl);
 
 		const setup = (await readSetup()) ?? normalizeState(null);
-		const folderId = setup.activeFolderId || setup.folders[0]?.id || "default";
+		// Context-menu clicks pass an explicit folder; fall back to the
+		// active/default folder when it is absent or was deleted since the
+		// menu was rendered.
+		const targetFolder = targetFolderId
+			? setup.folders.find((f) => f.id === targetFolderId)
+			: undefined;
+		const folderId =
+			targetFolder?.id ||
+			setup.activeFolderId ||
+			setup.folders[0]?.id ||
+			"default";
 		const cardsInFolder = setup.cards.filter((c) => c.folderId === folderId);
 
 		setup.cards.push({
