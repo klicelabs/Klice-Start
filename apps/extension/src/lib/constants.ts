@@ -58,6 +58,70 @@ export const GRADIENTS: GradientDef[] = [
 	},
 ];
 
+export interface WallpaperDef {
+	id: string;
+	label: string;
+	src: string;
+}
+
+export const WALLPAPERS: WallpaperDef[] = [
+	{
+		id: "alpine-lake-sunbeams",
+		label: "Alpine Lake Sunbeams",
+		src: "/wallpapers/alpine-lake-sunbeams.jpg",
+	},
+	{
+		id: "matterhorn-at-dusk",
+		label: "Matterhorn at Dusk",
+		src: "/wallpapers/matterhorn-at-dusk.jpg",
+	},
+	{
+		id: "purple-mountain-summit",
+		label: "Purple Mountain Summit",
+		src: "/wallpapers/purple-mountain-summit.jpg",
+	},
+	{
+		id: "tokyo-skyline",
+		label: "Tokyo Skyline",
+		src: "/wallpapers/tokyo-skyline.jpg",
+	},
+	{
+		id: "blue-moon-mountains",
+		label: "Blue Moon Mountains",
+		src: "/wallpapers/blue-moon-mountains.jpg",
+	},
+	{
+		id: "red-sun-water",
+		label: "Red Sun Water",
+		src: "/wallpapers/red-sun-water.jpg",
+	},
+	{
+		id: "turquoise-alpine-lake",
+		label: "Turquoise Alpine Lake",
+		src: "/wallpapers/turquoise-alpine-lake.jpg",
+	},
+	{
+		id: "mountain-lake",
+		label: "Mountain Lake",
+		src: "/wallpapers/mountain-lake.avif",
+	},
+	{
+		id: "starry-night-sky",
+		label: "Starry Night Sky",
+		src: "/wallpapers/starry-night-sky.jpg",
+	},
+	{
+		id: "violet-curves",
+		label: "Violet Curves",
+		src: "/wallpapers/violet-curves.png",
+	},
+	{
+		id: "bonsai-rock-milky-way",
+		label: "Bonsai Rock Milky Way",
+		src: "/wallpapers/bonsai-rock-milky-way.jpg",
+	},
+];
+
 /**
  * Grid tile widths per size. Heights are DERIVED from CARD_ASPECT_RATIO —
  * these height values feed only fallbacks/icon layout. Small was bumped so it
@@ -101,10 +165,12 @@ export const DEFAULT_THUMBNAIL_CAPTURE: ThumbnailCaptureSettings = {
 };
 
 export const DEFAULT_BACKGROUND: BackgroundSettings = {
-	type: "pexels",
+	type: "wallpaper",
 	color: "#0A0A0C",
 	gradientId: null,
 	imageId: null,
+	wallpaperId: "tokyo-skyline",
+	customWallpapers: [],
 	blur: 0,
 	brightness: 100,
 	opacity: 100,

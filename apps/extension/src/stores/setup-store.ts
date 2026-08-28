@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
-	DEFAULT_SETTINGS,
 	GRID_GAP_PX,
 	GRID_PADDING_X_PX,
 	MAX_COLUMNS,
@@ -9,7 +8,11 @@ import {
 	TILE_SIZE_DIMENSIONS,
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
-import { chromeStorageAdapter, normalizeState } from "../lib/storage";
+import {
+	cancelPendingPersist,
+	chromeStorageAdapter,
+	normalizeState,
+} from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
 import type { Card, Folder, Settings, Setup } from "../types";
 import { useImageStore } from "./image-store";
@@ -254,6 +257,7 @@ export const useSetupStore = create<SetupStore>()(
 			replaceSetup: (setup) => set(normalizeState(setup)),
 
 			resetAll: async () => {
+				await cancelPendingPersist();
 				await chrome.storage.local.remove("perch-setup");
 				await useImageStore.getState().clearAll();
 				set(normalizeState(null));

@@ -32,11 +32,18 @@ export type WallpaperFrequency =
 	| "daylight"
 	| "locked";
 
+export interface CustomWallpaper {
+	id: string;
+	name: string;
+}
+
 export interface BackgroundSettings {
-	type: "solid" | "gradient" | "image" | "pexels";
+	type: "solid" | "gradient" | "image" | "pexels" | "wallpaper";
 	color: string;
 	gradientId: string | null;
 	imageId: string | null;
+	wallpaperId: string | null;
+	customWallpapers: CustomWallpaper[];
 	blur: number;
 	brightness: number;
 	opacity: number;

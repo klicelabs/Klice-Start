@@ -31,3 +31,4 @@ i18n: replace all PT-BR strings with English
 - Use present tense, imperative mood ("add" not "added")
 - Keep the description concise (< 72 chars preferred)
 - Do not add emojis
+- Always rebuild all affected browser targets before finalizing a task.

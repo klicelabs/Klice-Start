@@ -8,7 +8,6 @@ import {
 	DialogTitle,
 } from "@perch/ui/components/dialog";
 import { Input } from "@perch/ui/components/input";
-import { Label } from "@perch/ui/components/label";
 import {
 	Select,
 	SelectContent,
@@ -16,7 +15,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@perch/ui/components/select";
-import { Separator } from "@perch/ui/components/separator";
 import {
 	Sheet,
 	SheetContent,
@@ -29,17 +27,17 @@ import type { IconName } from "@perch/ui/icons/icon";
 import { Icon } from "@perch/ui/icons/icon";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useSvgIcon } from "../../hooks/use-svg-icon";
-import { GRADIENTS, SEARCH_ENGINES } from "../../lib/constants";
+import { GRADIENTS, SEARCH_ENGINES, WALLPAPERS } from "../../lib/constants";
 import { flushPersist } from "../../lib/storage";
 import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
+import { cn } from "../../lib/utils";
 import {
 	exportBookmarksHtml,
 	importBookmarksHtml,
 } from "../../services/bookmarks-html";
-import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
-import type { Settings, WallpaperFrequency } from "../../types";
+import type { Settings } from "../../types";
 import { SvgIcon } from "../shared/svg-icon";
 
 function EngineIcon({ engineId }: { engineId: string }) {
@@ -65,9 +63,20 @@ interface SettingsPanelProps {
 	onClose: () => void;
 }
 
-function SettingRow({ children }: { children: React.ReactNode }) {
+function SettingRow({
+	children,
+	className,
+}: {
+	children: React.ReactNode;
+	className?: string;
+}) {
 	return (
-		<div className="flex min-h-[44px] items-center justify-between gap-3 border-border/50 border-b px-1 py-2.5 last:border-b-0">
+		<div
+			className={cn(
+				"flex min-h-[44px] items-center justify-between gap-3 border-border/50 border-b px-1 py-2.5 last:border-b-0",
+				className,
+			)}
+		>
 			{children}
 		</div>
 	);
@@ -214,40 +223,88 @@ function IconChoiceRow<T extends string>({
 	);
 }
 
-function PexelsQueryInput({
-	value,
-	onChange,
+const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
+
+function WallpaperThumbnail({
+	src,
+	label,
+	className = "size-9",
+	loading = false,
 }: {
-	value: string;
-	onChange: (val: string) => void;
+	src: string | null | undefined;
+	label: string;
+	className?: string;
+	loading?: boolean;
 }) {
-	const [localVal, setLocalVal] = useState(value);
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
+	const [status, setStatus] = useState<
+		"loading" | "ready" | "missing" | "empty"
+	>(
+		src
+			? "loading"
+			: src === null
+				? "missing"
+				: loading
+					? "loading"
+					: "empty",
+	);
+	const mountedRef = useRef(true);
+	const sourceRef = useRef(src);
+	sourceRef.current = src;
 
 	useEffect(() => {
-		setLocalVal(value);
-	}, [value]);
+		mountedRef.current = true;
+		setStatus(
+			src
+				? "loading"
+				: src === null
+					? "missing"
+					: loading
+						? "loading"
+						: "empty",
+		);
+		return () => {
+			mountedRef.current = false;
+		};
+	}, [src, loading]);
 
 	return (
-		<Input
-			value={localVal}
-			onChange={(e) => {
-				const val = e.target.value;
-				setLocalVal(val);
-				if (timerRef.current) clearTimeout(timerRef.current);
-				timerRef.current = setTimeout(() => {
-					onChange(val);
-				}, 500);
-			}}
-			onBlur={() => {
-				if (timerRef.current) clearTimeout(timerRef.current);
-				if (localVal !== value) {
-					onChange(localVal);
-				}
-			}}
-			placeholder="minimalist background, dark architecture"
-			className="mt-1 rounded-xl border-border bg-secondary px-3 py-2 text-foreground text-sm"
-		/>
+		<span
+			className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[8px] text-muted-foreground ${className}`}
+			role="img"
+			aria-label={
+				status === "missing"
+					? `${label} preview unavailable`
+					: status === "loading"
+						? `Loading ${label} preview`
+						: `${label} preview`
+			}
+		>
+			{status !== "ready" && status !== "empty" && (
+				<span className="px-1 text-center leading-tight">
+					{status === "missing" ? "No preview" : "Loading…"}
+				</span>
+			)}
+			{src && (
+				<img
+					key={src}
+					src={src}
+					alt=""
+					className={`absolute inset-0 size-full object-cover ${
+						status === "ready" ? "opacity-100" : "opacity-0"
+					}`}
+					onLoad={() => {
+						if (mountedRef.current && sourceRef.current === src) {
+							setStatus("ready");
+						}
+					}}
+					onError={() => {
+						if (mountedRef.current && sourceRef.current === src) {
+							setStatus("missing");
+						}
+					}}
+				/>
+			)}
+		</span>
 	);
 }
 
@@ -262,7 +319,7 @@ function SectionCard({
 }) {
 	return (
 		<div className="flex flex-col">
-			<h3 className="m-0 mb-1.5 px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+			<h3 className="m-0 mb-1.5 px-1 font-medium text-muted-foreground text-xs tracking-wide">
 				{title}
 			</h3>
 			<div
@@ -284,74 +341,352 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
 	const resetAll = useSetupStore((s) => s.resetAll);
 	const saveBackgroundImage = useImageStore((s) => s.saveBackgroundImage);
+	const deleteBackgroundImage = useImageStore((s) => s.deleteBackgroundImage);
+	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 
 	const bgFileRef = useRef<HTMLInputElement>(null);
 	const importFileRef = useRef<HTMLInputElement>(null);
+	const mountedRef = useRef(true);
+	const backgroundOperationRef = useRef(0);
+	const resetPendingRef = useRef(false);
 	const [importStatus, setImportStatus] = useState("");
+	const [uploadStatus, setUploadStatus] = useState("");
+	const importOperationRef = useRef(0);
 	const [confirmReset, setConfirmReset] = useState(false);
+	const [userWallpaperPreviews, setUserWallpaperPreviews] = useState<
+		Record<string, string | null>
+	>({});
+
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+			backgroundOperationRef.current += 1;
+			importOperationRef.current += 1;
+		};
+	}, []);
 
 	async function handleReset() {
-		await resetAll();
-		setConfirmReset(false);
-		setImportStatus("");
-		onClose();
+		invalidateBackgroundOperation();
+		const operation = backgroundOperationRef.current;
+		importOperationRef.current += 1;
+		const importFileInput = importFileRef.current;
+		if (importFileInput) importFileInput.value = "";
+		resetPendingRef.current = true;
+		try {
+			await resetAll();
+			if (!mountedRef.current || backgroundOperationRef.current !== operation)
+				return;
+			setConfirmReset(false);
+			setImportStatus("");
+			setUploadStatus("");
+			setUserWallpaperPreviews({});
+			onClose();
+		} finally {
+			if (backgroundOperationRef.current === operation)
+				resetPendingRef.current = false;
+		}
 	}
 
+	// Load previews for local wallpapers and discard metadata that no longer has
+	// a corresponding IDB record. Failed reads remain in place so a transient
+	// storage error cannot erase a user's selection.
+	const bg = settings.background;
+	const customWallpapers = bg.customWallpapers ?? [];
+	const legacyImageId =
+		bg.imageId &&
+		!customWallpapers.some((wallpaper) => wallpaper.id === bg.imageId)
+			? bg.imageId
+			: null;
+	useEffect(() => {
+		let active = true;
+		const wallpapers = useSetupStore.getState().settings.background
+			.customWallpapers ?? [];
+		const wallpaperEntries = [
+			...wallpapers.map((wallpaper) => ({
+				id: wallpaper.id,
+				cleanupIfMissing: true,
+			})),
+			...(legacyImageId
+				? [{ id: legacyImageId, cleanupIfMissing: false }]
+				: []),
+		];
+		if (wallpaperEntries.length === 0) {
+			setUserWallpaperPreviews({});
+			return () => {
+				active = false;
+			};
+		}
+
+		Promise.all(
+			wallpaperEntries.map(async ({ id, cleanupIfMissing }) => {
+				try {
+					const preview = await getBackgroundImage(id);
+					return [
+						id,
+						preview,
+						cleanupIfMissing && preview === null,
+					] as const;
+				} catch {
+					return [id, null, false] as const;
+				}
+			}),
+		).then((entries) => {
+			if (!active || !mountedRef.current) return;
+			const previews: Record<string, string | null> = {};
+			const staleIds = new Set<string>();
+			for (const [id, preview, isMissing] of entries) {
+				previews[id] = preview;
+				if (isMissing) staleIds.add(id);
+			}
+			setUserWallpaperPreviews(previews);
+			if (staleIds.size === 0) return;
+
+			const latestBackground =
+				useSetupStore.getState().settings.background;
+			const remaining = (latestBackground.customWallpapers ?? []).filter(
+				(wallpaper) => !staleIds.has(wallpaper.id),
+			);
+			if (remaining.length !== (latestBackground.customWallpapers ?? []).length) {
+				updateBackground({
+					customWallpapers: remaining,
+					...(latestBackground.imageId &&
+					staleIds.has(latestBackground.imageId)
+						? {
+								type: "solid",
+								imageId: null,
+								wallpaperId: null,
+							}
+						: {}),
+				} as Partial<Settings["background"]>);
+			}
+		});
+
+		return () => {
+			active = false;
+		};
+	}, [getBackgroundImage, updateBackground, customWallpapers, legacyImageId]);
+
 	// === Background ===
-	async function handleSolidColor(color: string) {
-		updateBackground({ type: "solid", color } as Partial<
-			Settings["background"]
-		>);
+	function invalidateBackgroundOperation() {
+		backgroundOperationRef.current += 1;
+		if (mountedRef.current) setUploadStatus("");
 	}
-	async function handleGradient(id: string) {
-		updateBackground({ type: "gradient", gradientId: id } as Partial<
-			Settings["background"]
-		>);
+
+	function handleGradient(id: string) {
+		invalidateBackgroundOperation();
+		updateBackground({
+			type: "gradient",
+			gradientId: id,
+			imageId: null,
+			wallpaperId: null,
+		} as Partial<Settings["background"]>);
 	}
+	function handleWallpaperSelection(value: string | null) {
+		if (value === null) return;
+		invalidateBackgroundOperation();
+		if (value.startsWith("wallpaper:")) {
+			const wallpaperId = value.slice("wallpaper:".length);
+			if (!WALLPAPERS.some((wallpaper) => wallpaper.id === wallpaperId)) return;
+			updateBackground({
+				type: "wallpaper",
+				wallpaperId,
+				gradientId: null,
+				imageId: null,
+			} as Partial<Settings["background"]>);
+			return;
+		}
+		if (value.startsWith("image:")) {
+			const imageId = value.slice("image:".length);
+			if (
+				!customWallpapers.some((wallpaper) => wallpaper.id === imageId) &&
+				imageId !== legacyImageId
+			)
+				return;
+			updateBackground({
+				type: "image",
+				imageId,
+				wallpaperId: null,
+				gradientId: null,
+			} as Partial<Settings["background"]>);
+		}
+	}
+
 	async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		const dataUrl = await fileToDataUrl(file);
-		const imageId = await saveBackgroundImage(dataUrl);
-		updateBackground({ type: "image", imageId } as Partial<
-			Settings["background"]
-		>);
+		const input = e.target;
+		const file = input.files?.[0];
+		if (!file) {
+			setUploadStatus("");
+			input.value = "";
+			return;
+		}
+		if (resetPendingRef.current) {
+			if (mountedRef.current) {
+				setUploadStatus("Reset is in progress. Try uploading again.");
+			}
+			input.value = "";
+			return;
+		}
+		const operation = ++backgroundOperationRef.current;
+		let savedImageId: string | null = null;
+		let committed = false;
+		try {
+			if (!file.type.startsWith("image/")) {
+				throw new Error("Choose an image file.");
+			}
+			if (file.size > MAX_BACKGROUND_IMAGE_BYTES) {
+				throw new Error("Image must be 10 MB or smaller.");
+			}
+			if (mountedRef.current) setUploadStatus("Reading image…");
+			const dataUrl = await fileToDataUrl(file);
+			if (
+				!mountedRef.current ||
+				backgroundOperationRef.current !== operation ||
+				resetPendingRef.current
+			)
+				return;
+
+			savedImageId = await saveBackgroundImage(dataUrl);
+			if (
+				!mountedRef.current ||
+				backgroundOperationRef.current !== operation ||
+				resetPendingRef.current
+			) {
+				await deleteBackgroundImage(savedImageId);
+				savedImageId = null;
+				return;
+			}
+
+			const latestBackground =
+				useSetupStore.getState().settings.background;
+			const name =
+				file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
+			updateBackground({
+				type: "image",
+				imageId: savedImageId,
+				wallpaperId: null,
+				gradientId: null,
+				customWallpapers: [
+					...(latestBackground.customWallpapers ?? []).filter(
+						(wallpaper) => wallpaper.id !== savedImageId,
+					),
+					{ id: savedImageId, name },
+				],
+			} as Partial<Settings["background"]>);
+			committed = true;
+			setUserWallpaperPreviews((previews) => ({
+				...previews,
+				[savedImageId as string]: dataUrl,
+			}));
+			setUploadStatus(`Added ${name}.`);
+			savedImageId = null;
+		} catch (err) {
+			if (savedImageId && !committed) {
+				try {
+					await deleteBackgroundImage(savedImageId);
+				} catch {
+					// The original error is more useful to the user than cleanup noise.
+				}
+			}
+			if (mountedRef.current && backgroundOperationRef.current === operation) {
+				setUploadStatus(
+					err instanceof Error ? err.message : "Could not load that image.",
+				);
+			}
+		} finally {
+			input.value = "";
+		}
 	}
 
 	// === Bookmarks ===
 	async function handleImportBookmarksFile(e: ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		setImportStatus("Reading bookmarks…");
+		const input = e.target;
+		const file = input.files?.[0];
+		if (!file) {
+			input.value = "";
+			return;
+		}
+		const operation = ++importOperationRef.current;
+		if (mountedRef.current) setImportStatus("Reading bookmarks…");
 		try {
 			const { foldersCreated, cardsCreated } = await importBookmarksHtml(
 				await file.text(),
 			);
+			if (!mountedRef.current || importOperationRef.current !== operation)
+				return;
 			setImportStatus(
 				`Done: ${foldersCreated} folder(s) and ${cardsCreated} link(s) imported.`,
 			);
 		} catch (err) {
-			setImportStatus(
-				err instanceof Error ? err.message : "Could not import bookmarks.",
-			);
+			if (mountedRef.current && importOperationRef.current === operation) {
+				setImportStatus(
+					err instanceof Error ? err.message : "Could not import bookmarks.",
+				);
+			}
+		} finally {
+			if (importOperationRef.current === operation) {
+				input.value = "";
+			}
 		}
-		e.target.value = "";
 	}
 
 	async function handleExportBookmarks() {
+		const operation = ++importOperationRef.current;
+		const importFileInput = importFileRef.current;
+		if (importFileInput) importFileInput.value = "";
 		try {
 			await exportBookmarksHtml();
 		} catch (err) {
-			setImportStatus(
-				err instanceof Error ? err.message : "Could not export bookmarks.",
-			);
+			if (mountedRef.current && importOperationRef.current === operation) {
+				setImportStatus(
+					err instanceof Error ? err.message : "Could not export bookmarks.",
+				);
+			}
 		}
 	}
 
-	const bg = settings.background;
+
+
 	const clock = settings.clock;
 	const greeting = settings.greeting;
 	const search = settings.search;
+	const legacyWallpaperOption = legacyImageId
+		? {
+				value: `image:${legacyImageId}`,
+				id: legacyImageId,
+				label: "Custom wallpaper",
+				src: userWallpaperPreviews[legacyImageId],
+				loading: userWallpaperPreviews[legacyImageId] === undefined,
+			}
+		: null;
+	const wallpaperOptions = [
+		...WALLPAPERS.map((wallpaper) => ({
+			value: `wallpaper:${wallpaper.id}`,
+			id: wallpaper.id,
+			label: wallpaper.label,
+			src: wallpaper.src,
+			loading: false,
+		})),
+		...customWallpapers.map((wallpaper) => ({
+			value: `image:${wallpaper.id}`,
+			id: wallpaper.id,
+			label: wallpaper.name,
+			src: userWallpaperPreviews[wallpaper.id],
+			loading: userWallpaperPreviews[wallpaper.id] === undefined,
+		})),
+		...(legacyWallpaperOption ? [legacyWallpaperOption] : []),
+	];
+	const selectedWallpaperCandidate =
+		bg.type === "wallpaper" && bg.wallpaperId
+			? `wallpaper:${bg.wallpaperId}`
+			: bg.type === "image" && bg.imageId
+				? `image:${bg.imageId}`
+				: "";
+	const selectedWallpaper = wallpaperOptions.find(
+		(wallpaper) => wallpaper.value === selectedWallpaperCandidate,
+	);
+	const selectedWallpaperValue = selectedWallpaper?.value ?? "";
+	const selectedGradientId = bg.type === "gradient" ? bg.gradientId : null;
 
 	return (
 		<>
@@ -476,8 +811,8 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 						</SectionCard>
 
 						{/* === Appearance & Background === */}
-						<SectionCard title="Appearance & Background">
-							<SettingRow>
+						<SectionCard title="Appearance & Background" className="pb-4">
+							<SettingRow className="px-1 py-3">
 								<span className="text-foreground text-sm">Theme</span>
 								<Select
 									value={settings.appearanceMode}
@@ -493,45 +828,106 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 										className="min-w-[130px]"
 										aria-label="Theme"
 									>
-										<SelectValue />
+										<SelectValue>
+											{() =>
+												settings.appearanceMode === "liquid" ? "Liquid" : "Flat"}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="liquid">Liquid Glass</SelectItem>
+										<SelectItem value="liquid">Liquid</SelectItem>
 										<SelectItem value="classic">Flat</SelectItem>
 									</SelectContent>
 								</Select>
 							</SettingRow>
 
-							<Separator className="my-1" />
-
-							<h4 className="px-0.5 font-medium text-muted-foreground text-xs">
-								Background
-							</h4>
-
-							<div className="mt-2 grid grid-cols-4 gap-2">
-								{GRADIENTS.map((g) => (
-									<button
-										type="button"
-										key={g.id}
-										className="flex aspect-[4/3] items-center justify-center rounded-2xl border-2 border-transparent bg-center bg-cover font-medium text-[10px] text-white/80 shadow-sm transition-transform hover:scale-[1.04]"
-										style={{
-											background: g.css,
-											textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-										}}
-										onClick={() => handleGradient(g.id)}
+							<div className="mt-6">
+								<h4 className="px-1 font-medium text-muted-foreground text-xs">
+									Background
+								</h4>
+								<Select
+									value={selectedWallpaperValue}
+									onValueChange={handleWallpaperSelection}
+								>
+									<SelectTrigger
+										id="background-wallpaper-picker"
+										size="default"
+										className="mt-2 h-11 w-full min-w-0 rounded-xl border-border/60 bg-input/40 px-2.5 hover:bg-input/60"
+										aria-label="Background wallpaper"
 									>
-										{g.label}
-									</button>
-								))}
+										{selectedWallpaper && (
+											<WallpaperThumbnail
+												src={selectedWallpaper.src}
+												label={selectedWallpaper.label}
+												className="size-8"
+												loading={selectedWallpaper.loading}
+											/>
+										)}
+										<SelectValue
+											className="min-w-0 truncate"
+											placeholder="Choose a wallpaper"
+										>
+											{() => selectedWallpaper?.label ?? "Choose a wallpaper"}
+										</SelectValue>
+									</SelectTrigger>
+									<SelectContent>
+										{wallpaperOptions.map((wallpaper) => (
+											<SelectItem
+												key={wallpaper.value}
+												value={wallpaper.value}
+												className="min-w-0 py-1.5"
+											>
+												<span className="flex min-w-0 items-center gap-2.5">
+													<WallpaperThumbnail
+														src={wallpaper.src}
+														label={wallpaper.label}
+														className="size-8"
+														loading={wallpaper.loading}
+													/>
+													<span className="min-w-0 truncate">
+														{wallpaper.label}
+													</span>
+												</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</div>
+
+							<div className="mt-5">
+								<h4 className="px-1 font-medium text-muted-foreground text-xs">
+									Presets
+								</h4>
+								<div className="mt-2 grid grid-cols-4 gap-2">
+									{GRADIENTS.map((g) => {
+										const isSelected = selectedGradientId === g.id;
+										return (
+											<button
+												type="button"
+												key={g.id}
+												className={cn(
+													"group relative flex aspect-[4/3] items-center justify-center rounded-xl bg-center bg-cover px-1 font-medium text-[10px] text-white/85 shadow-sm transition-[transform,box-shadow] duration-150 hover:scale-[1.02] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]",
+													isSelected &&
+														"ring-2 ring-foreground/80 ring-offset-2 ring-offset-background",
+												)}
+												style={{
+													background: g.css,
+													textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+												}}
+												onClick={() => handleGradient(g.id)}
+												aria-label={`${g.label} preset${isSelected ? ", selected" : ""}`}
+												aria-pressed={isSelected}
+											>
+												{g.label}
+											</button>
+										);
+									})}
+								</div>
 								<button
 									type="button"
-									className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-border/60 border-dashed font-medium text-[10px] text-muted-foreground transition-transform hover:scale-[1.04]"
-									style={{ backgroundColor: bg.color }}
-									onClick={() => handleSolidColor(bg.color)}
+									className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-full border border-border/50 bg-transparent px-3 font-medium text-muted-foreground text-xs transition-[background-color,color,transform] duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:scale-[0.99]"
+									aria-label="Upload custom image"
+									onClick={() => bgFileRef.current?.click()}
 								>
-									<span>Color</span>
-								</button>
-								<label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-border/60 border-dashed font-medium text-[10px] text-muted-foreground transition-transform hover:scale-[1.04]">
 									<svg
 										aria-hidden="true"
 										width="14"
@@ -543,28 +939,25 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									>
 										<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
 									</svg>
-									Image
-									<input
-										ref={bgFileRef}
-										type="file"
-										accept="image/*"
-										className="hidden"
-										onChange={handleImageUpload}
-									/>
-								</label>
-							</div>
-
-							<div className="mt-3 flex items-center gap-2">
+									<span>Custom image</span>
+								</button>
 								<input
-									type="color"
-									value={bg.color}
-									onChange={(e) => handleSolidColor(e.target.value)}
-									className="h-[22px] w-[22px] cursor-pointer rounded-full border-2 border-border/30 bg-transparent p-0"
+									ref={bgFileRef}
+									type="file"
+									accept="image/*"
+									className="hidden"
+									onChange={handleImageUpload}
 								/>
-								<span className="text-muted-foreground text-xs">
-									Custom color
-								</span>
 							</div>
+							{uploadStatus && (
+								<p
+									className="mt-2 px-1 text-muted-foreground text-xs"
+									role="status"
+									aria-live="polite"
+								>
+									{uploadStatus}
+								</p>
+							)}
 
 							<SliderRow
 								label="Opacity"
@@ -603,98 +996,6 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 								}
 							/>
 
-							<Separator className="my-2" />
-
-							<div className="flex items-center justify-between">
-								<span className="font-medium text-foreground text-sm">
-									Pexels Wallpaper
-								</span>
-								<Switch
-									checked={bg.type === "pexels"}
-									onCheckedChange={(enabled) => {
-										if (enabled) {
-											updateBackground({ type: "pexels" } as Partial<
-												Settings["background"]
-											>);
-											refreshWallpaper(true);
-										} else {
-											updateBackground({
-												type: "solid",
-												gradientId: null,
-												imageId: null,
-												pexelsImageId: null,
-												pexelsLastFetched: null,
-												pexelsLastPeriod: null,
-												pexelsPreviousFrequency: null,
-											} as Partial<Settings["background"]>);
-										}
-									}}
-								/>
-							</div>
-
-							{bg.type === "pexels" && (
-								<div className="mt-2 space-y-2">
-									<div>
-										<Label className="text-muted-foreground text-xs">
-											Search query
-										</Label>
-										<PexelsQueryInput
-											value={bg.pexelsQuery}
-											onChange={(newQuery) => {
-												updateBackground({
-													pexelsQuery: newQuery,
-												} as Partial<Settings["background"]>);
-												refreshWallpaper(true);
-											}}
-										/>
-									</div>
-									<div>
-										<Label className="text-muted-foreground text-xs">
-											Frequency
-										</Label>
-										<Select
-											value={bg.pexelsFrequency}
-											onValueChange={(v) => {
-												if (!v) return;
-												const newFreq = v as WallpaperFrequency;
-												const currentFreq = bg.pexelsFrequency;
-												if (newFreq === currentFreq) return;
-
-												if (newFreq === "locked") {
-													updateBackground({
-														pexelsFrequency: "locked",
-														pexelsPreviousFrequency:
-															currentFreq !== "locked"
-																? currentFreq
-																: bg.pexelsPreviousFrequency || "daily",
-													} as Partial<Settings["background"]>);
-												} else {
-													updateBackground({
-														pexelsFrequency: newFreq,
-														pexelsPreviousFrequency: null,
-													} as Partial<Settings["background"]>);
-													refreshWallpaper(true);
-												}
-											}}
-										>
-											<SelectTrigger
-												size="sm"
-												className="mt-1 min-w-[130px]"
-												aria-label="Wallpaper frequency"
-											>
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="per-tab">Every tab</SelectItem>
-												<SelectItem value="hourly">Hourly</SelectItem>
-												<SelectItem value="daily">Daily</SelectItem>
-												<SelectItem value="daylight">Daylight</SelectItem>
-												<SelectItem value="locked">Locked</SelectItem>
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-							)}
 						</SectionCard>
 
 						{/* === Clock === */}
@@ -923,8 +1224,19 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 function fileToDataUrl(file: File): Promise<string> {
 	const { promise, resolve, reject } = Promise.withResolvers<string>();
 	const reader = new FileReader();
-	reader.onload = () => resolve(reader.result as string);
-	reader.onerror = reject;
-	reader.readAsDataURL(file);
+	reader.onload = () => {
+		if (typeof reader.result === "string") {
+			resolve(reader.result);
+		} else {
+			reject(new Error("Could not read that image."));
+		}
+	};
+	reader.onerror = () => reject(new Error("Could not read that image."));
+	reader.onabort = () => reject(new Error("Image reading was cancelled."));
+	try {
+		reader.readAsDataURL(file);
+	} catch {
+		reject(new Error("Could not read that image."));
+	}
 	return promise;
 }

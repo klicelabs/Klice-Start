@@ -29,11 +29,14 @@ export async function buildBackup(): Promise<BackupPayload> {
 
 	const backgrounds: Record<string, string> = {};
 	const bg = state.settings.background;
-	if (
-		(bg.type === "image" && bg.imageId) ||
-		(bg.type === "pexels" && bg.pexelsImageId)
-	) {
-		const id = bg.type === "image" ? bg.imageId! : bg.pexelsImageId!;
+	const backgroundIds = new Set<string>();
+	if (bg.type === "image" && bg.imageId) backgroundIds.add(bg.imageId);
+	if (bg.type === "pexels" && bg.pexelsImageId)
+		backgroundIds.add(bg.pexelsImageId);
+	for (const wallpaper of bg.customWallpapers) {
+		if (wallpaper.id) backgroundIds.add(wallpaper.id);
+	}
+	for (const id of backgroundIds) {
 		const dataUrl = await images.getBackgroundImage(id);
 		if (dataUrl) backgrounds[id] = dataUrl;
 	}
@@ -70,15 +73,31 @@ export async function exportBackup(): Promise<void> {
 export async function importBackup(fileText: string): Promise<void> {
 	const data = JSON.parse(fileText) as Partial<BackupPayload>;
 
-	if (data.thumbnails && typeof data.thumbnails === "object") {
-		for (const [id, dataUrl] of Object.entries(data.thumbnails)) {
-			if (typeof dataUrl === "string")
+	const thumbnails = data.thumbnails;
+	if (
+		typeof thumbnails === "object" &&
+		thumbnails !== null &&
+		!Array.isArray(thumbnails)
+	) {
+		for (const [id, dataUrl] of Object.entries(
+			thumbnails as Record<string, unknown>,
+		)) {
+			if (id.trim() && typeof dataUrl === "string" && dataUrl.length > 0)
 				await putImage(STORE_THUMBS, id, dataUrl);
 		}
 	}
-	if (data.backgrounds && typeof data.backgrounds === "object") {
-		for (const [id, dataUrl] of Object.entries(data.backgrounds)) {
-			if (typeof dataUrl === "string") await putImage(STORE_BG, id, dataUrl);
+
+	const backgrounds = data.backgrounds;
+	if (
+		typeof backgrounds === "object" &&
+		backgrounds !== null &&
+		!Array.isArray(backgrounds)
+	) {
+		for (const [id, dataUrl] of Object.entries(
+			backgrounds as Record<string, unknown>,
+		)) {
+			if (id.trim() && typeof dataUrl === "string" && dataUrl.length > 0)
+				await putImage(STORE_BG, id, dataUrl);
 		}
 	}
 

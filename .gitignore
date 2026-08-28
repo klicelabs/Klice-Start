@@ -9,6 +9,7 @@ build
 *.tsbuildinfo
 
 # Generated files
+graphify-out/
 apps/web/src/routeTree.gen.ts
 
 # Environment variables

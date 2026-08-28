@@ -115,6 +115,59 @@ async function fetchWithRetry(
 }
 
 let refreshPromise: Promise<void> | null = null;
+let refreshSession = 0;
+
+interface PexelsRefreshIdentity {
+	query: string;
+	frequency: WallpaperFrequency;
+	imageId: string | null;
+}
+
+type RefreshRequestIdentity = PexelsRefreshIdentity | null;
+
+let refreshRequestIdentity: RefreshRequestIdentity = null;
+
+interface PexelsRefreshRequest extends PexelsRefreshIdentity {
+	session: number;
+}
+
+function getRefreshRequestIdentity(): RefreshRequestIdentity {
+	const bg = useSetupStore.getState().settings.background;
+	if (bg.type !== "pexels") return null;
+	return {
+		query: bg.pexelsQuery || DEFAULT_BACKGROUND.pexelsQuery,
+		frequency: bg.pexelsFrequency || "daily",
+		imageId: bg.pexelsImageId,
+	};
+}
+
+function matchesRefreshRequestIdentity(
+	left: RefreshRequestIdentity,
+	right: RefreshRequestIdentity,
+): boolean {
+	if (left === null || right === null) return left === right;
+	return (
+		left.query === right.query &&
+		left.frequency === right.frequency &&
+		left.imageId === right.imageId
+	);
+}
+
+
+
+function isCurrentPexelsRequest(
+	request: PexelsRefreshRequest,
+	imageId = request.imageId,
+): boolean {
+	const currentBg = useSetupStore.getState().settings.background;
+	return (
+		currentBg.type === "pexels" &&
+		(currentBg.pexelsQuery || DEFAULT_BACKGROUND.pexelsQuery) === request.query &&
+		(currentBg.pexelsFrequency || "daily") === request.frequency &&
+		currentBg.pexelsImageId === imageId &&
+		refreshSession === request.session
+	);
+}
 
 async function fetchPexelsPhoto(
 	query: string,
@@ -130,7 +183,7 @@ async function fetchPexelsPhoto(
 
 		if (period) {
 			body.query = isDefaultQuery
-				? `${periodModifier(period)} landscape`
+				? periodModifier(period)
 				: `${query}, ${periodModifier(period)}`;
 		} else if (!isDefaultQuery) {
 			body.query = query;
@@ -164,24 +217,23 @@ async function downloadImage(url: string): Promise<Blob | null> {
 	}
 }
 
-export async function refreshWallpaper(force = false): Promise<void> {
-	if (refreshPromise) {
-		if (!force) return refreshPromise;
-		try {
-			await refreshPromise;
-		} catch {
-			// ignore previous failure
+async function executeRefresh(
+	force: boolean,
+	session: number,
+	identity: RefreshRequestIdentity,
+): Promise<void> {
+	try {
+		if (
+			refreshSession !== session ||
+			!matchesRefreshRequestIdentity(identity, getRefreshRequestIdentity())
+		) {
+			return;
 		}
-	}
 
-	const executeRefresh = async () => {
-		const state = useSetupStore.getState();
-		const bg = state.settings.background;
+		const bg = useSetupStore.getState().settings.background;
+		if (bg.type !== "pexels" || identity === null) return;
 
-		if (bg.type !== "pexels") return;
-
-		const frequency = bg.pexelsFrequency || "daily";
-
+		const { frequency, query, imageId } = identity;
 		if (
 			!force &&
 			!shouldFetch(frequency, bg.pexelsLastFetched, bg.pexelsLastPeriod)
@@ -189,40 +241,75 @@ export async function refreshWallpaper(force = false): Promise<void> {
 			return;
 		}
 
+		const request: PexelsRefreshRequest = {
+			query,
+			frequency,
+			imageId,
+			session,
+		};
 		const period = frequency === "daylight" ? getCurrentPeriod() : undefined;
 
-		const photo = await fetchPexelsPhoto(bg.pexelsQuery, period);
-		if (!photo) return;
+		const photo = await fetchPexelsPhoto(query, period);
+		if (!photo || !isCurrentPexelsRequest(request)) return;
 
 		const imageBlob = await downloadImage(photo.src.large2x);
-		if (!imageBlob) return;
+		if (!imageBlob || !isCurrentPexelsRequest(request)) return;
 
 		const dataUrl = await blobToDataUrl(imageBlob);
-		const imageId = await saveBackground(dataUrl);
+		if (!isCurrentPexelsRequest(request)) return;
 
-		// Re-check type & state after async ops
-		const currentBg = useSetupStore.getState().settings.background;
-		if (currentBg.type !== "pexels") {
-			useImageStore.getState().deleteBackgroundImage(imageId);
+		const newImageId = await saveBackground(dataUrl);
+		if (!isCurrentPexelsRequest(request)) {
+			await useImageStore.getState().deleteBackgroundImage(newImageId);
 			return;
 		}
-
-		const oldImageId = currentBg.pexelsImageId;
+		const oldImageId = request.imageId;
 
 		useSetupStore.getState().updateBackground({
-			pexelsImageId: imageId,
+			pexelsImageId: newImageId,
 			pexelsLastFetched: Date.now(),
 			pexelsLastPeriod: period || null,
 		});
 
-		if (oldImageId && oldImageId !== imageId) {
-			useImageStore.getState().deleteBackgroundImage(oldImageId);
+		if (
+			oldImageId &&
+			oldImageId !== newImageId &&
+			isCurrentPexelsRequest(request, newImageId)
+		) {
+			await useImageStore.getState().deleteBackgroundImage(oldImageId);
 		}
-	};
+	} catch (error) {
+		console.warn("[wallpaper] Refresh failed", error);
+	}
+}
 
-	refreshPromise = executeRefresh().finally(() => {
-		refreshPromise = null;
+export async function refreshWallpaper(force = false): Promise<void> {
+	const identity = getRefreshRequestIdentity();
+	if (
+		refreshPromise &&
+		!force &&
+		matchesRefreshRequestIdentity(refreshRequestIdentity, identity)
+	) {
+		return refreshPromise;
+	}
+
+	const session = ++refreshSession;
+	const previous = refreshPromise;
+	const queued = previous
+		? previous.then(
+				() => executeRefresh(force, session, identity),
+				() => executeRefresh(force, session, identity),
+			)
+		: executeRefresh(force, session, identity);
+
+	let tracked: Promise<void>;
+	tracked = queued.finally(() => {
+		if (refreshPromise === tracked) {
+			refreshPromise = null;
+			refreshRequestIdentity = null;
+		}
 	});
-
-	return refreshPromise;
+	refreshPromise = tracked;
+	refreshRequestIdentity = identity;
+	return tracked;
 }
