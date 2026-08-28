@@ -61,10 +61,9 @@ export async function exportBookmarksHtml(): Promise<void> {
 	// Group folders by parent; orphaned parentId values fall back to root.
 	const childrenByParent = new Map<string | null, Folder[]>();
 	for (const folder of folders) {
+		const rawParentId = folder.parentId ?? null;
 		const parentId =
-			folder.parentId !== null && folderIds.has(folder.parentId)
-				? folder.parentId
-				: null;
+			rawParentId !== null && folderIds.has(rawParentId) ? rawParentId : null;
 		const list = childrenByParent.get(parentId);
 		if (list) list.push(folder);
 		else childrenByParent.set(parentId, [folder]);
