@@ -19,6 +19,7 @@ import type { Setup } from "../types";
  */
 export function useCrossTabSync() {
 	useEffect(() => {
+		if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return;
 		const handler = (
 			changes: Record<string, chrome.storage.StorageChange>,
 			area: string,

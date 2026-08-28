@@ -270,7 +270,7 @@ function normalizeResetGeneration(value: unknown): number {
 let _resetGeneration = 0;
 let _resetGenerationLoaded = true;
 let _resetGenerationReady = Promise.resolve();
-if (typeof chrome !== "undefined") {
+if (typeof chrome !== "undefined" && chrome.storage?.local) {
 	_resetGenerationLoaded = false;
 	_resetGenerationReady = chrome.storage.local
 		.get(RESET_GENERATION_KEY)
@@ -281,7 +281,7 @@ if (typeof chrome !== "undefined") {
 		.finally(() => {
 			_resetGenerationLoaded = true;
 		});
-	chrome.storage.onChanged.addListener((changes, area) => {
+	chrome.storage.onChanged?.addListener((changes, area) => {
 		if (area !== "local") return;
 		const next = normalizeResetGeneration(
 			changes[RESET_GENERATION_KEY]?.newValue,
@@ -416,6 +416,17 @@ if (typeof window !== "undefined") {
  */
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			const raw = typeof localStorage !== "undefined" ? localStorage.getItem(name) : null;
+			if (!raw) return null;
+			try {
+				const parsed = JSON.parse(raw) as StorageValue<Setup>;
+				parsed.state = normalizeState(parsed.state as Partial<Setup>);
+				return parsed;
+			} catch {
+				return null;
+			}
+		}
 		const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
 		if (!data[name]) return null;
 		const resetGeneration = normalizeResetGeneration(
@@ -433,6 +444,12 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		return parsed;
 	},
 	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			if (typeof localStorage !== "undefined") {
+				localStorage.setItem(name, JSON.stringify(value));
+			}
+			return;
+		}
 		await _resetGenerationReady;
 		_pendingSetItem = { name, value, generation: _resetGeneration };
 		if (_setItemTimer) clearTimeout(_setItemTimer);
@@ -467,6 +484,12 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		return promise;
 	},
 	removeItem: async (name: string): Promise<void> => {
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			if (typeof localStorage !== "undefined") {
+				localStorage.removeItem(name);
+			}
+			return;
+		}
 		await chrome.storage.local.remove(name);
 	},
 };

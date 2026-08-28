@@ -252,19 +252,28 @@ async function captureAndAdd(
 			setup.folders[0]?.id ||
 			"default";
 		const cardsInFolder = setup.cards.filter((c) => c.folderId === folderId);
+		const canon = canonicalUrl(tab.url);
+		const existingCard = setup.cards.find(
+			(c) => c.folderId === folderId && canonicalUrl(c.url) === canon,
+		);
 
-		setup.cards.push({
-			id: uid(),
-			folderId,
-			title: tab.title || tab.url,
-			url: tab.url,
-			favicon: tab.favIconUrl || "",
-			thumbId,
-			order: cardsInFolder.length,
-			origin: "local",
-			capturedAt: null,
-		});
-
+		if (existingCard) {
+			existingCard.title = tab.title || existingCard.title;
+			if (thumbId) existingCard.thumbId = thumbId;
+			if (tab.favIconUrl) existingCard.favicon = tab.favIconUrl;
+		} else {
+			setup.cards.push({
+				id: uid(),
+				folderId,
+				title: tab.title || tab.url,
+				url: tab.url,
+				favicon: tab.favIconUrl || "",
+				thumbId,
+				order: cardsInFolder.length,
+				origin: "local",
+				capturedAt: null,
+			});
+		}
 		await writeSetup(setup);
 		flashBadge("✓", "#34C759");
 	} catch {

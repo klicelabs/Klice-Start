@@ -41,10 +41,16 @@ export default function App() {
 				favicon: tab.favIconUrl || "",
 			});
 			try {
-				const dataUrl = await chrome.tabs.captureVisibleTab({
-					format: "jpeg",
-					quality: 80,
-				});
+				const dataUrl =
+					tab.windowId !== undefined
+						? await chrome.tabs.captureVisibleTab(tab.windowId, {
+								format: "jpeg",
+								quality: 80,
+							})
+						: await chrome.tabs.captureVisibleTab({
+								format: "jpeg",
+								quality: 80,
+							});
 				setPreviewUrl(dataUrl);
 			} catch {
 				// Preview is optional.
@@ -55,20 +61,22 @@ export default function App() {
 	async function handleSave() {
 		if (!tabInfo || saveState === "saving") return;
 
+		const currentCards = useSetupStore.getState().cards;
 		const canon = canonicalUrl(tabInfo.url);
-		const duplicate = useSetupStore
-			.getState()
-			.cards.some(
-				(c) => c.folderId === folderId && canonicalUrl(c.url) === canon,
-			);
-		if (duplicate) {
+		const isDuplicate = currentCards.some(
+			(c) => c.folderId === folderId && canonicalUrl(c.url) === canon,
+		);
+		if (isDuplicate) {
 			setSaveState("duplicate");
 			return;
 		}
 
 		setSaveState("saving");
 		try {
-			const thumbId = previewUrl ? await saveThumbnail(previewUrl) : null;
+			let thumbId: string | null = null;
+			if (previewUrl) {
+				thumbId = await saveThumbnail(previewUrl);
+			}
 			useSetupStore.getState().addCard({
 				folderId,
 				title: titleRef.current?.value.trim() || tabInfo.title,
@@ -77,7 +85,7 @@ export default function App() {
 				thumbId,
 			});
 			setSaveState("saved");
-			setTimeout(() => window.close(), 500);
+			setTimeout(() => window.close(), 600);
 		} catch {
 			setSaveState("error");
 		}
@@ -96,80 +104,107 @@ export default function App() {
 
 	return (
 		<div
-			className="p-4 text-white"
-			style={{
-				width: 300,
-			}}
+			className="w-[280px] select-none p-3 font-sans text-xs text-white"
+			style={{ background: "#1c1c1e" }}
 		>
+			<div className="mb-2.5 flex items-center gap-1.5">
+				<span className="font-semibold text-[13px] text-white/90">
+					Save to Klice Start
+				</span>
+			</div>
+
 			{blocked ? (
-				<p className="py-6 text-center text-[13px] text-white/60">
-					This page can’t be saved.
+				<p className="py-4 text-center text-white/50">
+					Cannot save this page. Open a regular web page to bookmark it.
 				</p>
 			) : (
-				<>
+				<div className="space-y-2.5">
+					{/* Thumbnail preview */}
 					{previewUrl && (
-						<div
-							className="mb-3 h-[120px] w-full rounded-xl border border-white/10 bg-[#1c1c1e] bg-cover bg-top"
-							style={{ backgroundImage: `url("${previewUrl}")` }}
-						/>
+						<div className="aspect-[16/10] w-full overflow-hidden rounded-lg bg-white/5 ring-1 ring-white/10">
+							<img
+								src={previewUrl}
+								alt="Page preview"
+								className="h-full w-full object-cover"
+							/>
+						</div>
 					)}
 
-					<label
-						htmlFor="popup-title"
-						className="mt-2 mb-1 block text-white/50 text-xs"
-					>
-						Title
-					</label>
-					<input
-						id="popup-title"
-						ref={titleRef}
-						defaultValue={tabInfo?.title || ""}
-						onKeyDown={(e) => e.key === "Enter" && handleSave()}
-						className="w-full rounded-lg border border-white/10 bg-white/10 px-2.5 py-2 text-[13px] text-white outline-none focus:border-blue-500"
-					/>
+					{/* Title input */}
+					<div>
+						<label
+							htmlFor="tab-title-input"
+							className="mb-1 block font-medium text-[11px] text-white/50"
+						>
+							Title
+						</label>
+						<input
+							id="tab-title-input"
+							ref={titleRef}
+							type="text"
+							defaultValue={tabInfo?.title ?? ""}
+							placeholder="Page title"
+							className="w-full rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 font-medium text-xs text-white placeholder-white/30 outline-none focus:border-white/30"
+						/>
+					</div>
 
-					<label
-						htmlFor="popup-folder"
-						className="mt-2.5 mb-1 block text-white/50 text-xs"
-					>
-						Folder
-					</label>
-					<select
-						id="popup-folder"
-						value={folderId}
-						onChange={(e) => {
-							setFolderId(e.target.value);
-							if (saveState === "duplicate") setSaveState("idle");
-						}}
-						className="w-full rounded-lg border border-white/10 bg-white/10 px-2.5 py-2 text-[13px] text-white outline-none focus:border-blue-500"
-					>
-						{folderOptions.map(({ folder, depth }) => (
-							<option
-								key={folder.id}
-								value={folder.id}
-								className="bg-[#1c1c1e]"
-							>
-								{`${"  ".repeat(depth)}${folder.name}`}
-							</option>
-						))}
-					</select>
+					{/* Folder select */}
+					<div>
+						<label
+							htmlFor="folder-select-input"
+							className="mb-1 block font-medium text-[11px] text-white/50"
+						>
+							Folder
+						</label>
+						<select
+							id="folder-select-input"
+							value={folderId}
+							onChange={(e) => {
+								setFolderId(e.target.value);
+								if (saveState === "duplicate") setSaveState("idle");
+							}}
+							className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 font-medium text-xs text-white outline-none focus:border-white/30"
+						>
+							{folderOptions.map((opt) => (
+								<option
+									key={opt.folder.id}
+									value={opt.folder.id}
+									className="bg-neutral-900 text-white"
+								>
+									{opt.depth > 0
+										? "· ".repeat(opt.depth) + opt.folder.name
+										: opt.folder.name}
+								</option>
+							))}
+						</select>
+					</div>
 
+					{/* Status message */}
+					{statusText && (
+						<p
+							className={`text-center font-medium text-[11px] ${
+								saveState === "saved"
+									? "text-emerald-400"
+									: saveState === "duplicate" || saveState === "error"
+										? "text-red-400"
+										: "text-white/50"
+							}`}
+						>
+							{statusText}
+						</p>
+					)}
+
+					{/* Action button */}
 					<Button
-						className="mt-3.5 w-full"
-						disabled={saveState === "saving" || saveState === "saved"}
+						type="button"
+						size="sm"
 						onClick={handleSave}
+						disabled={saveState === "saving" || saveState === "saved"}
+						className="h-8 w-full rounded-md font-medium text-xs shadow-xs"
 					>
-						Save to Klice Start
+						{saveState === "saved" ? "Saved ✓" : "Save Page"}
 					</Button>
-
-					<p
-						className="mt-2 h-3.5 text-center text-white/50 text-xs"
-						role="status"
-						aria-live="polite"
-					>
-						{statusText}
-					</p>
-				</>
+				</div>
 			)}
 		</div>
 	);
