@@ -17,6 +17,7 @@ interface NavigationToolbarProps {
 	activeRootId: string;
 	onSelectFolder: (id: string) => void;
 	onAddFolder: (name: string) => string;
+	onAddSubfolder?: (parentId: string | null) => void;
 	onOpenSettings: () => void;
 	onOpenSearch: () => void;
 	onEditFolder?: (id: string) => void;
@@ -41,6 +42,7 @@ export function NavigationToolbar({
 	activeRootId,
 	onSelectFolder,
 	onAddFolder,
+	onAddSubfolder,
 	onOpenSettings,
 	onOpenSearch,
 	onEditFolder,
@@ -202,6 +204,7 @@ export function NavigationToolbar({
 							folders={visibleFolders}
 							activeRootId={activeRootId}
 							onSelectFolder={onSelectFolder}
+							onAddFolder={onAddSubfolder}
 							onEditFolder={onEditFolder}
 							onDeleteFolder={onDeleteFolder}
 							onReorderFolders={onReorderFolders}
@@ -243,7 +246,10 @@ export function NavigationToolbar({
 
 				{/* Right: Search + Settings */}
 				<div className="flex w-44 shrink-0 items-center justify-end">
-					<ToolbarActions onSearch={onOpenSearch} onSettings={onOpenSettings} />
+					<ToolbarActions
+						onSearch={onOpenSearch}
+						onSettings={onOpenSettings}
+					/>
 				</div>
 			</header>
 

@@ -9,12 +9,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type DragEvent, useEffect, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
-import {
-	getActiveDrag,
-	getDragId,
-	isDragKind,
-	setDragData,
-} from "../../../lib/dnd";
+import { getActiveDrag, getDragId, isDragKind, setDragData } from "../../../lib/dnd";
 import { glassCardFooter, glassDropdownItem } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
 import { useImageStore } from "../../../stores/image-store";
@@ -33,6 +28,9 @@ interface FolderPreviewCardProps {
 	itemCount: number;
 	previewCards: FolderPreviewItem[];
 	dragging?: boolean;
+	isSelected?: boolean;
+	showMultiBadge?: boolean;
+	onClick?: (e: React.MouseEvent) => void;
 	onOpen: (id: string) => void;
 	onEdit: (id: string) => void;
 	onDelete: (id: string) => void;
@@ -53,6 +51,9 @@ export function FolderPreviewCard({
 	itemCount,
 	previewCards,
 	dragging,
+	isSelected = false,
+	showMultiBadge = false,
+	onClick,
 	onOpen,
 	onEdit,
 	onDelete,
@@ -113,10 +114,11 @@ export function FolderPreviewCard({
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.98]",
+					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.97]",
 					isLiquid
 						? glassVariantStyles.liquid
 						: "border border-border bg-card shadow-sm",
+					isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background/40 shadow-lg scale-[1.02]",
 					dropActive && "scale-[1.04] ring-2 ring-white/80 shadow-md",
 					dragging && "opacity-40",
 					className,
@@ -126,7 +128,7 @@ export function FolderPreviewCard({
 						type="button"
 						aria-label={`Open folder ${name}`}
 						title={name}
-						onClick={() => onOpen(id)}
+						onClick={onClick}
 						draggable={true}
 						onDragStart={(e) => {
 							setDragData(e, "folder", id);
@@ -182,6 +184,12 @@ export function FolderPreviewCard({
 					>
 						{itemCount}
 					</span>
+
+					{isSelected && showMultiBadge && (
+						<div className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary font-bold text-[10px] text-primary-foreground shadow-xs">
+							✓
+						</div>
+					)}
 				</div>
 
 				<div
@@ -258,7 +266,9 @@ function FolderMiniTile({
 		<div
 			className={cn(
 				"relative flex size-full items-center justify-center overflow-hidden rounded-[7px]",
-				isLiquid ? "bg-white/[0.08]" : "bg-muted/60",
+				isLiquid
+					? "bg-white/[0.08]"
+					: "bg-muted/60",
 			)}
 		>
 			{thumbUrl ? (

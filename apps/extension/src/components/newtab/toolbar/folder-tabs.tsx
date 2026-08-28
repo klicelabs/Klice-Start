@@ -8,7 +8,7 @@ import {
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type DragEvent, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
-import { getDragId, isDragKind, setDragData } from "../../../lib/dnd";
+import { getActiveDrag, getDragId, isDragKind, setDragData } from "../../../lib/dnd";
 import { glassDropdownItem } from "../../../lib/glass";
 import {
 	TOOLBAR,
@@ -24,6 +24,7 @@ interface FolderTabsProps {
 	folders: Folder[];
 	activeRootId: string;
 	onSelectFolder: (id: string) => void;
+	onAddFolder?: (parentId: string | null) => void;
 	onEditFolder?: (id: string) => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (draggedId: string, targetId: string) => void;
@@ -33,13 +34,13 @@ interface FolderTabsProps {
 }
 
 /**
- * Floating tab bar. Every tab shares the same height and radius as all
- * other toolbar controls (h-[34px], rounded-full).
+ * Floating tab bar with spring-load dwell navigation and tab context menu.
  */
 export function FolderTabs({
 	folders,
 	activeRootId,
 	onSelectFolder,
+	onAddFolder,
 	onEditFolder,
 	onDeleteFolder,
 	onReorderFolders,
@@ -65,6 +66,7 @@ export function FolderTabs({
 					isLiquid={isLiquid}
 					dragFolderId={dragFolderId}
 					onSelectFolder={onSelectFolder}
+					onAddFolder={onAddFolder}
 					onEditFolder={onEditFolder}
 					onDeleteFolder={onDeleteFolder}
 					onReorderFolders={onReorderFolders}
@@ -83,6 +85,7 @@ interface FolderTabProps {
 	isLiquid: boolean;
 	dragFolderId: React.RefObject<string | null>;
 	onSelectFolder: (id: string) => void;
+	onAddFolder?: (parentId: string | null) => void;
 	onEditFolder?: (id: string) => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (draggedId: string, targetId: string) => void;
@@ -97,6 +100,7 @@ function FolderTab({
 	isLiquid,
 	dragFolderId,
 	onSelectFolder,
+	onAddFolder,
 	onEditFolder,
 	onDeleteFolder,
 	onReorderFolders,
@@ -110,7 +114,8 @@ function FolderTab({
 	function accepts(e: DragEvent): boolean {
 		if (isDragKind(e, "card")) return true;
 		if (isDragKind(e, "folder")) {
-			const draggedId = getDragId(e);
+			const activeDrag = getActiveDrag();
+			const draggedId = activeDrag?.id || getDragId(e);
 			if (!draggedId) return true;
 			if (draggedId === folder.id) return false;
 			return canNestFolder ? canNestFolder(draggedId, folder.id) : true;
@@ -144,8 +149,10 @@ function FolderTab({
 			return;
 		}
 
-		const draggedId = getDragId(e);
+		const activeDrag = getActiveDrag();
+		const draggedId = activeDrag?.id || getDragId(e);
 		if (!draggedId) return;
+
 		if (isDragKind(e, "folder")) {
 			if (
 				draggedId !== folder.id &&
@@ -215,6 +222,13 @@ function FolderTab({
 				>
 					<Icon name="folder" size={14} />
 					Open
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onAddFolder?.(folder.id)}
+				>
+					<Icon name="folder-plus" size={14} />
+					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}

@@ -21,6 +21,7 @@ import {
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
 import { faviconUrl } from "../../src/lib/url";
+import { useSelectionStore } from "../../src/stores/selection-store";
 import { useSetupStore } from "../../src/stores/setup-store";
 import type { Card } from "../../src/types";
 
@@ -104,8 +105,9 @@ export default function App() {
 	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>("general");
-	const [settingsAction, setSettingsAction] =
-		useState<SettingsDialogProps["initialAction"]>(undefined);
+	const [settingsAction, setSettingsAction] = useState<
+		SettingsDialogProps["initialAction"]
+	>(undefined);
 	const [showSearch, setShowSearch] = useState(false);
 
 	// Open Settings window with optional pane & action deep-linking
@@ -133,14 +135,38 @@ export default function App() {
 		return () => document.removeEventListener("keydown", handleKey);
 	}, []);
 
+	// Clear multi-selection on clicking outside interactive elements
+	useEffect(() => {
+		function handlePointerDown(e: MouseEvent) {
+			const target = e.target as HTMLElement | null;
+			if (
+				target?.closest(
+					".dial-cell, [data-local-context-menu], button, input, a, header, [role=\"dialog\"], [role=\"menu\"]",
+				)
+			) {
+				return;
+			}
+			useSelectionStore.getState().clear();
+		}
+		window.addEventListener("pointerdown", handlePointerDown);
+		return () => window.removeEventListener("pointerdown", handlePointerDown);
+	}, []);
+
 	return (
 		<AppearanceProvider>
 			<PageContextMenu
-				onOpenBackgroundSettings={() => handleOpenSettings("background")}
+				onOpenBackgroundSettings={() => handleOpenSettings("appearance")}
 				onOpenShortcutSettings={() => handleOpenSettings("bookmarks")}
 				onAddQuickLink={() =>
 					handleOpenSettings("bookmarks", { type: "add-link" })
 				}
+				onAddFolder={() =>
+					handleOpenSettings("bookmarks", {
+						type: "add-folder",
+						folderId: activeFolderId,
+					})
+				}
+				onOpenGeneralSettings={() => handleOpenSettings("general")}
 			>
 				<div className="relative flex min-h-screen flex-col text-white">
 					<BackgroundLayer />
@@ -152,6 +178,12 @@ export default function App() {
 						activeRootId={activeRootId}
 						onSelectFolder={setActiveFolder}
 						onAddFolder={(name) => addFolder(name, null)}
+						onAddSubfolder={(parentId) =>
+							handleOpenSettings("bookmarks", {
+								type: "add-folder",
+								folderId: parentId ?? undefined,
+							})
+						}
 						onOpenSettings={() => handleOpenSettings("general")}
 						onOpenSearch={() => setShowSearch(true)}
 						onEditFolder={(id) =>

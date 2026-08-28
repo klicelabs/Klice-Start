@@ -19,6 +19,9 @@ interface DialCardProps {
 	card: Card;
 	onEdit: (id: string) => void;
 	onDelete: (id: string) => void;
+	isSelected?: boolean;
+	showMultiBadge?: boolean;
+	onClick?: (e: React.MouseEvent) => void;
 	dragProps?: Record<string, unknown>;
 	className?: string;
 	style?: CSSProperties;
@@ -28,6 +31,9 @@ export function DialCard({
 	card,
 	onEdit,
 	onDelete,
+	isSelected = false,
+	showMultiBadge = false,
+	onClick,
 	dragProps,
 	className,
 	style,
@@ -69,6 +75,7 @@ export function DialCard({
 				data-local-context-menu
 				className={cn(
 					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.97]",
+					isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background/40 shadow-lg scale-[1.02]",
 					className,
 				)}
 				style={style}
@@ -79,6 +86,7 @@ export function DialCard({
 						rel={openInNewTab ? "noopener noreferrer" : undefined}
 						aria-label={label}
 						title={label}
+						onClick={onClick}
 						{...dragProps}
 					/>
 				}
@@ -158,6 +166,12 @@ export function DialCard({
 					>
 						<Icon name="x" size={13} />
 					</button>
+				)}
+
+				{isSelected && showMultiBadge && (
+					<div className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary font-bold text-[10px] text-primary-foreground shadow-xs">
+						✓
+					</div>
 				)}
 			</ContextMenuTrigger>
 
