@@ -21,7 +21,7 @@ export function SectionCard({
 				<div className="mb-2 flex items-center justify-between px-1">
 					<div className="flex flex-col">
 						{title && (
-							<h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
+							<h3 className="font-semibold text-[13px] text-foreground tracking-tight">
 								{title}
 							</h3>
 						)}

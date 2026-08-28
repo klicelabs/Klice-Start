@@ -7,6 +7,17 @@ export type FrostGlassVariant =
 export type FrostGlassVariantProp = { glassVariant?: FrostGlassVariant };
 
 export const liquidRefractStyles = "bg-transparent border-0 shadow-none";
+export const settingsSidebarStyles = [
+	"backdrop-blur-[12px] backdrop-saturate-[1.25]",
+	"bg-white/[0.16] dark:bg-white/[0.08]",
+	"border border-white/[0.28] dark:border-white/[0.1]",
+	"shadow-[0_8px_24px_rgba(15,23,42,0.1)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]",
+].join(" ");
+export const settingsSidebarIconStyles = [
+	"flex size-[26px] shrink-0 items-center justify-center rounded-[7px]",
+	"text-white",
+	"shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_1px_2px_rgba(0,0,0,0.15)]",
+].join(" ");
 
 export const glassVariantStyles: Record<FrostGlassVariant, string> = {
 	clear: [
