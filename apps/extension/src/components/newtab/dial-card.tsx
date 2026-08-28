@@ -6,7 +6,6 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type CSSProperties, useEffect, useState } from "react";
 import { glassCardFooter, glassDropdownItem } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
@@ -69,7 +68,7 @@ export function DialCard({
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[1.01]",
+					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.97]",
 					className,
 				)}
 				style={style}
@@ -79,6 +78,7 @@ export function DialCard({
 						target={openInNewTab ? "_blank" : "_self"}
 						rel={openInNewTab ? "noopener noreferrer" : undefined}
 						aria-label={label}
+						title={label}
 						{...dragProps}
 					/>
 				}
@@ -163,36 +163,23 @@ export function DialCard({
 
 			<ContextMenuContent
 				className={cn(
-					"min-w-48",
-					isLiquid
-						? cn(
-								glassVariantStyles.liquid,
-								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
-								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
-							)
-						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+					"min-w-44 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-xl",
+					isLiquid && "bg-popover/90 backdrop-blur-xl",
 				)}
 			>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={handleOpenNewTab}
 				>
-					<Icon name="globe" size={15} />
+					<Icon name="globe" size={14} />
 					Open in new tab
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onEdit(card.id)}
 				>
-					<Icon name="pencil" size={15} />
-					Rename
-				</ContextMenuItem>
-				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
-					onClick={() => onEdit(card.id)}
-				>
-					<Icon name="globe" size={15} />
-					Edit URL
+					<Icon name="pencil" size={14} />
+					Edit
 				</ContextMenuItem>
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}
@@ -202,7 +189,7 @@ export function DialCard({
 					variant="destructive"
 					onClick={() => onDelete(card.id)}
 				>
-					<Icon name="trash" size={15} />
+					<Icon name="trash" size={14} />
 					Delete
 				</ContextMenuItem>
 			</ContextMenuContent>

@@ -7,64 +7,49 @@ import {
 import { cn } from "../../../lib/utils";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "./glass-surface";
-import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface ToolbarActionsProps {
 	onSearch: () => void;
 	onSettings: () => void;
-	onAddFavorite: () => void;
 }
 
 /**
- * Trailing actions. Search + Add share one glass pill; Settings gets its own.
- * Both pills use the same inner padding, so every icon button is an identical
- * circle — no more undersized settings button.
+ * Trailing actions on the homepage toolbar: Search + Settings.
+ * Minimal, balanced, Apple HIG toolbar layout.
  */
-export function ToolbarActions({
-	onSearch,
-	onSettings,
-	onAddFavorite,
-}: ToolbarActionsProps) {
+export function ToolbarActions({ onSearch, onSettings }: ToolbarActionsProps) {
 	const { isLiquid } = useAppearance();
 
-	function iconButton(active: boolean): string {
+	function iconButton(active = false): string {
 		return cn(
 			TOOLBAR.controlHeight,
 			TOOLBAR.controlWidth,
 			TOOLBAR.radius,
-			"flex items-center justify-center",
+			"flex items-center justify-center cursor-pointer",
 			isLiquid ? toolbarControlLiquid(active) : toolbarControlClassic(active),
 		);
 	}
 
 	return (
-		<div className="flex items-center gap-1.5">
-			{/* Group 1: Search + Add */}
-			<GlassSurface className={TOOLBAR.groupPadding}>
-				<button
-					type="button"
-					className={iconButton(false)}
-					onClick={onSearch}
-					aria-label="Search"
-				>
-					<Icon name="search" size={TOOLBAR.iconSize} />
-				</button>
-				<button
-					type="button"
-					className={iconButton(false)}
-					onClick={onAddFavorite}
-					aria-label="Add new"
-				>
-					<Icon name="plus" size={TOOLBAR.iconSize} />
-				</button>
-			</GlassSurface>
-
-			{/* Settings — standalone: the button itself is the glass circle */}
-			<ToolbarIconButton
-				icon="settings"
-				label="Open settings"
+		<GlassSurface className={cn(TOOLBAR.groupPadding, "gap-1")}>
+			<button
+				type="button"
+				className={iconButton(false)}
+				onClick={onSearch}
+				aria-label="Search favorites (Ctrl+K)"
+				title="Search favorites (Ctrl+K)"
+			>
+				<Icon name="search" size={TOOLBAR.iconSize} />
+			</button>
+			<button
+				type="button"
+				className={iconButton(false)}
 				onClick={onSettings}
-			/>
-		</div>
+				aria-label="Settings"
+				title="Settings"
+			>
+				<Icon name="settings" size={TOOLBAR.iconSize} />
+			</button>
+		</GlassSurface>
 	);
 }

@@ -1,5 +1,6 @@
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SEARCH_ENGINES } from "../../../lib/constants";
 import { getBreadcrumb } from "../../../lib/folder-tree";
 import { glassDropdown, glassText } from "../../../lib/glass";
 import { searchIndex } from "../../../lib/search-index";
@@ -11,14 +12,18 @@ import { useAppearance } from "../appearance-provider";
 interface GlobalSearchProps {
 	open: boolean;
 	onClose: () => void;
-	/** Navigate to a folder. */
 	onNavigateFolder: (id: string) => void;
 }
 
+type SearchItem =
+	| { type: "site"; data: Card }
+	| { type: "folder"; data: Folder }
+	| { type: "web"; query: string };
+
 /**
  * Spotlight-style global search overlay. Triggered by toolbar search button
- * or Ctrl+K / Cmd+K. Searches cards (title + URL) and folders (name).
- * Results grouped by type with keyboard navigation.
+ * or Ctrl+K / Cmd+K. Searches cards (title + URL) and folders (name), with
+ * instant web search fallback.
  */
 export function GlobalSearch({
 	open,
@@ -29,19 +34,23 @@ export function GlobalSearch({
 	const cards = useSetupStore((s) => s.cards);
 	const folders = useSetupStore((s) => s.folders);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
+	const searchSettings = useSetupStore((s) => s.settings.search);
 
 	const [query, setQuery] = useState("");
 	const [selectedIdx, setSelectedIdx] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 
+	const activeEngine =
+		SEARCH_ENGINES.find((e) => e.id === searchSettings.engine) ??
+		SEARCH_ENGINES[0];
+
 	// Reset on open/close.
 	useEffect(() => {
 		if (open) {
 			setQuery("");
 			setSelectedIdx(0);
-			const id = setTimeout(() => inputRef.current?.focus(), 60);
-			return () => clearTimeout(id);
+			requestAnimationFrame(() => inputRef.current?.focus());
 		}
 	}, [open]);
 
@@ -51,57 +60,76 @@ export function GlobalSearch({
 		[query, cards, folders],
 	);
 
-	// Flat list for keyboard navigation: sites first, then folders.
-	const flatResults = useMemo(() => {
-		const items: { type: "site" | "folder"; data: Card | Folder }[] = [];
-		for (const s of results.sites) items.push({ type: "site", data: s });
-		for (const f of results.folders) items.push({ type: "folder", data: f });
+	// Flat list for keyboard navigation: sites first, then folders, then web fallback.
+	const flatResults = useMemo((): SearchItem[] => {
+		const items: SearchItem[] = [
+			...results.sites.map((c) => ({ type: "site" as const, data: c })),
+			...results.folders.map((f) => ({ type: "folder" as const, data: f })),
+		];
+		if (query.trim().length > 0) {
+			items.push({ type: "web", query: query.trim() });
+		}
 		return items;
-	}, [results]);
+	}, [results, query]);
 
 	// Clamp selected index.
 	useEffect(() => {
 		setSelectedIdx((prev) =>
-			Math.min(prev, Math.max(0, flatResults.length - 1)),
+			Math.max(0, Math.min(prev, flatResults.length - 1)),
 		);
 	}, [flatResults.length]);
+
+	const handleExecuteWebSearch = useCallback(
+		(q: string) => {
+			const url = activeEngine.queryUrl.replace("%s", encodeURIComponent(q));
+			window.open(url, openInNewTab ? "_blank" : "_self");
+			onClose();
+		},
+		[activeEngine, openInNewTab, onClose],
+	);
 
 	const handleSelect = useCallback(
 		(idx: number) => {
 			const item = flatResults[idx];
 			if (!item) return;
 			if (item.type === "site") {
-				const card = item.data as Card;
-				window.open(card.url, openInNewTab ? "_blank" : "_self");
-			} else {
-				const folder = item.data as Folder;
-				onNavigateFolder(folder.id);
+				window.open(item.data.url, openInNewTab ? "_blank" : "_self");
+				onClose();
+			} else if (item.type === "folder") {
+				onNavigateFolder(item.data.id);
+			} else if (item.type === "web") {
+				handleExecuteWebSearch(item.query);
 			}
-			onClose();
 		},
-		[flatResults, openInNewTab, onNavigateFolder, onClose],
+		[
+			flatResults,
+			openInNewTab,
+			onNavigateFolder,
+			handleExecuteWebSearch,
+			onClose,
+		],
 	);
 
-	// Keyboard navigation.
+	// Keyboard navigation with wrap-around.
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
-			switch (e.key) {
-				case "ArrowDown":
-					e.preventDefault();
-					setSelectedIdx((prev) => Math.min(prev + 1, flatResults.length - 1));
-					break;
-				case "ArrowUp":
-					e.preventDefault();
-					setSelectedIdx((prev) => Math.max(prev - 1, 0));
-					break;
-				case "Enter":
-					e.preventDefault();
-					handleSelect(selectedIdx);
-					break;
-				case "Escape":
-					e.preventDefault();
-					onClose();
-					break;
+			if (e.key === "Escape") {
+				onClose();
+				return;
+			}
+			if (flatResults.length === 0) return;
+
+			if (e.key === "ArrowDown") {
+				e.preventDefault();
+				setSelectedIdx((prev) => (prev + 1) % flatResults.length);
+			} else if (e.key === "ArrowUp") {
+				e.preventDefault();
+				setSelectedIdx((prev) =>
+					prev <= 0 ? flatResults.length - 1 : prev - 1,
+				);
+			} else if (e.key === "Enter") {
+				e.preventDefault();
+				handleSelect(selectedIdx);
 			}
 		},
 		[flatResults.length, selectedIdx, handleSelect, onClose],
@@ -111,15 +139,14 @@ export function GlobalSearch({
 	useEffect(() => {
 		const list = listRef.current;
 		if (!list) return;
-		const selected = list.querySelector(`[data-idx="${selectedIdx}"]`);
-		if (selected) {
-			selected.scrollIntoView({ block: "nearest" });
+		const el = list.querySelector(`[data-idx="${selectedIdx}"]`);
+		if (el && typeof el.scrollIntoView === "function") {
+			el.scrollIntoView({ block: "nearest" });
 		}
 	}, [selectedIdx]);
 
 	if (!open) return null;
 
-	const hasResults = flatResults.length > 0;
 	const hasQuery = query.trim().length > 0;
 
 	return (
@@ -132,16 +159,16 @@ export function GlobalSearch({
 			onKeyDown={(e) => e.key === "Escape" && onClose()}
 		>
 			{/* Scrim */}
-			<div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+			<div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" />
 
 			{/* Search container */}
 			<search
-				className={`relative mx-4 w-full max-w-[600px] ${glassDropdown(isLiquid)} overflow-hidden`}
+				className={`relative mx-4 w-full max-w-[580px] ${glassDropdown(isLiquid)} overflow-hidden rounded-2xl shadow-2xl`}
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={handleKeyDown}
 			>
 				{/* Search input */}
-				<div className="flex items-center gap-3 px-4 py-3">
+				<div className="flex items-center gap-3 px-4 py-3.5">
 					<Icon
 						name="search"
 						size={18}
@@ -155,16 +182,20 @@ export function GlobalSearch({
 							setQuery(e.target.value);
 							setSelectedIdx(0);
 						}}
-						placeholder="Search favorites and folders..."
-						className={`flex-1 bg-transparent text-[15px] outline-none placeholder:${isLiquid ? "white/40" : "muted-foreground"} ${glassText(isLiquid, "primary")}`}
+						placeholder="Search bookmarks and folders..."
+						className={`flex-1 bg-transparent text-[15px] outline-none ${
+							isLiquid
+								? "text-white placeholder:text-white/40"
+								: "text-foreground placeholder:text-muted-foreground"
+						}`}
 						autoComplete="off"
 						spellCheck={false}
 					/>
 					<kbd
-						className={`hidden items-center gap-0.5 rounded px-1.5 py-0.5 font-medium text-[10px] sm:inline-flex ${
+						className={`hidden items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium text-[10px] sm:inline-flex ${
 							isLiquid
-								? "bg-white/[0.08] text-white/40"
-								: "bg-muted text-muted-foreground"
+								? "bg-white/[0.08] text-white/50 border border-white/10"
+								: "bg-muted text-muted-foreground border border-border"
 						}`}
 					>
 						ESC
@@ -172,31 +203,25 @@ export function GlobalSearch({
 				</div>
 
 				{/* Separator */}
-				<div className={`h-px ${isLiquid ? "bg-white/[0.06]" : "bg-border"}`} />
+				<div className={`h-px ${isLiquid ? "bg-white/[0.08]" : "bg-border"}`} />
 
 				{/* Results */}
-				<div ref={listRef} className="max-h-[400px] overflow-y-auto py-1">
+				<div ref={listRef} className="max-h-[380px] overflow-y-auto py-1">
 					{!hasQuery ? (
 						<div
 							className={`px-4 py-8 text-center text-[13px] ${glassText(isLiquid, "muted")}`}
 						>
-							Search your favorites and folders
-						</div>
-					) : !hasResults ? (
-						<div
-							className={`px-4 py-8 text-center text-[13px] ${glassText(isLiquid, "muted")}`}
-						>
-							No results found
+							Type to search bookmarks, folders, or the web
 						</div>
 					) : (
 						<>
 							{/* Sites group */}
 							{results.sites.length > 0 && (
-								<div>
+								<div className="py-1">
 									<div
-										className={`px-4 py-1.5 font-medium text-[11px] uppercase tracking-wider ${glassText(isLiquid, "muted")}`}
+										className={`px-4 py-1 font-semibold text-[10px] uppercase tracking-wider ${glassText(isLiquid, "muted")}`}
 									>
-										Sites
+										Bookmarks
 									</div>
 									{results.sites.map((card) => {
 										const flatIdx = flatResults.findIndex(
@@ -208,10 +233,11 @@ export function GlobalSearch({
 												type="button"
 												data-idx={flatIdx}
 												onClick={() => handleSelect(flatIdx)}
+												title={`${card.title || card.url} (${card.url})`}
 												className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-75 ${
 													flatIdx === selectedIdx
 														? isLiquid
-															? "bg-white/[0.1]"
+															? "bg-white/[0.12]"
 															: "bg-muted"
 														: ""
 												} ${
@@ -221,23 +247,23 @@ export function GlobalSearch({
 												}`}
 											>
 												<img
-													src={faviconUrl(card.url)}
+													src={card.favicon || faviconUrl(card.url)}
 													alt=""
-													className="h-4 w-4 shrink-0 rounded-sm"
+													className="size-4 shrink-0 rounded-xs"
 													onError={(e) => {
-														(e.target as HTMLImageElement).src = faviconUrl(
-															card.url,
-														);
+														(e.target as HTMLImageElement).onerror = null;
+														(e.target as HTMLImageElement).style.display =
+															"none";
 													}}
 												/>
 												<div className="min-w-0 flex-1">
 													<div
 														className={`truncate font-medium text-[13px] ${glassText(isLiquid, "primary")}`}
 													>
-														{card.title}
+														{card.title || card.url}
 													</div>
 													<div
-														className={`truncate text-[11px] ${glassText(isLiquid, "muted")}`}
+														className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
 													>
 														{card.url}
 													</div>
@@ -250,9 +276,9 @@ export function GlobalSearch({
 
 							{/* Folders group */}
 							{results.folders.length > 0 && (
-								<div>
+								<div className="py-1">
 									<div
-										className={`px-4 py-1.5 font-medium text-[11px] uppercase tracking-wider ${glassText(isLiquid, "muted")}`}
+										className={`px-4 py-1 font-semibold text-[10px] uppercase tracking-wider ${glassText(isLiquid, "muted")}`}
 									>
 										Folders
 									</div>
@@ -268,10 +294,11 @@ export function GlobalSearch({
 												type="button"
 												data-idx={flatIdx}
 												onClick={() => handleSelect(flatIdx)}
+												title={path}
 												className={`flex w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-75 ${
 													flatIdx === selectedIdx
 														? isLiquid
-															? "bg-white/[0.1]"
+															? "bg-white/[0.12]"
 															: "bg-muted"
 														: ""
 												} ${
@@ -283,7 +310,7 @@ export function GlobalSearch({
 												<Icon
 													name="folder"
 													size={16}
-													className="shrink-0 opacity-60"
+													className="shrink-0 opacity-70"
 												/>
 												<div className="min-w-0 flex-1">
 													<div
@@ -293,7 +320,7 @@ export function GlobalSearch({
 													</div>
 													{crumbs.length > 1 && (
 														<div
-															className={`truncate text-[11px] ${glassText(isLiquid, "muted")}`}
+															className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
 														>
 															{path}
 														</div>
@@ -302,6 +329,52 @@ export function GlobalSearch({
 											</button>
 										);
 									})}
+								</div>
+							)}
+
+							{/* Web Search fallback row */}
+							{hasQuery && (
+								<div className="border-border/30 border-t py-1">
+									{(() => {
+										const webIdx = flatResults.findIndex(
+											(r) => r.type === "web",
+										);
+										return (
+											<button
+												type="button"
+												data-idx={webIdx}
+												onClick={() => handleSelect(webIdx)}
+												className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors duration-75 ${
+													webIdx === selectedIdx
+														? isLiquid
+															? "bg-white/[0.12]"
+															: "bg-muted"
+														: ""
+												} ${
+													isLiquid
+														? "hover:bg-white/[0.06]"
+														: "hover:bg-muted/50"
+												}`}
+											>
+												<div className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-primary/20 text-primary">
+													<Icon name="search" size={12} />
+												</div>
+												<div className="min-w-0 flex-1">
+													<div
+														className={`truncate font-medium text-[13px] ${glassText(isLiquid, "primary")}`}
+													>
+														Search {activeEngine.label} for &ldquo;
+														{query.trim()}&rdquo;
+													</div>
+													<div
+														className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
+													>
+														Open web search in new tab
+													</div>
+												</div>
+											</button>
+										);
+									})()}
 								</div>
 							)}
 						</>

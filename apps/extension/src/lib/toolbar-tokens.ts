@@ -16,12 +16,13 @@ export const TOOLBAR = {
 	/** Universal border radius — pill shape. */
 	radius: "rounded-full",
 	/** Universal glyph size (px) for every toolbar icon — one consistent size
-	    across back, search, add, settings. Sized up to read closer to macOS. */
+	    across back, search, settings. Sized up to read closer to macOS. */
 	iconSize: 18,
 	/** Inner padding of every group pill (identical for all groups). */
 	groupPadding: "p-1",
-	/** Transition for all interactive states. */
-	transition: "transition-all duration-150",
+	/** Transition for all interactive states — explicit properties, never transition-all. */
+	transition:
+		"transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97]",
 } as const;
 
 /**
@@ -32,7 +33,7 @@ export function toolbarControlLiquid(active: boolean): string {
 	if (active) {
 		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-white/25 text-white shadow-sm`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-white/60 hover:text-white hover:bg-white/[0.12] active:bg-white/20`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-white/70 hover:text-white hover:bg-white/[0.12] active:bg-white/20`;
 }
 
 /**

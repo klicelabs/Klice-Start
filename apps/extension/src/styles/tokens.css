@@ -4,14 +4,18 @@ html.dark {
 	background-color: #0a0a0c;
 }
 html.dark body {
-	background: transparent;
-	min-height: 100vh;
+	background-color: transparent;
+	color: #ffffff;
 }
 
 /* System-blue accent (Apple HIG). Dark variant declared after :root so it
    wins the cascade under .dark. */
 :root {
 	--apple-blue: #007aff;
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 .dark {
 	--apple-blue: #0a84ff;
@@ -21,6 +25,8 @@ html.dark body {
    navigating between pages with/without scroll. */
 html {
 	scrollbar-gutter: stable;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 /* Switch — system blue when active, white thumb always */
@@ -46,7 +52,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--grid-max-width: 1216px;
 		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
 		--card-footer-h: 30px;
-		--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 	}
 }
 
@@ -68,12 +73,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* =========================================================
-   8.1 — Animações
+   8.1 — Animações (Emil Kowalski + Apple HIG)
    ========================================================= */
 @keyframes cardIn {
 	from {
 		opacity: 0;
-		transform: scale(0.92) translateY(8px);
+		transform: scale(0.96) translateY(4px);
 	}
 	to {
 		opacity: 1;
@@ -82,64 +87,62 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 .dial-card {
-	animation: cardIn 0.25s var(--ease-spring) both;
+	transition:
+		transform 150ms var(--ease-out),
+		box-shadow 150ms var(--ease-out);
 }
 
-.dial-grid > * {
-	animation: cardIn 0.3s var(--ease-spring) both;
+.dial-card:active {
+	transform: scale(0.97);
 }
 
-/* Card-layout cells (cards + folders + the empty "new folder" placeholder) all
-   derive their height STRICTLY from the fixed track width via a shared
-   aspect-ratio, so every tile keeps the exact same Vivaldi proportion and none
-   can stretch tall-and-narrow at the Small size. Icon layout opts out. */
+/* Initial mount grid entrance — subtle and fast */
+.dial-grid[data-initial-mount="true"] > * {
+	animation: cardIn 0.22s var(--ease-spring) both;
+}
+
+/* Card-layout cells (cards + folders + placeholder) all derive height
+   strictly from fixed track width via shared aspect-ratio. */
 .dial-grid[data-layout="card"] .dial-cell {
-	aspect-ratio: var(--cell-aspect, 0.89);
-	display: flex;
-	flex-direction: column;
-	height: auto;
+	width: var(--tile-w);
+	height: calc(var(--tile-w) * var(--aspect, 1.12));
+	min-width: var(--tile-w);
+	min-height: calc(var(--tile-w) * var(--aspect, 1.12));
 }
 
-.dial-grid > *:nth-child(1) {
+.dial-grid[data-initial-mount="true"] > *:nth-child(1) {
 	animation-delay: 0ms;
 }
-.dial-grid > *:nth-child(2) {
-	animation-delay: 20ms;
+.dial-grid[data-initial-mount="true"] > *:nth-child(2) {
+	animation-delay: 15ms;
 }
-.dial-grid > *:nth-child(3) {
-	animation-delay: 40ms;
+.dial-grid[data-initial-mount="true"] > *:nth-child(3) {
+	animation-delay: 30ms;
 }
-.dial-grid > *:nth-child(4) {
+.dial-grid[data-initial-mount="true"] > *:nth-child(4) {
+	animation-delay: 45ms;
+}
+.dial-grid[data-initial-mount="true"] > *:nth-child(5) {
 	animation-delay: 60ms;
 }
-.dial-grid > *:nth-child(5) {
-	animation-delay: 80ms;
+.dial-grid[data-initial-mount="true"] > *:nth-child(6) {
+	animation-delay: 75ms;
 }
-.dial-grid > *:nth-child(6) {
-	animation-delay: 100ms;
+.dial-grid[data-initial-mount="true"] > *:nth-child(7) {
+	animation-delay: 90ms;
 }
-.dial-grid > *:nth-child(7) {
+.dial-grid[data-initial-mount="true"] > *:nth-child(8) {
+	animation-delay: 105ms;
+}
+.dial-grid[data-initial-mount="true"] > *:nth-child(n + 9) {
 	animation-delay: 120ms;
 }
-.dial-grid > *:nth-child(8) {
-	animation-delay: 140ms;
-}
-.dial-grid > *:nth-child(n + 9) {
-	animation-delay: 160ms;
-}
 
-/* Folder tab fade */
-.folder-tab {
-	transition:
-		color 0.15s ease,
-		background 0.15s ease;
-}
-
-/* Scale-in for dialogs */
+/* Scale-in for modal windows */
 @keyframes scaleIn {
 	from {
 		opacity: 0;
-		transform: scale(0.95) translateY(4px);
+		transform: scale(0.97) translateY(4px);
 	}
 	to {
 		opacity: 1;
@@ -151,11 +154,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 @keyframes emptyLandingIn {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: scale(0.96) translateY(12px);
 	}
 	to {
 		opacity: 1;
-		transform: translateY(0);
+		transform: scale(1) translateY(0);
 	}
 }
 
@@ -163,7 +166,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 @keyframes toolbarLeadingEnter {
 	from {
 		opacity: 0;
-		transform: translateX(-8px);
+		transform: translateX(-12px);
 	}
 	to {
 		opacity: 1;
@@ -184,11 +187,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 .toolbar-leading-enter {
-	animation: toolbarLeadingEnter 200ms ease-out both;
+	animation: toolbarLeadingEnter 180ms var(--ease-out) both;
 }
 
 .toolbar-leading-exit {
-	animation: toolbarLeadingExit 150ms ease-in both;
+	animation: toolbarLeadingExit 140ms var(--ease-out) both;
 	pointer-events: none;
 }
 
@@ -196,8 +199,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    8.2 — prefers-reduced-motion
    ========================================================= */
 @media (prefers-reduced-motion: reduce) {
-	* {
+	*,
+	::before,
+	::after {
 		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 	}
 }
@@ -209,9 +215,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	:root {
 		--grid-gap: 16px;
 	}
-	.clock-time {
-		font-size: 42px !important;
-	}
 }
 
 @media (max-width: 480px) {
@@ -221,16 +224,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--tile-h: 148px;
 	}
 	.hero {
-		padding-top: 24px !important;
-		gap: 16px !important;
-	}
-	.clock-time {
-		font-size: 32px !important;
+		padding-top: 20px !important;
+		gap: 14px !important;
 	}
 }
 
 /* =========================================================
-   8.3b — Toolbar responsive (new HIG toolbar)
+   8.3b — Toolbar responsive (HIG toolbar)
    ========================================================= */
 @media (max-width: 640px) {
 	header[style*="grid-template-columns"] {
@@ -241,17 +241,18 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* =========================================================
-   8.4 — Scrollbar estilizada
+   8.4 — Scrollbar estilizada (WebKit + Firefox)
    ========================================================= */
 ::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
+	width: 6px;
+	height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.14);
-	border-radius: 8px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
+	background: rgba(255, 255, 255, 0.18);
+	border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.32);
 }
 ::-webkit-scrollbar-track {
 	background: transparent;
@@ -260,41 +261,38 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	display: none;
 }
 
-.settings-sheet {
+/* Settings window custom scrollbars */
+.settings-content-scroll {
 	scrollbar-width: thin;
-	scrollbar-color: var(--border) transparent;
+	scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
-
-.settings-sheet::-webkit-scrollbar {
-	width: 8px;
+.settings-content-scroll::-webkit-scrollbar {
+	width: 6px;
 }
-
-.settings-sheet::-webkit-scrollbar-thumb {
-	background: var(--border);
-	border-radius: 8px;
+.settings-content-scroll::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 9999px;
 }
-
-.settings-sheet::-webkit-scrollbar-track {
+.settings-content-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.28);
+}
+.settings-content-scroll::-webkit-scrollbar-track {
 	background: transparent;
 }
 
 /* =========================================================
    8.5 — Focus states
    ========================================================= */
-/* Browser-native focus indicators are normalized in packages/ui globals.css
-   via @layer base { * { outline-0 } }. Tailwind v4 component tokens handle
-   focus rings with ring-1 ring-ring/20. The search input override remains
-   unlayered to win against Tailwind utilities for its specific use case. */
 [data-search-input]:focus,
 [data-search-input]:focus-visible {
 	outline: none;
-	border-radius: 0;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
 }
 
 /* =========================================================
    Seleção
    ========================================================= */
 ::selection {
-	background: rgba(76, 142, 255, 0.4);
-	color: #fff;
+	background: rgba(10, 132, 255, 0.4);
+	color: #ffffff;
 }

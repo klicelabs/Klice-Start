@@ -19,7 +19,6 @@ interface NavigationToolbarProps {
 	onAddFolder: (name: string) => string;
 	onOpenSettings: () => void;
 	onOpenSearch: () => void;
-	onAddFavorite: () => void;
 	onEditFolder?: (id: string) => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (draggedId: string, targetId: string) => void;
@@ -29,17 +28,11 @@ interface NavigationToolbarProps {
 }
 
 /**
- * Floating toolbar with three independent layers:
+ * Floating toolbar with three independent zones:
  *
- *   <header>  relative, flex justify-center
- *
- *     Left    absolute left-4    [‹] Home / AI / OpenAI
- *     Center  (flow)             [ Home | AI | Design | ⋯ ]
- *     Right   absolute right-4   [ 🔍 + ]   ⚙
- *
- * Center fills available space between left and right layers.
- * Overflow detection measures actual content vs container width.
- * Tabs only hide when they truly don't fit.
+ *   Left    [‹] Home / AI / OpenAI (subfolders only)
+ *   Center  [ Home | AI | Design | ⋯ ] (root tabs + overflow)
+ *   Right   [ 🔍 ⚙ ] (Search + Settings)
  */
 export function NavigationToolbar({
 	folders,
@@ -50,7 +43,6 @@ export function NavigationToolbar({
 	onAddFolder,
 	onOpenSettings,
 	onOpenSearch,
-	onAddFavorite,
 	onEditFolder,
 	onDeleteFolder,
 	onReorderFolders,
@@ -67,113 +59,109 @@ export function NavigationToolbar({
 	);
 	const isSubfolder = breadcrumb.length > 1;
 
-	// Sorted root folders.
+	// Back button navigates to parent folder.
+	const handleBack = useCallback(() => {
+		if (breadcrumb.length >= 2) {
+			const parent = breadcrumb[breadcrumb.length - 2];
+			if (parent) onSelectFolder(parent.id);
+		}
+	}, [breadcrumb, onSelectFolder]);
+
+	// Sorted root folders for tab display.
 	const sorted = useMemo(
 		() => [...rootFolders].sort((a, b) => a.order - b.order),
 		[rootFolders],
 	);
 
-	// Smart overflow detection.
-	// - containerRef: the center area available to the tab bar.
-	// - measureRef: a hidden row rendering ALL tabs at full width, so we know
-	//   each tab's REAL width (labels vary wildly, so an average is useless and
-	//   was the cause of tabs spilling before the "…" appeared).
-	// We accumulate real widths against the available space, reserving room for
-	// the overflow button only when something actually has to hide.
+	// Overflow detection: measures actual tab widths via a hidden row and fits
+	// as many full tabs as the container width allows.
 	const containerRef = useRef<HTMLDivElement>(null);
 	const measureRef = useRef<HTMLDivElement>(null);
-	const [visibleCount, setVisibleCount] = useState(sorted.length);
+	const [visibleCount, setVisibleCount] = useState<number>(sorted.length);
 
-	// Tab gap (gap-0.5 = 2px) and a safe reservation for the "…" pill + its gap.
-	// LANE_PADDING matches the container's px-2 (8px each side) so the packing
-	// budget uses the real inner width, not the padded clientWidth.
-	const TAB_GAP = 2;
-	const OVERFLOW_RESERVE = 44;
-	const LANE_PADDING = 16;
-
-	useEffect(() => {
+	const updateOverflow = useCallback(() => {
 		const container = containerRef.current;
-		const measurer = measureRef.current;
-		if (!container || !measurer) return;
+		const measure = measureRef.current;
+		if (!container || !measure) return;
 
-		function measure() {
-			if (!container || !measurer) return;
-			const containerW = container.clientWidth - LANE_PADDING;
-			const tabEls = Array.from(measurer.children) as HTMLElement[];
-			if (containerW === 0 || tabEls.length === 0) return;
-
-			const widths = tabEls.map((el) => el.offsetWidth);
-			const totalW =
-				widths.reduce((sum, w) => sum + w, 0) + TAB_GAP * (widths.length - 1);
-
-			// Everything fits — no overflow button.
-			if (totalW <= containerW) {
-				setVisibleCount(sorted.length);
-				return;
-			}
-
-			// Something must hide: reserve space for the "…" button, then pack
-			// real tab widths until the next one would exceed the budget.
-			const available = containerW - OVERFLOW_RESERVE;
-			let used = 0;
-			let count = 0;
-			for (const w of widths) {
-				const next = used + (count > 0 ? TAB_GAP : 0) + w;
-				if (next > available) break;
-				used = next;
-				count += 1;
-			}
-			setVisibleCount(Math.max(1, count));
+		const available = container.clientWidth;
+		const tabNodes = Array.from(measure.children) as HTMLElement[];
+		if (tabNodes.length === 0) {
+			setVisibleCount(0);
+			return;
 		}
 
-		measure();
-		const ro = new ResizeObserver(measure);
-		ro.observe(container);
-		ro.observe(measurer);
-		return () => ro.disconnect();
+		// Gap between tabs: 2px (gap-0.5) inside GlassSurface (p-1 padding: 8px total).
+		const tabGap = 2;
+		const surfacePadding = 8;
+		const overflowPillWidth = 42; // "…" button width
+
+		let totalNatural = surfacePadding;
+		const widths: number[] = [];
+		for (let i = 0; i < tabNodes.length; i++) {
+			const node = tabNodes[i];
+			if (!node) continue;
+			const w = node.offsetWidth;
+			widths.push(w);
+			totalNatural += w + (i > 0 ? tabGap : 0);
+		}
+
+		// If everything fits at natural width, no overflow needed.
+		if (totalNatural <= available) {
+			setVisibleCount(sorted.length);
+			return;
+		}
+
+		// Otherwise, fit as many as possible while reserving space for "…".
+		const budget = available - overflowPillWidth - tabGap;
+		let fit = 0;
+		let used = surfacePadding;
+		for (let i = 0; i < widths.length; i++) {
+			const w = widths[i] ?? 0;
+			const next = used + w + (i > 0 ? tabGap : 0);
+			if (next <= budget) {
+				used = next;
+				fit++;
+			} else {
+				break;
+			}
+		}
+
+		setVisibleCount(Math.max(1, fit));
 	}, [sorted.length]);
 
-	const hasOverflow = visibleCount < sorted.length;
-	const visibleFolders = sorted.slice(0, visibleCount);
-	const hiddenFolders = sorted.slice(visibleCount);
+	useEffect(() => {
+		updateOverflow();
+		const container = containerRef.current;
+		if (!container) return;
+		const ro = new ResizeObserver(updateOverflow);
+		ro.observe(container);
+		return () => ro.disconnect();
+	}, [updateOverflow]);
 
-	// Top-fade intensity: soft at rest, a touch stronger once the page scrolls
-	// so content passing under the toolbar stays gently masked.
+	const visibleFolders = useMemo(
+		() => sorted.slice(0, visibleCount),
+		[sorted, visibleCount],
+	);
+	const hiddenFolders = useMemo(
+		() => sorted.slice(visibleCount),
+		[sorted, visibleCount],
+	);
+	const hasOverflow = hiddenFolders.length > 0;
+
+	// Floating header: detect scroll to fade in a subtle gradient mask
 	const [scrolled, setScrolled] = useState(false);
 	useEffect(() => {
-		function handleScroll() {
-			setScrolled(window.scrollY > 8);
-		}
-		handleScroll();
+		const handleScroll = () => {
+			setScrolled(window.scrollY > 20);
+		};
 		window.addEventListener("scroll", handleScroll, { passive: true });
 		return () => window.removeEventListener("scroll", handleScroll);
 	}, []);
 
-	// Navigate to parent.
-	const handleBack = useCallback(() => {
-		if (breadcrumb.length > 1) {
-			onSelectFolder(breadcrumb[breadcrumb.length - 2].id);
-		}
-	}, [breadcrumb, onSelectFolder]);
-
 	return (
 		<>
-			{/* Always-on top fade, two stacked layers so the intensity change
-			    animates smoothly (background-image can't transition; opacity can).
-			    Both are height-capped to the toolbar's bottom edge so the gradient
-			    never bleeds past the bar.
-			      - base: soft, always visible
-			      - boost: stronger, opacity-fades in on scroll — still gentle */}
-			<div
-				className={cn(
-					"pointer-events-none fixed top-0 right-0 left-0 z-40",
-					"h-[calc(2.5rem+max(env(safe-area-inset-top),0.75rem))]",
-					isLiquid
-						? "bg-gradient-to-b from-black/55 via-black/25 to-transparent"
-						: "bg-gradient-to-b from-background/60 via-background/30 to-transparent",
-				)}
-				aria-hidden="true"
-			/>
+			{/* Top edge gradient mask — only visible when page is scrolled */}
 			<div
 				className={cn(
 					"pointer-events-none fixed top-0 right-0 left-0 z-40 transition-opacity duration-300",
@@ -186,11 +174,9 @@ export function NavigationToolbar({
 				aria-hidden="true"
 			/>
 
-			{/* Toolbar — three areas on one centerline. Fixed to the viewport so
-			    it stays put while the page scrolls; floated below the top
-			    safe-area so the center pill never touches the viewport edge. */}
+			{/* Toolbar — three areas on one centerline */}
 			<header className="fixed top-0 right-0 left-0 z-50 mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center px-5">
-				{/* Left: back + breadcrumb — fixed width, same vertical alignment */}
+				{/* Left: back + breadcrumb */}
 				<div
 					className={cn(
 						"flex w-44 shrink-0 items-center gap-2 overflow-hidden",
@@ -206,9 +192,7 @@ export function NavigationToolbar({
 					)}
 				</div>
 
-				{/* Center: capped tab-bar lane, centered. The cap keeps the row from
-				    stretching edge-to-edge on wide screens and makes the "…" overflow
-				    trigger earlier, so tabs never spill past the lane. */}
+				{/* Center: capped tab-bar lane */}
 				<div
 					ref={containerRef}
 					className="pointer-events-auto relative mx-auto flex min-w-0 max-w-[720px] flex-1 items-center justify-center px-2"
@@ -235,8 +219,7 @@ export function NavigationToolbar({
 						)}
 					</div>
 
-					{/* Hidden measurer: all tabs at natural width, off-screen. Drives
-					    overflow detection with each tab's REAL width (see effect). */}
+					{/* Hidden measurer with max-w truncation */}
 					<div
 						ref={measureRef}
 						aria-hidden="true"
@@ -249,7 +232,7 @@ export function NavigationToolbar({
 								className={cn(
 									TOOLBAR.controlHeight,
 									TOOLBAR.radius,
-									"inline-flex items-center whitespace-nowrap px-3 font-medium text-[13px]",
+									"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
 								)}
 							>
 								{folder.name}
@@ -258,18 +241,13 @@ export function NavigationToolbar({
 					</div>
 				</div>
 
-				{/* Right: actions — matches leading width so center stays centered */}
+				{/* Right: Search + Settings */}
 				<div className="flex w-44 shrink-0 items-center justify-end">
-					<ToolbarActions
-						onSearch={onOpenSearch}
-						onSettings={onOpenSettings}
-						onAddFavorite={onAddFavorite}
-					/>
+					<ToolbarActions onSearch={onOpenSearch} onSettings={onOpenSettings} />
 				</div>
 			</header>
 
-			{/* Spacer — the header is fixed (out of flow), so reserve its footprint
-			    (top offset + h-14) to keep page content from sliding underneath. */}
+			{/* Spacer */}
 			<div
 				aria-hidden="true"
 				className="h-[calc(3.5rem+max(env(safe-area-inset-top),0.75rem))] shrink-0"

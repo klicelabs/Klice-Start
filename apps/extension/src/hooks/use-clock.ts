@@ -34,7 +34,7 @@ function formatTime(
 		hDisplay = h % 12 === 0 ? 12 : h % 12;
 	}
 
-	return `${String(hDisplay).padStart(2, "0")}:${m}${showSeconds ? ":" + s : ""}${suffix}`;
+	return `${String(hDisplay).padStart(2, "0")}:${m}${showSeconds ? `:${s}` : ""}${suffix}`;
 }
 
 function formatDate(date: Date, timezone: string): string {
@@ -48,9 +48,14 @@ function formatDate(date: Date, timezone: string): string {
 	});
 }
 
-function computeGreeting(date: Date, name: string): string {
+function computeGreeting(date: Date, name: string, timezone: string): string {
 	if (!name) return "";
-	const h = date.getHours();
+	const opts: Intl.DateTimeFormatOptions =
+		timezone !== "auto" ? { timeZone: timezone } : {};
+	const h = Number.parseInt(
+		date.toLocaleString("en-US", { ...opts, hour: "2-digit", hour12: false }),
+		10,
+	);
 	const period =
 		h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 	return `${period}, ${name}`;
@@ -66,9 +71,10 @@ export function useClock(): ClockState {
 	const [now, setNow] = useState(new Date());
 
 	useEffect(() => {
-		const timer = setInterval(() => setNow(new Date()), 1000);
+		const interval = showSeconds ? 1000 : 10000;
+		const timer = setInterval(() => setNow(new Date()), interval);
 		return () => clearInterval(timer);
-	}, []);
+	}, [showSeconds]);
 
 	if (!enabled) {
 		return { time: "", date: "", greeting: "", visible: false };
@@ -77,7 +83,7 @@ export function useClock(): ClockState {
 	return {
 		time: formatTime(now, format24, showSeconds, timezone),
 		date: formatDate(now, timezone),
-		greeting: greetingEnabled ? computeGreeting(now, name) : "",
+		greeting: greetingEnabled ? computeGreeting(now, name, timezone) : "",
 		visible: true,
 	};
 }
