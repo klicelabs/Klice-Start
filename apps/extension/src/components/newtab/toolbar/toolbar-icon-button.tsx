@@ -1,6 +1,6 @@
-import { GlassIcon } from "@perch/ui/components/glass-icon";
-import { Icon } from "@perch/ui/icons/icon";
-import type { IconName } from "@perch/ui/icons/icon";
+import { GlassIcon } from "@klice-start/ui/components/glass-icon";
+import { Icon } from "@klice-start/ui/icons/icon";
+import type { IconName } from "@klice-start/ui/icons/icon";
 import { TOOLBAR } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import { useAppearance } from "../appearance-provider";

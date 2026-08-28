@@ -1,7 +1,7 @@
 # 00 — Screenshot Capture Reality
 
 ## Objective
-Establish the hard platform truth about how Perch can and cannot obtain website screenshots, and derive from it the product and data decisions that every later technical document depends on. This document exists to prevent the team from designing a data model, a Free/Pro boundary, or a marketing promise around a capability the browser does not grant.
+Establish the hard platform truth about how Klice Start can and cannot obtain website screenshots, and derive from it the product and data decisions that every later technical document depends on. This document exists to prevent the team from designing a data model, a Free/Pro boundary, or a marketing promise around a capability the browser does not grant.
 
 ## Scope
 What the extension platform permits and forbids for screenshot capture, the capture triggers that exist today, the decision on what the MVP promises, the decision on where universal-link thumbnails belong, and the resulting constraints handed to the data model and the Free/Pro boundary.
@@ -31,7 +31,7 @@ Draft — first technical-foundation document. Decisions here are proposed for a
 ---
 
 ## Reality Note
-This is the first document of a **target SaaS architecture**, not a description of the shipped extension. Today Perch is a single-device, local-only Manifest V3 extension with no backend, no accounts, and no build step (see [CLAUDE.md](../../CLAUDE.md)). Where this document describes server-side rendering, cloud storage, or paid tiers, it is describing where Perch intends to go — the same "durable target, not current reality" stance the product foundation README takes. The **platform limits** described below, however, are true today and will remain true; they are the fixed points the strategy must respect.
+This is the first document of a **target SaaS architecture**, not a description of the shipped extension. Today Klice Start is a single-device, local-only Manifest V3 extension with no backend, no accounts, and no build step (see [CLAUDE.md](../../CLAUDE.md)). Where this document describes server-side rendering, cloud storage, or paid tiers, it is describing where Klice Start intends to go — the same "durable target, not current reality" stance the product foundation README takes. The **platform limits** described below, however, are true today and will remain true; they are the fixed points the strategy must respect.
 
 ---
 
@@ -73,7 +73,7 @@ This splits every card into two states, and the split is structural, not cosmeti
 ## Decisions
 
 ### D1 — MVP promises visited-card screenshots only
-The free, local-first MVP promises real screenshots for **sites the user has visited while Perch is installed**. Imported-but-unvisited cards show a favicon or placeholder until first visit, at which point auto-capture upgrades them. The marketing and empty-state copy must reflect this honestly (see [Brand Strategy](../product-foundation/deferred/06-brand-strategy.md) once activated — "do not overpromise future capabilities"). We do not claim universal screenshots on the free tier.
+The free, local-first MVP promises real screenshots for **sites the user has visited while Klice Start is installed**. Imported-but-unvisited cards show a favicon or placeholder until first visit, at which point auto-capture upgrades them. The marketing and empty-state copy must reflect this honestly (see [Brand Strategy](../product-foundation/deferred/06-brand-strategy.md) once activated — "do not overpromise future capabilities"). We do not claim universal screenshots on the free tier.
 
 ### D2 — Universal-link thumbnails are a Pro, server-side capability
 Screenshots for URLs the user has **not** visited (and refreshing stale ones without requiring a visit) require rendering the page somewhere the active-tab limit does not apply — i.e., headless rendering on the backend. This is confirmed as a **Pro-tier** feature, consistent with the locked Free/Pro split. It is a server concern; the extension never gains this power. Vendor and mechanism are deferred to a later technical document.

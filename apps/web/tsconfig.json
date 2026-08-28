@@ -21,7 +21,7 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@perch/ui/*": ["../../packages/ui/src/*"]
+      "@klice-start/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": [

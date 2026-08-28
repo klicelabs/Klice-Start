@@ -1,4 +1,4 @@
-import { Button } from "@perch/ui/components/button";
+import { Button } from "@klice-start/ui/components/button";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { flattenForPicker } from "../../src/lib/folder-tree";
 import { canonicalUrl, faviconUrl } from "../../src/lib/url";
@@ -159,7 +159,7 @@ export default function App() {
 						disabled={saveState === "saving" || saveState === "saved"}
 						onClick={handleSave}
 					>
-						Save to Perch
+						Save to Klice Start
 					</Button>
 
 					<p

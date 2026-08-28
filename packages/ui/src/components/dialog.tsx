@@ -1,14 +1,14 @@
 "use client";
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Button } from "@perch/ui/components/button";
-import { GlassButton } from "@perch/ui/components/glass-button";
+import { Button } from "@klice-start/ui/components/button";
+import { GlassButton } from "@klice-start/ui/components/glass-button";
 
 import {
 	type FrostGlassVariant,
 	glassVariantStyles,
-} from "@perch/ui/lib/glass-variants";
-import { cn } from "@perch/ui/lib/utils";
+} from "@klice-start/ui/lib/glass-variants";
+import { cn } from "@klice-start/ui/lib/utils";
 import { XIcon } from "lucide-react";
 import type * as React from "react";
 

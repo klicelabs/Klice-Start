@@ -1,5 +1,5 @@
-import { Icon } from "@perch/ui/icons/icon";
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type FormEvent, useState } from "react";
 import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";

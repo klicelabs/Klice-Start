@@ -256,6 +256,8 @@ export function normalizeState(
 
 // --- Coalesced persist ---
 
+// Persistent keys from the Perch era — kept verbatim so existing installs
+// keep their data after the rename to Klice Start.
 export const RESET_GENERATION_KEY = "perch-reset-generation";
 export const PERSIST_GENERATION_KEY = "__perchResetGeneration";
 
@@ -455,7 +457,7 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 					});
 				},
 				() => {
-					console.warn("[perch] chrome.storage.local.set failed");
+					console.warn("[klice-start] chrome.storage.local.set failed");
 					resolvers.forEach((pendingResolve) => {
 						pendingResolve();
 					});

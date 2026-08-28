@@ -13,8 +13,8 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@/components",
-    "utils": "@perch/ui/lib/utils",
-    "ui": "@perch/ui/components",
+    "utils": "@klice-start/ui/lib/utils",
+    "ui": "@klice-start/ui/components",
     "lib": "@/lib",
     "hooks": "@/hooks"
   },

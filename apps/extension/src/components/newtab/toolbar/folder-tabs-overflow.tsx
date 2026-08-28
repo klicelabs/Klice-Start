@@ -1,4 +1,4 @@
-import { Icon } from "@perch/ui/icons/icon";
+import { Icon } from "@klice-start/ui/icons/icon";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	glassDropdown,

@@ -12,11 +12,11 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@perch/ui/components",
-    "utils": "@perch/ui/lib/utils",
-    "hooks": "@perch/ui/hooks",
-    "lib": "@perch/ui/lib",
-    "ui": "@perch/ui/components"
+    "components": "@klice-start/ui/components",
+    "utils": "@klice-start/ui/lib/utils",
+    "hooks": "@klice-start/ui/hooks",
+    "lib": "@klice-start/ui/lib",
+    "ui": "@klice-start/ui/components"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

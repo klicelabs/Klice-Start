@@ -1,4 +1,4 @@
-# perch
+# Klice Start
 
 This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Self, and more.
 
@@ -61,7 +61,7 @@ npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
 Import shared components like this:
 
 ```tsx
-import { Button } from "@perch/ui/components/button";
+import { Button } from "@klice-start/ui/components/button";
 ```
 
 ### Add app-specific blocks
@@ -93,7 +93,7 @@ For more details, see the guide on [Deploying to Vercel](https://www.better-t-st
 ## Project Structure
 
 ```
-perch/
+klice-start/
 ├── apps/
 │   └── web/         # Fullstack application (Next.js)
 ├── packages/

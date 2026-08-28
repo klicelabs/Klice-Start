@@ -1,4 +1,4 @@
-import { Button } from "@perch/ui/components/button";
+import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -6,25 +6,25 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@perch/ui/components/dialog";
-import { Input } from "@perch/ui/components/input";
+} from "@klice-start/ui/components/dialog";
+import { Input } from "@klice-start/ui/components/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@perch/ui/components/select";
+} from "@klice-start/ui/components/select";
 import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
 	SheetTitle,
-} from "@perch/ui/components/sheet";
-import { Slider } from "@perch/ui/components/slider";
-import { Switch } from "@perch/ui/components/switch";
-import type { IconName } from "@perch/ui/icons/icon";
-import { Icon } from "@perch/ui/icons/icon";
+} from "@klice-start/ui/components/sheet";
+import { Slider } from "@klice-start/ui/components/slider";
+import { Switch } from "@klice-start/ui/components/switch";
+import type { IconName } from "@klice-start/ui/icons/icon";
+import { Icon } from "@klice-start/ui/icons/icon";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useSvgIcon } from "../../hooks/use-svg-icon";
 import {

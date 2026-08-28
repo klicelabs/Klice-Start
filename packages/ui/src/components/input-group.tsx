@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@perch/ui/components/button";
-import { Input } from "@perch/ui/components/input";
-import { Textarea } from "@perch/ui/components/textarea";
-import { cn } from "@perch/ui/lib/utils";
+import { Button } from "@klice-start/ui/components/button";
+import { Input } from "@klice-start/ui/components/input";
+import { Textarea } from "@klice-start/ui/components/textarea";
+import { cn } from "@klice-start/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
 

@@ -1,7 +1,7 @@
 # 04 — Auth & Account Model
 
 ## Objective
-Define who a Perch user is to the system, how identity is established across the extension and the web dashboard, and how a person moves from anonymous local use to an authenticated account without losing their setup. Auth exists to enable sync and Pro — not as a gate in front of the product's core local value.
+Define who a Klice Start user is to the system, how identity is established across the extension and the web dashboard, and how a person moves from anonymous local use to an authenticated account without losing their setup. Auth exists to enable sync and Pro — not as a gate in front of the product's core local value.
 
 ## Scope
 The account model, the anonymous→authenticated transition, session handling across the extension and the Next.js dashboard, and the identity contract the sync seam depends on.
@@ -32,7 +32,7 @@ Draft — target account model. No auth exists in the shipped extension today.
 ---
 
 ## Reality Note
-Today Perch has **no accounts, no auth, and no concept of a user** — it is a single-device local extension (see [CLAUDE.md](../../CLAUDE.md)). Everything in this document is target-state. The one constraint that is *not* aspirational is the principle it must obey: the product's core value works with no account at all, and that is a permanent stance, not a phase.
+Today Klice Start has **no accounts, no auth, and no concept of a user** — it is a single-device local extension (see [CLAUDE.md](../../CLAUDE.md)). Everything in this document is target-state. The one constraint that is *not* aspirational is the principle it must obey: the product's core value works with no account at all, and that is a permanent stance, not a phase.
 
 ---
 
@@ -44,7 +44,7 @@ Auth is introduced only when the user wants something that inherently spans devi
 ## The account model
 
 ### What a user is
-A Perch account is a single identity that owns a setup and carries an entitlement (Free or Pro). One person, one account, potentially many devices. The account exists to answer two questions the seam and billing ask: *whose data is this?* and *what is this person entitled to?*
+A Klice Start account is a single identity that owns a setup and carries an entitlement (Free or Pro). One person, one account, potentially many devices. The account exists to answer two questions the seam and billing ask: *whose data is this?* and *what is this person entitled to?*
 
 ### Anonymous state
 Before sign-in, a device has a purely local setup with no owner. It is not a shadow account or a hidden user row — it is local data belonging to no server identity. This keeps the logged-out product honest: nothing about an anonymous user exists on any server.
@@ -58,7 +58,7 @@ The contract:
 - The user is never presented with an empty screen immediately after signing in on a device that already had content. Losing a setup at sign-in would violate the ownership promise more severely than any other failure.
 
 ## Sessions across two surfaces
-Perch has two authenticated surfaces with different lifetimes and expectations:
+Klice Start has two authenticated surfaces with different lifetimes and expectations:
 
 | Surface | Session expectation | Rationale |
 | --- | --- | --- |

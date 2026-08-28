@@ -2,8 +2,8 @@
 
 import { type HTMLAttributes, forwardRef } from "react";
 
-import { type FrostGlassVariant, glassVariantStyles } from "@perch/ui/lib/glass-variants";
-import { cn } from "@perch/ui/lib/utils";
+import { type FrostGlassVariant, glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { cn } from "@klice-start/ui/lib/utils";
 
 type GlassCardProps = HTMLAttributes<HTMLDivElement> & {
   /**

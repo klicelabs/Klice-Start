@@ -23,6 +23,7 @@ export function useCrossTabSync() {
 			changes: Record<string, chrome.storage.StorageChange>,
 			area: string,
 		) => {
+			// "perch-setup" is the legacy persist name; kept for data continuity.
 			if (area !== "local" || !changes["perch-setup"]) return;
 
 			const newValue = changes["perch-setup"].newValue;

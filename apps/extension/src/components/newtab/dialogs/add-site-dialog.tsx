@@ -1,5 +1,5 @@
 import { Popover } from "@base-ui/react/popover";
-import { Button } from "@perch/ui/components/button";
+import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -7,12 +7,12 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@perch/ui/components/dialog";
-import { GlassButton } from "@perch/ui/components/glass-button";
-import { Input } from "@perch/ui/components/input";
-import { Label } from "@perch/ui/components/label";
-import { Icon } from "@perch/ui/icons/icon";
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+} from "@klice-start/ui/components/dialog";
+import { GlassButton } from "@klice-start/ui/components/glass-button";
+import { Input } from "@klice-start/ui/components/input";
+import { Label } from "@klice-start/ui/components/label";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { glassDropdown, glassText } from "../../../lib/glass";
 import { RECOMMENDED_SITES } from "../../../lib/recommended-sites";

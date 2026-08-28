@@ -3,7 +3,7 @@
 > **Deferred.** Ativar quando existir superfície pública / primeiro hire.
 
 ## Objective
-Define how Perch sounds, behaves, communicates, and becomes recognizable — so product, marketing, support, and community speak with one voice over years.
+Define how Klice Start sounds, behaves, communicates, and becomes recognizable — so product, marketing, support, and community speak with one voice over years.
 
 ## Scope
 Brand personality, voice and tone, writing principles, communication principles, marketing principles, community principles, visual identity philosophy, iconography, photography, illustration, brand experience, brand promise, and brand values.
@@ -34,12 +34,12 @@ Approved foundation.
 ## Brand Personality
 Calm, precise, tasteful, protective, modern, and quietly confident.
 
-Perch should never sound inflated, frantic, clever at the user's expense, or artificially playful. The brand behaves like a well-made tool owned by someone with taste: it does not announce itself, it does not beg for attention, and it does not apologize for having standards. Confidence is expressed through quality, not volume.
+Klice Start should never sound inflated, frantic, clever at the user's expense, or artificially playful. The brand behaves like a well-made tool owned by someone with taste: it does not announce itself, it does not beg for attention, and it does not apologize for having standards. Confidence is expressed through quality, not volume.
 
 ## Voice & Tone
 Voice is the brand's consistent character. Tone is how that character adjusts to context — a celebratory changelog entry and a sincere error message use the same voice at different tones.
 
-| Dimension | Perch leans toward | Perch avoids |
+| Dimension | Klice Start leans toward | Klice Start avoids |
 | --- | --- | --- |
 | Clarity vs expression | Clear before expressive. | Poetry that obscures the point. |
 | Specific vs poetic | Specific before poetic. | Vague uplift ("your best self"). |
@@ -51,7 +51,7 @@ Voice is the brand's consistent character. Tone is how that character adjusts to
 The voice does not change across surfaces. The tone does: a settings tooltip is terse; a changelog can be warmer; a privacy explanation is precise and reassuring; an error is calm and recovery-oriented.
 
 ## Writing Principles
-- Use plain language. The user should never need a glossary to understand Perch — though we maintain one for internal consistency, see [Product Glossary](../09-product-glossary.md).
+- Use plain language. The user should never need a glossary to understand Klice Start — though we maintain one for internal consistency, see [Product Glossary](../09-product-glossary.md).
 - Name the user benefit directly, not the feature mechanism.
 - Avoid generic productivity claims ("supercharge your workflow"). If a sentence could describe any product, it describes none.
 - Avoid hype words unless the product clearly earns them.
@@ -84,14 +84,14 @@ The voice does not change across surfaces. The tone does: a settings tooltip is 
 - Publicly explain major product decisions. Transparency is brand equity for a privacy-first product.
 
 ## Visual Identity Philosophy
-Perch should be recognized by calm composition, premium browser-home surfaces, real user content, strong spacing, precise hierarchy, and restrained visual effects.
+Klice Start should be recognized by calm composition, premium browser-home surfaces, real user content, strong spacing, precise hierarchy, and restrained visual effects.
 
-The visual identity is not expressed primarily through a logo or a color — it is expressed through the composition of a Perch screen. Someone who has seen Perch once should, on seeing another Perch screen, recognize it before reading the name. This is the test the visual identity must pass.
+The visual identity is not expressed primarily through a logo or a color — it is expressed through the composition of a Klice Start screen. Someone who has seen Klice Start once should, on seeing another Klice Start screen, recognize it before reading the name. This is the test the visual identity must pass.
 
 ## Iconography Philosophy
 Icons should be simple, familiar, and functional. They support recognition and action; they do not carry personality alone.
 
-An icon that needs a label to be understood has failed. An icon that draws more attention than the action it triggers has also failed. Icons in Perch recede once learned.
+An icon that needs a label to be understood has failed. An icon that draws more attention than the action it triggers has also failed. Icons in Klice Start recede once learned.
 
 ## Photography Philosophy
 Photography and imagery make the user's space feel personal and atmospheric without obscuring usability. Backgrounds support content, not compete with it.
@@ -99,17 +99,17 @@ Photography and imagery make the user's space feel personal and atmospheric with
 A background is correct when it makes the cards more legible and the space more personal, not when it is beautiful in isolation. Readability is the constraint; atmosphere is the goal within that constraint.
 
 ## Illustration Philosophy
-Illustration is rare in Perch. When used, it clarifies a concept or creates warmth without making Perch feel childish or generic.
+Illustration is rare in Klice Start. When used, it clarifies a concept or creates warmth without making Klice Start feel childish or generic.
 
-Perch is not a playful brand; it is a calm, precise one. Illustration must respect that register or be omitted. The default is no illustration; illustration must earn its place.
+Klice Start is not a playful brand; it is a calm, precise one. Illustration must respect that register or be omitted. The default is no illustration; illustration must earn its place.
 
 ## Brand Experience
-Every touchpoint should reinforce: Perch is beautiful, fast, private, controlled, and made by people with taste.
+Every touchpoint should reinforce: Klice Start is beautiful, fast, private, controlled, and made by people with taste.
 
 Touchpoints include: the new tab, the popup, the store listing, the changelog, the support reply, the tweet, the community answer, the error message, the empty state. None of these is too small to be brand. The product's voice is only as credible as its quietest surface.
 
 ## Brand Promise
-Perch gives your browser a home that feels calm, personal, and under your control.
+Klice Start gives your browser a home that feels calm, personal, and under your control.
 
 The promise must be true by default. A promise that requires a setting to feel accurate is a promise the product has not yet kept.
 
@@ -124,7 +124,7 @@ The promise must be true by default. A promise that requires a setting to feel a
 These mirror the company values in [Company Vision](../01-company-vision.md). Brand values are the values expressed outward; company values are the values enforced inward. They are the same ideas seen from different sides.
 
 ## Immediate Recognition
-Someone should recognize Perch — without seeing the logo — by:
+Someone should recognize Klice Start — without seeing the logo — by:
 
 - A composed new tab screen.
 - Real website cards (not favicons, not text).
@@ -134,4 +134,4 @@ Someone should recognize Perch — without seeing the logo — by:
 - Low-noise controls that recede when not needed.
 - A feeling of personal ownership rather than generic productivity.
 
-The recognition test: show a stranger two screenshots, one Perch and one a competitor. If they cannot tell which is Perch, the brand has not yet been earned. The goal is that the distinction is felt before it is named.
+The recognition test: show a stranger two screenshots, one Klice Start and one a competitor. If they cannot tell which is Klice Start, the brand has not yet been earned. The goal is that the distinction is felt before it is named.

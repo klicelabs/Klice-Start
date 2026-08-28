@@ -4,6 +4,8 @@ import { canonicalUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
 import type { Setup } from "../src/types";
 
+// Persistent identifiers from the Perch era — kept verbatim so existing
+// installs keep their data and context-menu registration after the rename.
 const STORAGE_KEY = "perch-setup";
 const MENU_ID = "add-to-perch";
 
@@ -47,7 +49,7 @@ export default defineBackground(() => {
 	browser.runtime.onInstalled.addListener(() => {
 		browser.contextMenus.create({
 			id: MENU_ID,
-			title: "Save page to Perch",
+			title: "Save page to Klice Start",
 			contexts: ["page"],
 		});
 	});

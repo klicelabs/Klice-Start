@@ -1,7 +1,7 @@
 # 08 — Product Requirements
 
 ## Objective
-Define Perch's product requirements at the level of user problem, objective, value, impact, and success criteria. This document owns the Design Quality Bar that gates every interface for readiness.
+Define Klice Start's product requirements at the level of user problem, objective, value, impact, and success criteria. This document owns the Design Quality Bar that gates every interface for readiness.
 
 ## Scope
 Core, Important, Future, Nice to Have, Anti-Requirements, and the Design Quality Bar.
@@ -43,7 +43,7 @@ Every feature in this document is defined by:
 No implementation. No stack. No data model. A requirement that references a technical choice is in the wrong document.
 
 ## Core
-Core requirements define the product. Without all of them, Perch is not Perch.
+Core requirements define the product. Without all of them, Klice Start is not Klice Start.
 
 ### C1 — Beautiful New Tab Dashboard
 - **Problem:** the browser new tab is empty, noisy, or visually neglected.
@@ -63,20 +63,20 @@ Core requirements define the product. Without all of them, Perch is not Perch.
 - **Problem:** flat bookmark structures break down as collections grow.
 - **Objective:** let users organize resources in a visual hierarchy.
 - **Value:** scalable organization without losing beauty.
-- **Impact:** moves Perch beyond speed dial products and into the dashboard category.
+- **Impact:** moves Klice Start beyond speed dial products and into the dashboard category.
 - **Success criteria:** users create, navigate, and understand nested groups without confusion or lost content.
 
 ### C4 — Fluid Direct Manipulation
 - **Problem:** organizing links often feels like configuration work.
 - **Objective:** make arranging cards, folders, and widgets feel natural.
 - **Value:** organization becomes satisfying instead of tedious.
-- **Impact:** defines perceived product craft and differentiates Perch from form-based tools.
+- **Impact:** defines perceived product craft and differentiates Klice Start from form-based tools.
 - **Success criteria:** drag, drop, reorder, and grouping feel immediate, predictable, and stable across thousands of operations.
 
 ### C5 — Save Current Page With Low Friction
 - **Problem:** saving resources interrupts the browsing flow.
 - **Objective:** let users save the current page quickly with useful metadata.
-- **Value:** Perch stays current with minimal effort.
+- **Value:** Klice Start stays current with minimal effort.
 - **Impact:** increases habit and content density.
 - **Success criteria:** saving a page feels obvious and fast, is recoverable if mistaken, and never requires more than a few seconds.
 
@@ -89,7 +89,7 @@ Core requirements define the product. Without all of them, Perch is not Perch.
 
 ### C7 — Import Existing Favorites
 - **Problem:** starting from zero delays value.
-- **Objective:** populate Perch from existing browser favorites.
+- **Objective:** populate Klice Start from existing browser favorites.
 - **Value:** immediate utility.
 - **Impact:** improves activation and shortens time-to-first-meaningful-setup.
 - **Success criteria:** a new user gets a usable starting dashboard in the first session, with screenshots filling in over subsequent visits.
@@ -106,17 +106,17 @@ Important requirements unlock paid value and durable retention. They are not req
 
 ### I1 — Cross-Device Sync
 - **Problem:** a personal browser home loses value when it exists on one machine only.
-- **Objective:** keep the same Perch space across devices.
+- **Objective:** keep the same Klice Start space across devices.
 - **Value:** continuity and trust.
 - **Impact:** strongest paid conversion trigger.
-- **Success criteria:** users see sync as a natural reason to pay and feel Perch as the same home across devices.
+- **Success criteria:** users see sync as a natural reason to pay and feel Klice Start as the same home across devices.
 
 ### I2 — Cloud Backup
 - **Problem:** users fear losing a carefully built setup.
 - **Objective:** provide recovery and peace of mind.
 - **Value:** protection of personal organization.
 - **Impact:** increases paid retention.
-- **Success criteria:** users trust Perch with long-term setup ownership and can restore after data loss.
+- **Success criteria:** users trust Klice Start with long-term setup ownership and can restore after data loss.
 
 ### I3 — Bento Widgets
 - **Problem:** links alone do not cover the daily browser-home moment.
@@ -194,4 +194,4 @@ This is the canonical operational checklist that gates every interface for readi
 A surface that fails any item is not done, regardless of how it looks in a screenshot. This bar is not aspirational; it is the definition of finished.
 
 ## AI Principles
-AI behavior across all requirements is governed by the [AI Experience Principles](./04-experience-principles.md#ai-experience-principles) in Experience Principles. They are not restated here to avoid duplication. The governing rule for any AI-related requirement: AI strengthens Perch and never becomes Perch. Every AI feature must conform to all nine principles in that document before it can be considered done.
+AI behavior across all requirements is governed by the [AI Experience Principles](./04-experience-principles.md#ai-experience-principles) in Experience Principles. They are not restated here to avoid duplication. The governing rule for any AI-related requirement: AI strengthens Klice Start and never becomes Klice Start. Every AI feature must conform to all nine principles in that document before it can be considered done.

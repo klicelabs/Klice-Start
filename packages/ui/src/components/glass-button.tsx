@@ -1,7 +1,7 @@
 "use client";
 
-import { type FrostGlassVariantProp, glassVariantStyles } from "@perch/ui/lib/glass-variants";
-import { cn } from "@perch/ui/lib/utils";
+import { type FrostGlassVariantProp, glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { cn } from "@klice-start/ui/lib/utils";
 
 import { Button } from "./button";
 import { LiquidGlass } from "./liquid-glass";

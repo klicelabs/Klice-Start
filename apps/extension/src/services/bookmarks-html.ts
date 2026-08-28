@@ -1,8 +1,8 @@
 /**
  * Bookmarks interop via the Netscape Bookmark File Format — the HTML format
  * produced by Chrome (chrome://bookmarks → Export) and Firefox (Manage
- * Bookmarks → Export), and accepted by both browsers on import. Perch exports
- * its folder tree + cards in that shape and imports the same format back.
+ * Bookmarks → Export), and accepted by both browsers on import. Klice Start
+ * exports its folder tree + cards in that shape and imports the same format back.
  *
  * Import parses with DOMParser on a detached document (never the live page),
  * reuses folders by case-insensitive name at the same level, and de-dupes
@@ -42,8 +42,8 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * Export Perch's folders and cards as a Netscape Bookmark File, downloaded as
- * `perch-bookmarks.html`. Hierarchy is preserved (roots → children via
+ * Export Klice Start's folders and cards as a Netscape Bookmark File, downloaded
+ * as `klice-start-bookmarks.html`. Hierarchy is preserved (roots → children via
  * parentId) and empty folders are included so the structure round-trips.
  */
 export async function exportBookmarksHtml(): Promise<void> {
@@ -114,7 +114,7 @@ export async function exportBookmarksHtml(): Promise<void> {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
-	a.download = "perch-bookmarks.html";
+	a.download = "klice-start-bookmarks.html";
 	a.click();
 	setTimeout(() => URL.revokeObjectURL(url), 0);
 }
@@ -210,7 +210,7 @@ function parseLevel(
 
 /**
  * Import a Netscape Bookmark File (as exported by Chrome or Firefox) into
- * Perch as folders + cards. Folders are matched by (case-insensitive) name at
+ * Klice Start as folders + cards. Folders are matched by (case-insensitive) name at
  * the same level and reused if present, so re-importing is idempotent. Cards
  * are de-duplicated per folder by canonical URL. Throws when the file
  * contains no folders or links.

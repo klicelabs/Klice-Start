@@ -4,9 +4,9 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@perch/ui/components/context-menu";
-import { Icon } from "@perch/ui/icons/icon";
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+} from "@klice-start/ui/components/context-menu";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type CSSProperties, useEffect, useState } from "react";
 import { glassCardFooter, glassDropdownItem } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";

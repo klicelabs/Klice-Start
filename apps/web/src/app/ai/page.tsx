@@ -1,27 +1,27 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { env } from "@perch/env/web";
-import { Bubble, BubbleContent } from "@perch/ui/components/bubble";
-import { Button } from "@perch/ui/components/button";
+import { env } from "@klice-start/env/web";
+import { Bubble, BubbleContent } from "@klice-start/ui/components/bubble";
+import { Button } from "@klice-start/ui/components/button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@perch/ui/components/empty";
+} from "@klice-start/ui/components/empty";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupTextarea,
-} from "@perch/ui/components/input-group";
+} from "@klice-start/ui/components/input-group";
 import {
   Message,
   MessageContent as MessageBody,
   MessageHeader,
-} from "@perch/ui/components/message";
+} from "@klice-start/ui/components/message";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -29,8 +29,8 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
-} from "@perch/ui/components/message-scroller";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@perch/ui/components/tooltip";
+} from "@klice-start/ui/components/message-scroller";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@klice-start/ui/components/tooltip";
 import { DefaultChatTransport } from "ai";
 import { ArrowUpIcon, Loader2, MessageCircleDashedIcon, RotateCwIcon } from "lucide-react";
 import { useState, type FormEvent, type KeyboardEvent } from "react";
@@ -102,7 +102,7 @@ export default function AIPage() {
                 <EmptyMedia variant="icon">
                   <MessageCircleDashedIcon />
                 </EmptyMedia>
-                <EmptyTitle>Morning, perch!</EmptyTitle>
+                <EmptyTitle>Morning!</EmptyTitle>
                 <EmptyDescription>What are we working on today?</EmptyDescription>
               </EmptyHeader>
             </Empty>

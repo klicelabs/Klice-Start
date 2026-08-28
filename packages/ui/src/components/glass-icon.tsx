@@ -2,8 +2,8 @@
 
 import { type VariantProps, cva } from "class-variance-authority";
 
-import { type FrostGlassVariantProp, glassVariantStyles } from "@perch/ui/lib/glass-variants";
-import { cn } from "@perch/ui/lib/utils";
+import { type FrostGlassVariantProp, glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { cn } from "@klice-start/ui/lib/utils";
 
 import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
 

@@ -1,5 +1,5 @@
 {
-  "name": "extension",
+  "name": "klice-start",
   "version": "0.0.0",
   "private": true,
   "description": "A personal browser dashboard for your new tab.",
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
-    "@perch/ui": "workspace:*",
+    "@klice-start/ui": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "catalog:",

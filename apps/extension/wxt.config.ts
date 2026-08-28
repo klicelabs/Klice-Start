@@ -5,7 +5,7 @@ export default defineConfig({
 	modules: ["@wxt-dev/module-react"],
 	manifestVersion: 3,
 	manifest: {
-		name: "Perch",
+		name: "Klice Start",
 		// Firefox MV3 requires an explicit extension ID.
 		browser_specific_settings: {
 			gecko: {
@@ -21,13 +21,13 @@ export default defineConfig({
 		commands: {
 			"add-current-page": {
 				suggested_key: { default: "Ctrl+Shift+D", mac: "Command+Shift+D" },
-				description: "Save current page to Perch",
+				description: "Save current page to Klice Start",
 			},
 		},
 	},
 	zip: {
 		// AMO sources zip must cover the whole workspace: bun.lock and the
-		// workspace packages (@perch/ui, @perch/env, @perch/config) live at the
+		// workspace packages (@klice-start/ui, @klice-start/env, @klice-start/config) live at the
 		// repo root, not in apps/extension.
 		sourcesRoot: "../..",
 		excludeSources: [

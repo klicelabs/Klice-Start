@@ -1,7 +1,7 @@
 # 04 — Experience Principles
 
 ## Objective
-Define how Perch should feel, respond, surprise, age, and communicate quality. This document owns the canonical AI Experience Principles referenced across the foundation.
+Define how Klice Start should feel, respond, surprise, age, and communicate quality. This document owns the canonical AI Experience Principles referenced across the foundation.
 
 ## Scope
 Experience qualities, interaction feel, emotional tone, pacing, feedback, durability, experience anti-patterns, and the AI experience philosophy.
@@ -31,7 +31,7 @@ Approved foundation.
 ---
 
 ## Desired Feeling
-Perch should feel like coming home: calm, personal, fast, controlled, and quietly premium.
+Klice Start should feel like coming home: calm, personal, fast, controlled, and quietly premium.
 
 It should not feel like a dashboard trying to impress the user. It should feel like the user's own space has been treated with care. The difference is the source of the quality: a dashboard performs; a home accommodates. Every experience decision should be testable against this distinction — does this serve the user, or does it serve the product's need to be noticed?
 
@@ -77,7 +77,7 @@ Users should perceive quality without being able to name every component of it. 
 ## AI Experience Principles
 This is the canonical AI experience philosophy. Other documents reference this section rather than restating it.
 
-AI in Perch is an assistant layer. It strengthens the product; it never becomes the product. The principles below govern how AI behaves in the experience.
+AI in Klice Start is an assistant layer. It strengthens the product; it never becomes the product. The principles below govern how AI behaves in the experience.
 
 | Principle | What it requires |
 | --- | --- |
@@ -89,9 +89,9 @@ AI in Perch is an assistant layer. It strengthens the product; it never becomes 
 | AI is predictable. | AI does not surprise the user with unrequested changes. The user's space does not change shape without consent. |
 | AI never blocks core workflows. | If AI fails, is disabled, or is unavailable, the core product is fully usable. |
 | AI respects privacy. | AI features clarify what data they use and where it is processed. Local-first applies to AI too. |
-| AI strengthens Perch; it does not become Perch. | The product's identity is ownership and calm. AI that overshadows that identity has failed regardless of capability. |
+| AI strengthens Klice Start; it does not become Klice Start. | The product's identity is ownership and calm. AI that overshadows that identity has failed regardless of capability. |
 
-The design test: remove the AI. Does Perch still feel like Perch? If the answer is no, the AI has overwritten the product. If the answer is yes, the AI is in its correct place.
+The design test: remove the AI. Does Klice Start still feel like Klice Start? If the answer is no, the AI has overwritten the product. If the answer is yes, the AI is in its correct place.
 
 ## Experience Anti-Patterns
 These are explicitly rejected experience patterns. They are not preferences; they are failure modes.

@@ -1,9 +1,9 @@
-# Perch Technical Foundation
+# Klice Start Technical Foundation
 
-This suite defines the **target technical architecture** for turning Perch from a single-device local extension into a subscription SaaS. It is the technical counterpart to [`../product-foundation/`](../product-foundation/README.md): where that suite owns *why* and *what*, this one owns *how the system is shaped* — at the level of durable decisions and contracts, not implementation code.
+This suite defines the **target technical architecture** for turning Klice Start from a single-device local extension into a subscription SaaS. It is the technical counterpart to [`../product-foundation/`](../product-foundation/README.md): where that suite owns *why* and *what*, this one owns *how the system is shaped* — at the level of durable decisions and contracts, not implementation code.
 
 ## Current Stage
-Everything here describes where Perch is going, not what exists today. Today Perch is a single-device, local-only Manifest V3 extension with **no backend, no accounts, no billing, and no build step** (see [CLAUDE.md](../../CLAUDE.md)). Two things in this suite are *not* aspirational and are true right now:
+Everything here describes where Klice Start is going, not what exists today. Today Klice Start is a single-device, local-only Manifest V3 extension with **no backend, no accounts, no billing, and no build step** (see [CLAUDE.md](../../CLAUDE.md)). Two things in this suite are *not* aspirational and are true right now:
 
 1. **The `Storage` seam** in `js/db.js` already exists and is already the single persistence interface the rest of the extension uses.
 2. **The platform capture limits** in document 00 are fixed browser constraints, true today and permanently.

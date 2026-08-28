@@ -1,7 +1,7 @@
 # 05 — Design Manifesto
 
 ## Objective
-Define Perch's design philosophy and what premium software means for the company. This is not a design system. It is a manifesto that should govern every future designer's instincts.
+Define Klice Start's design philosophy and what premium software means for the company. This is not a design system. It is a manifesto that should govern every future designer's instincts.
 
 ## Scope
 The philosophy of premium software, space, motion, consistency, simplicity, typography, hierarchy, visual rhythm, microinteractions, craft, taste, and the recognition of quality.
@@ -34,14 +34,14 @@ Premium software is not expensive software. It is software where intention is vi
 
 Every pixel, every animation, every transition, every empty state, every error, and every feedback moment should feel considered. Nothing should be present because nobody decided to remove it. Nothing should be absent because nobody decided to add it.
 
-Perch earns premium perception through restraint, speed, hierarchy, consistency, and care — not through ornament, density, or the implication of capability. The standard is not "does it look good in a screenshot." The standard is "does it still feel good after the thousandth open."
+Klice Start earns premium perception through restraint, speed, hierarchy, consistency, and care — not through ornament, density, or the implication of capability. The standard is not "does it look good in a screenshot." The standard is "does it still feel good after the thousandth open."
 
 Premium is the felt residue of a thousand decisions that trusted the user's attention.
 
 ## Why space matters
 Space is not decoration. It is how the interface gives the user room to think.
 
-Perch uses space to create calm, hierarchy, and confidence. Crowded interfaces imply the user must process everything at once; generous space implies the product trusts the user to choose what matters next. Space is the most underused tool in software because it looks like "nothing" in a design review — but in repeated use, it is the difference between a surface that exhausts and one that accommodates.
+Klice Start uses space to create calm, hierarchy, and confidence. Crowded interfaces imply the user must process everything at once; generous space implies the product trusts the user to choose what matters next. Space is the most underused tool in software because it looks like "nothing" in a design review — but in repeated use, it is the difference between a surface that exhausts and one that accommodates.
 
 If a screen feels busy, the answer is rarely "redesign it." The answer is usually "remove what is competing for attention and let the remaining content breathe."
 
@@ -53,26 +53,26 @@ Motion that competes for attention is not craft — it is noise wearing the cost
 On a high-frequency surface, motion has an additional constraint: it must tolerate repetition. An animation that delights on first view and irritates on the hundredth has failed. Design motion for the thousandth time, not the first.
 
 ## Why consistency matters
-Consistency creates trust. Users should not have to relearn Perch in different parts of the product.
+Consistency creates trust. Users should not have to relearn Klice Start in different parts of the product.
 
-Consistency does not mean sameness. It means every variation belongs to the same logic. A drawer and a modal can behave differently, but the easing, the timing, the way they acknowledge a press, and the way they recover from cancellation should obey one coherent model. When users learn one part of Perch, they should predict the rest.
+Consistency does not mean sameness. It means every variation belongs to the same logic. A drawer and a modal can behave differently, but the easing, the timing, the way they acknowledge a press, and the way they recover from cancellation should obey one coherent model. When users learn one part of Klice Start, they should predict the rest.
 
 Inconsistency is not a styling problem; it is a trust problem. Every time the product behaves differently from how the user predicted, it loses a small amount of credibility that compounds across a session.
 
 ## Why simplicity matters
 Simplicity is the result of absorbed complexity, not the absence of capability.
 
-Perch should make powerful organization feel obvious, not limited. The work of simplicity is done by the product, not asked of the user: complexity is absorbed once, in design, so it never has to be re-absorbed by every user every time. A feature that requires the user to read documentation to understand it is not simple — it is complexity relocated.
+Klice Start should make powerful organization feel obvious, not limited. The work of simplicity is done by the product, not asked of the user: complexity is absorbed once, in design, so it never has to be re-absorbed by every user every time. A feature that requires the user to read documentation to understand it is not simple — it is complexity relocated.
 
 The hardest simplicity is refusing to add a feature that would make the product "more complete" at the cost of making it harder to understand. Simplicity is protected by refusal, see [Product Principles](./03-product-principles.md).
 
 ## Why typography matters
 Typography is interface infrastructure. It controls density, confidence, and scan speed.
 
-Perch uses type to clarify, not decorate. Hierarchy is established through size, weight, and spacing — not through ornament or color tricks. The user's content comes first typographically; controls, labels, and configuration recede. When typography is right, the user is never aware of it. When it is wrong, every screen feels slightly off and the cause is hard to name.
+Klice Start uses type to clarify, not decorate. Hierarchy is established through size, weight, and spacing — not through ornament or color tricks. The user's content comes first typographically; controls, labels, and configuration recede. When typography is right, the user is never aware of it. When it is wrong, every screen feels slightly off and the cause is hard to name.
 
 ## Why hierarchy matters
-Hierarchy decides what the eye understands first. In Perch, the user's content comes first, controls come second, and configuration comes last.
+Hierarchy decides what the eye understands first. In Klice Start, the user's content comes first, controls come second, and configuration comes last.
 
 A screen with weak hierarchy forces the user to scan and decide where to look. A screen with strong hierarchy lets the eye arrive. The test: without reading any label, can a new user identify the most important thing on the screen? If the answer is no, hierarchy has not been earned yet.
 
@@ -96,7 +96,7 @@ Craft is not polish added at the end. It is the discipline of treating the edge 
 ## How we define taste
 Taste is the ability to choose what not to show, what not to build, and when enough is enough.
 
-Perch defines taste as disciplined restraint in service of clarity, beauty, and user control. Taste is not personal preference and it is not a style — it is a trained instinct for the decision that serves the user's relationship with their own environment. Taste is learned by surrounding oneself with great work, asking why it feels right, and practicing the refusal of what does not.
+Klice Start defines taste as disciplined restraint in service of clarity, beauty, and user control. Taste is not personal preference and it is not a style — it is a trained instinct for the decision that serves the user's relationship with their own environment. Taste is learned by surrounding oneself with great work, asking why it feels right, and practicing the refusal of what does not.
 
 Taste is also a product capability: it is the layer competitors cannot copy with a single redesign, because it is distributed across hundreds of decisions that only compound when made consistently over time. That is why taste is listed as a value in [Company Vision](./01-company-vision.md), not a footnote in design.
 

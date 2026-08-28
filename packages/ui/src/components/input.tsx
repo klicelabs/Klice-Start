@@ -2,8 +2,8 @@ import { Input as InputPrimitive } from "@base-ui/react/input";
 import {
 	type FrostGlassVariant,
 	glassVariantStyles,
-} from "@perch/ui/lib/glass-variants";
-import { cn } from "@perch/ui/lib/utils";
+} from "@klice-start/ui/lib/glass-variants";
+import { cn } from "@klice-start/ui/lib/utils";
 import type * as React from "react";
 
 function Input({

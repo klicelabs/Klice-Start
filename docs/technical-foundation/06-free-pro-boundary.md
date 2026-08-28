@@ -1,7 +1,7 @@
 # 06 — Free/Pro Boundary
 
 ## Objective
-State precisely what Perch gives away for free and what it charges for, in technical terms, and defend why the line sits where it does. This document turns the locked Free/Pro split into an enforceable boundary that every feature decision can check against.
+State precisely what Klice Start gives away for free and what it charges for, in technical terms, and defend why the line sits where it does. This document turns the locked Free/Pro split into an enforceable boundary that every feature decision can check against.
 
 ## Scope
 The principle that draws the line, the enumerated Free capabilities, the enumerated Pro capabilities, the enforcement rule, and the anti-patterns the boundary must never adopt.
@@ -42,7 +42,7 @@ There is no Free/Pro split in the shipped extension; it is entirely free and loc
 
 The line is not "cripple the free version until it hurts enough to pay." The line is **cost of operation**:
 
-- Anything that runs entirely on the user's device costs Perch nothing per user and belongs to **Free**.
+- Anything that runs entirely on the user's device costs Klice Start nothing per user and belongs to **Free**.
 - Anything that requires servers, storage, bandwidth, rendering, or model inference has a real marginal cost per user and belongs to **Pro**.
 
 This makes the boundary honest and self-justifying: a user is not paying to remove an artificial limit, they are paying for a service that has a bill behind it. It also aligns with [Company Vision](../product-foundation/01-company-vision.md): "Free = generous local-first single-device" is a promise, not a funnel.

@@ -3,14 +3,14 @@ import {
 	ContextMenuContent,
 	ContextMenuItem,
 	ContextMenuTrigger,
-} from "@perch/ui/components/context-menu";
+} from "@klice-start/ui/components/context-menu";
 import {
 	Empty,
 	EmptyDescription,
 	EmptyTitle,
-} from "@perch/ui/components/empty";
-import { Icon } from "@perch/ui/icons/icon";
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+} from "@klice-start/ui/components/empty";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { useDragAndDrop } from "../../hooks/use-drag-and-drop";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { glassDropdownItem } from "../../lib/glass";

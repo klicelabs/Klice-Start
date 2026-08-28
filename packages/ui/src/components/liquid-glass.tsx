@@ -12,7 +12,7 @@ import {
   useState,
 } from "react";
 
-import { cn } from "@perch/ui/lib/utils";
+import { cn } from "@klice-start/ui/lib/utils";
 
 type MapGeometry = {
   width: number; // element width, CSS px, integer

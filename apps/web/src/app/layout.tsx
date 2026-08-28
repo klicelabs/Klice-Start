@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "perch",
-  description: "perch",
+  title: "Klice Start",
+  description: "Klice Start",
 };
 
 export default function RootLayout({

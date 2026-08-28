@@ -1,4 +1,4 @@
-import "@perch/env/web";
+import "@klice-start/env/web";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

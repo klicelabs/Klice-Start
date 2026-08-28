@@ -1,7 +1,7 @@
 # 02 — Data Model
 
 ## Objective
-Define the logical data model for Perch as a synced product: the entities, what they mean, how they relate, and how today's local `state` shape maps onto durable multi-device storage — without silently overwriting the local-first design or the screenshot truth from [00](./00-screenshot-capture-reality.md).
+Define the logical data model for Klice Start as a synced product: the entities, what they mean, how they relate, and how today's local `state` shape maps onto durable multi-device storage — without silently overwriting the local-first design or the screenshot truth from [00](./00-screenshot-capture-reality.md).
 
 ## Scope
 Logical entities (users, folders, cards, widgets, setups, images), their relationships, the mapping from the current local `state` to backend tables, image origin/freshness modeling required by D3, ownership/tenancy, and identity semantics. This is a **logical** model: decisions and contracts, not DDL, column types, or index strategy.
@@ -48,7 +48,7 @@ This describes a **target SaaS data model**, not the shipped storage. Today the 
 Identity and ownership root. Exists only once a user creates an account; a local-only user has no `User` row and needs none. Owns exactly one Setup (initially). Carries entitlement state by reference (see [05](./05-billing-entitlements.md)), not inline billing data.
 
 ### Setup
-The user's total arrangement: the set of folders, cards, widgets, and appearance settings that make up their Perch space. This is the unit that [Sync](../product-foundation/09-product-glossary.md) keeps consistent across devices and that [Backup](../product-foundation/09-product-glossary.md) protects. Locally, the Setup *is* the `state` object.
+The user's total arrangement: the set of folders, cards, widgets, and appearance settings that make up their Klice Start space. This is the unit that [Sync](../product-foundation/09-product-glossary.md) keeps consistent across devices and that [Backup](../product-foundation/09-product-glossary.md) protects. Locally, the Setup *is* the `state` object.
 
 ### Folder
 A named, ordered group that contains cards and — per the product vision — other folders (nested folders). Belongs to a Setup. Has an order relative to its siblings.

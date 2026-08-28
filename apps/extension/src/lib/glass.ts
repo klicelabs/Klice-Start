@@ -1,4 +1,4 @@
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { cn } from "./utils";
 
 /**

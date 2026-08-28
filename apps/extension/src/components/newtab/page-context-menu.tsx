@@ -4,8 +4,8 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@perch/ui/components/context-menu";
-import { glassVariantStyles } from "@perch/ui/lib/glass-variants";
+} from "@klice-start/ui/components/context-menu";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import {
 	Download,
 	Link,
@@ -65,7 +65,7 @@ export function PageContextMenu({
 			if (dataUrl) {
 				const a = document.createElement("a");
 				a.href = dataUrl;
-				a.download = `perch-wallpaper-${Date.now()}.jpg`;
+				a.download = `klice-start-wallpaper-${Date.now()}.jpg`;
 				a.click();
 			}
 		}

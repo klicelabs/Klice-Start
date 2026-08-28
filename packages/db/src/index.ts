@@ -1,4 +1,4 @@
-import { env } from "@perch/env/server";
+import { env } from "@klice-start/env/server";
 import { drizzle } from "drizzle-orm/node-postgres";
 
 import * as schema from "./schema";

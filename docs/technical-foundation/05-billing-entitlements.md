@@ -1,7 +1,7 @@
 # 05 — Billing & Entitlements
 
 ## Objective
-Define how Perch charges for Pro and how the resulting entitlement flows from the payment provider to the point where a feature is allowed or refused. Billing exists to fund the product without contradicting its values — no dark patterns, no attention monetization, no gating of local value.
+Define how Klice Start charges for Pro and how the resulting entitlement flows from the payment provider to the point where a feature is allowed or refused. Billing exists to fund the product without contradicting its values — no dark patterns, no attention monetization, no gating of local value.
 
 ## Scope
 The merchant-of-record billing model, the subscription lifecycle, how an entitlement is established and revoked, and where the Free/Pro gate is enforced. The specific gated capabilities are enumerated in [Free/Pro Boundary](./06-free-pro-boundary.md); this document owns the *mechanism*.
@@ -33,15 +33,15 @@ Draft — target billing model. No billing exists in the shipped extension.
 ---
 
 ## Reality Note
-Perch has no payments, no Pro tier, and no revenue today. This is target-state. The **value constraints** — no ads, no data resale, no gating of core local value, honest cancellation — are permanent stances from the product foundation, not aspirations that billing may bend.
+Klice Start has no payments, no Pro tier, and no revenue today. This is target-state. The **value constraints** — no ads, no data resale, no gating of core local value, honest cancellation — are permanent stances from the product foundation, not aspirations that billing may bend.
 
 ---
 
 ## Billing model: merchant of record
-Perch bills through a **merchant-of-record (MoR)** provider (candidates: Polar or Lemon Squeezy), not a raw payment processor. This is a locked decision. The MoR is the legal seller of record and absorbs global VAT/sales-tax calculation, collection, and remittance.
+Klice Start bills through a **merchant-of-record (MoR)** provider (candidates: Polar or Lemon Squeezy), not a raw payment processor. This is a locked decision. The MoR is the legal seller of record and absorbs global VAT/sales-tax calculation, collection, and remittance.
 
-**Why this is the right call for Perch specifically:**
-- Perch is a small team selling a subscription to a global audience of individuals. Handling worldwide tax compliance directly is disproportionate overhead for the stage.
+**Why this is the right call for Klice Start specifically:**
+- Klice Start is a small team selling a subscription to a global audience of individuals. Handling worldwide tax compliance directly is disproportionate overhead for the stage.
 - It keeps the team's attention on product quality — the actual growth lever per [Company Vision](../product-foundation/01-company-vision.md) — rather than tax operations.
 - The trade-off (a higher percentage fee than raw Stripe) is accepted deliberately: it buys compliance and focus, and it is revisitable later if scale justifies bringing tax in-house.
 

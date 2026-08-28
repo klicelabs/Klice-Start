@@ -1,4 +1,4 @@
-import { Icon } from "@perch/ui/icons/icon";
+import { Icon } from "@klice-start/ui/icons/icon";
 import {
 	TOOLBAR,
 	toolbarControlClassic,

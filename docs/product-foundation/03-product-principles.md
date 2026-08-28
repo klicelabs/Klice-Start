@@ -1,7 +1,7 @@
 # 03 — Product Principles
 
 ## Objective
-Define how Perch makes product decisions, prioritizes, refuses features, resolves trade-offs, and protects quality. This is the decision operating system for the product.
+Define how Klice Start makes product decisions, prioritizes, refuses features, resolves trade-offs, and protects quality. This is the decision operating system for the product.
 
 ## Scope
 Non-negotiable principles, the Product Decision Framework, the Feature Evaluation Framework, the Trade-off Framework, the Innovation Framework, refusal criteria, and the long-term decision lens.
@@ -71,13 +71,13 @@ Every proposed feature must answer the nine questions below. This is not a scori
 | Does it improve organization? | Users find or structure things with less effort. |
 | Does it improve performance? | It must not slow the new tab. |
 | Does it improve privacy? | It preserves or clarifies user ownership. |
-| Does it improve habit? | It makes Perch more worth returning to. |
+| Does it improve habit? | It makes Klice Start more worth returning to. |
 | Does it improve ownership? | Users feel the space is more theirs. |
 | Does it improve delight? | It adds quality without demanding attention. |
 | Does it improve retention? | It strengthens durable value, not novelty. |
 | Does it improve clarity? | It reduces cognitive load. |
 
-**Decision rule:** if a feature answers "no" to most questions, it does not belong in Perch. If it answers "yes" to several but "no" to performance or privacy, it is rejected regardless of other gains — those are non-negotiable, see above.
+**Decision rule:** if a feature answers "no" to most questions, it does not belong in Klice Start. If it answers "yes" to several but "no" to performance or privacy, it is rejected regardless of other gains — those are non-negotiable, see above.
 
 ## Trade-off Framework
 Trade-offs are recurring choices the product will face. Recording the stance removes re-litigating the same decision.

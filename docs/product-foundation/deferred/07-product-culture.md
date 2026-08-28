@@ -3,7 +3,7 @@
 > **Deferred.** Ativar quando existir superfície pública / primeiro hire.
 
 ## Objective
-Define how the team builds Perch and protects quality under pressure. Culture is what the team does by default when no one is checking.
+Define how the team builds Klice Start and protects quality under pressure. Culture is what the team does by default when no one is checking.
 
 ## Scope
 The team's stance on bugs, feedback, debt, performance, accessibility, privacy, AI, quality, decisions, saying no, feature creep, and protecting simplicity.
@@ -33,7 +33,7 @@ Approved foundation.
 ---
 
 ## How we build products
-We build from the user's daily moment outward. Perch is a high-frequency surface, so small defects compound quickly and small improvements compound meaningfully.
+We build from the user's daily moment outward. Klice Start is a high-frequency surface, so small defects compound quickly and small improvements compound meaningfully.
 
 This is not a platitude about caring. It is a factual claim about a product opened dozens of times a day: a regression is felt dozens of times a day, and a craft improvement is felt dozens of times a day. The economics of quality are different on a high-frequency surface — quality pays compounding interest, and debt compounds compounding penalties. The team treats each accordingly.
 
@@ -70,7 +70,7 @@ Privacy decisions are made in product reviews, not deferred to privacy review at
 ## How we treat AI
 AI is an assistant layer, not the product identity. It removes effort, explains itself, preserves control, and never blocks the core workflow. The cultural stance is skepticism by default: AI earns its place by demonstrating it strengthens the user's relationship with their own environment — not by demonstrating capability for its own sake.
 
-The canonical AI experience principles live in [Experience Principles](../04-experience-principles.md). The cultural rule here: if removing the AI would make Perch feel less like Perch, the AI has failed. If removing it would make Perch feel more like Perch, the AI should never have shipped.
+The canonical AI experience principles live in [Experience Principles](../04-experience-principles.md). The cultural rule here: if removing the AI would make Klice Start feel less like Klice Start, the AI has failed. If removing it would make Klice Start feel more like Klice Start, the AI should never have shipped.
 
 ## How we treat quality
 Quality is judged by repeated use, not launch screenshots. A feature is only high quality when default, empty, loading, error, edge, responsive, accessible, and reduced-motion states are handled.
@@ -83,14 +83,14 @@ Decisions are written when they affect strategy, brand, pricing, privacy, or pro
 A decision that exists only in a meeting is a decision the team will relitigate. A decision that is written and referenced is a decision that compounds. The team errs toward writing decisions down, even when it feels slow, because the cost of re-deciding is always higher than the cost of recording.
 
 ## How we say no
-Saying no is a product skill. We say no when a feature makes Perch noisier, slower, more dependent, less private, harder to understand, or less distinctive.
+Saying no is a product skill. We say no when a feature makes Klice Start noisier, slower, more dependent, less private, harder to understand, or less distinctive.
 
 A no is not a rejection of the person who proposed the feature. It is a defense of the product. The team practices saying no with a stated principle, because a no without a reason leaves a vacancy the next request fills.
 
 ## How we avoid feature creep
-Feature creep often arrives disguised as completeness. Perch does not need to do everything a browser, OS, dashboard, or productivity suite can do. It needs to be the best browser home.
+Feature creep often arrives disguised as completeness. Klice Start does not need to do everything a browser, OS, dashboard, or productivity suite can do. It needs to be the best browser home.
 
-The cultural rule: a feature must defend its place against the question "would Perch be better without this?" If the team cannot confidently answer no, the feature is a candidate for removal. Completeness is a competitor's frame; Perch competes on being excellent at what it chooses to do.
+The cultural rule: a feature must defend its place against the question "would Klice Start be better without this?" If the team cannot confidently answer no, the feature is a candidate for removal. Completeness is a competitor's frame; Klice Start competes on being excellent at what it chooses to do.
 
 ## How we protect simplicity
 Simplicity is protected by defaults, progressive disclosure, principled refusal, and strong ownership. Every new feature must pay rent in clarity, habit, or strategic advantage.

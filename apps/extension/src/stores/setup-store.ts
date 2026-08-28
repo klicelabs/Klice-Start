@@ -267,6 +267,7 @@ export const useSetupStore = create<SetupStore>()(
 				await beginReset();
 				await cancelPendingPersist();
 				try {
+					// "perch-setup" is the legacy persist name; kept for data continuity.
 					await chrome.storage.local.remove("perch-setup");
 					await useImageStore.getState().clearAll();
 					set(normalizeState(null));
@@ -284,6 +285,7 @@ export const useSetupStore = create<SetupStore>()(
 			},
 		}),
 		{
+			// Legacy persist name kept so existing installs retain their setup.
 			name: "perch-setup",
 			storage: chromeStorageAdapter,
 			partialize: (s) => ({

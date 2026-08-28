@@ -1,10 +1,10 @@
-# Perch Product Foundation
+# Klice Start Product Foundation
 
 ## Objective
-This directory is the canonical product foundation for Perch. It turns the company's strategy into a durable operating system for product, design, engineering, marketing, and founders — so the team can make consistent decisions for years without depending on implicit knowledge.
+This directory is the canonical product foundation for Klice Start. It turns the company's strategy into a durable operating system for product, design, engineering, marketing, and founders — so the team can make consistent decisions for years without depending on implicit knowledge.
 
 ## Current Stage
-This foundation describes the product Perch intends to become, not the organization that exists today. As of the last review, Perch is a single-device, local-only Manifest V3 extension loaded via "Load unpacked" — no backend, no sync, no accounts, no AI. The roles named across these documents (Head of Design, Growth Lead, Brand Lead) are role responsibilities, not filled positions. Read the foundation as a durable target: sections describing sync, AI, community, and category leadership are directional bets, not shipped reality. Where a document asserts market or category outcomes, treat them as hypotheses (see [Product Strategy](./02-product-strategy.md) Open Questions), not settled facts.
+This foundation describes the product Klice Start intends to become, not the organization that exists today. As of the last review, Klice Start is a single-device, local-only Manifest V3 extension loaded via "Load unpacked" — no backend, no sync, no accounts, no AI. The roles named across these documents (Head of Design, Growth Lead, Brand Lead) are role responsibilities, not filled positions. Read the foundation as a durable target: sections describing sync, AI, community, and category leadership are directional bets, not shipped reality. Where a document asserts market or category outcomes, treat them as hypotheses (see [Product Strategy](./02-product-strategy.md) Open Questions), not settled facts.
 
 ## Scope
 Product, business, experience, brand, quality, culture, and strategic requirements.
@@ -49,7 +49,7 @@ Foundation v2.0.
 The previous single `PLAN.md` mixed vision, strategy, culture, principles, requirements, risks, monetization, and future vision. It is now split by responsibility to reduce duplication and make governance easier. `PLAN.md` is reduced to an index and points here.
 
 ### Document responsibilities
-- **Company Vision** owns why Perch exists, values, long-term ambition, and success definition.
+- **Company Vision** owns why Klice Start exists, values, long-term ambition, and success definition.
 - **Product Strategy** owns market logic, category, ICP, positioning, Blue Ocean, moat, North Star, monetization, growth, analytics, risks, and open questions.
 - **Product Principles** owns the decision operating system: non-negotiables, the Product Decision Framework, Feature Evaluation Framework, Trade-off Framework, Innovation Framework, and refusal criteria.
 - **Experience Principles** owns the desired felt experience, the experience maturity model, quality signals, experience anti-patterns, and the canonical AI experience philosophy.

@@ -1,14 +1,14 @@
-import { Button } from "@perch/ui/components/button";
+import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-} from "@perch/ui/components/dialog";
-import { GlassButton } from "@perch/ui/components/glass-button";
-import { Input } from "@perch/ui/components/input";
-import { Label } from "@perch/ui/components/label";
+} from "@klice-start/ui/components/dialog";
+import { GlassButton } from "@klice-start/ui/components/glass-button";
+import { Input } from "@klice-start/ui/components/input";
+import { Label } from "@klice-start/ui/components/label";
 import { type FormEvent, useEffect, useState } from "react";
 import { getSubtreeIds } from "../../../lib/folder-tree";
 import { glassText } from "../../../lib/glass";

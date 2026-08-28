@@ -1,7 +1,7 @@
 # 01 — System Architecture
 
 ## Objective
-Define the shape of the Perch system once it becomes a SaaS: the parts that exist, what each is responsible for, how they communicate, and — most importantly — the single seam through which the local-only extension becomes a synced product without rewriting its interface. This document is the map every later technical document plugs into.
+Define the shape of the Klice Start system once it becomes a SaaS: the parts that exist, what each is responsible for, how they communicate, and — most importantly — the single seam through which the local-only extension becomes a synced product without rewriting its interface. This document is the map every later technical document plugs into.
 
 ## Scope
 The runtime components (extension, web app, backend, mobile), their responsibilities and boundaries, the client-to-backend communication model, the `Storage` seam as the sync fronteir, and the offline-first stance. Component-level contracts (data shapes, sync semantics, auth flows, billing) are named here and specified in their own documents.
@@ -31,12 +31,12 @@ Draft — proposed architecture for acceptance.
 ---
 
 ## Reality Note
-This describes a **target SaaS architecture**, not the shipped extension. Today Perch is a single-device, local-only Manifest V3 extension with no backend, no accounts, and no build step (see [CLAUDE.md](../../CLAUDE.md)). The components below marked as backend, web app, or mobile do not exist yet; the extension and its `Storage` seam do. This document describes where the system is going and, deliberately, how to get there without discarding what already works.
+This describes a **target SaaS architecture**, not the shipped extension. Today Klice Start is a single-device, local-only Manifest V3 extension with no backend, no accounts, and no build step (see [CLAUDE.md](../../CLAUDE.md)). The components below marked as backend, web app, or mobile do not exist yet; the extension and its `Storage` seam do. This document describes where the system is going and, deliberately, how to get there without discarding what already works.
 
 ---
 
 ## The Governing Principle
-Perch is **local-first**. The extension must deliver its full core value with no account, no network, and no backend — exactly as it does today. Sync, accounts, and server rendering are additive layers that enhance a product that already works offline, never prerequisites for it. This is not only a product stance ([Company Vision](../product-foundation/01-company-vision.md)); it is the architectural constraint that shapes every decision here: **the network is an enhancement, never a dependency of the core loop.**
+Klice Start is **local-first**. The extension must deliver its full core value with no account, no network, and no backend — exactly as it does today. Sync, accounts, and server rendering are additive layers that enhance a product that already works offline, never prerequisites for it. This is not only a product stance ([Company Vision](../product-foundation/01-company-vision.md)); it is the architectural constraint that shapes every decision here: **the network is an enhancement, never a dependency of the core loop.**
 
 ## Components
 
@@ -53,7 +53,7 @@ Two responsibilities under one framework:
 The web app is a client of the same backend as the extension; it holds no privileged logic the extension cannot also reach through its own authenticated path.
 
 ### 3. The Backend (Supabase)
-Postgres + Auth + Storage + Realtime, plus the headless render service for D2. It owns: durable multi-device state, identity, entitlements, cloud image storage, and universal-link rendering. It is the arbiter of *shared* truth across devices, but never the arbiter of *whether the user can use Perch* — an unauthenticated user is a first-class user.
+Postgres + Auth + Storage + Realtime, plus the headless render service for D2. It owns: durable multi-device state, identity, entitlements, cloud image storage, and universal-link rendering. It is the arbiter of *shared* truth across devices, but never the arbiter of *whether the user can use Klice Start* — an unauthenticated user is a first-class user.
 
 The headless render service (D2 from [00](./00-screenshot-capture-reality.md)) is a backend-only concern. The extension never calls it directly for capture; it consumes its output like any other synced image.
 
@@ -84,7 +84,7 @@ There is no direct client-to-client communication. All cross-device continuity f
 
 ## Offline-First Stance
 - The core loop (open new tab, see setup, open/organize cards, capture the visited tab) must complete with **zero** network calls.
-- Sync is a background reconciliation, never a blocking step in front of orientation. A failed or slow network degrades to "not yet synced," never to "cannot use Perch." This is the architectural expression of "performance is respect" and "latency is a defect."
+- Sync is a background reconciliation, never a blocking step in front of orientation. A failed or slow network degrades to "not yet synced," never to "cannot use Klice Start." This is the architectural expression of "performance is respect" and "latency is a defect."
 - The local cache is always readable and writable first; the network catches up. This ordering is mandatory, not a performance optimization.
 
 ## Boundaries That Must Not Blur

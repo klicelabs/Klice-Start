@@ -96,7 +96,7 @@ export async function getSvgByTitle(
  * Resolves the SVG **URL** from an item's `route`, respecting theme variants.
  *
  * SVGL's `dark` / `light` refers to the background colour the SVG was designed
- * for (dark background → light/white paths). Perch is always dark‑themed, so
+ * for (dark background → light/white paths). Klice Start is always dark‑themed, so
  * we prefer `dark` when available. Pass `forceLight: true` to override.
  */
 export function resolveRoute(

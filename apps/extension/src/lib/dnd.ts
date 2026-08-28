@@ -7,7 +7,7 @@ import type { DragEvent } from "react";
  */
 export type DragKind = "card" | "folder";
 
-const KIND_PREFIX = "application/x-perch-";
+const KIND_PREFIX = "application/x-klice-start-";
 
 /** Write both the raw id (text/plain) and a typed marker for the drag kind. */
 export function setDragData(e: DragEvent, kind: DragKind, id: string): void {

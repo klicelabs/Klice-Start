@@ -15,11 +15,11 @@
   "menuColor": "default-translucent",
   "menuAccent": "subtle",
   "aliases": {
-    "components": "@perch/ui/components",
-    "utils": "@perch/ui/lib/utils",
-    "ui": "@perch/ui/components",
-    "lib": "@perch/ui/lib",
-    "hooks": "@perch/ui/hooks"
+    "components": "@klice-start/ui/components",
+    "utils": "@klice-start/ui/lib/utils",
+    "ui": "@klice-start/ui/components",
+    "lib": "@klice-start/ui/lib",
+    "hooks": "@klice-start/ui/hooks"
   },
   "registries": {
     "@glasscn": "https://glasscn-components.vercel.app/r/{name}.json"

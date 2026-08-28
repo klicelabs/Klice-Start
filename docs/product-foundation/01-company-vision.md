@@ -1,7 +1,7 @@
 # 01 — Company Vision
 
 ## Objective
-Define why Perch exists, what it is trying to become, the values that bind decisions, and what winning means over a decade.
+Define why Klice Start exists, what it is trying to become, the values that bind decisions, and what winning means over a decade.
 
 ## Scope
 Mission, vision, values, company principles, long-term ambition, long-term thinking framework, and success definition.
@@ -32,10 +32,10 @@ Approved foundation.
 ## Mission
 Give people a calm, beautiful, and controlled beginning to every browser session.
 
-Perch turns the browser's new tab from an empty or noisy surface into a personal home for orientation, organization, and daily momentum. The new tab is seen many times every day; that frequency is the product's greatest asset and its strictest quality constraint — small defects compound, and so does small craft.
+Klice Start turns the browser's new tab from an empty or noisy surface into a personal home for orientation, organization, and daily momentum. The new tab is seen many times every day; that frequency is the product's greatest asset and its strictest quality constraint — small defects compound, and so does small craft.
 
 ## Vision
-Perch becomes the browser home for people who care about their digital environment. It is the product they install on every new machine because the browser feels incomplete without it.
+Klice Start becomes the browser home for people who care about their digital environment. It is the product they install on every new machine because the browser feels incomplete without it.
 
 The vision is not "a better speed dial." It is the redefinition of a neglected surface into a category people treat as personal infrastructure.
 
@@ -63,7 +63,7 @@ Principles translate values into daily decisions.
 6. Never monetize user attention, user data, or user confusion.
 
 ## Long-Term Vision
-Perch evolves from a beautiful new tab into the personal browser dashboard category leader: the place where people begin, organize, search, resume, and understand their digital work.
+Klice Start evolves from a beautiful new tab into the personal browser dashboard category leader: the place where people begin, organize, search, resume, and understand their digital work.
 
 The product may become more intelligent, more connected, and more extensible, but it must never stop feeling personal, fast, calm, and owned by the user. Expansion is justified only when it strengthens orientation, ownership, beauty, and habit.
 
@@ -79,4 +79,4 @@ Every material decision must be evaluated across three time horizons. When the h
 **The rule:** Never sacrifice the vision for convenience. A decision that wins in the short frame but loses in the long frame is a decision against the company. The reverse is not always true — a long-term bet that risks survival in the short frame must be staged, not abandoned, but it still wins the framing.
 
 ## Success Definition
-Perch wins when it becomes a reference product: loved for its quality, trusted for its restraint, and recognized as the standard for browser homes. Revenue is evidence of success, not its definition.
+Klice Start wins when it becomes a reference product: loved for its quality, trusted for its restraint, and recognized as the standard for browser homes. Revenue is evidence of success, not its definition.

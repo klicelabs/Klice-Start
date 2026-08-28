@@ -1,5 +1,5 @@
 {
-  "name": "perch",
+  "name": "klice-start",
   "private": true,
   "workspaces": {
     "packages": [
@@ -27,10 +27,10 @@
     "build": "turbo run build",
     "check-types": "turbo run check-types",
     "dev:web": "turbo run dev -F web",
-    "db:push": "turbo run db:push -F @perch/db",
-    "db:studio": "turbo run db:studio -F @perch/db",
-    "db:generate": "turbo run db:generate -F @perch/db",
-    "db:migrate": "turbo run db:migrate -F @perch/db",
+    "db:push": "turbo run db:push -F @klice-start/db",
+    "db:studio": "turbo run db:studio -F @klice-start/db",
+    "db:generate": "turbo run db:generate -F @klice-start/db",
+    "db:migrate": "turbo run db:migrate -F @klice-start/db",
     "deploy:setup": "vercel link",
     "dev:vercel": "vercel dev -L",
     "env:preview": "tsx scripts/sync-vercel-env.ts preview",
@@ -41,13 +41,13 @@
     "check": "biome check --write ."
   },
   "dependencies": {
-    "@perch/env": "workspace:*",
+    "@klice-start/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
-    "@perch/config": "workspace:*",
+    "@klice-start/config": "workspace:*",
     "@types/node": "^22.13.14",
     "tsx": "^4.22.5",
     "turbo": "^2.10.2",
