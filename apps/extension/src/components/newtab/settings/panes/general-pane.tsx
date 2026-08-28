@@ -23,16 +23,8 @@ const LAYOUT_OPTIONS = [
 	{ value: "icon", label: "Icon (App Launcher)" },
 ] as const;
 
-const CARD_SHAPES: readonly {
-	value: CardAspect;
-	icon: IconName;
-	label: string;
-}[] = [
-	{
-		value: "vertical",
-		icon: "rectangle-vertical",
-		label: "Portrait (Vivaldi)",
-	},
+const CARD_SHAPES: readonly { value: CardAspect; icon: IconName; label: string }[] = [
+	{ value: "vertical", icon: "rectangle-vertical", label: "Portrait (Vivaldi)" },
 	{ value: "horizontal", icon: "rectangle-horizontal", label: "Landscape" },
 	{ value: "square", icon: "square", label: "Square" },
 ];
@@ -67,40 +59,30 @@ export function GeneralPane() {
 
 	return (
 		<div className="space-y-2">
-			<SectionCard title="Layout & Density">
+			<SectionCard title="Layout & density">
 				<SelectRow
 					label="Tile size"
-					description="Width of each shortcut card or icon"
 					value={tileSize}
 					options={TILE_SIZE_OPTIONS}
-					onChange={(v) =>
-						updateSettings({ tileSize: v as "small" | "medium" | "large" })
-					}
+					onChange={(v) => updateSettings({ tileSize: v as "small" | "medium" | "large" })}
 				/>
 
 				<SelectRow
-					label="Max columns"
-					description="Maximum number of grid columns on wide displays"
+					label="Columns"
 					value={String(maxColumns)}
 					options={COLUMN_OPTIONS}
-					onChange={(v) =>
-						updateSettings({ maxColumns: Number.parseInt(v, 10) })
-					}
+					onChange={(v) => updateSettings({ maxColumns: Number.parseInt(v, 10) })}
 				/>
 
 				<SelectRow
 					label="Display style"
-					description="Speed Dial card tiles vs compact app icons"
 					value={dialLayout}
 					options={LAYOUT_OPTIONS}
 					onChange={(v) => updateSettings({ dialLayout: v as "card" | "icon" })}
 				/>
 
 				{dialLayout === "card" && (
-					<SettingRow
-						label="Card proportion"
-						description="Aspect ratio of thumbnail cards"
-					>
+					<SettingRow label="Card proportion">
 						<div className="flex gap-1">
 							{CARD_SHAPES.map((opt) => {
 								const isSelected = cardAspect === opt.value;
@@ -125,10 +107,7 @@ export function GeneralPane() {
 				)}
 
 				{dialLayout === "icon" && (
-					<SettingRow
-						label="Show site titles"
-						description="Display site name beneath each icon"
-					>
+					<SettingRow label="Show site titles">
 						<Switch
 							checked={iconShowLabel}
 							onCheckedChange={(checked: boolean) =>
@@ -139,11 +118,8 @@ export function GeneralPane() {
 				)}
 			</SectionCard>
 
-			<SectionCard title="Card Behavior">
-				<SettingRow
-					label="Show site title"
-					description="Display favicon and name footer below card thumbnails"
-				>
+			<SectionCard title="Card behavior">
+				<SettingRow label="Show site title">
 					<Switch
 						checked={showTitle}
 						onCheckedChange={(checked: boolean) =>
@@ -152,10 +128,7 @@ export function GeneralPane() {
 					/>
 				</SettingRow>
 
-				<SettingRow
-					label="Show delete button on hover"
-					description="Show direct delete shortcut on card hover"
-				>
+				<SettingRow label="Show delete button on hover">
 					<Switch
 						checked={showDeleteButton}
 						onCheckedChange={(checked: boolean) =>
@@ -164,10 +137,7 @@ export function GeneralPane() {
 					/>
 				</SettingRow>
 
-				<SettingRow
-					label="Open links in new tab"
-					description="Clicking cards opens a new browser tab"
-				>
+				<SettingRow label="Open links in new tab">
 					<Switch
 						checked={openInNewTab}
 						onCheckedChange={(checked: boolean) =>
@@ -177,14 +147,13 @@ export function GeneralPane() {
 				</SettingRow>
 			</SectionCard>
 
-			<SectionCard title="Timezone">
+			<SectionCard title="Time zone">
 				<SelectRow
-					label="Clock timezone"
-					description="Timezone used for clock and daylight wallpaper changes"
+					label="Clock time zone"
 					value={timezone || "auto"}
 					options={COMMON_TIMEZONES}
 					onChange={(v) => updateClock({ timezone: v })}
-					triggerClassName="min-w-[180px]"
+					triggerClassName="min-w-[170px]"
 				/>
 			</SectionCard>
 		</div>

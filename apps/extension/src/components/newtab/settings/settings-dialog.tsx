@@ -8,10 +8,8 @@ import { useEffect, useState } from "react";
 import { cn } from "../../../lib/utils";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
-import { BackgroundPane } from "./panes/background-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
 import { GeneralPane } from "./panes/general-pane";
-import { ImportExportPane } from "./panes/import-export-pane";
 import { SearchPane } from "./panes/search-pane";
 import { SettingsSidebar } from "./settings-sidebar";
 import type { SettingsDialogProps, SettingsPaneId } from "./settings-types";
@@ -40,9 +38,9 @@ export function SettingsDialog({
 			<DialogContent
 				showCloseButton={true}
 				className={cn(
-					"flex h-[min(620px,88vh)] w-[min(880px,94vw)] sm:max-w-[880px] max-w-[880px] flex-col overflow-hidden p-0 gap-0",
+					"flex h-[min(600px,86vh)] w-[min(880px,94vw)] sm:max-w-[880px] max-w-[880px] flex-col overflow-hidden p-3.5 gap-0",
 					"border border-border/60 bg-background/95 shadow-2xl backdrop-blur-xl",
-					"rounded-2xl",
+					"rounded-[24px]",
 				)}
 			>
 				<DialogHeader className="sr-only">
@@ -50,22 +48,20 @@ export function SettingsDialog({
 				</DialogHeader>
 
 				<div className="flex h-full min-h-0 flex-1 overflow-hidden">
-					{/* Sidebar */}
+					{/* Floating Inset Sidebar */}
 					<SettingsSidebar
 						activePane={activePane}
 						onSelectPane={setActivePane}
 					/>
 
-					{/* Content Pane */}
-					<main className="settings-content-scroll flex-1 overflow-y-auto p-5 pr-12">
+					{/* Floating Inset Content Area */}
+					<main className="settings-content-scroll ml-3 flex-1 overflow-y-auto rounded-2xl border border-border/30 bg-card/30 p-5 pr-10 shadow-xs backdrop-blur-md">
 						{activePane === "general" && <GeneralPane />}
 						{activePane === "appearance" && <AppearancePane />}
-						{activePane === "background" && <BackgroundPane />}
 						{activePane === "search" && <SearchPane />}
 						{activePane === "bookmarks" && (
 							<BookmarksPane initialAction={initialAction} />
 						)}
-						{activePane === "import-export" && <ImportExportPane />}
 						{activePane === "advanced" && (
 							<AdvancedPane onCloseParent={onClose} />
 						)}

@@ -83,6 +83,9 @@ export interface SearchSettings {
 /** Top-level look: rich CSS glass material vs flat surfaces. */
 export type AppearanceMode = "liquid" | "classic";
 
+/** System appearance mode: follow system or explicit light/dark. */
+export type ColorScheme = "auto" | "light" | "dark";
+
 /** Speed Dial display mode: full cards vs app-launcher icons. */
 export type DialLayout = "card" | "icon";
 
@@ -107,6 +110,7 @@ export interface Settings {
 	greeting: GreetingSettings;
 	search: SearchSettings;
 	appearanceMode: AppearanceMode;
+	colorScheme: ColorScheme;
 }
 
 export interface Setup {

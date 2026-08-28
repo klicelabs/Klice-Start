@@ -272,6 +272,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	greeting: { ...DEFAULT_GREETING },
 	search: { ...DEFAULT_SEARCH },
 	appearanceMode: "liquid",
+	colorScheme: "auto",
 };
 
 export const DEFAULT_SETUP: Setup = {

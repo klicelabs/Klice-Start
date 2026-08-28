@@ -29,14 +29,12 @@ function EngineIcon({ engineId }: { engineId: string }) {
 		);
 	}
 
-	return (
-		<SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />
-	);
+	return <SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />;
 }
 
 const ICON_MODE_OPTIONS = [
-	{ value: "search", label: "Classic Magnifying Glass" },
-	{ value: "engine", label: "Active Engine Logo" },
+	{ value: "search", label: "Classic magnifying glass" },
+	{ value: "engine", label: "Active engine logo" },
 ] as const;
 
 export function SearchPane() {
@@ -48,11 +46,8 @@ export function SearchPane() {
 
 	return (
 		<div className="space-y-2">
-			<SectionCard title="Search Bar">
-				<SettingRow
-					label="Show search bar"
-					description="Display web search input on the new tab page"
-				>
+			<SectionCard title="Search bar">
+				<SettingRow label="Show search bar">
 					<Switch
 						checked={search.enabled}
 						onCheckedChange={(checked: boolean) =>
@@ -63,11 +58,8 @@ export function SearchPane() {
 			</SectionCard>
 
 			{search.enabled && (
-				<SectionCard title="Search Configuration">
-					<SettingRow
-						label="Default search engine"
-						description="Web service used when submitting queries"
-					>
+				<SectionCard title="Search configuration">
+					<SettingRow label="Default search engine">
 						<Select
 							value={search.engine}
 							onValueChange={(v) => v && updateSearch({ engine: v })}
@@ -97,20 +89,14 @@ export function SearchPane() {
 
 					<SelectRow
 						label="Input leading icon"
-						description="Glyph shown inside the left side of the search bar"
 						value={search.iconMode}
 						options={ICON_MODE_OPTIONS}
-						onChange={(v) =>
-							updateSearch({ iconMode: v as "engine" | "search" })
-						}
+						onChange={(v) => updateSearch({ iconMode: v as "engine" | "search" })}
 						triggerClassName="min-w-[180px]"
 					/>
 
 					<div className="border-border/40 border-t px-1 pt-3 pb-2">
-						<label
-							htmlFor="search-placeholder-input"
-							className="mb-1 block font-medium text-muted-foreground text-xs"
-						>
+						<label htmlFor="search-placeholder-input" className="mb-1 block font-medium text-muted-foreground text-xs">
 							Custom placeholder text
 						</label>
 						<Input

@@ -1,10 +1,8 @@
 export type SettingsPaneId =
 	| "general"
 	| "appearance"
-	| "background"
 	| "search"
 	| "bookmarks"
-	| "import-export"
 	| "advanced";
 
 export interface SettingsPaneProps {
