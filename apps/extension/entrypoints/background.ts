@@ -1,7 +1,15 @@
 import { getChildren } from "../src/lib/folder-tree";
-import { saveThumbnail } from "../src/lib/idb";
+import { idbDelete, STORE_THUMBS, saveThumbnail } from "../src/lib/idb";
+import {
+	PENDING_SAVE_KEY,
+	PENDING_SAVE_QUERY_PARAM,
+	PENDING_SAVE_TTL_MS,
+	parsePendingSave,
+	pendingSaveId,
+	pendingSaveThumbId,
+} from "../src/lib/pending-save";
 import { normalizeState } from "../src/lib/storage";
-import { canonicalUrl } from "../src/lib/url";
+import { canonicalUrl, isAbsoluteHttpUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
 import type { Folder, Setup } from "../src/types";
 
@@ -9,6 +17,8 @@ import type { Folder, Setup } from "../src/types";
 // installs keep their data and context-menu registration after the rename.
 const STORAGE_KEY = "perch-setup";
 const MENU_ID = "add-to-perch";
+const NEW_FOLDER_SEPARATOR_ID = "klice-new-folder-separator";
+const NEW_FOLDER_MENU_ID = "klice-new-folder";
 
 /** Read and normalize the persisted setup, or null when nothing is stored. */
 async function readSetup(): Promise<Setup | null> {
@@ -119,10 +129,22 @@ async function rebuildMenus(): Promise<void> {
 			title: "Save to Home",
 			contexts: ["page"],
 		});
-		return;
+	} else {
+		createFolderMenuItems(folders);
 	}
 
-	createFolderMenuItems(folders);
+	safeCreateMenuItem({
+		id: NEW_FOLDER_SEPARATOR_ID,
+		parentId: MENU_ID,
+		type: "separator",
+		contexts: ["page"],
+	});
+	safeCreateMenuItem({
+		id: NEW_FOLDER_MENU_ID,
+		parentId: MENU_ID,
+		title: "New Folder…",
+		contexts: ["page"],
+	});
 }
 
 // Serialize rebuilds so overlapping triggers never interleave their
@@ -181,11 +203,15 @@ export default defineBackground(() => {
 	browser.contextMenus.onClicked.addListener((info, tab) => {
 		if (!tab) return;
 		const menuItemId = info.menuItemId;
+		if (menuItemId === NEW_FOLDER_MENU_ID) {
+			void captureAndOpenPendingSave(tab);
+			return;
+		}
 		if (
 			typeof menuItemId === "string" &&
 			menuItemId.startsWith(FOLDER_MENU_PREFIX)
 		) {
-			captureAndAdd(tab, menuItemId.slice(FOLDER_MENU_PREFIX.length));
+			void captureAndAdd(tab, menuItemId.slice(FOLDER_MENU_PREFIX.length));
 		}
 	});
 
@@ -217,6 +243,100 @@ export default defineBackground(() => {
 		}
 	});
 });
+
+async function deletePendingThumbnail(thumbId: string | null): Promise<void> {
+	if (!thumbId) return;
+	try {
+		await idbDelete(STORE_THUMBS, thumbId);
+	} catch {
+		// Cleanup is best effort; the pending record remains the source of truth.
+	}
+}
+
+async function clearPendingSave(
+	expectedId: string,
+	deleteThumb: boolean,
+	fallbackThumbId: string | null = null,
+): Promise<void> {
+	const data = await browser.storage.local.get(PENDING_SAVE_KEY);
+	const raw = data[PENDING_SAVE_KEY];
+	if (pendingSaveId(raw) !== expectedId) return;
+	const thumbId = deleteThumb
+		? pendingSaveThumbId(raw) || fallbackThumbId
+		: null;
+	await browser.storage.local.remove(PENDING_SAVE_KEY);
+	if (thumbId) await deletePendingThumbnail(thumbId);
+}
+
+async function captureAndOpenPendingSave(tab: {
+	id?: number;
+	url?: string;
+	title?: string;
+	windowId?: number;
+	favIconUrl?: string;
+}): Promise<void> {
+	if (!tab.url || !isAbsoluteHttpUrl(tab.url)) {
+		flashBadge("✕", "#FF453A");
+		return;
+	}
+
+	const id = uid();
+	const createdAt = Date.now();
+	let thumbId: string | null = null;
+	try {
+		const dataUrl = await captureVisible(tab.windowId, 85);
+		thumbId = await saveThumbnail(dataUrl);
+	} catch {
+		// A page can still be saved when the browser denies the screenshot.
+	}
+
+	const pending = {
+		id,
+		url: tab.url.trim(),
+		title: tab.title?.trim() || tab.url.trim(),
+		favicon: tab.favIconUrl || "",
+		thumbId,
+		sourceTabId: typeof tab.id === "number" ? tab.id : null,
+		sourceWindowId: typeof tab.windowId === "number" ? tab.windowId : null,
+		createdAt,
+		expiresAt: createdAt + PENDING_SAVE_TTL_MS,
+	};
+	const validated = parsePendingSave(pending, id, createdAt);
+	if (!validated) {
+		await deletePendingThumbnail(thumbId);
+		flashBadge("✕", "#FF453A");
+		return;
+	}
+
+	let stored = false;
+	try {
+		const existing = await browser.storage.local.get(PENDING_SAVE_KEY);
+		const previousThumbId = pendingSaveThumbId(existing[PENDING_SAVE_KEY]);
+		await browser.storage.local.set({ [PENDING_SAVE_KEY]: validated });
+		stored = true;
+		if (previousThumbId) await deletePendingThumbnail(previousThumbId);
+
+		const popupUrl = browser.runtime.getURL(
+			`/popup.html?${PENDING_SAVE_QUERY_PARAM}=${encodeURIComponent(id)}`,
+		);
+		await browser.windows.create({
+			url: popupUrl,
+			type: "popup",
+			width: 360,
+			height: 500,
+			focused: true,
+		});
+	} catch {
+		if (stored) {
+			await clearPendingSave(id, true, thumbId).catch(() =>
+				deletePendingThumbnail(thumbId),
+			);
+		} else {
+			await deletePendingThumbnail(thumbId);
+		}
+		flashBadge("✕", "#FF453A");
+	}
+}
 
 async function captureAndAdd(
 	tab: {
@@ -307,7 +427,7 @@ function queueMissingThumbnailCapture(
 
 async function captureMissingThumbnail(tabId: number, expectedUrl: string) {
 	const state = await readSetup();
-	if (!state || !state.settings.thumbnailCapture?.enabled) return;
+	if (!state?.settings.thumbnailCapture?.enabled) return;
 
 	const tab = await browser.tabs.get(tabId);
 	if (
