@@ -9,7 +9,12 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type DragEvent, useEffect, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
-import { getDragId, isDragKind } from "../../../lib/dnd";
+import {
+	getActiveDrag,
+	getDragId,
+	isDragKind,
+	setDragData,
+} from "../../../lib/dnd";
 import { glassCardFooter, glassDropdownItem } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
 import { useImageStore } from "../../../stores/image-store";
@@ -34,7 +39,11 @@ interface FolderPreviewCardProps {
 	onDropCard: (cardId: string, folderId: string) => void;
 	onDropFolder: (folderId: string, targetFolderId: string) => void;
 	canAcceptFolder: (folderId: string) => boolean;
-	dragProps?: Record<string, unknown>;
+	dragProps?: {
+		draggable?: boolean;
+		onDragStart?: (e: DragEvent) => void;
+		onDragEnd?: () => void;
+	};
 	className?: string;
 }
 
@@ -60,8 +69,9 @@ export function FolderPreviewCard({
 	function accepts(e: DragEvent): boolean {
 		if (isDragKind(e, "card")) return true;
 		if (isDragKind(e, "folder")) {
-			const draggedId = getDragId(e);
-			return draggedId ? draggedId !== id && canAcceptFolder(draggedId) : true;
+			const active = getActiveDrag();
+			const draggedId = active?.id || getDragId(e);
+			return draggedId ? draggedId !== id && canAcceptFolder(draggedId) : false;
 		}
 		return false;
 	}
@@ -83,8 +93,10 @@ export function FolderPreviewCard({
 		e.preventDefault();
 		setDropActive(false);
 		spring.cancel();
-		const draggedId = getDragId(e);
+		const active = getActiveDrag();
+		const draggedId = active?.id || getDragId(e);
 		if (!draggedId) return;
+
 		if (isDragKind(e, "folder")) {
 			if (draggedId !== id && canAcceptFolder(draggedId)) {
 				onDropFolder(draggedId, id);
@@ -101,11 +113,11 @@ export function FolderPreviewCard({
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-all duration-200 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[1.01]",
+					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.98]",
 					isLiquid
 						? glassVariantStyles.liquid
 						: "border border-border bg-card shadow-sm",
-					dropActive && "scale-[1.04] ring-2 ring-white/60",
+					dropActive && "scale-[1.04] ring-2 ring-white/80 shadow-md",
 					dragging && "opacity-40",
 					className,
 				)}
@@ -113,11 +125,19 @@ export function FolderPreviewCard({
 					<button
 						type="button"
 						aria-label={`Open folder ${name}`}
+						title={name}
 						onClick={() => onOpen(id)}
+						draggable={true}
+						onDragStart={(e) => {
+							setDragData(e, "folder", id);
+							dragProps?.onDragStart?.(e);
+						}}
+						onDragEnd={() => {
+							dragProps?.onDragEnd?.();
+						}}
 						onDragOver={handleDragOver}
 						onDragLeave={handleDragLeave}
 						onDrop={handleDrop}
-						{...dragProps}
 					/>
 				}
 			>
@@ -178,28 +198,22 @@ export function FolderPreviewCard({
 
 			<ContextMenuContent
 				className={cn(
-					"min-w-48",
-					isLiquid
-						? cn(
-								glassVariantStyles.liquid,
-								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
-								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
-							)
-						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+					"min-w-44 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-xl",
+					isLiquid && "bg-popover/90 backdrop-blur-xl",
 				)}
 			>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onOpen(id)}
 				>
-					<Icon name="folder" size={15} />
+					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onEdit(id)}
 				>
-					<Icon name="pencil" size={15} />
+					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuSeparator
@@ -210,7 +224,7 @@ export function FolderPreviewCard({
 					variant="destructive"
 					onClick={() => onDelete(id)}
 				>
-					<Icon name="trash" size={15} />
+					<Icon name="trash" size={14} />
 					Delete
 				</ContextMenuItem>
 			</ContextMenuContent>
@@ -229,41 +243,37 @@ function FolderMiniTile({
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
 	useEffect(() => {
-		let cancelled = false;
-		if (!card.thumbId) {
-			setThumbUrl(null);
-			return;
+		let active = true;
+		if (card.thumbId) {
+			getThumbnail(card.thumbId).then((url) => {
+				if (active) setThumbUrl(url);
+			});
 		}
-		getThumbnail(card.thumbId).then((url) => {
-			if (!cancelled) setThumbUrl(url);
-		});
 		return () => {
-			cancelled = true;
+			active = false;
 		};
 	}, [card.thumbId, getThumbnail]);
 
 	return (
 		<div
 			className={cn(
-				"flex items-center justify-center overflow-hidden rounded-[5px]",
-				isLiquid ? "bg-white/[0.08]" : "bg-muted",
+				"relative flex size-full items-center justify-center overflow-hidden rounded-[7px]",
+				isLiquid ? "bg-white/[0.08]" : "bg-muted/60",
 			)}
 		>
 			{thumbUrl ? (
 				<img
 					src={thumbUrl}
 					alt=""
-					className="h-full w-full object-cover"
-					loading="lazy"
+					className="absolute inset-0 size-full object-cover"
 				/>
 			) : (
 				<img
 					src={card.favicon}
 					alt=""
-					className="h-3 w-3 rounded-[2px]"
-					loading="lazy"
+					className="size-3.5 object-contain"
 					onError={(e) => {
-						(e.target as HTMLImageElement).style.display = "none";
+						e.currentTarget.style.display = "none";
 					}}
 				/>
 			)}

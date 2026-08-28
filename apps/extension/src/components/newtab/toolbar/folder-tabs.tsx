@@ -6,7 +6,6 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type DragEvent, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
 import { getDragId, isDragKind, setDragData } from "../../../lib/dnd";
@@ -35,7 +34,7 @@ interface FolderTabsProps {
 
 /**
  * Floating tab bar. Every tab shares the same height and radius as all
- * other toolbar controls (h-9, rounded-full).
+ * other toolbar controls (h-[34px], rounded-full).
  */
 export function FolderTabs({
 	folders,
@@ -113,7 +112,7 @@ function FolderTab({
 		if (isDragKind(e, "folder")) {
 			const draggedId = getDragId(e);
 			if (!draggedId) return true;
-			if (draggedId === folder.id) return true;
+			if (draggedId === folder.id) return false;
 			return canNestFolder ? canNestFolder(draggedId, folder.id) : true;
 		}
 		return false;
@@ -165,7 +164,7 @@ function FolderTab({
 
 	const dropClass = dropActive
 		? isLiquid
-			? "bg-white/25 text-white ring-1 ring-white/30"
+			? "bg-white/25 text-white ring-1 ring-white/40 shadow-xs"
 			: "bg-accent text-accent-foreground ring-1 ring-ring"
 		: "";
 
@@ -176,10 +175,11 @@ function FolderTab({
 				className={cn(
 					TOOLBAR.controlHeight,
 					TOOLBAR.radius,
-					"whitespace-nowrap px-3 font-medium text-[13px]",
+					"max-w-[160px] truncate px-3 font-medium text-[13px] transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97]",
 					baseClass,
 					dropClass,
 				)}
+				title={folder.name}
 				render={
 					<button
 						type="button"
@@ -205,28 +205,22 @@ function FolderTab({
 
 			<ContextMenuContent
 				className={cn(
-					"min-w-48",
-					isLiquid
-						? cn(
-								glassVariantStyles.liquid,
-								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
-								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
-							)
-						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+					"min-w-44 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-xl",
+					isLiquid && "bg-popover/90 backdrop-blur-xl",
 				)}
 			>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onSelectFolder(folder.id)}
 				>
-					<Icon name="folder" size={15} />
+					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onEditFolder?.(folder.id)}
 				>
-					<Icon name="pencil" size={15} />
+					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuSeparator
@@ -237,7 +231,7 @@ function FolderTab({
 					variant="destructive"
 					onClick={() => onDeleteFolder?.(folder.id)}
 				>
-					<Icon name="trash" size={15} />
+					<Icon name="trash" size={14} />
 					Delete
 				</ContextMenuItem>
 			</ContextMenuContent>

@@ -1,26 +1,15 @@
 import { type DragEvent, useCallback, useRef, useState } from "react";
-import { type DragKind, setDragData } from "../lib/dnd";
+import { type DragKind, setActiveDrag, setDragData } from "../lib/dnd";
 
-/**
- * Generic HTML5 drag-and-drop coordinator for a list of identified items.
- *
- * Why a ref for the dragged id: React re-renders during a drag (we update
- * `overId` for visual feedback), and a plain local/render-scoped variable would
- * be reset on every render — which is exactly the bug this replaces. The ref
- * persists across renders for the whole gesture.
- *
- * The consumer decides what a drop means (reorder vs. move into a container)
- * based on the target item's kind, so this hook stays layout-agnostic.
- */
 export interface DragAndDrop {
 	draggingId: string | null;
 	overId: string | null;
 	isDragging: boolean;
 	/** Props to spread on each draggable/droppable item element. */
 	getItemProps: (id: string) => {
-		draggable: true;
-		"data-dragging": boolean | undefined;
-		"data-drop-target": boolean | undefined;
+		draggable: boolean;
+		"data-dragging"?: boolean;
+		"data-drop-target"?: boolean;
 		onDragStart: (e: DragEvent) => void;
 		onDragEnd: () => void;
 		onDragOver: (e: DragEvent) => void;
@@ -36,7 +25,10 @@ interface Options {
 	kind?: DragKind;
 }
 
-export function useDragAndDrop({ onDrop, kind = "card" }: Options): DragAndDrop {
+export function useDragAndDrop({
+	onDrop,
+	kind = "card",
+}: Options): DragAndDrop {
 	const draggingRef = useRef<string | null>(null);
 	const [draggingId, setDraggingId] = useState<string | null>(null);
 	const [overId, setOverId] = useState<string | null>(null);
@@ -44,15 +36,20 @@ export function useDragAndDrop({ onDrop, kind = "card" }: Options): DragAndDrop 
 	const handleDragStart = useCallback(
 		(id: string) => (e: DragEvent) => {
 			draggingRef.current = id;
-			setDraggingId(id);
-			// setDragData sets effectAllowed and writes the typed payload + text/plain.
 			setDragData(e, kind, id);
+			// Defer source dimming by one frame so browser captures full-opacity drag image
+			requestAnimationFrame(() => {
+				if (draggingRef.current === id) {
+					setDraggingId(id);
+				}
+			});
 		},
 		[kind],
 	);
 
 	const handleDragEnd = useCallback(() => {
 		draggingRef.current = null;
+		setActiveDrag(null);
 		setDraggingId(null);
 		setOverId(null);
 	}, []);
@@ -63,13 +60,21 @@ export function useDragAndDrop({ onDrop, kind = "card" }: Options): DragAndDrop 
 			e.preventDefault();
 			e.dataTransfer.dropEffect = "move";
 			setOverId((prev) => (prev === id ? prev : id));
+
+			// Edge auto-scroll
+			if (typeof window !== "undefined") {
+				if (e.clientY < 50) {
+					window.scrollBy({ top: -10, behavior: "instant" as ScrollBehavior });
+				} else if (window.innerHeight - e.clientY < 50) {
+					window.scrollBy({ top: 10, behavior: "instant" as ScrollBehavior });
+				}
+			}
 		},
 		[],
 	);
 
 	const handleDragLeave = useCallback(
 		(id: string) => (e: DragEvent) => {
-			// Ignore leave events fired when moving over a child element.
 			const related = e.relatedTarget as Node | null;
 			if (
 				related &&
@@ -87,6 +92,7 @@ export function useDragAndDrop({ onDrop, kind = "card" }: Options): DragAndDrop 
 			e.preventDefault();
 			const dragged = draggingRef.current;
 			draggingRef.current = null;
+			setActiveDrag(null);
 			setDraggingId(null);
 			setOverId(null);
 			if (!dragged || dragged === id) return;
