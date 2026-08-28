@@ -101,13 +101,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	animation: cardIn 0.22s var(--ease-spring) both;
 }
 
-/* Card-layout cells (cards + folders + placeholder) all derive height
-   strictly from fixed track width via shared aspect-ratio. */
+/* Card-layout cells (cards + folders + placeholder) derive height from the
+   fixed track width and the DialGrid-provided card height ratio. */
 .dial-grid[data-layout="card"] .dial-cell {
 	width: var(--tile-w);
-	height: calc(var(--tile-w) * var(--aspect, 1.12));
+	height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
 	min-width: var(--tile-w);
-	min-height: calc(var(--tile-w) * var(--aspect, 1.12));
+	min-height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
 }
 
 .dial-grid[data-initial-mount="true"] > *:nth-child(1) {

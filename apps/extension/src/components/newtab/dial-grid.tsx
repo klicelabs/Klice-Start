@@ -73,11 +73,11 @@ export function DialGrid({
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [clearSelection]);
 
-	const heightMultiple =
+	const cardHeightRatio =
 		CARD_ASPECT_RATIO[cardAspect] ?? CARD_ASPECT_RATIO.vertical;
 	const cellAspectStyle =
 		dialLayout === "card"
-			? { ["--cell-aspect" as string]: String(1 / heightMultiple) }
+			? { ["--card-height-ratio" as string]: String(cardHeightRatio) }
 			: {};
 
 	// Multi-item drop on folder handler
@@ -98,7 +98,15 @@ export function DialGrid({
 			}
 			clearSelection();
 		},
-		[selectedIds, cards, subfolders, onMoveCard, onMoveFolder, canNestFolder, clearSelection],
+		[
+			selectedIds,
+			cards,
+			subfolders,
+			onMoveCard,
+			onMoveFolder,
+			canNestFolder,
+			clearSelection,
+		],
 	);
 
 	const dnd = useDragAndDrop({ onDrop: onReorder, kind: "card" });
@@ -121,7 +129,11 @@ export function DialGrid({
 		}
 	}
 
-	function handleFolderClick(e: React.MouseEvent, id: string, onOpen: () => void) {
+	function handleFolderClick(
+		e: React.MouseEvent,
+		id: string,
+		onOpen: () => void,
+	) {
 		if (e.metaKey || e.ctrlKey) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -168,7 +180,9 @@ export function DialGrid({
 							dragging={folderDnd.draggingId === folder.id}
 							isSelected={isSelected}
 							showMultiBadge={selectedIds.length > 1}
-							onClick={(e) => handleFolderClick(e, folder.id, () => onOpenFolder(folder.id))}
+							onClick={(e) =>
+								handleFolderClick(e, folder.id, () => onOpenFolder(folder.id))
+							}
 							onOpen={onOpenFolder}
 							onEdit={onEditFolder}
 							onDelete={onDeleteFolder}
