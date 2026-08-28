@@ -13,10 +13,10 @@ export default defineConfig({
 				data_collection_permissions: { required: ["none"] },
 			},
 		},
-		version: "1.2.1",
+		version: "1.2.2",
 		default_locale: "en",
 		description: "A personal browser dashboard for your new tab.",
-		permissions: ["storage", "activeTab", "tabs", "contextMenus"],
+		permissions: ["storage", "activeTab", "tabs", "contextMenus", "bookmarks"],
 		host_permissions: ["http://*/*", "https://*/*"],
 		commands: {
 			"add-current-page": {

@@ -15,7 +15,7 @@ import { uid } from "../lib/utils";
 import { useSetupStore } from "../stores/setup-store";
 import type { Card, Folder } from "../types";
 
-export interface HtmlImportResult {
+export interface BookmarkImportResult {
 	foldersCreated: number;
 	cardsCreated: number;
 }
@@ -30,6 +30,13 @@ interface ParsedFolder {
 	name: string;
 	links: ParsedLink[];
 	children: ParsedFolder[];
+}
+
+/** A folder in a normalized bookmark tree (HTML file or browser bookmarks). */
+export interface BookmarkTreeFolder {
+	name: string;
+	links: { title: string; url: string }[];
+	children: BookmarkTreeFolder[];
 }
 
 /** Escape text for safe embedding in an HTML attribute or text node. */
@@ -209,50 +216,17 @@ function parseLevel(
 }
 
 /**
- * Import a Netscape Bookmark File (as exported by Chrome or Firefox) into
- * Klice Start as folders + cards. Folders are matched by (case-insensitive) name at
- * the same level and reused if present, so re-importing is idempotent. Cards
- * are de-duplicated per folder by canonical URL. Throws when the file
- * contains no folders or links.
+ * Merge a normalized bookmark tree into Klice Start as folders + cards.
+ * Folders are matched by (case-insensitive) name at the same level and
+ * reused if present, so re-importing is idempotent. Cards are de-duplicated
+ * per folder by canonical URL. Loose root links land in a catch-all
+ * "Bookmarks" root folder. Commits a single store update, and only when
+ * something changed.
  */
-export async function importBookmarksHtml(
-	fileText: string,
-): Promise<HtmlImportResult> {
-	if (typeof fileText !== "string") {
-		throw new Error("Bookmark file must be provided as text.");
-	}
-	if (fileText.length > MAX_BOOKMARK_INPUT_LENGTH) {
-		throw new Error(
-			`Bookmark file exceeds maximum input length (${MAX_BOOKMARK_INPUT_LENGTH} characters).`,
-		);
-	}
-	const doc = new DOMParser().parseFromString(fileText, "text/html");
-	const budget: ParseBudget = { dtNodes: 0 };
-
-	// Parse only top-level <DL> lists; nested ones are reached via recursion.
-	const rootLinks: ParsedLink[] = [];
-	const rootFolders: ParsedFolder[] = [];
-	for (const dl of Array.from(doc.querySelectorAll("DL"))) {
-		let ancestor = dl.parentElement;
-		let nested = false;
-		while (ancestor) {
-			if (ancestor.tagName === "DL") {
-				nested = true;
-				break;
-			}
-			ancestor = ancestor.parentElement;
-		}
-		if (nested) continue;
-
-		const level = parseLevel(dl, budget, 0);
-		rootLinks.push(...level.links);
-		rootFolders.push(...level.folders);
-	}
-
-	if (rootLinks.length === 0 && rootFolders.length === 0) {
-		throw new Error("No bookmarks found in file.");
-	}
-
+export function mergeBookmarkTree(
+	rootFolders: BookmarkTreeFolder[],
+	rootLinks: { title: string; url: string }[],
+): BookmarkImportResult {
 	const store = useSetupStore.getState();
 
 	// Work on local copies, commit once at the end.
@@ -309,7 +283,10 @@ export async function importBookmarksHtml(
 		return folder;
 	};
 
-	const addLinks = (target: Folder, parsedLinks: ParsedLink[]): void => {
+	const addLinks = (
+		target: Folder,
+		links: { title: string; url: string }[],
+	): void => {
 		const seen = seenFor(target.id);
 		let order = cards.reduce(
 			(nextOrder, card) =>
@@ -318,7 +295,7 @@ export async function importBookmarksHtml(
 					: nextOrder,
 			0,
 		);
-		for (const link of parsedLinks) {
+		for (const link of links) {
 			const canon = canonicalUrl(link.url);
 			if (!canon || seen.has(canon)) continue;
 			cards.push({
@@ -337,21 +314,162 @@ export async function importBookmarksHtml(
 		}
 	};
 
-	const merge = (parsedFolder: ParsedFolder, parentId: string | null): void => {
-		const folder = ensureFolder(parsedFolder.name, parentId);
-		addLinks(folder, parsedFolder.links);
-		for (const child of parsedFolder.children) merge(child, folder.id);
+	const merge = (
+		treeFolder: BookmarkTreeFolder,
+		parentId: string | null,
+	): void => {
+		const folder = ensureFolder(treeFolder.name, parentId);
+		addLinks(folder, treeFolder.links);
+		for (const child of treeFolder.children) merge(child, folder.id);
 	};
 
 	// Loose links outside any folder land in a catch-all root folder.
 	if (rootLinks.length > 0) {
 		addLinks(ensureFolder("Bookmarks", null), rootLinks);
 	}
-	for (const parsedFolder of rootFolders) merge(parsedFolder, null);
+	for (const treeFolder of rootFolders) merge(treeFolder, null);
 
 	if (foldersCreated > 0 || cardsCreated > 0) {
 		useSetupStore.setState({ folders, cards });
 	}
 
 	return { foldersCreated, cardsCreated };
+}
+
+/**
+ * Import a Netscape Bookmark File (as exported by Chrome or Firefox) into
+ * Klice Start as folders + cards. Throws when the file contains no folders
+ * or links. Merge semantics are provided by {@link mergeBookmarkTree}.
+ */
+export async function importBookmarksHtml(
+	fileText: string,
+): Promise<BookmarkImportResult> {
+	if (typeof fileText !== "string") {
+		throw new Error("Bookmark file must be provided as text.");
+	}
+	if (fileText.length > MAX_BOOKMARK_INPUT_LENGTH) {
+		throw new Error(
+			`Bookmark file exceeds maximum input length (${MAX_BOOKMARK_INPUT_LENGTH} characters).`,
+		);
+	}
+	const doc = new DOMParser().parseFromString(fileText, "text/html");
+	const budget: ParseBudget = { dtNodes: 0 };
+
+	// Parse only top-level <DL> lists; nested ones are reached via recursion.
+	const rootLinks: ParsedLink[] = [];
+	const rootFolders: ParsedFolder[] = [];
+	for (const dl of Array.from(doc.querySelectorAll("DL"))) {
+		let ancestor = dl.parentElement;
+		let nested = false;
+		while (ancestor) {
+			if (ancestor.tagName === "DL") {
+				nested = true;
+				break;
+			}
+			ancestor = ancestor.parentElement;
+		}
+		if (nested) continue;
+
+		const level = parseLevel(dl, budget, 0);
+		rootLinks.push(...level.links);
+		rootFolders.push(...level.folders);
+	}
+
+	if (rootLinks.length === 0 && rootFolders.length === 0) {
+		throw new Error("No bookmarks found in file.");
+	}
+
+	return mergeBookmarkTree(rootFolders, rootLinks);
+}
+
+/**
+ * Import the browser's own bookmark tree (chrome.bookmarks) into Klice Start.
+ * The native root containers ("Bookmarks Bar", "Other Bookmarks", Firefox's
+ * "Bookmarks Menu" and "Mobile Bookmarks") are containers, not user folders:
+ * their children are hoisted to the top level, and a hoisted container's
+ * direct links join the loose root links (merged into the catch-all
+ * "Bookmarks" folder). Only http(s) links are imported. Merge semantics are
+ * provided by {@link mergeBookmarkTree}.
+ */
+export async function importBookmarksFromBrowser(): Promise<BookmarkImportResult> {
+	if (typeof chrome === "undefined" || !chrome.bookmarks?.getTree) {
+		throw new Error("Bookmark import is not supported in this browser.");
+	}
+
+	let tree: chrome.bookmarks.BookmarkTreeNode[];
+	try {
+		tree = await chrome.bookmarks.getTree();
+	} catch (err) {
+		throw new Error(
+			"Could not read browser bookmarks. Check the extension permissions.",
+			{ cause: err },
+		);
+	}
+
+	const topFolders: BookmarkTreeFolder[] = [];
+	const topLinks: { title: string; url: string }[] = [];
+
+	const convertFolder = (
+		node: chrome.bookmarks.BookmarkTreeNode,
+		depth: number,
+	): BookmarkTreeFolder => {
+		if (depth > MAX_BOOKMARK_NESTING_DEPTH) {
+			throw new Error(
+				`Browser bookmarks exceed maximum folder nesting depth (${MAX_BOOKMARK_NESTING_DEPTH}).`,
+			);
+		}
+		const folder: BookmarkTreeFolder = {
+			name: node.title.trim() || "Untitled",
+			links: [],
+			children: [],
+		};
+		for (const child of node.children ?? []) {
+			if (child.url) {
+				if (isAbsoluteHttpUrl(child.url)) {
+					folder.links.push({
+						title: child.title.trim() || child.url,
+						url: child.url,
+					});
+				}
+				continue;
+			}
+			folder.children.push(convertFolder(child, depth + 1));
+		}
+		return folder;
+	};
+
+	// tree[0] is the browser root node; its children are the root containers
+	// (bookmark bar, other bookmarks, …). Hoist each container's children to
+	// the top level instead of creating a wrapper folder per container.
+	for (const rootContainer of tree[0]?.children ?? []) {
+		if (rootContainer.url) {
+			if (isAbsoluteHttpUrl(rootContainer.url)) {
+				topLinks.push({
+					title: rootContainer.title.trim() || rootContainer.url,
+					url: rootContainer.url,
+				});
+			}
+			continue;
+		}
+		for (const child of rootContainer.children ?? []) {
+			if (child.url) {
+				if (isAbsoluteHttpUrl(child.url)) {
+					topLinks.push({
+						title: child.title.trim() || child.url,
+						url: child.url,
+					});
+				}
+				continue;
+			}
+			topFolders.push(convertFolder(child, 2));
+		}
+	}
+
+	const hasLinks = (folder: BookmarkTreeFolder): boolean =>
+		folder.links.length > 0 || folder.children.some(hasLinks);
+	if (topLinks.length === 0 && !topFolders.some(hasLinks)) {
+		throw new Error("No bookmarks found in this browser.");
+	}
+
+	return mergeBookmarkTree(topFolders, topLinks);
 }

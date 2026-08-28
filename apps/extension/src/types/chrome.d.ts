@@ -100,6 +100,7 @@ declare namespace chrome {
 			url?: string;
 			children?: BookmarkTreeNode[];
 			dateAdded?: number;
+			parentId?: string;
 		}
 		function getTree(): Promise<BookmarkTreeNode[]>;
 	}

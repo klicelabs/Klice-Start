@@ -7,6 +7,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@klice-start/ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@klice-start/ui/components/dropdown-menu";
 import { Input } from "@klice-start/ui/components/input";
 import {
 	Select,
@@ -38,6 +44,7 @@ import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
 import { cn } from "../../lib/utils";
 import {
 	exportBookmarksHtml,
+	importBookmarksFromBrowser,
 	importBookmarksHtml,
 } from "../../services/bookmarks-html";
 import { refreshWallpaper } from "../../services/wallpaper";
@@ -721,6 +728,26 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 		}
 	}
 
+	async function handleImportFromBrowser() {
+		const operation = ++importOperationRef.current;
+		if (mountedRef.current) setImportStatus("Reading bookmarks…");
+		try {
+			const { foldersCreated, cardsCreated } =
+				await importBookmarksFromBrowser();
+			if (!mountedRef.current || importOperationRef.current !== operation)
+				return;
+			setImportStatus(
+				`Done: ${foldersCreated} folder(s) and ${cardsCreated} link(s) imported.`,
+			);
+		} catch (err) {
+			if (mountedRef.current && importOperationRef.current === operation) {
+				setImportStatus(
+					err instanceof Error ? err.message : "Could not import bookmarks.",
+				);
+			}
+		}
+	}
+
 	async function handleExportBookmarks() {
 		const operation = ++importOperationRef.current;
 		const importFileInput = importFileRef.current;
@@ -1332,13 +1359,35 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 							</SettingRow>
 							<div className="px-1 py-2">
 								<div className="flex gap-2">
-									<Button
-										variant="secondary"
-										className="flex-1 rounded-xl text-sm"
-										onClick={() => importFileRef.current?.click()}
-									>
-										Import Bookmarks
-									</Button>
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													variant="secondary"
+													className="flex-1 rounded-xl text-sm"
+												/>
+											}
+										>
+											Import Bookmarks
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="start"
+											side="top"
+											sideOffset={6}
+											className="w-auto min-w-[220px]"
+										>
+											<DropdownMenuItem onClick={handleImportFromBrowser}>
+												<Icon name="globe" className="opacity-70" />
+												Import from Browser
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												onClick={() => importFileRef.current?.click()}
+											>
+												<Icon name="upload" className="opacity-70" />
+												Import from HTML File
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
 									<Button
 										variant="secondary"
 										className="flex-1 rounded-xl text-sm"
