@@ -40,7 +40,7 @@ export function toolbarControlLiquid(active: boolean): string {
  */
 export function toolbarControlClassic(active: boolean): string {
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-primary text-primary-foreground shadow-sm`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-secondary text-secondary-foreground shadow-sm`;
 	}
 	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-muted-foreground hover:text-foreground hover:bg-muted active:bg-accent`;
 }
