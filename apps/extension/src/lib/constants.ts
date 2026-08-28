@@ -8,6 +8,7 @@ import type {
 	ThumbnailCaptureSettings,
 	WallpaperFrequency,
 } from "../types";
+export const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
 
 export interface GradientDef {
 	id: string;

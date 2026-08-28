@@ -1,5 +1,8 @@
+import {
+	DEFAULT_BACKGROUND,
+	MAX_BACKGROUND_IMAGE_BYTES,
+} from "../lib/constants";
 import { saveBackground } from "../lib/idb";
-import { DEFAULT_BACKGROUND } from "../lib/constants";
 import { pexelsProxyUrl } from "../lib/pexels";
 import { useImageStore } from "../stores/image-store";
 import { useSetupStore } from "../stores/setup-store";
@@ -46,6 +49,9 @@ function shouldFetch(
 }
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
+	if (blob.size > MAX_BACKGROUND_IMAGE_BYTES) {
+		throw new Error("Remote wallpaper exceeds the maximum image size.");
+	}
 	const { promise, resolve, reject } = Promise.withResolvers<string>();
 	const reader = new FileReader();
 	reader.onload = () => resolve(reader.result as string);
@@ -153,8 +159,6 @@ function matchesRefreshRequestIdentity(
 	);
 }
 
-
-
 function isCurrentPexelsRequest(
 	request: PexelsRefreshRequest,
 	imageId = request.imageId,
@@ -162,7 +166,8 @@ function isCurrentPexelsRequest(
 	const currentBg = useSetupStore.getState().settings.background;
 	return (
 		currentBg.type === "pexels" &&
-		(currentBg.pexelsQuery || DEFAULT_BACKGROUND.pexelsQuery) === request.query &&
+		(currentBg.pexelsQuery || DEFAULT_BACKGROUND.pexelsQuery) ===
+			request.query &&
 		(currentBg.pexelsFrequency || "daily") === request.frequency &&
 		currentBg.pexelsImageId === imageId &&
 		refreshSession === request.session
@@ -211,7 +216,50 @@ async function downloadImage(url: string): Promise<Blob | null> {
 	try {
 		const res = await fetch(url, { mode: "cors" });
 		if (!res.ok) return null;
-		return await res.blob();
+		const contentType = res.headers.get("Content-Type");
+		if (
+			contentType !== null &&
+			!contentType.toLowerCase().startsWith("image/")
+		) {
+			return null;
+		}
+
+		const contentLength = res.headers.get("Content-Length");
+		if (contentLength !== null) {
+			const declaredSize = Number(contentLength);
+			if (
+				!Number.isSafeInteger(declaredSize) ||
+				declaredSize < 0 ||
+				declaredSize > MAX_BACKGROUND_IMAGE_BYTES
+			) {
+				return null;
+			}
+		}
+
+		if (res.body) {
+			const reader = res.body.getReader();
+			const chunks: ArrayBuffer[] = [];
+			let totalBytes = 0;
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				if (!value) continue;
+				totalBytes += value.byteLength;
+				if (totalBytes > MAX_BACKGROUND_IMAGE_BYTES) {
+					await reader.cancel();
+					return null;
+				}
+				const chunk = new Uint8Array(value.byteLength);
+				chunk.set(value);
+				chunks.push(chunk.buffer);
+			}
+			return new Blob(chunks, {
+				type: res.headers.get("Content-Type") ?? "",
+			});
+		}
+
+		const blob = await res.blob();
+		return blob.size <= MAX_BACKGROUND_IMAGE_BYTES ? blob : null;
 	} catch {
 		return null;
 	}

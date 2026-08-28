@@ -12,6 +12,11 @@ export const STORE_THUMBS = "thumbnails";
 export const STORE_BG = "backgrounds";
 
 export type ImageStoreName = typeof STORE_THUMBS | typeof STORE_BG;
+export interface ImageWrite {
+	store: ImageStoreName;
+	key: string;
+	value: string;
+}
 
 let _dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -60,7 +65,24 @@ export async function idbPut(
 	tx.onerror = () => reject(tx.error);
 	return promise;
 }
-
+export async function putImages(images: readonly ImageWrite[]): Promise<void> {
+	if (images.length === 0) return;
+	const db = await openIDB();
+	const { promise, resolve, reject } = Promise.withResolvers<void>();
+	const tx = db.transaction([STORE_THUMBS, STORE_BG], "readwrite");
+	tx.oncomplete = () => resolve();
+	tx.onerror = () => reject(tx.error);
+	tx.onabort = () =>
+		reject(tx.error ?? new Error("Image restore transaction aborted."));
+	try {
+		for (const image of images) {
+			tx.objectStore(image.store).put(image.value, image.key);
+		}
+	} catch (error) {
+		reject(error);
+	}
+	return promise;
+}
 export async function idbGet(
 	store: ImageStoreName,
 	key: string,

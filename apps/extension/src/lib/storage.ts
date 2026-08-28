@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETUP, WALLPAPERS } from "./constants";
 import { getDescendantIds } from "./folder-tree";
+import { isAbsoluteHttpUrl } from "./url";
 
 /**
  * Repair folder hierarchy: coerce every folder to include a valid parentId,
@@ -35,7 +36,6 @@ function normalizeFolders(rawFolders: Folder[]): Folder[] {
 		if (
 			folder.parentId &&
 			getDescendantIds(folders, folder.id).includes(folder.parentId)
-
 		) {
 			folder.parentId = null;
 		}
@@ -43,7 +43,9 @@ function normalizeFolders(rawFolders: Folder[]): Folder[] {
 
 	return folders;
 }
-const VALID_WALLPAPER_IDS = new Set(WALLPAPERS.map((wallpaper) => wallpaper.id));
+const VALID_WALLPAPER_IDS = new Set(
+	WALLPAPERS.map((wallpaper) => wallpaper.id),
+);
 const VALID_FREQUENCIES: readonly WallpaperFrequency[] = [
 	"per-tab",
 	"hourly",
@@ -231,30 +233,82 @@ export function normalizeState(
 	}
 
 	// Migrate cards to include origin/capturedAt fields
-	state.cards = state.cards.map(
-		(card): Card => ({
-			...card,
-			origin:
-				(card as Card & Record<string, unknown>).origin ?? ("local" as const),
-			capturedAt:
-				(card as Card & Record<string, unknown>).capturedAt ??
-				(null as number | null),
-		}),
-	);
+	state.cards = state.cards
+		.filter(
+			(card) =>
+				isRecord(card) &&
+				typeof card.url === "string" &&
+				isAbsoluteHttpUrl(card.url),
+		)
+		.map(
+			(card): Card => ({
+				...card,
+				origin:
+					(card as Card & Record<string, unknown>).origin ?? ("local" as const),
+				capturedAt:
+					(card as Card & Record<string, unknown>).capturedAt ??
+					(null as number | null),
+			}),
+		);
 
 	return state;
 }
 
 // --- Coalesced persist ---
 
-let _pendingSetItem: { name: string; value: StorageValue<Setup> } | null = null;
+export const RESET_GENERATION_KEY = "perch-reset-generation";
+export const PERSIST_GENERATION_KEY = "__perchResetGeneration";
+
+function normalizeResetGeneration(value: unknown): number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+		? value
+		: 0;
+}
+
+let _resetGeneration = 0;
+let _resetGenerationLoaded = true;
+let _resetGenerationReady = Promise.resolve();
+if (typeof chrome !== "undefined") {
+	_resetGenerationLoaded = false;
+	_resetGenerationReady = chrome.storage.local
+		.get(RESET_GENERATION_KEY)
+		.then((data) => {
+			_resetGeneration = normalizeResetGeneration(data[RESET_GENERATION_KEY]);
+		})
+		.catch(() => undefined)
+		.finally(() => {
+			_resetGenerationLoaded = true;
+		});
+	chrome.storage.onChanged.addListener((changes, area) => {
+		if (area !== "local") return;
+		const next = normalizeResetGeneration(
+			changes[RESET_GENERATION_KEY]?.newValue,
+		);
+		if (next > _resetGeneration) _resetGeneration = next;
+	});
+}
+
+interface PendingSetItem {
+	name: string;
+	value: StorageValue<Setup>;
+	generation: number;
+}
+
+let _pendingSetItem: PendingSetItem | null = null;
 let _pendingResolvers: Array<() => void> = [];
 let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
 let _inFlightWrite: Promise<void> | null = null;
 let _lastWrittenJSON: string | null = null;
 
-function _doWrite(name: string, value: StorageValue<Setup>): Promise<void> {
-	const json = JSON.stringify(value);
+function _doWrite(
+	name: string,
+	value: StorageValue<Setup>,
+	generation: number,
+): Promise<void> {
+	const json = JSON.stringify({
+		...value,
+		[PERSIST_GENERATION_KEY]: generation,
+	});
 	const previous = _inFlightWrite ?? Promise.resolve();
 	const write = previous
 		.catch(() => undefined)
@@ -274,6 +328,9 @@ function _doWrite(name: string, value: StorageValue<Setup>): Promise<void> {
  * Returns a promise that resolves when the write completes.
  */
 export function flushPersist(): Promise<void> {
+	if (!_resetGenerationLoaded) {
+		return _resetGenerationReady.then(() => flushPersist());
+	}
 	if (_setItemTimer) clearTimeout(_setItemTimer);
 	_setItemTimer = null;
 	const snap = _pendingSetItem;
@@ -281,7 +338,7 @@ export function flushPersist(): Promise<void> {
 	const resolvers = _pendingResolvers;
 	_pendingResolvers = [];
 	if (!snap) return _inFlightWrite ?? Promise.resolve();
-	const write = _doWrite(snap.name, snap.value);
+	const write = _doWrite(snap.name, snap.value, snap.generation);
 	write.then(
 		() => {
 			resolvers.forEach((resolve) => {
@@ -296,12 +353,12 @@ export function flushPersist(): Promise<void> {
 	);
 	return write;
 }
-
 /**
  * Cancel queued writes and wait for all writes already in the write chain.
  * Reset uses this narrow boundary before deleting persisted state.
  */
 export async function cancelPendingPersist(): Promise<void> {
+	await _resetGenerationReady;
 	if (_setItemTimer) clearTimeout(_setItemTimer);
 	_setItemTimer = null;
 	_pendingSetItem = null;
@@ -314,6 +371,18 @@ export async function cancelPendingPersist(): Promise<void> {
 		const inFlight = _inFlightWrite;
 		await inFlight.catch(() => undefined);
 	}
+}
+
+/** Advance the shared reset barrier before deleting persisted setup data. */
+export async function beginReset(): Promise<void> {
+	await _resetGenerationReady;
+	const next = _resetGeneration + 1;
+	await chrome.storage.local.set({ [RESET_GENERATION_KEY]: next });
+	_resetGeneration = next;
+}
+
+export function getResetGeneration(): number {
+	return _resetGeneration;
 }
 
 /**
@@ -345,44 +414,55 @@ if (typeof window !== "undefined") {
  */
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
-		const data = await chrome.storage.local.get(name);
+		const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
 		if (!data[name]) return null;
-		const parsed = JSON.parse(data[name] as string) as StorageValue<Setup>;
+		const resetGeneration = normalizeResetGeneration(
+			data[RESET_GENERATION_KEY],
+		);
+		_resetGeneration = Math.max(_resetGeneration, resetGeneration);
+		const parsed = JSON.parse(data[name] as string) as StorageValue<Setup> &
+			Record<string, unknown>;
+		const persistedGeneration = normalizeResetGeneration(
+			parsed[PERSIST_GENERATION_KEY],
+		);
+		if (persistedGeneration < resetGeneration) return null;
+		delete parsed[PERSIST_GENERATION_KEY];
 		parsed.state = normalizeState(parsed.state as Partial<Setup>);
 		return parsed;
 	},
-	setItem: (name: string, value: StorageValue<Setup>): Promise<void> => {
-		_pendingSetItem = { name, value };
+	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
+		await _resetGenerationReady;
+		_pendingSetItem = { name, value, generation: _resetGeneration };
 		if (_setItemTimer) clearTimeout(_setItemTimer);
-		return new Promise((resolve) => {
-			_pendingResolvers.push(resolve);
-			_setItemTimer = setTimeout(() => {
-				const snap = _pendingSetItem;
-				_pendingSetItem = null;
-				_setItemTimer = null;
-				const resolvers = _pendingResolvers;
-				_pendingResolvers = [];
-				if (!snap) {
+		const { promise, resolve } = Promise.withResolvers<void>();
+		_pendingResolvers.push(resolve);
+		_setItemTimer = setTimeout(() => {
+			const snap = _pendingSetItem;
+			_pendingSetItem = null;
+			_setItemTimer = null;
+			const resolvers = _pendingResolvers;
+			_pendingResolvers = [];
+			if (!snap) {
+				resolvers.forEach((pendingResolve) => {
+					pendingResolve();
+				});
+				return;
+			}
+			_doWrite(snap.name, snap.value, snap.generation).then(
+				() => {
 					resolvers.forEach((pendingResolve) => {
 						pendingResolve();
 					});
-					return;
-				}
-				_doWrite(snap.name, snap.value).then(
-					() => {
-						resolvers.forEach((pendingResolve) => {
-							pendingResolve();
-						});
-					},
-					(err) => {
-						console.warn("[perch] chrome.storage.local.set failed", err);
-						resolvers.forEach((pendingResolve) => {
-							pendingResolve();
-						});
-					},
-				);
-			}, 200);
-		});
+				},
+				() => {
+					console.warn("[perch] chrome.storage.local.set failed");
+					resolvers.forEach((pendingResolve) => {
+						pendingResolve();
+					});
+				},
+			);
+		}, 200);
+		return promise;
 	},
 	removeItem: async (name: string): Promise<void> => {
 		await chrome.storage.local.remove(name);

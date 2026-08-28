@@ -10,7 +10,7 @@
  * mutations are committed in a single setState at the end to avoid
  * intermediate re-renders and read-modify-write races on the store.
  */
-import { canonicalUrl, faviconUrl } from "../lib/url";
+import { canonicalUrl, faviconUrl, isAbsoluteHttpUrl } from "../lib/url";
 import { uid } from "../lib/utils";
 import { useSetupStore } from "../stores/setup-store";
 import type { Card, Folder } from "../types";
@@ -94,6 +94,7 @@ export async function exportBookmarksHtml(): Promise<void> {
 		lines.push(`${indent}<DT><H3>${escapeHtml(folder.name)}</H3>`);
 		lines.push(`${indent}<DL><p>`);
 		for (const card of cardsByFolder.get(folder.id) ?? []) {
+			if (!isAllowedScheme(card.url)) continue;
 			lines.push(
 				`${indent}    <DT><A HREF="${escapeHtml(card.url)}">${escapeHtml(card.title)}</A>`,
 			);
@@ -115,17 +116,12 @@ export async function exportBookmarksHtml(): Promise<void> {
 	a.href = url;
 	a.download = "perch-bookmarks.html";
 	a.click();
-	URL.revokeObjectURL(url);
+	setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-/** True when the href is an http: or https: URL; drops javascript:/data:/file:. */
+/** True when the href is an absolute http: or https: URL. */
 function isAllowedScheme(href: string): boolean {
-	try {
-		const protocol = new URL(href).protocol;
-		return protocol === "http:" || protocol === "https:";
-	} catch {
-		return false;
-	}
+	return isAbsoluteHttpUrl(href);
 }
 
 /**
@@ -139,15 +135,38 @@ function isAllowedScheme(href: string): boolean {
  * Exporters that emit explicit `</DT>` produce a sibling `<DL>` instead, so
  * both shapes are accepted.
  */
-function parseLevel(dl: Element): {
+interface ParseBudget {
+	dtNodes: number;
+}
+
+const MAX_BOOKMARK_INPUT_LENGTH = 10 * 1024 * 1024;
+const MAX_BOOKMARK_NESTING_DEPTH = 100;
+const MAX_BOOKMARK_DT_NODES = 100_000;
+
+function parseLevel(
+	dl: Element,
+	budget: ParseBudget,
+	depth: number,
+): {
 	links: ParsedLink[];
 	folders: ParsedFolder[];
 } {
 	const links: ParsedLink[] = [];
 	const folders: ParsedFolder[] = [];
 
+	if (depth > MAX_BOOKMARK_NESTING_DEPTH) {
+		throw new Error(
+			`Bookmark file exceeds maximum folder nesting depth (${MAX_BOOKMARK_NESTING_DEPTH}).`,
+		);
+	}
 	for (const dt of Array.from(dl.children)) {
 		if (dt.tagName !== "DT") continue;
+		budget.dtNodes++;
+		if (budget.dtNodes > MAX_BOOKMARK_DT_NODES) {
+			throw new Error(
+				`Bookmark file contains too many entries (maximum ${MAX_BOOKMARK_DT_NODES}).`,
+			);
+		}
 
 		const heading = dt.querySelector(":scope > H3");
 		if (heading) {
@@ -172,7 +191,7 @@ function parseLevel(dl: Element): {
 				}
 			}
 			if (innerDl) {
-				const inner = parseLevel(innerDl);
+				const inner = parseLevel(innerDl, budget, depth + 1);
 				folder.links = inner.links;
 				folder.children = inner.folders;
 			}
@@ -199,7 +218,16 @@ function parseLevel(dl: Element): {
 export async function importBookmarksHtml(
 	fileText: string,
 ): Promise<HtmlImportResult> {
+	if (typeof fileText !== "string") {
+		throw new Error("Bookmark file must be provided as text.");
+	}
+	if (fileText.length > MAX_BOOKMARK_INPUT_LENGTH) {
+		throw new Error(
+			`Bookmark file exceeds maximum input length (${MAX_BOOKMARK_INPUT_LENGTH} characters).`,
+		);
+	}
 	const doc = new DOMParser().parseFromString(fileText, "text/html");
+	const budget: ParseBudget = { dtNodes: 0 };
 
 	// Parse only top-level <DL> lists; nested ones are reached via recursion.
 	const rootLinks: ParsedLink[] = [];
@@ -216,7 +244,7 @@ export async function importBookmarksHtml(
 		}
 		if (nested) continue;
 
-		const level = parseLevel(dl);
+		const level = parseLevel(dl, budget, 0);
 		rootLinks.push(...level.links);
 		rootFolders.push(...level.folders);
 	}

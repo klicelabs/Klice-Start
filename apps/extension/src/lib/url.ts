@@ -11,6 +11,21 @@ export function normalizeUrl(rawUrl: string): string {
 	return `https://${trimmed}`;
 }
 
+/** True only for an already-absolute http(s) URL (does not add a scheme). */
+export function isAbsoluteHttpUrl(rawUrl: string): boolean {
+	const trimmed = rawUrl.trim();
+	if (!/^https?:\/\//i.test(trimmed)) return false;
+	try {
+		const url = new URL(trimmed);
+		return (
+			(url.protocol === "http:" || url.protocol === "https:") &&
+			url.hostname.length > 0
+		);
+	} catch {
+		return false;
+	}
+}
+
 /** True when the (normalized) value is a syntactically valid http/https URL. */
 export function isValidUrl(rawUrl: string): boolean {
 	try {

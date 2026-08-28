@@ -27,7 +27,12 @@ import type { IconName } from "@perch/ui/icons/icon";
 import { Icon } from "@perch/ui/icons/icon";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { useSvgIcon } from "../../hooks/use-svg-icon";
-import { GRADIENTS, SEARCH_ENGINES, WALLPAPERS } from "../../lib/constants";
+import {
+	GRADIENTS,
+	MAX_BACKGROUND_IMAGE_BYTES,
+	SEARCH_ENGINES,
+	WALLPAPERS,
+} from "../../lib/constants";
 import { flushPersist } from "../../lib/storage";
 import { SEARCH_ENGINE_TO_SVGL } from "../../lib/svgl-mapping";
 import { cn } from "../../lib/utils";
@@ -35,9 +40,10 @@ import {
 	exportBookmarksHtml,
 	importBookmarksHtml,
 } from "../../services/bookmarks-html";
+import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
-import type { Settings } from "../../types";
+import type { Settings, WallpaperFrequency } from "../../types";
 import { SvgIcon } from "../shared/svg-icon";
 
 function EngineIcon({ engineId }: { engineId: string }) {
@@ -223,7 +229,62 @@ function IconChoiceRow<T extends string>({
 	);
 }
 
-const MAX_BACKGROUND_IMAGE_BYTES = 10 * 1024 * 1024;
+function backgroundSourceKey(background: Settings["background"]): string {
+	return [
+		background.type,
+		background.gradientId ?? "",
+		background.imageId ?? "",
+		background.wallpaperId ?? "",
+		background.pexelsImageId ?? "",
+		background.pexelsQuery,
+		background.pexelsFrequency,
+		background.pexelsPreviousFrequency ?? "",
+	].join("\u0000");
+}
+function PexelsQueryInput({
+	value,
+	onChange,
+}: {
+	value: string;
+	onChange: (value: string) => void;
+}) {
+	const [localValue, setLocalValue] = useState(value);
+	const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+	useEffect(() => {
+		setLocalValue(value);
+	}, [value]);
+
+	useEffect(() => () => clearTimeout(timerRef.current), []);
+
+	return (
+		<Input
+			value={localValue}
+			onChange={(event) => {
+				const nextValue = event.target.value;
+				setLocalValue(nextValue);
+				clearTimeout(timerRef.current);
+				timerRef.current = setTimeout(() => onChange(nextValue), 500);
+			}}
+			onBlur={() => {
+				clearTimeout(timerRef.current);
+				if (localValue !== value) onChange(localValue);
+			}}
+			placeholder="minimalist background, dark architecture"
+			className="mt-1 rounded-xl border-border bg-secondary px-3 py-2 text-foreground text-sm"
+		/>
+	);
+}
+const PEXELS_FREQUENCY_OPTIONS: readonly {
+	value: WallpaperFrequency;
+	label: string;
+}[] = [
+	{ value: "per-tab", label: "Every tab" },
+	{ value: "hourly", label: "Hourly" },
+	{ value: "daily", label: "Daily" },
+	{ value: "daylight", label: "Daylight" },
+	{ value: "locked", label: "Locked" },
+];
 
 function WallpaperThumbnail({
 	src,
@@ -238,15 +299,7 @@ function WallpaperThumbnail({
 }) {
 	const [status, setStatus] = useState<
 		"loading" | "ready" | "missing" | "empty"
-	>(
-		src
-			? "loading"
-			: src === null
-				? "missing"
-				: loading
-					? "loading"
-					: "empty",
-	);
+	>(src ? "loading" : src === null ? "missing" : loading ? "loading" : "empty");
 	const mountedRef = useRef(true);
 	const sourceRef = useRef(src);
 	sourceRef.current = src;
@@ -400,10 +453,14 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			: null;
 	useEffect(() => {
 		let active = true;
-		const wallpapers = useSetupStore.getState().settings.background
-			.customWallpapers ?? [];
+		if (!open) {
+			return () => {
+				active = false;
+			};
+		}
+
 		const wallpaperEntries = [
-			...wallpapers.map((wallpaper) => ({
+			...customWallpapers.map((wallpaper) => ({
 				id: wallpaper.id,
 				cleanupIfMissing: true,
 			})),
@@ -422,11 +479,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			wallpaperEntries.map(async ({ id, cleanupIfMissing }) => {
 				try {
 					const preview = await getBackgroundImage(id);
-					return [
-						id,
-						preview,
-						cleanupIfMissing && preview === null,
-					] as const;
+					return [id, preview, cleanupIfMissing && preview === null] as const;
 				} catch {
 					return [id, null, false] as const;
 				}
@@ -442,16 +495,16 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			setUserWallpaperPreviews(previews);
 			if (staleIds.size === 0) return;
 
-			const latestBackground =
-				useSetupStore.getState().settings.background;
+			const latestBackground = useSetupStore.getState().settings.background;
 			const remaining = (latestBackground.customWallpapers ?? []).filter(
 				(wallpaper) => !staleIds.has(wallpaper.id),
 			);
-			if (remaining.length !== (latestBackground.customWallpapers ?? []).length) {
+			if (
+				remaining.length !== (latestBackground.customWallpapers ?? []).length
+			) {
 				updateBackground({
 					customWallpapers: remaining,
-					...(latestBackground.imageId &&
-					staleIds.has(latestBackground.imageId)
+					...(latestBackground.imageId && staleIds.has(latestBackground.imageId)
 						? {
 								type: "solid",
 								imageId: null,
@@ -465,12 +518,47 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 		return () => {
 			active = false;
 		};
-	}, [getBackgroundImage, updateBackground, customWallpapers, legacyImageId]);
+	}, [
+		open,
+		getBackgroundImage,
+		updateBackground,
+		customWallpapers,
+		legacyImageId,
+	]);
 
 	// === Background ===
 	function invalidateBackgroundOperation() {
 		backgroundOperationRef.current += 1;
 		if (mountedRef.current) setUploadStatus("");
+	}
+	function handleSolidColor(color: string) {
+		invalidateBackgroundOperation();
+		updateBackground({
+			type: "solid",
+			color,
+			gradientId: null,
+			imageId: null,
+			wallpaperId: null,
+		} as Partial<Settings["background"]>);
+	}
+
+	function handlePexelsToggle(enabled: boolean) {
+		invalidateBackgroundOperation();
+		if (enabled) {
+			updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
+			void refreshWallpaper(true);
+			return;
+		}
+		updateBackground({
+			type: "solid",
+			gradientId: null,
+			imageId: null,
+			wallpaperId: null,
+			pexelsImageId: null,
+			pexelsLastFetched: null,
+			pexelsLastPeriod: null,
+			pexelsPreviousFrequency: null,
+		} as Partial<Settings["background"]>);
 	}
 
 	function handleGradient(id: string) {
@@ -527,6 +615,9 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			input.value = "";
 			return;
 		}
+		const sourceKey = backgroundSourceKey(
+			useSetupStore.getState().settings.background,
+		);
 		const operation = ++backgroundOperationRef.current;
 		let savedImageId: string | null = null;
 		let committed = false;
@@ -547,18 +638,18 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 				return;
 
 			savedImageId = await saveBackgroundImage(dataUrl);
+			const latestBackground = useSetupStore.getState().settings.background;
 			if (
 				!mountedRef.current ||
 				backgroundOperationRef.current !== operation ||
-				resetPendingRef.current
+				resetPendingRef.current ||
+				backgroundSourceKey(latestBackground) !== sourceKey
 			) {
 				await deleteBackgroundImage(savedImageId);
 				savedImageId = null;
 				return;
 			}
 
-			const latestBackground =
-				useSetupStore.getState().settings.background;
 			const name =
 				file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
 			updateBackground({
@@ -644,8 +735,6 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 			}
 		}
 	}
-
-
 
 	const clock = settings.clock;
 	const greeting = settings.greeting;
@@ -830,7 +919,8 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									>
 										<SelectValue>
 											{() =>
-												settings.appearanceMode === "liquid" ? "Liquid" : "Flat"}
+												settings.appearanceMode === "liquid" ? "Liquid" : "Flat"
+											}
 										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
@@ -996,6 +1086,103 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 								}
 							/>
 
+							<details className="mt-4 border-border/40 border-t pt-3">
+								<summary className="cursor-pointer list-none px-1 font-medium text-muted-foreground text-xs [&::-webkit-details-marker]:hidden">
+									Additional background options
+								</summary>
+								<div className="mt-3 space-y-3">
+									<div className="flex min-h-10 items-center justify-between gap-3 px-1">
+										<span className="text-foreground text-sm">Solid color</span>
+										<input
+											type="color"
+											value={bg.color}
+											onChange={(event) => handleSolidColor(event.target.value)}
+											className="size-7 cursor-pointer rounded-full border border-border/50 bg-transparent p-0"
+											aria-label="Solid background color"
+										/>
+									</div>
+									<div className="flex min-h-10 items-center justify-between gap-3 px-1">
+										<span className="text-foreground text-sm">
+											Pexels wallpaper
+										</span>
+										<Switch
+											checked={bg.type === "pexels"}
+											onCheckedChange={handlePexelsToggle}
+										/>
+									</div>
+									{bg.type === "pexels" && (
+										<div className="space-y-3 px-1">
+											<div>
+												<span className="text-muted-foreground text-xs">
+													Search query
+												</span>
+												<PexelsQueryInput
+													value={bg.pexelsQuery}
+													onChange={(query) => {
+														updateBackground({ pexelsQuery: query });
+														void refreshWallpaper(true);
+													}}
+												/>
+											</div>
+											<div>
+												<span className="text-muted-foreground text-xs">
+													Frequency
+												</span>
+												<Select
+													value={bg.pexelsFrequency}
+													onValueChange={(value) => {
+														if (!value) return;
+														const nextFrequency = value as WallpaperFrequency;
+														const currentFrequency = bg.pexelsFrequency;
+														if (nextFrequency === currentFrequency) return;
+														if (nextFrequency === "locked") {
+															updateBackground({
+																pexelsFrequency: "locked",
+																pexelsPreviousFrequency:
+																	currentFrequency !== "locked"
+																		? currentFrequency
+																		: bg.pexelsPreviousFrequency || "daily",
+															});
+															return;
+														}
+														updateBackground({
+															pexelsFrequency: nextFrequency,
+															pexelsPreviousFrequency: null,
+														});
+														void refreshWallpaper(true);
+													}}
+													items={PEXELS_FREQUENCY_OPTIONS}
+												>
+													<SelectTrigger
+														size="sm"
+														className="mt-1 min-w-[130px]"
+														aria-label="Wallpaper frequency"
+													>
+														<SelectValue>
+															{() =>
+																PEXELS_FREQUENCY_OPTIONS.find(
+																	(option) =>
+																		option.value === bg.pexelsFrequency,
+																)?.label ?? bg.pexelsFrequency
+															}
+														</SelectValue>
+													</SelectTrigger>
+													<SelectContent>
+														{PEXELS_FREQUENCY_OPTIONS.map((option) => (
+															<SelectItem
+																key={option.value}
+																value={option.value}
+															>
+																{option.label}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+										</div>
+									)}
+								</div>
+							</details>
 						</SectionCard>
 
 						{/* === Clock === */}
@@ -1161,7 +1348,11 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 									</Button>
 								</div>
 								{importStatus && (
-									<p className="mt-2 text-muted-foreground text-xs">
+									<p
+										className="mt-2 text-muted-foreground text-xs"
+										role="status"
+										aria-live="polite"
+									>
 										{importStatus}
 									</p>
 								)}

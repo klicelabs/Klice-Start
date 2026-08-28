@@ -9,8 +9,10 @@ import {
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
 import {
+	beginReset,
 	cancelPendingPersist,
 	chromeStorageAdapter,
+	flushPersist,
 	normalizeState,
 } from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
@@ -144,7 +146,9 @@ export const useSetupStore = create<SetupStore>()(
 					const orderById = new Map(siblings.map((f, i) => [f.id, i]));
 					return {
 						folders: s.folders.map((f) =>
-							orderById.has(f.id) ? { ...f, order: orderById.get(f.id)! } : f,
+							orderById.has(f.id)
+								? { ...f, order: orderById.get(f.id) ?? f.order }
+								: f,
 						),
 					};
 				}),
@@ -206,7 +210,9 @@ export const useSetupStore = create<SetupStore>()(
 					const orderById = new Map(list.map((c, i) => [c.id, i]));
 					return {
 						cards: s.cards.map((c) =>
-							orderById.has(c.id) ? { ...c, order: orderById.get(c.id)! } : c,
+							orderById.has(c.id)
+								? { ...c, order: orderById.get(c.id) ?? c.order }
+								: c,
 						),
 					};
 				}),
@@ -257,10 +263,24 @@ export const useSetupStore = create<SetupStore>()(
 			replaceSetup: (setup) => set(normalizeState(setup)),
 
 			resetAll: async () => {
+				const previous = get();
+				await beginReset();
 				await cancelPendingPersist();
-				await chrome.storage.local.remove("perch-setup");
-				await useImageStore.getState().clearAll();
-				set(normalizeState(null));
+				try {
+					await chrome.storage.local.remove("perch-setup");
+					await useImageStore.getState().clearAll();
+					set(normalizeState(null));
+					await flushPersist();
+				} catch (error) {
+					set({
+						folders: previous.folders,
+						cards: previous.cards,
+						activeFolderId: previous.activeFolderId,
+						settings: previous.settings,
+					});
+					await flushPersist().catch(() => undefined);
+					throw error;
+				}
 			},
 		}),
 		{

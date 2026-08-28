@@ -1,5 +1,10 @@
 import { useEffect } from "react";
-import { getLastWrittenJSON, normalizeState } from "../lib/storage";
+import {
+	getLastWrittenJSON,
+	getResetGeneration,
+	normalizeState,
+	PERSIST_GENERATION_KEY,
+} from "../lib/storage";
 import { useSetupStore } from "../stores/setup-store";
 import type { Setup } from "../types";
 
@@ -35,6 +40,17 @@ export function useCrossTabSync() {
 
 				if (!parsed || typeof parsed !== "object" || !("state" in parsed))
 					return;
+
+				const persistedGenerationValue = (parsed as Record<string, unknown>)[
+					PERSIST_GENERATION_KEY
+				];
+				const persistedGeneration =
+					typeof persistedGenerationValue === "number" &&
+					Number.isSafeInteger(persistedGenerationValue) &&
+					persistedGenerationValue >= 0
+						? persistedGenerationValue
+						: 0;
+				if (persistedGeneration < getResetGeneration()) return;
 
 				const current = useSetupStore.getState();
 				const incoming = normalizeState(parsed.state as Partial<Setup>);
