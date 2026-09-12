@@ -30,6 +30,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.1.5",
+    "linkedom": "^0.18.13",
     "postcss": "^8.5.19",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.9.3",
