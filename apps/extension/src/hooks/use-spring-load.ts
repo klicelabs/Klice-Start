@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 /**
  * Spring-loaded folders: when a drag hovers a drop target for `delayMs`, fire
@@ -28,5 +28,9 @@ export function useSpringLoad(onTrigger: () => void, delayMs = 620) {
 
 	useEffect(() => cancel, [cancel]);
 
-	return { start, cancel };
+	// Keep the coordinator object stable between renders. Consumers use the
+	// returned value in callback/effect dependencies, and a fresh object here
+	// would make those effects tear down an in-flight native drag on every
+	// visual state update.
+	return useMemo(() => ({ start, cancel }), [start, cancel]);
 }

@@ -1,0 +1,370 @@
+import {
+	type DragEvent,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
+import {
+	dropZoneFor,
+	clearActiveDrag,
+	type GridItemDragProps,
+	resolveDragRef,
+	setDragData,
+} from "../lib/dnd";
+import type { ItemRef } from "../lib/item-order";
+import { useSpringLoad } from "./use-spring-load";
+
+export interface GridDndHandlers {
+	/** Live mixed reorder inside one container (never reparents). */
+	onLiveReorder: (
+		dragged: ItemRef,
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
+	/** Drop a card onto another card: create a subfolder with both. */
+	onCombineCards: (draggedCardId: string, targetCardId: string) => void;
+	/** Drop anything onto a folder: move (multi-selection aware upstream). */
+	onDropOnFolder: (draggedId: string, folderId: string) => void;
+	/** Drop onto empty grid background. */
+	onBackgroundDrop: (dragged: ItemRef) => void;
+	/** Spring-loaded navigation into a folder. */
+	onOpenFolder: (id: string) => void;
+	/** Cycle guard for folder-in-folder drops. */
+	canNest: (folderId: string, targetFolderId: string) => boolean;
+	/** True when the ref belongs to this grid's container. */
+	isInContainer: (ref: ItemRef) => boolean;
+}
+
+function resolveDrag(e: DragEvent): ItemRef | null {
+	const active = resolveDragRef(e);
+	if (!active || !active.id) return null;
+	return { kind: active.kind, id: active.id };
+}
+
+function edgeScroll(e: DragEvent) {
+	if (typeof window === "undefined") return;
+	if (e.clientY < 50) {
+		window.scrollBy({ top: -10, behavior: "instant" as ScrollBehavior });
+	} else if (window.innerHeight - e.clientY < 50) {
+		window.scrollBy({ top: 10, behavior: "instant" as ScrollBehavior });
+	}
+}
+
+/**
+ * Grid drag-and-drop coordinator.
+ *
+ * One hook owns the whole interaction so drop intent is unambiguous:
+ *
+ *   - pointer over an item's edges → live reorder (surrounding items move
+ *     out of the way in real time via `onLiveReorder` on every zone change);
+ *   - pointer over a card's center → combine (drop creates a subfolder);
+ *   - pointer over a folder's center → nest (drop moves inside) + spring-load;
+ *   - drop on empty background → container append (this is what makes a drop
+ *     still land correctly when spring-load navigation swapped the grid
+ *     mid-drag: the moved item is always persisted, navigation never swallows
+ *     the move).
+ *
+ * Spring-load only arms on folder-center hover, never on reorder edges, and
+ * the drop always persists its move — navigation is never a substitute.
+ */
+export function useGridDnd(handlers: GridDndHandlers) {
+	const [drag, setDrag] = useState<ItemRef | null>(null);
+	const [insertion, setInsertion] = useState<{
+		key: string;
+		position: "before" | "after";
+	} | null>(null);
+	const [combineKey, setCombineKey] = useState<string | null>(null);
+	const [nestId, setNestId] = useState<string | null>(null);
+
+	const dragRef = useRef<ItemRef | null>(null);
+	const lastApplied = useRef<string | null>(null);
+	const springTarget = useRef<string | null>(null);
+	const handlersRef = useRef(handlers);
+	handlersRef.current = handlers;
+
+	const spring = useSpringLoad(() => {
+		const target = springTarget.current;
+		if (target) handlersRef.current.onOpenFolder(target);
+	});
+	const springStart = spring.start;
+	const springCancel = spring.cancel;
+
+	const clearVisuals = useCallback(() => {
+		setInsertion(null);
+		setCombineKey(null);
+		setNestId(null);
+	}, []);
+
+	// Clear the rendered intent without clearing the native payload. A
+	// spring-loaded folder navigation swaps the grid while the browser is still
+	// holding the source drag, so the new grid must be able to resolve it.
+	const resetVisuals = useCallback(() => {
+		lastApplied.current = null;
+		springTarget.current = null;
+		springCancel();
+		setDrag(null);
+		clearVisuals();
+	}, [springCancel, clearVisuals]);
+
+	// Full settlement is reserved for a real drag end, drop, Escape, or
+	// unmount. Navigation calls resetVisuals so the active native payload lives
+	// through the container swap.
+	const resetDrag = useCallback(() => {
+		dragRef.current = null;
+		resetVisuals();
+		clearActiveDrag();
+	}, [resetVisuals]);
+
+	const applyLiveReorder = useCallback(
+		(dragged: ItemRef, target: ItemRef, position: "before" | "after") => {
+			const stamp = `${dragged.kind}:${dragged.id}|${target.kind}:${target.id}|${position}`;
+			if (lastApplied.current === stamp) return;
+			lastApplied.current = stamp;
+			handlersRef.current.onLiveReorder(dragged, target, position);
+		},
+		[],
+	);
+
+	const handleItemDragStart = useCallback(
+		(ref: ItemRef) => (e: DragEvent) => {
+			dragRef.current = ref;
+			lastApplied.current = null;
+			setDragData(e, ref.kind, ref.id);
+			// Defer source dimming one frame so the browser captures a
+			// full-opacity drag image.
+			requestAnimationFrame(() => {
+				if (dragRef.current?.id === ref.id) setDrag(ref);
+			});
+		},
+		[],
+	);
+
+	const handleItemDragEnd = useCallback(() => {
+		resetDrag();
+	}, [resetDrag]);
+
+	// Native dragend can arrive after its source node has been removed (for
+	// example, when spring-load navigation swaps the grid). Keep cleanup at the
+	// window boundary as a backstop, and let Escape cancel the same state.
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === "Escape") resetDrag();
+		};
+		window.addEventListener("keydown", handleKeyDown);
+		window.addEventListener("dragend", resetDrag);
+		return () => {
+			window.removeEventListener("keydown", handleKeyDown);
+			window.removeEventListener("dragend", resetDrag);
+			resetDrag();
+		};
+	}, [resetDrag]);
+
+	const handleItemDragOver = useCallback(
+		(ref: ItemRef) => (e: DragEvent) => {
+			const h = handlersRef.current;
+			const dragged = dragRef.current ?? resolveDrag(e);
+			if (!dragged || !dragged.id || dragged.id === ref.id) return;
+
+			const el = e.currentTarget;
+			if (!(el instanceof HTMLElement)) return;
+			const zone = dropZoneFor(e, el);
+			const foreign = !h.isInContainer(dragged);
+
+			if (ref.kind === "folder") {
+				if (zone === "center") {
+					if (dragged.kind === "folder" && !h.canNest(dragged.id, ref.id)) {
+						return;
+					}
+					e.preventDefault();
+					e.dataTransfer.dropEffect = "move";
+					edgeScroll(e);
+					lastApplied.current = null;
+					setInsertion(null);
+					setCombineKey(null);
+					setNestId(ref.id);
+					springTarget.current = ref.id;
+					springStart();
+					return;
+				}
+				// Edge: reorder for locals; foreign folders land on drop.
+				if (foreign) {
+					e.preventDefault();
+					e.dataTransfer.dropEffect = "move";
+					edgeScroll(e);
+					return;
+				}
+				e.preventDefault();
+				e.dataTransfer.dropEffect = "move";
+				edgeScroll(e);
+					springCancel();
+				springTarget.current = null;
+				setNestId(null);
+				setCombineKey(null);
+				setInsertion({ key: ref.id, position: zone });
+				applyLiveReorder(dragged, ref, zone);
+				return;
+			}
+
+			// Target is a card.
+			if (zone === "center") {
+				// Only card-on-card combines; a folder cannot nest into a card.
+				if (dragged.kind !== "card" || foreign) return;
+				e.preventDefault();
+				e.dataTransfer.dropEffect = "move";
+				edgeScroll(e);
+				lastApplied.current = null;
+					springCancel();
+				springTarget.current = null;
+				setInsertion(null);
+				setNestId(null);
+				setCombineKey(ref.id);
+				return;
+			}
+			if (foreign) {
+				e.preventDefault();
+				e.dataTransfer.dropEffect = "move";
+				edgeScroll(e);
+				return;
+			}
+			e.preventDefault();
+			e.dataTransfer.dropEffect = "move";
+			edgeScroll(e);
+			springCancel();
+			springTarget.current = null;
+			setNestId(null);
+			setCombineKey(null);
+			setInsertion({ key: ref.id, position: zone });
+			applyLiveReorder(dragged, ref, zone);
+		},
+		[springStart, springCancel, applyLiveReorder],
+	);
+
+	const handleItemDragLeave = useCallback(
+		(ref: ItemRef) => (e: DragEvent) => {
+			const related = e.relatedTarget as Node | null;
+			if (
+				related &&
+				e.currentTarget instanceof Node &&
+				e.currentTarget.contains(related)
+			) {
+				return;
+			}
+			setInsertion((prev) => (prev?.key === ref.id ? null : prev));
+			setCombineKey((prev) => (prev === ref.id ? null : prev));
+			setNestId((prev) => {
+				if (prev === ref.id) {
+					springCancel();
+					springTarget.current = null;
+					return null;
+				}
+				return prev;
+			});
+		},
+		[springCancel],
+	);
+
+	const handleItemDrop = useCallback(
+		(ref: ItemRef) => (e: DragEvent) => {
+			e.preventDefault();
+			// Keep the grid-background drop handler from also firing: the item
+			// already owned this drop.
+			e.stopPropagation();
+			const h = handlersRef.current;
+			const dragged = dragRef.current ?? resolveDrag(e);
+			// Preserve the hover stamp until the final edge decision. Clearing it
+			// before reading it made every edge drop invoke reorder twice.
+			const appliedStamp = lastApplied.current;
+			// A drop fully settles the gesture: clear ALL drag visuals here, not
+			// just dragend. After a spring-load navigation the source node is
+			// unmounted, so dragend never reaches React and anything left set
+			// (notably `drag`, which drives the opacity-40 ghost) sticks forever.
+			resetDrag();
+			if (!dragged || !dragged.id || dragged.id === ref.id) return;
+
+			const el = e.currentTarget;
+			const zone = el instanceof HTMLElement ? dropZoneFor(e, el) : "center";
+
+			if (ref.kind === "folder" && zone === "center") {
+				if (dragged.kind === "folder" && !h.canNest(dragged.id, ref.id)) return;
+				h.onDropOnFolder(dragged.id, ref.id);
+				return;
+			}
+			if (
+				ref.kind === "card" &&
+				dragged.kind === "card" &&
+				zone === "center" &&
+				h.isInContainer(dragged)
+			) {
+				h.onCombineCards(dragged.id, ref.id);
+				return;
+			}
+			if (!h.isInContainer(dragged)) {
+				// Foreign item dropped on an edge: append to this container.
+				h.onBackgroundDrop(dragged);
+				return;
+			}
+			// Edge drop: live reorder already applied on hover; ensure the
+			// final position in case drop fired without a preceding over.
+			const stamp = `${dragged.kind}:${dragged.id}|${ref.kind}:${ref.id}|${zone}`;
+			if (appliedStamp !== stamp && zone !== "center") {
+				h.onLiveReorder(dragged, ref, zone);
+			}
+		},
+		[resetDrag],
+	);
+
+	const handleBackgroundDragOver = useCallback((e: DragEvent) => {
+		const dragged = dragRef.current ?? resolveDrag(e);
+		if (!dragged || !dragged.id) return;
+		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
+	}, []);
+
+	const handleBackgroundDrop = useCallback(
+		(e: DragEvent) => {
+			e.preventDefault();
+			const dragged = dragRef.current ?? resolveDrag(e);
+			// Same full settle as item drops (see handleItemDrop).
+			resetDrag();
+			if (!dragged || !dragged.id) return;
+			handlersRef.current.onBackgroundDrop(dragged);
+		},
+		[resetDrag],
+	);
+
+	const getItemDragProps = useCallback(
+		(ref: ItemRef): GridItemDragProps => ({
+			draggable: true,
+			onDragStart: handleItemDragStart(ref),
+			onDragEnd: handleItemDragEnd,
+			onDragOver: handleItemDragOver(ref),
+			onDragLeave: handleItemDragLeave(ref),
+			onDrop: handleItemDrop(ref),
+		}),
+		[
+			handleItemDragStart,
+			handleItemDragEnd,
+			handleItemDragOver,
+			handleItemDragLeave,
+			handleItemDrop,
+		],
+	);
+
+	return {
+		drag,
+		insertion,
+		combineKey,
+		nestId,
+		/** Settle a stale gesture (e.g. the container swapped mid-drag). */
+		reset: resetDrag,
+		/** Clear hover visuals while preserving the native drag payload. */
+		resetVisuals,
+		getItemDragProps,
+		backgroundProps: {
+			onDragOver: handleBackgroundDragOver,
+			onDrop: handleBackgroundDrop,
+		},
+	};
+}
