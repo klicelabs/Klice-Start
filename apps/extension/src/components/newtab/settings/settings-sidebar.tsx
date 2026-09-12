@@ -1,177 +1,105 @@
+import { Icon, type IconName } from "@klice-start/ui/icons/icon";
 import {
 	settingsSidebarIconStyles,
 	settingsSidebarStyles,
 } from "@klice-start/ui/lib/glass-variants";
 import { cn } from "../../../lib/utils";
-import type { SettingsPaneId } from "./settings-types";
+import { SETTINGS_PANE_LABELS, type SettingsPaneId } from "./settings-types";
+import { TrafficLights } from "./traffic-lights";
 
 interface SidebarCategory {
 	id: SettingsPaneId;
 	label: string;
-	icon: React.ReactNode;
+	icon: IconName;
 	color: string;
 }
 
 interface SettingsSidebarProps {
 	activePane: SettingsPaneId;
 	onSelectPane: (pane: SettingsPaneId) => void;
+	onClose: () => void;
 }
 
+// Distinct semantic tile colors provide wayfinding without adding a second
+// visual language to the Settings surface.
 const CATEGORIES: readonly SidebarCategory[] = [
 	{
 		id: "general",
-		label: "General",
+		label: SETTINGS_PANE_LABELS.general,
 		color: "bg-slate-500",
-		icon: (
-			<svg
-				aria-hidden="true"
-				width="13.5"
-				height="13.5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2.2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-				<circle cx="12" cy="12" r="3" />
-			</svg>
-		),
+		icon: "settings",
 	},
 	{
 		id: "appearance",
-		label: "Appearance",
+		label: SETTINGS_PANE_LABELS.appearance,
 		color: "bg-sky-500",
-		icon: (
-			<svg
-				aria-hidden="true"
-				width="13.5"
-				height="13.5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2.2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M12 2a10 10 0 0 0-8 16.27L2 22l3.73-2A10 10 0 1 0 12 2z" />
-				<path d="m15.5 8.5-3 3" />
-			</svg>
-		),
+		icon: "palette",
 	},
 	{
 		id: "search",
-		label: "Search",
+		label: SETTINGS_PANE_LABELS.search,
 		color: "bg-emerald-500",
-		icon: (
-			<svg
-				aria-hidden="true"
-				width="13.5"
-				height="13.5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2.2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<circle cx="11" cy="11" r="8" />
-				<path d="m21 21-4.3-4.3" />
-			</svg>
-		),
+		icon: "search",
 	},
 	{
 		id: "bookmarks",
-		label: "Bookmarks",
+		label: SETTINGS_PANE_LABELS.bookmarks,
 		color: "bg-amber-500",
-		icon: (
-			<svg
-				aria-hidden="true"
-				width="13.5"
-				height="13.5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2.2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-			</svg>
-		),
+		icon: "bookmark",
 	},
 	{
 		id: "advanced",
-		label: "Advanced",
+		label: SETTINGS_PANE_LABELS.advanced,
 		color: "bg-rose-500",
-		icon: (
-			<svg
-				aria-hidden="true"
-				width="13.5"
-				height="13.5"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				strokeWidth="2.2"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-			>
-				<path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z" />
-				<path d="M12 14v.01" />
-				<path d="M12 8v3" />
-			</svg>
-		),
+		icon: "sliders",
 	},
 ];
 
 export function SettingsSidebar({
 	activePane,
 	onSelectPane,
+	onClose,
 }: SettingsSidebarProps) {
 	return (
 		<nav
 			className={cn(
-				"flex w-52 shrink-0 flex-col gap-1 rounded-2xl p-2 max-[640px]:w-36 max-[640px]:p-1.5",
+				"flex w-52 shrink-0 flex-col overflow-hidden max-[380px]:w-28 max-[480px]:w-36 max-[640px]:w-40",
 				settingsSidebarStyles,
 			)}
 			aria-label="Settings categories"
 		>
-			<div className="px-2.5 pt-1.5 pb-2">
-				<span className="font-semibold text-foreground text-xs tracking-tight">
-					Settings
-				</span>
+			{/* Window chrome belongs to the sidebar title region, as in macOS. */}
+			<div className="flex h-12 shrink-0 items-center px-[18px] max-[480px]:px-3">
+				<TrafficLights onClose={onClose} />
 			</div>
 
-			<div
-				className="flex flex-1 flex-col gap-0.5"
-				role="tablist"
-				aria-orientation="vertical"
-			>
-				{CATEGORIES.map((cat) => {
-					const isActive = activePane === cat.id;
-					return (
-						<button
-							type="button"
-							key={cat.id}
-							role="tab"
-							aria-selected={isActive}
-							onClick={() => onSelectPane(cat.id)}
-							className={cn(
-								"flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left font-medium text-xs transition-[background-color,color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-[640px]:gap-1.5 max-[640px]:px-1.5",
-								isActive
-									? "bg-foreground/10 font-semibold text-foreground shadow-2xs"
-									: "text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-							)}
-						>
-							{/* Colored squircle icon — stable on hover, subtle top highlight */}
-							<span className={cn(settingsSidebarIconStyles, cat.color)}>
-								{cat.icon}
-							</span>
-							<span className="truncate">{cat.label}</span>
-						</button>
-					);
-				})}
+			<div className="settings-content-scroll min-h-0 flex-1 overflow-y-auto px-2.5 pt-1 pb-4 max-[480px]:px-2">
+				<div className="flex flex-col gap-0.5">
+					{CATEGORIES.map((category) => {
+						const isActive = activePane === category.id;
+
+						return (
+							<button
+								type="button"
+								key={category.id}
+								aria-current={isActive ? "page" : undefined}
+								aria-label={category.label}
+								onClick={() => onSelectPane(category.id)}
+								className={cn(
+									"flex min-h-8 w-full items-center gap-2.5 rounded-lg px-2 py-1 text-left font-medium text-[13px] leading-none transition-[background-color,color,box-shadow] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-[480px]:gap-2 max-[480px]:px-1.5",
+									isActive
+										? "bg-foreground/[0.10] font-semibold text-foreground ring-1 ring-foreground/[0.08] ring-inset"
+										: "text-foreground/75 hover:bg-foreground/[0.07] hover:text-foreground",
+								)}
+							>
+								<span className={cn(settingsSidebarIconStyles, category.color)}>
+									<Icon name={category.icon} size={13} aria-hidden="true" />
+								</span>
+								<span className="truncate">{category.label}</span>
+							</button>
+						);
+					})}
+				</div>
 			</div>
 		</nav>
 	);

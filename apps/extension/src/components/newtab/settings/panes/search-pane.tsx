@@ -23,13 +23,15 @@ function EngineIcon({ engineId }: { engineId: string }) {
 	if (isLoading || !svgXml) {
 		const label = SEARCH_ENGINES.find((e) => e.id === engineId)?.label ?? "?";
 		return (
-			<span className="flex size-4 shrink-0 items-center justify-center rounded-[4px] bg-muted font-bold text-[9px] text-muted-foreground">
+			<span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-muted font-bold text-[9px] text-muted-foreground">
 				{label.charAt(0)}
 			</span>
 		);
 	}
 
-	return <SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />;
+	return (
+		<SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />
+	);
 }
 
 const ICON_MODE_OPTIONS = [
@@ -49,6 +51,7 @@ export function SearchPane() {
 			<SectionCard title="Search bar">
 				<SettingRow label="Show search bar">
 					<Switch
+						aria-label="Show search bar"
 						checked={search.enabled}
 						onCheckedChange={(checked: boolean) =>
 							updateSearch({ enabled: checked })
@@ -91,12 +94,17 @@ export function SearchPane() {
 						label="Input leading icon"
 						value={search.iconMode}
 						options={ICON_MODE_OPTIONS}
-						onChange={(v) => updateSearch({ iconMode: v as "engine" | "search" })}
+						onChange={(v) =>
+							updateSearch({ iconMode: v as "engine" | "search" })
+						}
 						triggerClassName="min-w-[180px]"
 					/>
 
 					<div className="border-border/40 border-t px-1 pt-3 pb-2">
-						<label htmlFor="search-placeholder-input" className="mb-1 block font-medium text-muted-foreground text-xs">
+						<label
+							htmlFor="search-placeholder-input"
+							className="mb-1 block font-medium text-muted-foreground text-xs"
+						>
 							Custom placeholder text
 						</label>
 						<Input

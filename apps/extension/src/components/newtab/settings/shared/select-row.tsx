@@ -5,6 +5,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@klice-start/ui/components/select";
+import { cn } from "../../../../lib/utils";
 import { SettingRow } from "./setting-row";
 
 interface SelectOption<T extends string> {
@@ -39,7 +40,10 @@ export function SelectRow<T extends string>({
 			>
 				<SelectTrigger
 					size="sm"
-					className={triggerClassName}
+					className={cn(
+						triggerClassName,
+						"max-[480px]:min-w-0 max-[480px]:max-w-full",
+					)}
 					aria-label={label}
 				>
 					<SelectValue />

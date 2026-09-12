@@ -23,8 +23,16 @@ const LAYOUT_OPTIONS = [
 	{ value: "icon", label: "Icon (App Launcher)" },
 ] as const;
 
-const CARD_SHAPES: readonly { value: CardAspect; icon: IconName; label: string }[] = [
-	{ value: "vertical", icon: "rectangle-vertical", label: "Portrait (Vivaldi)" },
+const CARD_SHAPES: readonly {
+	value: CardAspect;
+	icon: IconName;
+	label: string;
+}[] = [
+	{
+		value: "vertical",
+		icon: "rectangle-vertical",
+		label: "Portrait (Vivaldi)",
+	},
 	{ value: "horizontal", icon: "rectangle-horizontal", label: "Landscape" },
 	{ value: "square", icon: "square", label: "Square" },
 ];
@@ -51,7 +59,6 @@ export function GeneralPane() {
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
-	const showDeleteButton = useSetupStore((s) => s.settings.showDeleteButton);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const timezone = useSetupStore((s) => s.settings.clock.timezone);
 	const updateSettings = useSetupStore((s) => s.updateSettings);
@@ -64,14 +71,18 @@ export function GeneralPane() {
 					label="Tile size"
 					value={tileSize}
 					options={TILE_SIZE_OPTIONS}
-					onChange={(v) => updateSettings({ tileSize: v as "small" | "medium" | "large" })}
+					onChange={(v) =>
+						updateSettings({ tileSize: v as "small" | "medium" | "large" })
+					}
 				/>
 
 				<SelectRow
 					label="Columns"
 					value={String(maxColumns)}
 					options={COLUMN_OPTIONS}
-					onChange={(v) => updateSettings({ maxColumns: Number.parseInt(v, 10) })}
+					onChange={(v) =>
+						updateSettings({ maxColumns: Number.parseInt(v, 10) })
+					}
 				/>
 
 				<SelectRow
@@ -109,6 +120,7 @@ export function GeneralPane() {
 				{dialLayout === "icon" && (
 					<SettingRow label="Show site titles">
 						<Switch
+							aria-label="Show site titles"
 							checked={iconShowLabel}
 							onCheckedChange={(checked: boolean) =>
 								updateSettings({ iconShowLabel: checked })
@@ -121,6 +133,7 @@ export function GeneralPane() {
 			<SectionCard title="Card behavior">
 				<SettingRow label="Show site title">
 					<Switch
+						aria-label="Show site title"
 						checked={showTitle}
 						onCheckedChange={(checked: boolean) =>
 							updateSettings({ showTitle: checked })
@@ -128,17 +141,9 @@ export function GeneralPane() {
 					/>
 				</SettingRow>
 
-				<SettingRow label="Show delete button on hover">
-					<Switch
-						checked={showDeleteButton}
-						onCheckedChange={(checked: boolean) =>
-							updateSettings({ showDeleteButton: checked })
-						}
-					/>
-				</SettingRow>
-
 				<SettingRow label="Open links in new tab">
 					<Switch
+						aria-label="Open links in new tab"
 						checked={openInNewTab}
 						onCheckedChange={(checked: boolean) =>
 							updateSettings({ openInNewTab: checked })

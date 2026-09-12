@@ -17,7 +17,13 @@ import {
 	getSubtreeIds,
 	wouldCreateCycle,
 } from "../../../../lib/folder-tree";
-import { canonicalUrl, deriveTitleFromUrl, faviconUrl, isValidUrl, normalizeUrl } from "../../../../lib/url";
+import {
+	canonicalUrl,
+	deriveTitleFromUrl,
+	faviconUrl,
+	isValidUrl,
+	normalizeUrl,
+} from "../../../../lib/url";
 import { exportBackup, importBackup } from "../../../../services/backup";
 import {
 	exportBookmarksHtml,
@@ -56,7 +62,8 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
 
 	// Currently inspected folder in the settings pane
-	const [selectedFolderId, setSelectedFolderId] = useState<string>(activeFolderId);
+	const [selectedFolderId, setSelectedFolderId] =
+		useState<string>(activeFolderId);
 
 	// Ensure selected folder is valid
 	useEffect(() => {
@@ -77,11 +84,15 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const [folderModalOpen, setFolderModalOpen] = useState(false);
 	const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
 	const [folderNameInput, setFolderNameInput] = useState("");
-	const [folderParentInput, setFolderParentInput] = useState<string | null>(null);
+	const [folderParentInput, setFolderParentInput] = useState<string | null>(
+		null,
+	);
 	const [folderError, setFolderError] = useState("");
 
 	// Delete folder confirmation
-	const [deleteConfirmFolderId, setDeleteConfirmFolderId] = useState<string | null>(null);
+	const [deleteConfirmFolderId, setDeleteConfirmFolderId] = useState<
+		string | null
+	>(null);
 
 	// Import / Export states
 	const htmlFileRef = useRef<HTMLInputElement>(null);
@@ -149,7 +160,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		const trimmed = linkUrl.trim();
 		if (!trimmed) return { status: "empty" as const, message: "" };
 		if (!isValidUrl(trimmed)) {
-			return { status: "invalid" as const, message: "Enter a valid web address." };
+			return {
+				status: "invalid" as const,
+				message: "Enter a valid web address.",
+			};
 		}
 		const canon = canonicalUrl(trimmed);
 		const duplicate = cards.find(
@@ -242,7 +256,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		if (editingFolderId) {
 			updateFolder(editingFolderId, name);
 			const current = folders.find((f) => f.id === editingFolderId);
-			if (current && (current.parentId ?? null) !== (folderParentInput ?? null)) {
+			if (
+				current &&
+				(current.parentId ?? null) !== (folderParentInput ?? null)
+			) {
 				if (!wouldCreateCycle(folders, editingFolderId, folderParentInput)) {
 					moveFolder(editingFolderId, folderParentInput);
 				}
@@ -259,16 +276,24 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setFolderError("");
 	}
 
-	const rootFoldersCount = folders.filter((f) => (f.parentId ?? null) === null).length;
-	const canDeleteCurrentFolder = rootFoldersCount > 1 || (selectedFolder?.parentId ?? null) !== null;
+	const rootFoldersCount = folders.filter(
+		(f) => (f.parentId ?? null) === null,
+	).length;
+	const canDeleteCurrentFolder =
+		rootFoldersCount > 1 || (selectedFolder?.parentId ?? null) !== null;
 
 	const folderDeleteInfo = useMemo(() => {
 		if (!deleteConfirmFolderId) return null;
 		const target = folders.find((f) => f.id === deleteConfirmFolderId);
 		if (!target) return null;
 		const descendantIds = getDescendantIds(folders, deleteConfirmFolderId);
-		const affectedFolderIds = new Set([deleteConfirmFolderId, ...descendantIds]);
-		const cardCount = cards.filter((c) => affectedFolderIds.has(c.folderId)).length;
+		const affectedFolderIds = new Set([
+			deleteConfirmFolderId,
+			...descendantIds,
+		]);
+		const cardCount = cards.filter((c) =>
+			affectedFolderIds.has(c.folderId),
+		).length;
 		return {
 			name: target.name,
 			subfolderCount: descendantIds.length,
@@ -282,12 +307,17 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setIoType("info");
 		setIoStatus("Reading browser bookmarks…");
 		try {
-			const { foldersCreated, cardsCreated } = await importBookmarksFromBrowser();
+			const { foldersCreated, cardsCreated } =
+				await importBookmarksFromBrowser();
 			setIoType("success");
-			setIoStatus(`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`);
+			setIoStatus(
+				`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`,
+			);
 		} catch (err) {
 			setIoType("error");
-			setIoStatus(err instanceof Error ? err.message : "Could not import bookmarks.");
+			setIoStatus(
+				err instanceof Error ? err.message : "Could not import bookmarks.",
+			);
 		} finally {
 			setIsProcessingIo(false);
 		}
@@ -303,10 +333,14 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			const text = await file.text();
 			const { foldersCreated, cardsCreated } = await importBookmarksHtml(text);
 			setIoType("success");
-			setIoStatus(`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`);
+			setIoStatus(
+				`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`,
+			);
 		} catch (err) {
 			setIoType("error");
-			setIoStatus(err instanceof Error ? err.message : "Failed to parse HTML file.");
+			setIoStatus(
+				err instanceof Error ? err.message : "Failed to parse HTML file.",
+			);
 		} finally {
 			setIsProcessingIo(false);
 			e.target.value = "";
@@ -354,7 +388,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			setIoStatus("Backup restored successfully!");
 		} catch (err) {
 			setIoType("error");
-			setIoStatus(err instanceof Error ? err.message : "Failed to restore backup.");
+			setIoStatus(
+				err instanceof Error ? err.message : "Failed to restore backup.",
+			);
 		} finally {
 			setIsProcessingIo(false);
 			e.target.value = "";
@@ -387,7 +423,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			>
 				<div className="flex flex-wrap items-center justify-between gap-3 py-2">
 					<div className="flex items-center gap-2">
-						<span className="font-medium text-muted-foreground text-xs">Current folder:</span>
+						<span className="font-medium text-muted-foreground text-xs">
+							Current folder:
+						</span>
 						<FolderTreePicker
 							folders={folders}
 							value={selectedFolderId}
@@ -457,13 +495,14 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 			{/* Add / Edit Link Form */}
 			{isAddingLink && (
-				<SectionCard
-					title={editingCardId ? "Edit bookmark" : "Add bookmark"}
-				>
+				<SectionCard title={editingCardId ? "Edit bookmark" : "Add bookmark"}>
 					<form onSubmit={handleSaveLink} className="space-y-3 py-2">
 						<div>
 							<div className="mb-1 flex items-center justify-between">
-								<label htmlFor="bookmark-url-input" className="font-medium text-muted-foreground text-xs">
+								<label
+									htmlFor="bookmark-url-input"
+									className="font-medium text-muted-foreground text-xs"
+								>
 									Website address (URL)
 								</label>
 								{urlValidation.status === "valid" && (
@@ -489,7 +528,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								onChange={(e) => handleUrlChange(e.target.value)}
 								autoFocus
 								className="h-9 rounded-lg border-border/60 bg-secondary/50 px-3 text-foreground text-sm"
-								aria-invalid={urlValidation.status === "invalid" || urlValidation.status === "duplicate"}
+								aria-invalid={
+									urlValidation.status === "invalid" ||
+									urlValidation.status === "duplicate"
+								}
 							/>
 							{urlValidation.message && (
 								<p className="mt-1 text-destructive text-xs" role="alert">
@@ -499,7 +541,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 						</div>
 
 						<div>
-							<label htmlFor="bookmark-title-input" className="mb-1 block font-medium text-muted-foreground text-xs">
+							<label
+								htmlFor="bookmark-title-input"
+								className="mb-1 block font-medium text-muted-foreground text-xs"
+							>
 								Title (optional)
 							</label>
 							<Input
@@ -638,6 +683,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			<SectionCard title="Thumbnail capture">
 				<SettingRow label="Automatic screenshot capture">
 					<Switch
+						aria-label="Automatic screenshot capture"
 						checked={thumbnailCapture.enabled}
 						onCheckedChange={(enabled: boolean) =>
 							updateThumbnailCapture({ enabled })
@@ -675,8 +721,12 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 				<div className="flex items-center justify-between border-border/30 border-b py-2">
 					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">Browser bookmarks</span>
-						<span className="text-muted-foreground text-[11px]">Import native Chrome / Firefox bookmarks</span>
+						<span className="font-medium text-foreground text-xs">
+							Browser bookmarks
+						</span>
+						<span className="text-[11px] text-muted-foreground">
+							Import native Chrome / Firefox bookmarks
+						</span>
 					</div>
 					<Button
 						type="button"
@@ -693,8 +743,12 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 				<div className="flex items-center justify-between border-border/30 border-b py-2">
 					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">HTML file</span>
-						<span className="text-muted-foreground text-[11px]">Netscape bookmarks.html file</span>
+						<span className="font-medium text-foreground text-xs">
+							HTML file
+						</span>
+						<span className="text-[11px] text-muted-foreground">
+							Netscape bookmarks.html file
+						</span>
 					</div>
 					<div className="flex items-center gap-1.5">
 						<Button
@@ -716,7 +770,15 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							disabled={isProcessingIo}
 							className="h-7 gap-1 rounded-lg text-xs"
 						>
-							<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+							<svg
+								aria-hidden="true"
+								width="12"
+								height="12"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2.5"
+							>
 								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
 							</svg>
 							Export
@@ -726,8 +788,12 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 				<div className="flex items-center justify-between py-2">
 					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">Full backup archive</span>
-						<span className="text-muted-foreground text-[11px]">All folders, links, settings, and wallpaper images</span>
+						<span className="font-medium text-foreground text-xs">
+							Full backup archive
+						</span>
+						<span className="text-[11px] text-muted-foreground">
+							All folders, links, settings, and wallpaper images
+						</span>
 					</div>
 					<div className="flex items-center gap-1.5">
 						<Button
@@ -749,7 +815,15 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							disabled={isProcessingIo}
 							className="h-7 gap-1 rounded-lg text-xs"
 						>
-							<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+							<svg
+								aria-hidden="true"
+								width="12"
+								height="12"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2.5"
+							>
 								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
 							</svg>
 							Export JSON
@@ -775,7 +849,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 			{/* Folder Edit Modal */}
 			<Dialog open={folderModalOpen} onOpenChange={setFolderModalOpen}>
-				<DialogContent className="sm:max-w-[420px]">
+				<DialogContent className="rounded-3xl sm:max-w-[420px]">
 					<DialogHeader>
 						<DialogTitle>
 							{editingFolderId ? "Edit Folder" : "New Folder"}
@@ -787,7 +861,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 					<form onSubmit={handleSaveFolder} className="space-y-4 py-2">
 						<div>
-							<label htmlFor="folder-name-modal-input" className="mb-1 block font-medium text-muted-foreground text-xs">
+							<label
+								htmlFor="folder-name-modal-input"
+								className="mb-1 block font-medium text-muted-foreground text-xs"
+							>
 								Folder Name
 							</label>
 							<Input
@@ -817,7 +894,11 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								value={folderParentInput ?? "__root__"}
 								onChange={setFolderParentInput}
 								allowRoot={true}
-								excludeIds={editingFolderId ? getSubtreeIds(folders, editingFolderId) : undefined}
+								excludeIds={
+									editingFolderId
+										? getSubtreeIds(folders, editingFolderId)
+										: undefined
+								}
 								className="h-9 w-full text-xs"
 							/>
 						</div>
@@ -845,16 +926,18 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 					if (!open) setDeleteConfirmFolderId(null);
 				}}
 			>
-				<DialogContent className="sm:max-w-[420px]">
+				<DialogContent className="rounded-3xl sm:max-w-[420px]">
 					<DialogHeader>
 						<DialogTitle>Delete folder?</DialogTitle>
 						<DialogDescription>
 							{folderDeleteInfo && (
 								<span>
-									Are you sure you want to delete &ldquo;{folderDeleteInfo.name}&rdquo;?
+									Are you sure you want to delete &ldquo;{folderDeleteInfo.name}
+									&rdquo;?
 									{folderDeleteInfo.cardCount > 0 && (
 										<span className="mt-1 block text-destructive">
-											This will permanently remove {folderDeleteInfo.cardCount} bookmark
+											This will permanently remove {folderDeleteInfo.cardCount}{" "}
+											bookmark
 											{folderDeleteInfo.cardCount === 1 ? "" : "s"}
 											{folderDeleteInfo.subfolderCount > 0
 												? ` and ${folderDeleteInfo.subfolderCount} subfolder${folderDeleteInfo.subfolderCount === 1 ? "" : "s"}`

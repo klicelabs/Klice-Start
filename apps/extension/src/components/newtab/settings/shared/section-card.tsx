@@ -36,7 +36,7 @@ export function SectionCard({
 			)}
 			<div
 				className={cn(
-					"relative mb-5 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-4 py-0.5 shadow-sm",
+					"relative mb-3 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-4 py-0.5",
 					className,
 				)}
 			>

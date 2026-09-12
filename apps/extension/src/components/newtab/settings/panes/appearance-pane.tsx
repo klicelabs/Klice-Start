@@ -20,7 +20,6 @@ import { useImageStore } from "../../../../stores/image-store";
 import { useSetupStore } from "../../../../stores/setup-store";
 import type {
 	AppearanceMode,
-	ColorScheme,
 	Settings,
 	WallpaperFrequency,
 } from "../../../../types";
@@ -46,7 +45,10 @@ const PEXELS_FREQUENCY_OPTIONS: readonly {
 ];
 
 /** Downscale large user images to ≤2560px on the longest edge before storing. */
-async function downscaleImageFile(file: File, maxDimension = 2560): Promise<string> {
+async function downscaleImageFile(
+	file: File,
+	maxDimension = 2560,
+): Promise<string> {
 	const bitmap = await createImageBitmap(file);
 	let { width, height } = bitmap;
 
@@ -90,7 +92,9 @@ export function AppearancePane() {
 
 	const bgFileRef = useRef<HTMLInputElement>(null);
 	const [uploadStatus, setUploadStatus] = useState("");
-	const [customPreviews, setCustomPreviews] = useState<Record<string, string | null>>({});
+	const [customPreviews, setCustomPreviews] = useState<
+		Record<string, string | null>
+	>({});
 	const customWallpapers = bg.customWallpapers ?? [];
 
 	// Load previews for custom wallpapers
@@ -177,7 +181,8 @@ export function AppearancePane() {
 			const dataUrl = await downscaleImageFile(file);
 			const savedId = await saveBackgroundImage(dataUrl);
 
-			const name = file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
+			const name =
+				file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
 			const updatedList = [
 				...customWallpapers.filter((w) => w.id !== savedId),
 				{ id: savedId, name },
@@ -195,7 +200,9 @@ export function AppearancePane() {
 			setUploadStatus(`Added "${name}"`);
 			setTimeout(() => setUploadStatus(""), 3000);
 		} catch (err) {
-			setUploadStatus(err instanceof Error ? err.message : "Failed to load image.");
+			setUploadStatus(
+				err instanceof Error ? err.message : "Failed to load image.",
+			);
 		} finally {
 			e.target.value = "";
 		}
@@ -211,10 +218,12 @@ export function AppearancePane() {
 						<button
 							type="button"
 							onClick={() => updateSettings({ colorScheme: "auto" })}
+							aria-label="Use automatic appearance"
+							aria-pressed={colorScheme === "auto"}
 							className={cn(
 								"group flex flex-col items-center gap-2 rounded-xl p-2 transition-[box-shadow,transform] duration-150 focus-visible:outline-none active:scale-[0.98]",
 								colorScheme === "auto"
-									? "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-xs"
+									? "shadow-xs ring-2 ring-primary ring-offset-2 ring-offset-background"
 									: "hover:bg-foreground/5",
 							)}
 						>
@@ -233,7 +242,9 @@ export function AppearancePane() {
 							<span
 								className={cn(
 									"font-medium text-xs",
-									colorScheme === "auto" ? "text-primary font-semibold" : "text-muted-foreground",
+									colorScheme === "auto"
+										? "font-medium text-primary"
+										: "text-muted-foreground",
 								)}
 							>
 								Auto
@@ -244,10 +255,12 @@ export function AppearancePane() {
 						<button
 							type="button"
 							onClick={() => updateSettings({ colorScheme: "light" })}
+							aria-label="Use light appearance"
+							aria-pressed={colorScheme === "light"}
 							className={cn(
 								"group flex flex-col items-center gap-2 rounded-xl p-2 transition-[box-shadow,transform] duration-150 focus-visible:outline-none active:scale-[0.98]",
 								colorScheme === "light"
-									? "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-xs"
+									? "shadow-xs ring-2 ring-primary ring-offset-2 ring-offset-background"
 									: "hover:bg-foreground/5",
 							)}
 						>
@@ -266,7 +279,9 @@ export function AppearancePane() {
 							<span
 								className={cn(
 									"font-medium text-xs",
-									colorScheme === "light" ? "text-primary font-semibold" : "text-muted-foreground",
+									colorScheme === "light"
+										? "font-medium text-primary"
+										: "text-muted-foreground",
 								)}
 							>
 								Light
@@ -277,10 +292,12 @@ export function AppearancePane() {
 						<button
 							type="button"
 							onClick={() => updateSettings({ colorScheme: "dark" })}
+							aria-label="Use dark appearance"
+							aria-pressed={colorScheme === "dark"}
 							className={cn(
 								"group flex flex-col items-center gap-2 rounded-xl p-2 transition-[box-shadow,transform] duration-150 focus-visible:outline-none active:scale-[0.98]",
 								colorScheme === "dark"
-									? "ring-2 ring-primary ring-offset-2 ring-offset-background shadow-xs"
+									? "shadow-xs ring-2 ring-primary ring-offset-2 ring-offset-background"
 									: "hover:bg-foreground/5",
 							)}
 						>
@@ -299,7 +316,9 @@ export function AppearancePane() {
 							<span
 								className={cn(
 									"font-medium text-xs",
-									colorScheme === "dark" ? "text-primary font-semibold" : "text-muted-foreground",
+									colorScheme === "dark"
+										? "font-medium text-primary"
+										: "text-muted-foreground",
 								)}
 							>
 								Dark
@@ -315,7 +334,9 @@ export function AppearancePane() {
 					label="Surface material"
 					value={appearanceMode}
 					options={THEME_OPTIONS}
-					onChange={(v) => updateSettings({ appearanceMode: v as AppearanceMode })}
+					onChange={(v) =>
+						updateSettings({ appearanceMode: v as AppearanceMode })
+					}
 				/>
 			</SectionCard>
 
@@ -326,7 +347,8 @@ export function AppearancePane() {
 			>
 				<div className="my-2 grid grid-cols-4 gap-2.5">
 					{WALLPAPERS.map((wp) => {
-						const isSelected = bg.type === "wallpaper" && bg.wallpaperId === wp.id;
+						const isSelected =
+							bg.type === "wallpaper" && bg.wallpaperId === wp.id;
 						return (
 							<button
 								type="button"
@@ -335,7 +357,7 @@ export function AppearancePane() {
 								className={cn(
 									"group relative flex aspect-[16/10] flex-col justify-end overflow-hidden rounded-xl border border-white/10 bg-muted/40 p-1.5 text-left transition-[transform,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97]",
 									isSelected
-										? "ring-2 ring-foreground/90 ring-offset-2 ring-offset-background shadow-sm"
+										? "shadow-sm ring-2 ring-foreground/90 ring-offset-2 ring-offset-background"
 										: "hover:scale-[1.02] hover:shadow-xs",
 								)}
 								title={wp.label}
@@ -353,7 +375,15 @@ export function AppearancePane() {
 								</span>
 								{isSelected && (
 									<div className="absolute top-1.5 right-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-white text-black shadow-xs">
-										<svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5">
+										<svg
+											aria-hidden="true"
+											width="10"
+											height="10"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="3.5"
+										>
 											<polyline points="20 6 9 17 4 12" />
 										</svg>
 									</div>
@@ -375,7 +405,15 @@ export function AppearancePane() {
 						onClick={() => bgFileRef.current?.click()}
 						className="h-7 gap-1.5 rounded-lg text-xs"
 					>
-						<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+						<svg
+							aria-hidden="true"
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2.5"
+						>
 							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
 						</svg>
 						Upload image
@@ -396,42 +434,55 @@ export function AppearancePane() {
 							const isSelected = bg.type === "image" && bg.imageId === cw.id;
 							const previewSrc = customPreviews[cw.id];
 							return (
-								<button
-									type="button"
+								<div
 									key={cw.id}
-									onClick={() => handleSelectCustomImage(cw.id)}
 									className={cn(
-										"group relative flex aspect-[16/10] flex-col justify-end overflow-hidden rounded-xl border border-white/10 bg-muted/40 p-1.5 text-left transition-[transform,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97]",
+										"group relative flex aspect-[16/10] flex-col justify-end overflow-hidden rounded-xl border border-white/10 bg-muted/40 p-1.5 text-left transition-[transform,box-shadow] duration-150",
 										isSelected
-											? "ring-2 ring-foreground/90 ring-offset-2 ring-offset-background shadow-sm"
+											? "shadow-sm ring-2 ring-foreground/90 ring-offset-2 ring-offset-background"
 											: "hover:scale-[1.02]",
 									)}
-									title={cw.name}
-									aria-pressed={isSelected}
 								>
-									{previewSrc && (
-										<img
-											src={previewSrc}
-											alt={cw.name}
-											className="absolute inset-0 size-full object-cover"
-										/>
-									)}
-									<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-									<span className="relative z-10 truncate font-medium text-[11px] text-white/90">
-										{cw.name}
-									</span>
+									<button
+										type="button"
+										onClick={() => handleSelectCustomImage(cw.id)}
+										aria-label={`Use ${cw.name} wallpaper`}
+										aria-pressed={isSelected}
+										className="absolute inset-0 flex flex-col justify-end p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+									>
+										{previewSrc && (
+											<img
+												src={previewSrc}
+												alt={cw.name}
+												className="absolute inset-0 size-full object-cover"
+											/>
+										)}
+										<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+										<span className="relative z-10 truncate font-medium text-[11px] text-white/90">
+											{cw.name}
+										</span>
+									</button>
 									<button
 										type="button"
 										onClick={(e) => handleDeleteCustomImage(e, cw.id)}
+										aria-label={`Delete ${cw.name} wallpaper`}
 										title="Delete wallpaper"
 										className="absolute top-1.5 right-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-black/60 text-white/80 opacity-0 transition-opacity hover:bg-red-500 hover:text-white group-hover:opacity-100"
 									>
-										<svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+										<svg
+											aria-hidden="true"
+											width="10"
+											height="10"
+											viewBox="0 0 24 24"
+											fill="none"
+											stroke="currentColor"
+											strokeWidth="2.5"
+										>
 											<line x1="18" y1="6" x2="6" y2="18" />
 											<line x1="6" y1="6" x2="18" y2="18" />
 										</svg>
 									</button>
-								</button>
+								</div>
 							);
 						})}
 					</div>
@@ -442,7 +493,10 @@ export function AppearancePane() {
 				)}
 
 				{uploadStatus && (
-					<p className="px-1 pb-2 font-medium text-xs text-primary" role="status">
+					<p
+						className="px-1 pb-2 font-medium text-primary text-xs"
+						role="status"
+					>
 						{uploadStatus}
 					</p>
 				)}
@@ -459,7 +513,7 @@ export function AppearancePane() {
 								key={g.id}
 								onClick={() => handleSelectGradient(g.id)}
 								className={cn(
-									"group relative flex aspect-[16/10] items-center justify-center rounded-xl px-2 font-medium text-xs text-white shadow-xs transition-[transform,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97]",
+									"group relative flex aspect-[16/10] items-center justify-center rounded-xl px-2 font-medium text-white text-xs shadow-xs transition-[transform,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.97]",
 									isSelected
 										? "ring-2 ring-foreground/90 ring-offset-2 ring-offset-background"
 										: "hover:scale-[1.02]",
@@ -482,7 +536,9 @@ export function AppearancePane() {
 					suffix="%"
 					min={20}
 					max={100}
-					onChange={(v) => updateBackground({ opacity: v } as Partial<Settings["background"]>)}
+					onChange={(v) =>
+						updateBackground({ opacity: v } as Partial<Settings["background"]>)
+					}
 				/>
 
 				<SliderRow
@@ -491,7 +547,9 @@ export function AppearancePane() {
 					suffix="px"
 					min={0}
 					max={20}
-					onChange={(v) => updateBackground({ blur: v } as Partial<Settings["background"]>)}
+					onChange={(v) =>
+						updateBackground({ blur: v } as Partial<Settings["background"]>)
+					}
 				/>
 
 				<SliderRow
@@ -500,7 +558,11 @@ export function AppearancePane() {
 					suffix="%"
 					min={40}
 					max={140}
-					onChange={(v) => updateBackground({ brightness: v } as Partial<Settings["background"]>)}
+					onChange={(v) =>
+						updateBackground({ brightness: v } as Partial<
+							Settings["background"]
+						>)
+					}
 				/>
 			</SectionCard>
 
@@ -520,19 +582,24 @@ export function AppearancePane() {
 									imageId: null,
 								} as Partial<Settings["background"]>)
 							}
-							className="size-7 cursor-pointer rounded-full border border-border/50 bg-transparent p-0"
+							className="size-7 rounded-full border border-border/50 bg-transparent p-0"
 							aria-label="Solid background color"
 						/>
-						<span className="font-mono text-muted-foreground text-xs">{bg.color}</span>
+						<span className="font-mono text-muted-foreground text-xs">
+							{bg.color}
+						</span>
 					</div>
 				</SettingRow>
 
 				<SettingRow label="Pexels dynamic photography">
 					<Switch
+						aria-label="Use Pexels dynamic photography"
 						checked={bg.type === "pexels"}
 						onCheckedChange={(enabled: boolean) => {
 							if (enabled) {
-								updateBackground({ type: "pexels" } as Partial<Settings["background"]>);
+								updateBackground({ type: "pexels" } as Partial<
+									Settings["background"]
+								>);
 								void refreshWallpaper(true);
 							} else {
 								updateBackground({
@@ -547,7 +614,10 @@ export function AppearancePane() {
 				{bg.type === "pexels" && (
 					<div className="space-y-3 border-border/40 border-t px-1 pt-3 pb-2">
 						<div>
-							<label htmlFor="pexels-query-input" className="mb-1 block font-medium text-muted-foreground text-xs">
+							<label
+								htmlFor="pexels-query-input"
+								className="mb-1 block font-medium text-muted-foreground text-xs"
+							>
 								Search theme / keyword
 							</label>
 							<Input
@@ -575,7 +645,11 @@ export function AppearancePane() {
 								}}
 								items={PEXELS_FREQUENCY_OPTIONS}
 							>
-								<SelectTrigger size="sm" className="min-w-[150px]">
+								<SelectTrigger
+									size="sm"
+									className="min-w-[150px]"
+									aria-label="Update wallpaper frequency"
+								>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -595,8 +669,11 @@ export function AppearancePane() {
 			<SectionCard title="Clock & time">
 				<SettingRow label="Enable clock">
 					<Switch
+						aria-label="Enable clock"
 						checked={clock.enabled}
-						onCheckedChange={(checked: boolean) => updateClock({ enabled: checked })}
+						onCheckedChange={(checked: boolean) =>
+							updateClock({ enabled: checked })
+						}
 					/>
 				</SettingRow>
 
@@ -604,6 +681,7 @@ export function AppearancePane() {
 					<>
 						<SettingRow label="24-hour time format">
 							<Switch
+								aria-label="Use 24-hour time format"
 								checked={clock.format24}
 								onCheckedChange={(checked: boolean) =>
 									updateClock({ format24: checked })
@@ -613,6 +691,7 @@ export function AppearancePane() {
 
 						<SettingRow label="Show seconds">
 							<Switch
+								aria-label="Show seconds"
 								checked={clock.showSeconds}
 								onCheckedChange={(checked: boolean) =>
 									updateClock({ showSeconds: checked })
@@ -636,6 +715,7 @@ export function AppearancePane() {
 			<SectionCard title="Greeting">
 				<SettingRow label="Personal greeting">
 					<Switch
+						aria-label="Enable personal greeting"
 						checked={greeting.enabled}
 						onCheckedChange={(checked: boolean) =>
 							updateGreeting({ enabled: checked })
@@ -645,7 +725,10 @@ export function AppearancePane() {
 
 				{greeting.enabled && (
 					<div className="px-1 pt-2 pb-3">
-						<label htmlFor="greeting-name-input" className="mb-1.5 block font-medium text-muted-foreground text-xs">
+						<label
+							htmlFor="greeting-name-input"
+							className="mb-1.5 block font-medium text-muted-foreground text-xs"
+						>
 							Your name
 						</label>
 						<Input
