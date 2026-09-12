@@ -61,3 +61,7 @@ temp
 .claude
 .mcp.json
 ruvector.db
+.workbuddy-ai
+
+# Local QA evidence (screenshots and probe output from manual verification)
+.qa
