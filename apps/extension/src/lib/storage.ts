@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETUP, WALLPAPERS } from "./constants";
 import { getDescendantIds } from "./folder-tree";
+import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
 
 /**
@@ -251,6 +252,14 @@ export function normalizeState(
 			}),
 		);
 
+	// Migrate to the unified item-order model. Legacy payloads have no
+	// `itemOrder`; backfill folders-first so existing installs see no change.
+	// Runs after card filtering so no key can dangle at a dropped card.
+	state.itemOrder =
+		source.itemOrder !== undefined
+			? repairItemOrder(source.itemOrder, state.folders, state.cards)
+			: buildItemOrder(state.folders, state.cards);
+
 	return state;
 }
 
@@ -417,7 +426,8 @@ if (typeof window !== "undefined") {
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
 		if (typeof chrome === "undefined" || !chrome.storage?.local) {
-			const raw = typeof localStorage !== "undefined" ? localStorage.getItem(name) : null;
+			const raw =
+				typeof localStorage !== "undefined" ? localStorage.getItem(name) : null;
 			if (!raw) return null;
 			try {
 				const parsed = JSON.parse(raw) as StorageValue<Setup>;

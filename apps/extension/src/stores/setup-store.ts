@@ -9,6 +9,14 @@ import {
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
 import {
+	containerKeyOf,
+	type ItemOrder,
+	type ItemRef,
+	itemKey,
+	parseItemKey,
+	reindexOrders,
+} from "../lib/item-order";
+import {
 	beginReset,
 	cancelPendingPersist,
 	chromeStorageAdapter,
@@ -16,23 +24,67 @@ import {
 	normalizeState,
 } from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
-import type { Card, Folder, Settings, Setup } from "../types";
+import type { Card, Settings, Setup } from "../types";
 import { useImageStore } from "./image-store";
+
+export type InsertPosition = "before" | "after";
 
 interface SetupActions {
 	addFolder: (name: string, parentId?: string | null) => string;
 	updateFolder: (id: string, name: string) => void;
 	moveFolder: (id: string, parentId: string | null) => void;
+	moveFolders: (ids: string[], parentId: string | null) => void;
 	deleteFolder: (id: string) => void;
-	reorderFolders: (draggedId: string, targetId: string) => void;
+	reorderFolders: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
 	setActiveFolder: (id: string) => void;
 	addCard: (
 		card: Omit<Card, "id" | "order" | "origin" | "capturedAt">,
 	) => string;
 	updateCard: (id: string, changes: Partial<Card>) => void;
 	moveCard: (id: string, folderId: string) => void;
+	moveCards: (ids: string[], folderId: string) => void;
+	/**
+	 * Move a mixed group of cards + folders into one folder in a SINGLE set()
+	 * (one coalesced storage write — no half-moved window). Order within each
+	 * kind follows the input arrays. Folders that would create a cycle are
+	 * skipped in place; unknown ids are ignored.
+	 */
+	moveItemsToContainer: (
+		folderId: string,
+		cardIds: string[],
+		folderIds: string[],
+	) => void;
 	deleteCard: (id: string) => void;
-	reorderCardsInActiveFolder: (draggedId: string, targetId: string) => void;
+	reorderCardsInActiveFolder: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
+	/**
+	 * Move any item (card or folder) to before/after another item inside one
+	 * container. Powers live mixed reorder in the grid. Never reparents.
+	 */
+	reorderItems: (
+		container: string,
+		dragged: ItemRef,
+		target: ItemRef,
+		position: InsertPosition,
+	) => void;
+	/**
+	 * Atomically create a subfolder containing two cards of one container.
+	 * Returns the new folder id, or null when the pair is invalid (nothing
+	 * is mutated, so neither bookmark can be lost).
+	 */
+	createSubfolderFromCards: (
+		containerFolderId: string,
+		firstCardId: string,
+		secondCardId: string,
+		name: string,
+	) => string | null;
 	updateSettings: (changes: Partial<Settings>) => void;
 	updateBackground: (changes: Partial<Settings["background"]>) => void;
 	updateClock: (changes: Partial<Settings["clock"]>) => void;
@@ -47,12 +99,12 @@ interface SetupActions {
 
 export type SetupStore = Setup & SetupActions;
 
-/** Next sibling order for a folder being appended under `parentId`. */
-function nextFolderOrder(folders: Folder[], parentId: string | null): number {
-	const siblings = folders.filter((f) => (f.parentId ?? null) === parentId);
-	return siblings.length;
-}
-
+/**
+ * Every structural mutation below keeps the unified `itemOrder` map in sync
+ * and reindexes the legacy `order` fields from it, so the two models can
+ * never drift apart. All multi-entity moves run inside a single `set()`,
+ * making them atomic for persistence (one coalesced storage write).
+ */
 export const useSetupStore = create<SetupStore>()(
 	persist(
 		(set, get) => ({
@@ -60,12 +112,20 @@ export const useSetupStore = create<SetupStore>()(
 
 			addFolder: (name, parentId = null) => {
 				const id = generateId();
-				set((s) => ({
-					folders: [
+				const container = containerKeyOf(parentId);
+				set((s) => {
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = {
+						...base,
+						[container]: [...(base[container] ?? []), itemKey("folder", id)],
+						[id]: base[id] ?? [],
+					};
+					const folders = [
 						...s.folders,
-						{ id, name, order: nextFolderOrder(s.folders, parentId), parentId },
-					],
-				}));
+						{ id, name, order: (base[container] ?? []).length, parentId },
+					];
+					return { ...reindexOrders(folders, s.cards, itemOrder), itemOrder };
+				});
 				return id;
 			},
 
@@ -78,17 +138,57 @@ export const useSetupStore = create<SetupStore>()(
 				set((s) => {
 					if (id === parentId) return {};
 					if (wouldCreateCycle(s.folders, id, parentId)) return {};
-					return {
-						folders: s.folders.map((f) =>
-							f.id === id
-								? {
-										...f,
-										parentId,
-										order: nextFolderOrder(s.folders, parentId),
-									}
-								: f,
-						),
-					};
+					const folder = s.folders.find((f) => f.id === id);
+					if (!folder) return {};
+					const fromContainer = containerKeyOf(folder.parentId ?? null);
+					const toContainer = containerKeyOf(parentId);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					if (fromContainer !== toContainer) {
+						const key = itemKey("folder", id);
+						itemOrder[fromContainer] = (base[fromContainer] ?? []).filter(
+							(k) => k !== key,
+						);
+						itemOrder[toContainer] = [...(base[toContainer] ?? []), key];
+					}
+					if (!(id in itemOrder)) itemOrder[id] = base[id] ?? [];
+					const folders = s.folders.map((f) =>
+						f.id === id ? { ...f, parentId } : f,
+					);
+					return { ...reindexOrders(folders, s.cards, itemOrder), itemOrder };
+				}),
+
+			moveFolders: (ids, parentId) =>
+				set((s) => {
+					const valid = ids.filter(
+						(id) =>
+							id !== parentId &&
+							!wouldCreateCycle(s.folders, id, parentId) &&
+							s.folders.some((f) => f.id === id),
+					);
+					if (valid.length === 0) return {};
+					const validSet = new Set(valid);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						const next = keys.filter((k) => {
+							const ref = parseItemKey(k);
+							return !(ref && ref.kind === "folder" && validSet.has(ref.id));
+						});
+						if (next.length !== keys.length) itemOrder[container] = next;
+					}
+					const toContainer = containerKeyOf(parentId);
+					itemOrder[toContainer] = [
+						...(itemOrder[toContainer] ?? []),
+						...valid.map((id) => itemKey("folder", id)),
+					];
+					for (const id of valid) {
+						if (!(id in itemOrder)) itemOrder[id] = base[id] ?? [];
+					}
+					const folders = s.folders.map((f) =>
+						validSet.has(f.id) ? { ...f, parentId } : f,
+					);
+					return { ...reindexOrders(folders, s.cards, itemOrder), itemOrder };
 				}),
 
 			deleteFolder: (id) =>
@@ -109,6 +209,21 @@ export const useSetupStore = create<SetupStore>()(
 					const remainingFolders = s.folders.filter(
 						(f) => !removedFolderIds.has(f.id),
 					);
+					const remainingCards = s.cards.filter(
+						(c) => !removedFolderIds.has(c.folderId),
+					);
+					const remainingCardIds = new Set(remainingCards.map((c) => c.id));
+					const itemOrder: ItemOrder = {};
+					for (const [container, keys] of Object.entries(s.itemOrder ?? {})) {
+						if (removedFolderIds.has(container)) continue;
+						itemOrder[container] = keys.filter((k) => {
+							const ref = parseItemKey(k);
+							if (!ref) return false;
+							return ref.kind === "folder"
+								? !removedFolderIds.has(ref.id)
+								: remainingCardIds.has(ref.id);
+						});
+					}
 					const nextActive = removedFolderIds.has(s.activeFolderId)
 						? target.parentId &&
 							remainingFolders.some((f) => f.id === target.parentId)
@@ -119,37 +234,37 @@ export const useSetupStore = create<SetupStore>()(
 								"default"
 						: s.activeFolderId;
 
-					return {
-						folders: remainingFolders,
-						cards: s.cards.filter((c) => !removedFolderIds.has(c.folderId)),
-						activeFolderId: nextActive,
-					};
+					const reindexed = reindexOrders(
+						remainingFolders,
+						remainingCards,
+						itemOrder,
+					);
+					return { ...reindexed, itemOrder, activeFolderId: nextActive };
 				}),
 
-			reorderFolders: (draggedId, targetId) =>
+			reorderFolders: (draggedId, targetId, position = "before") =>
 				set((s) => {
 					const dragged = s.folders.find((f) => f.id === draggedId);
 					const target = s.folders.find((f) => f.id === targetId);
-					if (!dragged || !target) return {};
+					if (!dragged || !target || draggedId === targetId) return {};
 					// Only reorder within the same parent; cross-parent moves use moveFolder.
 					if ((dragged.parentId ?? null) !== (target.parentId ?? null))
 						return {};
 
-					const siblings = s.folders
-						.filter((f) => (f.parentId ?? null) === (dragged.parentId ?? null))
-						.sort((a, b) => a.order - b.order);
-					const from = siblings.findIndex((f) => f.id === draggedId);
-					const to = siblings.findIndex((f) => f.id === targetId);
-					if (from === -1 || to === -1) return {};
-					const [moved] = siblings.splice(from, 1);
-					siblings.splice(to, 0, moved);
-					const orderById = new Map(siblings.map((f, i) => [f.id, i]));
+					const container = containerKeyOf(dragged.parentId ?? null);
+					const base = s.itemOrder ?? {};
+					const keys = [...(base[container] ?? [])];
+					const dKey = itemKey("folder", draggedId);
+					const tKey = itemKey("folder", targetId);
+					if (!keys.includes(dKey) || !keys.includes(tKey)) return {};
+					const next = keys.filter((k) => k !== dKey);
+					const to = next.indexOf(tKey);
+					if (to === -1) return {};
+					next.splice(position === "after" ? to + 1 : to, 0, dKey);
+					const itemOrder: ItemOrder = { ...base, [container]: next };
 					return {
-						folders: s.folders.map((f) =>
-							orderById.has(f.id)
-								? { ...f, order: orderById.get(f.id) ?? f.order }
-								: f,
-						),
+						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
 					};
 				}),
 
@@ -158,17 +273,26 @@ export const useSetupStore = create<SetupStore>()(
 			addCard: (partial) => {
 				const state = get();
 				const id = generateId();
-				const cardsInFolder = state.cards.filter(
-					(c) => c.folderId === partial.folderId,
-				);
+				const container = partial.folderId;
+				const base = state.itemOrder ?? {};
 				const card: Card = {
 					...partial,
 					id,
-					order: cardsInFolder.length,
+					order: (base[container] ?? []).filter((k) => k.startsWith("card:"))
+						.length,
 					origin: "local",
 					capturedAt: null,
 				};
-				set((s) => ({ cards: [...s.cards, card] }));
+				const itemOrder: ItemOrder = {
+					...base,
+					[container]: [...(base[container] ?? []), itemKey("card", id)],
+				};
+				const reindexed = reindexOrders(
+					state.folders,
+					[...state.cards, card],
+					itemOrder,
+				);
+				set({ ...reindexed, itemOrder });
 				return id;
 			},
 
@@ -181,11 +305,89 @@ export const useSetupStore = create<SetupStore>()(
 				set((s) => {
 					const card = s.cards.find((c) => c.id === id);
 					if (!card || card.folderId === folderId) return {};
-					const order = s.cards.filter((c) => c.folderId === folderId).length;
+					const key = itemKey("card", id);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						if (keys.includes(key)) {
+							itemOrder[container] = keys.filter((k) => k !== key);
+						}
+					}
+					itemOrder[folderId] = [...(itemOrder[folderId] ?? []), key];
+					const cards = s.cards.map((c) =>
+						c.id === id ? { ...c, folderId } : c,
+					);
+					return { ...reindexOrders(s.folders, cards, itemOrder), itemOrder };
+				}),
+
+			moveCards: (ids, folderId) =>
+				set((s) => {
+					const existing = new Set(s.cards.map((c) => c.id));
+					const valid = ids.filter((id) => existing.has(id));
+					if (valid.length === 0) return {};
+					const validSet = new Set(valid);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						const next = keys.filter((k) => {
+							const ref = parseItemKey(k);
+							return !(ref && ref.kind === "card" && validSet.has(ref.id));
+						});
+						if (next.length !== keys.length) itemOrder[container] = next;
+					}
+					itemOrder[folderId] = [
+						...(itemOrder[folderId] ?? []),
+						...valid.map((id) => itemKey("card", id)),
+					];
+					const cards = s.cards.map((c) =>
+						validSet.has(c.id) ? { ...c, folderId } : c,
+					);
+					return { ...reindexOrders(s.folders, cards, itemOrder), itemOrder };
+				}),
+
+			moveItemsToContainer: (folderId, cardIds, folderIds) =>
+				set((s) => {
+					const existingCards = new Set(s.cards.map((c) => c.id));
+					const validCards = cardIds.filter((id) => existingCards.has(id));
+					const validFolders = folderIds.filter(
+						(id) =>
+							id !== folderId &&
+							!wouldCreateCycle(s.folders, id, folderId) &&
+							s.folders.some((f) => f.id === id),
+					);
+					if (validCards.length === 0 && validFolders.length === 0) return {};
+					const validCardSet = new Set(validCards);
+					const validFolderSet = new Set(validFolders);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						const next = keys.filter((k) => {
+							const ref = parseItemKey(k);
+							if (!ref) return false;
+							if (ref.kind === "card" && validCardSet.has(ref.id)) return false;
+							if (ref.kind === "folder" && validFolderSet.has(ref.id))
+								return false;
+							return true;
+						});
+						if (next.length !== keys.length) itemOrder[container] = next;
+					}
+					itemOrder[folderId] = [
+						...(itemOrder[folderId] ?? []),
+						...validCards.map((id) => itemKey("card", id)),
+						...validFolders.map((id) => itemKey("folder", id)),
+					];
+					for (const id of validFolders) {
+						if (!(id in itemOrder)) itemOrder[id] = base[id] ?? [];
+					}
+					const cards = s.cards.map((c) =>
+						validCardSet.has(c.id) ? { ...c, folderId } : c,
+					);
+					const folders = s.folders.map((f) =>
+						validFolderSet.has(f.id) ? { ...f, parentId: folderId } : f,
+					);
 					return {
-						cards: s.cards.map((c) =>
-							c.id === id ? { ...c, folderId, order } : c,
-						),
+						...reindexOrders(folders, cards, itemOrder),
+						itemOrder,
 					};
 				}),
 
@@ -194,28 +396,109 @@ export const useSetupStore = create<SetupStore>()(
 					const card = s.cards.find((c) => c.id === id);
 					if (card?.thumbId)
 						useImageStore.getState().deleteThumbnail(card.thumbId);
-					return { cards: s.cards.filter((c) => c.id !== id) };
-				}),
-
-			reorderCardsInActiveFolder: (draggedId, targetId) =>
-				set((s) => {
-					const list = s.cards
-						.filter((c) => c.folderId === s.activeFolderId)
-						.sort((a, b) => a.order - b.order);
-					const from = list.findIndex((c) => c.id === draggedId);
-					const to = list.findIndex((c) => c.id === targetId);
-					if (from === -1 || to === -1) return {};
-					const [moved] = list.splice(from, 1);
-					list.splice(to, 0, moved);
-					const orderById = new Map(list.map((c, i) => [c.id, i]));
+					const key = itemKey("card", id);
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						if (keys.includes(key)) {
+							itemOrder[container] = keys.filter((k) => k !== key);
+						}
+					}
 					return {
-						cards: s.cards.map((c) =>
-							orderById.has(c.id)
-								? { ...c, order: orderById.get(c.id) ?? c.order }
-								: c,
-						),
+						cards: s.cards.filter((c) => c.id !== id),
+						itemOrder,
 					};
 				}),
+
+			reorderCardsInActiveFolder: (draggedId, targetId, position = "before") =>
+				set((s) => {
+					const container = s.activeFolderId;
+					const base = s.itemOrder ?? {};
+					const keys = [...(base[container] ?? [])];
+					const dKey = itemKey("card", draggedId);
+					const tKey = itemKey("card", targetId);
+					if (!keys.includes(dKey) || !keys.includes(tKey)) return {};
+					const next = keys.filter((k) => k !== dKey);
+					const to = next.indexOf(tKey);
+					if (to === -1) return {};
+					next.splice(position === "after" ? to + 1 : to, 0, dKey);
+					const itemOrder: ItemOrder = { ...base, [container]: next };
+					return {
+						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			reorderItems: (container, dragged, target, position) =>
+				set((s) => {
+					if (dragged.id === target.id) return {};
+					const base = s.itemOrder ?? {};
+					const keys = [...(base[container] ?? [])];
+					const dKey = itemKey(dragged.kind, dragged.id);
+					const tKey = itemKey(target.kind, target.id);
+					if (!keys.includes(dKey) || !keys.includes(tKey)) return {};
+					const next = keys.filter((k) => k !== dKey);
+					const to = next.indexOf(tKey);
+					if (to === -1) return {};
+					next.splice(position === "after" ? to + 1 : to, 0, dKey);
+					const itemOrder: ItemOrder = { ...base, [container]: next };
+					return {
+						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			createSubfolderFromCards: (
+				containerFolderId,
+				firstCardId,
+				secondCardId,
+				name,
+			) => {
+				if (firstCardId === secondCardId) return null;
+				const s = get();
+				const first = s.cards.find(
+					(c) => c.id === firstCardId && c.folderId === containerFolderId,
+				);
+				const second = s.cards.find(
+					(c) => c.id === secondCardId && c.folderId === containerFolderId,
+				);
+				if (!first || !second) return null;
+				const id = generateId();
+				const base = s.itemOrder ?? {};
+				// Insert the new folder where the drop target lived.
+				const keys = (base[containerFolderId] ?? []).filter(
+					(k) =>
+						k !== itemKey("card", firstCardId) &&
+						k !== itemKey("card", secondCardId),
+				);
+				const targetIdx = (base[containerFolderId] ?? []).indexOf(
+					itemKey("card", secondCardId),
+				);
+				keys.splice(
+					targetIdx === -1 ? keys.length : Math.min(targetIdx, keys.length),
+					0,
+					itemKey("folder", id),
+				);
+				const itemOrder: ItemOrder = {
+					...base,
+					[containerFolderId]: keys,
+					[id]: [itemKey("card", firstCardId), itemKey("card", secondCardId)],
+				};
+				const folders = [
+					...s.folders,
+					{ id, name, order: 0, parentId: containerFolderId },
+				];
+				const cards = s.cards.map((c) =>
+					c.id === firstCardId
+						? { ...c, folderId: id, order: 0 }
+						: c.id === secondCardId
+							? { ...c, folderId: id, order: 1 }
+							: c,
+				);
+				const reindexed = reindexOrders(folders, cards, itemOrder);
+				set({ ...reindexed, itemOrder });
+				return id;
+			},
 
 			updateSettings: (changes) =>
 				set((s) => ({ settings: { ...s.settings, ...changes } })),
@@ -293,6 +576,7 @@ export const useSetupStore = create<SetupStore>()(
 				cards: s.cards,
 				activeFolderId: s.activeFolderId,
 				settings: s.settings,
+				itemOrder: s.itemOrder,
 			}),
 		},
 	),

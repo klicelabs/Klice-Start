@@ -46,6 +46,10 @@ function validateSetupShape(parsed: Record<string, unknown>): Setup {
 		cards: parsed.cards as Card[],
 		activeFolderId: parsed.activeFolderId,
 		settings: parsed.settings as unknown as Setup["settings"],
+		// Preserved when present; normalizeState backfills legacy backups.
+		itemOrder: isRecord(parsed.itemOrder)
+			? (parsed.itemOrder as Setup["itemOrder"])
+			: undefined,
 	};
 }
 
@@ -122,6 +126,7 @@ export async function buildBackup(): Promise<BackupPayload> {
 		cards: state.cards,
 		activeFolderId: state.activeFolderId,
 		settings: state.settings,
+		itemOrder: state.itemOrder,
 		thumbnails,
 		backgrounds,
 	};

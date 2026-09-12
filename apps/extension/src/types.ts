@@ -1,3 +1,5 @@
+import type { ItemOrder } from "./lib/item-order";
+
 export interface Folder {
 	id: string;
 	name: string;
@@ -96,6 +98,10 @@ export interface Settings {
 	tileSize: "small" | "medium" | "large";
 	maxColumns: number;
 	showTitle: boolean;
+	/**
+	 * @deprecated The hover delete button was removed; deletion lives in the
+	 * context menu. Kept so stored settings still normalize.
+	 */
 	showDeleteButton: boolean;
 	openInNewTab: boolean;
 	/** Speed Dial display mode. */
@@ -118,6 +124,13 @@ export interface Setup {
 	cards: Card[];
 	activeFolderId: string;
 	settings: Settings;
+	/**
+	 * Unified per-container display order (`containerId -> ["card:id",
+	 * "folder:id"]`). The source of truth for mixed folder/bookmark ordering;
+	 * legacy `order` fields are reindexed from it. Absent in legacy payloads
+	 * and backfilled on load (folders-first) by `normalizeState`.
+	 */
+	itemOrder?: ItemOrder;
 }
 
 /** A curated site shown in the "Recommended sites" section of the add-favorite dialog. */
