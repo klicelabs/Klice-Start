@@ -8,15 +8,37 @@ export type FrostGlassVariantProp = { glassVariant?: FrostGlassVariant };
 
 export const liquidRefractStyles = "bg-transparent border-0 shadow-none";
 export const settingsSidebarStyles = [
-	"backdrop-blur-[12px] backdrop-saturate-[1.25]",
-	"bg-white/[0.16] dark:bg-white/[0.08]",
-	"border border-white/[0.28] dark:border-white/[0.1]",
-	"shadow-[0_8px_24px_rgba(15,23,42,0.1)] dark:shadow-[0_8px_24px_rgba(0,0,0,0.24)]",
+	// The Settings sidebar is the richer material layer: the wallpaper blooms
+	// through a heavier blur + saturation lift, so it reads as a real
+	// translucent panel that is visibly *lighter* than the content pane
+	// beside it — never the same surface as the content.
+	"backdrop-blur-[26px] backdrop-saturate-[1.7] backdrop-brightness-[1.03]",
+	"dark:backdrop-saturate-[1.55] dark:backdrop-brightness-[1.08]",
+	"bg-white/[0.66] dark:bg-white/[0.055]",
+	// Light-from-above sheen: a soft top highlight fading into a deeper base.
+	"[background-image:linear-gradient(180deg,rgba(255,255,255,0.22)_0%,rgba(255,255,255,0.06)_42%,rgba(255,255,255,0)_100%)]",
+	"dark:[background-image:linear-gradient(180deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.025)_45%,rgba(0,0,0,0.18)_100%)]",
+	"border-r border-white/[0.28] dark:border-white/[0.10]",
+	"shadow-[inset_0_1px_0_rgba(255,255,255,0.34),inset_-1px_0_0_rgba(255,255,255,0.12)]",
+	"dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.10),inset_-1px_0_0_rgba(255,255,255,0.06)]",
 ].join(" ");
+
+/**
+ * Settings content pane. Deliberately the calmest surface in the modal: an
+ * opaque, stable reading surface with no glass of its own, so the sidebar
+ * owns the material hierarchy. A single hairline inset separates the two.
+ */
+export const settingsContentStyles = [
+	"bg-background/[0.97]",
+	"shadow-[inset_1px_0_0_rgba(0,0,0,0.04)] dark:shadow-[inset_1px_0_0_rgba(255,255,255,0.05)]",
+].join(" ");
+
 export const settingsSidebarIconStyles = [
-	"flex size-[26px] shrink-0 items-center justify-center rounded-[7px]",
+	// Optical nesting: the tile radius stays a step below its row's so the
+	// icon reads as sitting *inside* the row, not as a second pill.
+	"flex size-6 shrink-0 items-center justify-center rounded-md border border-white/[0.20]",
 	"text-white",
-	"shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_1px_2px_rgba(0,0,0,0.15)]",
+	"shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_1px_2px_rgba(0,0,0,0.18)]",
 ].join(" ");
 
 export const glassVariantStyles: Record<FrostGlassVariant, string> = {

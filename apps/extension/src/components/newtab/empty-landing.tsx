@@ -1,3 +1,6 @@
+import { Fragment } from "react";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { glassFocusRing, glassText, HERO_TEXT_SHADOW } from "../../lib/glass";
 import { RECOMMENDED_SITES } from "../../lib/recommended-sites";
 import { faviconUrl } from "../../lib/url";
 import { cn } from "../../lib/utils";
@@ -5,20 +8,39 @@ import { useSetupStore } from "../../stores/setup-store";
 import { useAppearance } from "./appearance-provider";
 
 interface EmptyLandingProps {
-	/** Current folder name to show as a badge. */
+	/** Target folder, used to name where a quick-add shortcut will land. */
 	folderName: string;
-	/** Callback when the user clicks the action button. */
+	/** Opens the add-link flow. */
 	onAdd: () => void;
 }
 
-const STARTER_SUGGESTIONS = RECOMMENDED_SITES.slice(0, 6);
+/**
+ * Four well-known destinations. This state is deliberately quiet: one text
+ * line, no favicons, no per-site chrome. Anything richer turns the empty
+ * state into a mini dashboard whose secondary actions compete with the one
+ * primary action.
+ */
+const QUICK_ADD = RECOMMENDED_SITES.slice(0, 4);
 
+/**
+ * Empty-folder state. Single hierarchy, top to bottom:
+ *
+ *   1. one focal mark        (squircle tile + bookmark glyph)
+ *   2. one concise headline
+ *   3. one short supporting sentence
+ *   4. one primary action    ("Add link")
+ *   5. quiet secondary line  (quick add)
+ *
+ * The current folder name is intentionally NOT repeated here — the tabbar
+ * already shows it, so a badge would only add noise. The keyboard shortcut
+ * for saving a page lives in Settings rather than in the main body.
+ */
 export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 	const { isLiquid } = useAppearance();
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const addCard = useSetupStore((s) => s.addCard);
 
-	function handleAddStarter(site: (typeof STARTER_SUGGESTIONS)[0]) {
+	function handleAddStarter(site: (typeof QUICK_ADD)[number]) {
 		addCard({
 			folderId: activeFolderId,
 			title: site.name,
@@ -28,94 +50,102 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 		});
 	}
 
-	const isMac =
-		typeof navigator !== "undefined" &&
-		/Mac|iPhone|iPad|iPod/.test(navigator.platform);
-	const shortcutKey = isMac ? "⌘⇧D" : "Ctrl+Shift+D";
-
 	return (
-		<div className="flex items-start justify-center px-6 py-4">
+		<div className="flex justify-center px-6 pt-6 pb-20">
 			<div
-				className="flex max-w-md flex-col items-center text-center"
+				className="flex w-full max-w-sm flex-col items-center text-center"
 				style={{ animation: "emptyLandingIn 220ms ease-out both" }}
 			>
-				{/* Folder badge */}
-				<div
-					className={cn(
-						"mb-4 rounded-full px-3 py-1 font-medium text-xs shadow-xs",
-						isLiquid
-							? "border border-white/10 bg-white/10 text-white/70 backdrop-blur-md"
-							: "border border-border bg-muted text-muted-foreground",
-					)}
-				>
-					{folderName}
-				</div>
-
-				<h2 className="font-semibold text-foreground text-lg tracking-tight">
-					This folder is empty
-				</h2>
-
-				<p className="mt-2 max-w-sm text-muted-foreground text-xs leading-relaxed">
-					Add a link manually, pick from the quick suggestions below, or press{" "}
-					<kbd
+				{/* 1. Focal mark. A soft halo behind a squircle tile so it reads as
+				    one deliberate object rather than a stray icon. Decorative: the
+				    headline carries the meaning. */}
+				<div aria-hidden="true" className="relative mb-6">
+					<div
 						className={cn(
-							"rounded px-1.5 py-0.5 font-mono text-[11px]",
+							"absolute -inset-5 rounded-full blur-2xl",
+							isLiquid ? "bg-white/15" : "bg-foreground/[0.05]",
+						)}
+					/>
+					<div
+						className={cn(
+							"squircle relative flex size-[68px] items-center justify-center rounded-[22px] [--squircle-r:14px]",
 							isLiquid
-								? "border border-white/15 bg-white/10 text-white/90"
-								: "border border-border bg-muted text-foreground",
+								? "border border-white/15 bg-white/[0.09] text-white/85 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.30),0_10px_24px_-12px_rgba(0,0,0,0.45)] backdrop-blur-md"
+								: "border border-border/70 bg-card text-muted-foreground shadow-xs",
 						)}
 					>
-						{shortcutKey}
-					</kbd>{" "}
-					on any web page to save it here.
+						<Icon name="bookmark" size={26} />
+					</div>
+				</div>
+
+				{/* 2 + 3. Headline, then one short supporting sentence. Both sit
+				    directly on the wallpaper with no backing surface, so they
+				    reuse the same shadow the clock uses. */}
+				<h2
+					className={cn(
+						"font-semibold text-[17px] tracking-tight",
+						glassText(isLiquid, "primary"),
+					)}
+					style={{ textShadow: HERO_TEXT_SHADOW }}
+				>
+					This folder is empty
+				</h2>
+				<p
+					className={cn("mt-2 text-xs leading-relaxed", glassText(isLiquid, "secondary"))}
+					style={{ textShadow: HERO_TEXT_SHADOW }}
+				>
+					Save a page here or add your first link.
 				</p>
 
-				{/* Primary Action */}
+				{/* 4. The single primary action. */}
 				<button
 					type="button"
 					onClick={onAdd}
 					className={cn(
-						"mt-5 h-9 rounded-full px-5 font-medium text-xs transition-[background-color,color,transform,box-shadow] duration-150 ease-out active:scale-[0.97]",
+						"mt-6 inline-flex h-9 items-center gap-1.5 rounded-full px-4 font-medium text-xs transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.97]",
+						glassFocusRing(isLiquid),
 						isLiquid
-							? "border border-white/20 bg-white/15 text-white shadow-xs backdrop-blur-md hover:bg-white/25 hover:shadow-sm"
+							? "border border-white/25 bg-white/20 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_8px_20px_-8px_rgba(0,0,0,0.45)] backdrop-blur-md hover:bg-white/30"
 							: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
 					)}
 				>
-					Add custom link
+					<Icon name="plus" size={13} />
+					Add link
 				</button>
 
-				{/* Quick starter chips */}
-				<div className="mt-8 flex flex-col items-center gap-2.5">
-					<span className="font-medium text-[11px] text-muted-foreground/80 uppercase tracking-wider">
-						Quick Add Popular Sites
-					</span>
-					<div className="flex flex-wrap items-center justify-center gap-1.5">
-						{STARTER_SUGGESTIONS.map((site) => (
+				{/* 5. Optional secondary actions, reduced to a single quiet line so
+				    they never compete with the CTA. `text-shadow` inherits, so
+				    setting it here covers the label, separators and buttons. */}
+				<div
+					className={cn(
+						"mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[11px]",
+						glassText(isLiquid, "muted"),
+					)}
+					style={{ textShadow: HERO_TEXT_SHADOW }}
+				>
+					<span className="opacity-80">Quick add</span>
+					{QUICK_ADD.map((site) => (
+						<Fragment key={site.url}>
+							<span aria-hidden="true" className="opacity-40">
+								·
+							</span>
 							<button
-								key={site.url}
 								type="button"
 								onClick={() => handleAddStarter(site)}
-								className={cn(
-									"flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.97]",
-									isLiquid
-										? "border border-white/10 bg-white/[0.08] text-white/80 hover:bg-white/20 hover:text-white"
-										: "border border-border/70 bg-card text-foreground hover:bg-muted",
-								)}
 								title={`Add ${site.name} to ${folderName}`}
+								aria-label={`Add ${site.name} to ${folderName}`}
+								className={cn(
+									"rounded-sm px-0.5 transition-colors duration-150 hover:underline hover:underline-offset-2",
+									glassFocusRing(isLiquid),
+									isLiquid
+										? "text-white/90 hover:text-white"
+										: "text-foreground/90 hover:text-foreground",
+								)}
 							>
-								<img
-									src={faviconUrl(site.url)}
-									alt=""
-									className="size-3.5 rounded-xs"
-									onError={(e) => {
-										e.currentTarget.style.display = "none";
-									}}
-								/>
-								<span>{site.name}</span>
-								<span className="opacity-50">+</span>
+								{site.name}
 							</button>
-						))}
-					</div>
+						</Fragment>
+					))}
 				</div>
 			</div>
 		</div>

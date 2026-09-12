@@ -6,13 +6,8 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import {
-	type MouseEvent,
-	type ReactNode,
-	useCallback,
-	useState,
-} from "react";
-import { glassDropdownItem } from "../../lib/glass";
+import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
+import { glassDropdownItem, glassMenu } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
@@ -92,10 +87,7 @@ export function PageContextMenu({
 		setOpen(true);
 	}
 
-	const itemClassName = cn(
-		"cursor-pointer gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium",
-		glassDropdownItem(isLiquid),
-	);
+	const itemClassName = cn("font-medium", glassDropdownItem(isLiquid));
 
 	return (
 		<ContextMenu open={open} onOpenChange={setOpen}>
@@ -107,12 +99,7 @@ export function PageContextMenu({
 				{children}
 			</ContextMenuTrigger>
 
-			<ContextMenuContent
-				className={cn(
-					"min-w-48 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-2xl",
-					isLiquid && "bg-popover/90 backdrop-blur-xl",
-				)}
-			>
+			<ContextMenuContent className={cn(glassMenu(isLiquid), "min-w-48")}>
 				{onAddFolder && (
 					<ContextMenuItem className={itemClassName} onClick={onAddFolder}>
 						<Icon name="folder-plus" size={14} />
@@ -124,7 +111,9 @@ export function PageContextMenu({
 					Add link
 				</ContextMenuItem>
 
-				<ContextMenuSeparator className={isLiquid ? "bg-white/10" : undefined} />
+				<ContextMenuSeparator
+					className={isLiquid ? "bg-white/10" : undefined}
+				/>
 
 				<ContextMenuItem
 					className={itemClassName}
@@ -143,12 +132,22 @@ export function PageContextMenu({
 
 				{isPexels && (
 					<>
-						<ContextMenuSeparator className={isLiquid ? "bg-white/10" : undefined} />
+						<ContextMenuSeparator
+							className={isLiquid ? "bg-white/10" : undefined}
+						/>
 						<ContextMenuItem
 							className={itemClassName}
 							onClick={handleDownloadBackground}
 						>
-							<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
 								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
 							</svg>
 							Download wallpaper
@@ -157,7 +156,15 @@ export function PageContextMenu({
 							className={itemClassName}
 							onClick={handleToggleLock}
 						>
-							<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
 								{pexelsFrequency === "locked" ? (
 									<path d="M7 11V7a5 5 0 0 1 10 0v4M12 15v2M5 11h14v10H5z" />
 								) : (
@@ -172,7 +179,15 @@ export function PageContextMenu({
 							className={itemClassName}
 							onClick={handleNextBackground}
 						>
-							<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
 								<path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
 							</svg>
 							Next wallpaper

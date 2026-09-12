@@ -1,4 +1,5 @@
 import { Icon } from "@klice-start/ui/icons/icon";
+import { glassFocusRing } from "../../../lib/glass";
 import {
 	TOOLBAR,
 	toolbarControlClassic,
@@ -25,7 +26,8 @@ export function ToolbarActions({ onSearch, onSettings }: ToolbarActionsProps) {
 			TOOLBAR.controlHeight,
 			TOOLBAR.controlWidth,
 			TOOLBAR.radius,
-			"flex items-center justify-center cursor-pointer",
+			"flex items-center justify-center",
+			glassFocusRing(isLiquid),
 			isLiquid ? toolbarControlLiquid(active) : toolbarControlClassic(active),
 		);
 	}

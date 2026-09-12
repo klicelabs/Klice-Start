@@ -159,7 +159,11 @@ export function GlobalSearch({
 			onKeyDown={(e) => e.key === "Escape" && onClose()}
 		>
 			{/* Scrim */}
-			<div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" />
+			<div
+				className={`absolute inset-0 bg-black/60 transition-opacity ${
+					isLiquid ? "backdrop-blur-sm" : ""
+				}`}
+			/>
 
 			{/* Search container */}
 			<search
@@ -185,7 +189,7 @@ export function GlobalSearch({
 						placeholder="Search bookmarks and folders..."
 						className={`flex-1 bg-transparent text-[15px] outline-none ${
 							isLiquid
-								? "text-white placeholder:text-white/40"
+								? "text-white/90 placeholder:text-white/75"
 								: "text-foreground placeholder:text-muted-foreground"
 						}`}
 						autoComplete="off"
@@ -194,8 +198,8 @@ export function GlobalSearch({
 					<kbd
 						className={`hidden items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium text-[10px] sm:inline-flex ${
 							isLiquid
-								? "bg-white/[0.08] text-white/50 border border-white/10"
-								: "bg-muted text-muted-foreground border border-border"
+								? "border border-white/10 bg-white/[0.08] text-white/75"
+								: "border border-border bg-muted text-muted-foreground"
 						}`}
 					>
 						ESC
@@ -263,7 +267,7 @@ export function GlobalSearch({
 														{card.title || card.url}
 													</div>
 													<div
-														className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
+														className={`truncate text-[11px] ${glassText(isLiquid, "muted")}`}
 													>
 														{card.url}
 													</div>
@@ -320,7 +324,7 @@ export function GlobalSearch({
 													</div>
 													{crumbs.length > 1 && (
 														<div
-															className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
+															className={`truncate text-[11px] ${glassText(isLiquid, "muted")}`}
 														>
 															{path}
 														</div>
@@ -367,7 +371,7 @@ export function GlobalSearch({
 														{query.trim()}&rdquo;
 													</div>
 													<div
-														className={`truncate text-[11px] opacity-70 ${glassText(isLiquid, "muted")}`}
+														className={`truncate text-[11px] ${glassText(isLiquid, "muted")}`}
 													>
 														Open web search in new tab
 													</div>

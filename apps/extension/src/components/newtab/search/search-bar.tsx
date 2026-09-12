@@ -1,3 +1,7 @@
+import {
+	InputGroupAddon,
+	InputGroupInput,
+} from "@klice-start/ui/components/input-group";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type FormEvent, useState } from "react";
@@ -11,10 +15,11 @@ import { SvgIcon } from "../../shared/svg-icon";
 import { useAppearance } from "../appearance-provider";
 
 /**
- * Inline Spotlight-style search field. The component *is* the input — a single
- * rounded container with a leading glyph; there is no nested fake input. Focus,
- * hover and click all act on the one field. Submitting runs the query on the
- * user's chosen search engine.
+ * Inline Spotlight-style search field. The pill is ONE control composed from
+ * the shared shadcn InputGroup pattern: the `form` is the group (it owns
+ * border, material, radius, hover and focus), `InputGroupAddon` holds the
+ * engine glyph, and `InputGroupInput` is chromeless — it never paints an
+ * independent border or focus ring inside the pill.
  *
  * Rendered on the new-tab hero only when `settings.search.enabled`. The
  * Ctrl/Cmd+K command palette (GlobalSearch) is separate.
@@ -56,56 +61,58 @@ export function SearchBar() {
 	return (
 		<form
 			onSubmit={handleSubmit}
+			data-slot="input-group"
 			className={cn(
-				"group relative flex w-full max-w-xl items-center gap-2.5 rounded-full px-4 py-2.5 transition-all duration-200",
+				"group/input-group relative flex w-full max-w-xl items-center gap-2.5 rounded-full px-4 py-2.5 transition-all duration-200",
 				// The whole rounded container is the field. In liquid mode it uses
 				// the exact same shared "liquid" glass variant as every other
 				// surface; in flat mode a solid opaque card.
 				isLiquid
 					? cn(
 							glassVariantStyles.liquid,
-							"focus-within:ring-2 focus-within:ring-white/25",
+							"focus-within:ring-2 focus-within:ring-white/40",
 						)
 					: "border border-border bg-card shadow-sm focus-within:ring-2 focus-within:ring-ring hover:bg-muted",
 			)}
 		>
-			{showEngineLogo && svgXml && !isLoading ? (
-				<SvgIcon
-					svgXml={svgXml}
-					className="h-[18px] w-[18px] shrink-0"
-					alt={engine.label}
-				/>
-			) : showEngineLogo ? (
-				<img
-					src={faviconUrl(engine.homepage)}
-					alt=""
-					className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
-					onError={() => setLogoFailedFor(engineId)}
-				/>
-			) : (
-				<Icon
-					name="search"
-					size={18}
-					className={cn(
-						"shrink-0",
-						isLiquid ? "text-white/50" : "text-muted-foreground",
+			<InputGroupAddon align="inline-start" className="py-0 pl-0">
+				{/* Wrapped so the addon's svg-sizing rule never restyles the glyph. */}
+				<span className="flex shrink-0 items-center">
+					{showEngineLogo && svgXml && !isLoading ? (
+						<SvgIcon
+							svgXml={svgXml}
+							className="h-[18px] w-[18px] shrink-0"
+							alt={engine.label}
+						/>
+					) : showEngineLogo ? (
+						<img
+							src={faviconUrl(engine.homepage)}
+							alt=""
+							className="h-[18px] w-[18px] shrink-0 rounded-[4px]"
+							onError={() => setLogoFailedFor(engineId)}
+						/>
+					) : (
+						<Icon
+							name="search"
+							size={18}
+							className={cn(
+								"shrink-0",
+								isLiquid ? "text-white/60" : "text-muted-foreground",
+							)}
+						/>
 					)}
-				/>
-			)}
-			<input
+				</span>
+			</InputGroupAddon>
+			<InputGroupInput
 				type="text"
 				value={query}
 				onChange={(e) => setQuery(e.target.value)}
 				placeholder={placeholder}
 				aria-label={placeholder}
-				// The bare input carries no box of its own — the form is the box.
-				// focus-visible:outline-none defeats the global :focus-visible rule
-				// (tokens.css) that was drawing the inner rounded outline.
-				data-search-input=""
 				className={cn(
-					"w-full border-0 bg-transparent p-0 text-[15px] outline-none focus:ring-0",
+					"h-auto px-0 py-0 text-[15px]",
 					isLiquid
-						? "text-white placeholder-white/40"
+						? "text-white placeholder-white/50"
 						: "text-foreground placeholder-muted-foreground",
 				)}
 			/>

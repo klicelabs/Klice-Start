@@ -1,9 +1,6 @@
 import { useClock } from "../../hooks/use-clock";
+import { HERO_TEXT_SHADOW } from "../../lib/glass";
 import { useSetupStore } from "../../stores/setup-store";
-
-// Bonjourr-style clean shadow — guarantees legibility on any wallpaper,
-// bright or busy, without a heavy scrim.
-const HERO_TEXT_SHADOW = "0 1px 12px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.35)";
 
 export function ClockWidget() {
 	const { time, date, greeting, visible } = useClock();

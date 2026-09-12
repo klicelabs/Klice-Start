@@ -7,8 +7,13 @@ import { cn } from "@klice-start/ui/lib/utils";
 
 import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
 
+/**
+ * No cursor override: Klice Start uses the platform arrow cursor for normal
+ * clickable UI. This renders a `<button>`, which the UA stylesheet already
+ * gives an arrow, so nothing needs to be forced here.
+ */
 const glassIconVariants = cva(
-  "inline-flex shrink-0 items-center justify-center rounded-full text-foreground cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  "inline-flex shrink-0 items-center justify-center rounded-full text-foreground select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       size: {

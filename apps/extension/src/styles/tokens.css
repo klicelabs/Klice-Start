@@ -47,7 +47,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		/* Fallback height only — the grid overrides --tile-h with a value derived
 		   from --tile-w × the active aspect ratio (see DialGrid). Kept ≈1.12× so
 		   any fallback still reads slightly-taller-than-wide, Vivaldi-style. */
-		--tile-h: 179px;
+		--tile-h: 176px;
 		--grid-gap: 22px;
 		--grid-max-width: 1216px;
 		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
@@ -75,17 +75,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 /* =========================================================
    8.1 — Animações (Emil Kowalski + Apple HIG)
    ========================================================= */
-@keyframes cardIn {
-	from {
-		opacity: 0;
-		transform: scale(0.96) translateY(4px);
-	}
-	to {
-		opacity: 1;
-		transform: scale(1) translateY(0);
-	}
-}
-
 .dial-card {
 	transition:
 		transform 150ms var(--ease-out),
@@ -96,11 +85,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transform: scale(0.97);
 }
 
-/* Initial mount grid entrance — subtle and fast */
-.dial-grid[data-initial-mount="true"] > * {
-	animation: cardIn 0.22s var(--ease-spring) both;
-}
-
 /* Card-layout cells (cards + folders + placeholder) derive height from the
    fixed track width and the DialGrid-provided card height ratio. */
 .dial-grid[data-layout="card"] .dial-cell {
@@ -108,46 +92,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
 	min-width: var(--tile-w);
 	min-height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
-}
-
-.dial-grid[data-initial-mount="true"] > *:nth-child(1) {
-	animation-delay: 0ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(2) {
-	animation-delay: 15ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(3) {
-	animation-delay: 30ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(4) {
-	animation-delay: 45ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(5) {
-	animation-delay: 60ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(6) {
-	animation-delay: 75ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(7) {
-	animation-delay: 90ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(8) {
-	animation-delay: 105ms;
-}
-.dial-grid[data-initial-mount="true"] > *:nth-child(n + 9) {
-	animation-delay: 120ms;
-}
-
-/* Scale-in for modal windows */
-@keyframes scaleIn {
-	from {
-		opacity: 0;
-		transform: scale(0.97) translateY(4px);
-	}
-	to {
-		opacity: 1;
-		transform: scale(1) translateY(0);
-	}
 }
 
 /* Empty landing — unified stack entrance */
@@ -162,37 +106,37 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Toolbar leading (back + breadcrumb) — enter from left */
-@keyframes toolbarLeadingEnter {
+/* Toolbar back-nav: subtle fade-in from the left when it takes over from
+   the in-flow control. Collapsed to an instant swap by the reduced-motion
+   rule below. */
+@keyframes toolbarBackEnter {
 	from {
-		opacity: 0;
-		transform: translateX(-12px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
-}
-
-/* Toolbar leading — exit to left */
-@keyframes toolbarLeadingExit {
-	from {
-		opacity: 1;
-		transform: translateX(0);
-	}
-	to {
 		opacity: 0;
 		transform: translateX(-8px);
 	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
 }
 
-.toolbar-leading-enter {
-	animation: toolbarLeadingEnter 180ms var(--ease-out) both;
+.toolbar-back-enter {
+	animation: toolbarBackEnter 180ms var(--ease-out) both;
 }
 
-.toolbar-leading-exit {
-	animation: toolbarLeadingExit 140ms var(--ease-out) both;
-	pointer-events: none;
+/* Settings pane switch — a restrained opacity-only settle. Deliberately no
+   slide/scale: navigation should feel instant, just not visually abrupt. */
+@keyframes settingsPaneIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.settings-pane-enter {
+	animation: settingsPaneIn 140ms var(--ease-out) both;
 }
 
 /* =========================================================
@@ -225,7 +169,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 	.hero {
 		padding-top: 20px !important;
-		gap: 14px !important;
+		gap: 12px !important;
 	}
 }
 
@@ -257,36 +201,61 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 ::-webkit-scrollbar-track {
 	background: transparent;
 }
-.folder-tabs-scroll::-webkit-scrollbar {
+/* Scrollable but visually scrollbar-free. Wheel, trackpad, keyboard and touch
+   scrolling all keep working — only the bar is hidden, so this must never be
+   swapped for `overflow: hidden`. `scrollbar-width` covers Firefox and
+   Chromium 121+; the WebKit rule covers older Chromium and Safari. */
+.scrollbar-hidden {
+	scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
 	display: none;
 }
 
 /* Settings window custom scrollbars */
 .settings-content-scroll {
 	scrollbar-width: thin;
-	scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+	scrollbar-color: rgba(15, 23, 42, 0.24) transparent;
+	/* Gutter reserves the track inside the padding box so content never
+	   slides under the scrollbar — and the close control needs no asymmetric
+	   padding hack to stay clear of it. */
+	scrollbar-gutter: stable;
+	overscroll-behavior: contain;
+}
+.dark .settings-content-scroll {
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 .settings-content-scroll::-webkit-scrollbar {
 	width: 6px;
 }
 .settings-content-scroll::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.15);
+	background: rgba(15, 23, 42, 0.2);
 	border-radius: 9999px;
 }
+.dark .settings-content-scroll::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.2);
+}
 .settings-content-scroll::-webkit-scrollbar-thumb:hover {
-	background: rgba(255, 255, 255, 0.28);
+	background: rgba(15, 23, 42, 0.34);
+}
+.dark .settings-content-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.3);
 }
 .settings-content-scroll::-webkit-scrollbar-track {
 	background: transparent;
 }
 
 /* =========================================================
-   8.5 — Focus states
+   8.5 — Drag-and-drop insertion indicators
    ========================================================= */
-[data-search-input]:focus,
-[data-search-input]:focus-visible {
-	outline: none;
-	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+/* Static edge lines (no layout shift, transform/opacity-free) marking the
+   live insertion position while dragging. Kept out of the reduced-motion
+   kill-switch's way: they carry state, not animation. */
+.drop-insert-before {
+	box-shadow: inset 3px 0 0 0 var(--apple-blue);
+}
+.drop-insert-after {
+	box-shadow: inset -3px 0 0 0 var(--apple-blue);
 }
 
 /* =========================================================

@@ -38,7 +38,7 @@ function SelectTrigger({
 			data-slot="select-trigger"
 			data-size={size}
 			className={cn(
-				"flex w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-lg border border-border/50 bg-secondary/50 px-2.5 py-1 text-xs outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-secondary/80 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-8 data-[size=sm]:h-8 data-placeholder:text-muted-foreground cursor-pointer active:scale-[0.98]",
+				"flex w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-lg border border-border/50 bg-secondary/50 px-2.5 py-1 text-xs outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out hover:bg-secondary/80 focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-8 data-[size=sm]:h-8 data-placeholder:text-muted-foreground active:scale-[0.98]",
 				className,
 			)}
 			{...props}
@@ -117,7 +117,7 @@ function SelectItem({
 		<SelectPrimitive.Item
 			data-slot="select-item"
 			className={cn(
-				"relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg py-1.5 pr-7 pl-2.5 font-normal text-xs outline-hidden hover:bg-muted focus:bg-muted focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+				"relative flex w-full cursor-default select-none items-center gap-2 rounded-lg py-1.5 pr-7 pl-2.5 font-normal text-xs outline-hidden hover:bg-muted focus:bg-muted focus:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
 				className,
 			)}
 			{...props}
