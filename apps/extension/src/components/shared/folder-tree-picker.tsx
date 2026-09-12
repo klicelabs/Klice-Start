@@ -97,7 +97,7 @@ export function FolderTreePicker({
 				className={cn(
 					isLiquid &&
 						cn(glassVariantStyles.liquid, "border-white/[0.16] text-white"),
-					!isLiquid && "bg-popover",
+					!isLiquid && "bg-popover backdrop-blur-none",
 				)}
 			>
 				{allowRoot && (

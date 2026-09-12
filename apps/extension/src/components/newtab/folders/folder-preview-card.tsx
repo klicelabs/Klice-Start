@@ -7,17 +7,27 @@ import {
 } from "@klice-start/ui/components/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { type DragEvent, useEffect, useState } from "react";
-import { useSpringLoad } from "../../../hooks/use-spring-load";
-import { getActiveDrag, getDragId, isDragKind, setDragData } from "../../../lib/dnd";
-import { glassCardFooter, glassDropdownItem } from "../../../lib/glass";
-import { cn } from "../../../lib/utils";
+import { useEffect, useState } from "react";
+import type { GridItemDragProps } from "../../../lib/dnd";
+import {
+	glassCardFooter,
+	glassDropdownItem,
+	glassFocusRing,
+	glassMenu,
+} from "../../../lib/glass";
+import { cn, softGradientFromString } from "../../../lib/utils";
 import { useImageStore } from "../../../stores/image-store";
+import { useMoveDialogStore } from "../../../stores/move-dialog-store";
+import { useRenameStore } from "../../../stores/rename-store";
+import { useSelectionStore } from "../../../stores/selection-store";
+import { useSetupStore } from "../../../stores/setup-store";
+import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 
 /** A single card's preview data for the folder mosaic. */
 export interface FolderPreviewItem {
 	id: string;
+	url: string;
 	thumbId: string | null;
 	favicon: string;
 }
@@ -32,16 +42,13 @@ interface FolderPreviewCardProps {
 	showMultiBadge?: boolean;
 	onClick?: (e: React.MouseEvent) => void;
 	onOpen: (id: string) => void;
-	onEdit: (id: string) => void;
+	onNewSubfolder: (id: string) => void;
 	onDelete: (id: string) => void;
-	onDropCard: (cardId: string, folderId: string) => void;
-	onDropFolder: (folderId: string, targetFolderId: string) => void;
-	canAcceptFolder: (folderId: string) => boolean;
-	dragProps?: {
-		draggable?: boolean;
-		onDragStart?: (e: DragEvent) => void;
-		onDragEnd?: () => void;
-	};
+	dragProps?: GridItemDragProps;
+	/** Live insertion marker drawn on the card's leading/trailing edge. */
+	insertion?: "before" | "after" | null;
+	/** Highlight: a dragged item hovers the body — drop moves it inside. */
+	dropActive?: boolean;
 	className?: string;
 }
 
@@ -55,91 +62,63 @@ export function FolderPreviewCard({
 	showMultiBadge = false,
 	onClick,
 	onOpen,
-	onEdit,
+	onNewSubfolder,
 	onDelete,
-	onDropCard,
-	onDropFolder,
-	canAcceptFolder,
 	dragProps,
+	insertion = null,
+	dropActive = false,
 	className,
 }: FolderPreviewCardProps) {
 	const { isLiquid } = useAppearance();
-	const [dropActive, setDropActive] = useState(false);
-	const spring = useSpringLoad(() => onOpen(id));
 
-	function accepts(e: DragEvent): boolean {
-		if (isDragKind(e, "card")) return true;
-		if (isDragKind(e, "folder")) {
-			const active = getActiveDrag();
-			const draggedId = active?.id || getDragId(e);
-			return draggedId ? draggedId !== id && canAcceptFolder(draggedId) : false;
-		}
-		return false;
-	}
-
-	function handleDragOver(e: DragEvent) {
-		if (!accepts(e)) return;
-		e.preventDefault();
-		e.dataTransfer.dropEffect = "move";
-		if (!dropActive) setDropActive(true);
-		spring.start();
-	}
-
-	function handleDragLeave() {
-		setDropActive(false);
-		spring.cancel();
-	}
-
-	function handleDrop(e: DragEvent) {
-		e.preventDefault();
-		setDropActive(false);
-		spring.cancel();
-		const active = getActiveDrag();
-		const draggedId = active?.id || getDragId(e);
-		if (!draggedId) return;
-
-		if (isDragKind(e, "folder")) {
-			if (draggedId !== id && canAcceptFolder(draggedId)) {
-				onDropFolder(draggedId, id);
-			}
-		} else if (isDragKind(e, "card")) {
-			onDropCard(draggedId, id);
-		}
-	}
+	const editing = useRenameStore((s) => s.isEditing("folder", id));
+	const beginRename = useRenameStore((s) => s.begin);
+	const cancelRename = useRenameStore((s) => s.cancel);
+	const openMoveDialog = useMoveDialogStore((s) => s.open);
 
 	const hasPreviews = previewCards.length > 0;
+
+	function handleCommitRename(next: string) {
+		useSetupStore.getState().updateFolder(id, next);
+		cancelRename();
+	}
 
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
 				data-local-context-menu
 				className={cn(
-					"dial-card squircle group/folder relative flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[0.97]",
+					// Calm by default: no hover lift/translate/glow — same rule
+					// as bookmark cards. Drop-target states are untouched.
+					"dial-card squircle group/folder relative flex h-full w-full flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,filter,opacity] duration-150 [--squircle-r:10px] hover:drop-shadow-[0_6px_14px_rgba(0,0,0,0.28)] active:scale-[0.97] select-none [-webkit-user-drag:element]",
+					glassFocusRing(isLiquid),
 					isLiquid
 						? glassVariantStyles.liquid
 						: "border border-border bg-card shadow-sm",
-					isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background/40 shadow-lg scale-[1.02]",
-					dropActive && "scale-[1.04] ring-2 ring-white/80 shadow-md",
+					isSelected &&
+						"scale-[1.02] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background/40",
+					insertion === "before" && "drop-insert-before",
+					insertion === "after" && "drop-insert-after",
+					dropActive && "shadow-md ring-2 ring-white/80",
 					dragging && "opacity-40",
 					className,
 				)}
 				render={
 					<button
 						type="button"
-						aria-label={`Open folder ${name}`}
+						aria-label={
+							editing ? `Rename folder ${name}` : `Open folder ${name}`
+						}
 						title={name}
 						onClick={onClick}
-						draggable={true}
-						onDragStart={(e) => {
-							setDragData(e, "folder", id);
-							dragProps?.onDragStart?.(e);
-						}}
-						onDragEnd={() => {
-							dragProps?.onDragEnd?.();
-						}}
-						onDragOver={handleDragOver}
-						onDragLeave={handleDragLeave}
-						onDrop={handleDrop}
+						draggable={
+							dragProps ? (editing ? false : dragProps.draggable) : true
+						}
+						onDragStart={editing ? undefined : dragProps?.onDragStart}
+						onDragEnd={dragProps?.onDragEnd}
+						onDragOver={dragProps?.onDragOver}
+						onDragLeave={dragProps?.onDragLeave}
+						onDrop={dragProps?.onDrop}
 					/>
 				}
 			>
@@ -147,7 +126,7 @@ export function FolderPreviewCard({
 					{hasPreviews ? (
 						<div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
 							{previewCards.slice(0, 4).map((card) => (
-								<FolderMiniTile key={card.id} card={card} isLiquid={isLiquid} />
+								<FolderMiniTile key={card.id} card={card} />
 							))}
 							{Array.from({
 								length: Math.max(0, 4 - previewCards.length),
@@ -178,7 +157,7 @@ export function FolderPreviewCard({
 						className={cn(
 							"absolute top-2 right-2 rounded-full px-1.5 text-[10px]",
 							isLiquid
-								? "bg-black/30 text-white/70"
+								? "bg-black/45 text-white/80"
 								: "bg-muted text-muted-foreground",
 						)}
 					>
@@ -186,30 +165,41 @@ export function FolderPreviewCard({
 					</span>
 
 					{isSelected && showMultiBadge && (
-						<div className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary font-bold text-[10px] text-primary-foreground shadow-xs">
-							✓
+						<div
+							aria-hidden="true"
+							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs"
+						>
+							<Icon name="check" size={11} strokeWidth={3} />
 						</div>
 					)}
 				</div>
 
 				<div
 					className={cn(
-						"card-footer flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2.5",
+						// Same squircle system as the outer card so the footer
+						// follows the card geometry instead of reading as an
+						// independent capsule. Same material recipe as the
+						// bookmark footer via glassCardFooter.
+						"card-footer squircle flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2.5 [--squircle-r:10px]",
 						glassCardFooter(isLiquid),
 					)}
 					style={{ height: "var(--card-footer-h, 30px)" }}
 				>
 					<Icon name="folder" size={14} className="shrink-0 opacity-70" />
-					<span className="truncate font-medium text-[11px]">{name}</span>
+					{editing ? (
+						<InlineRenameInput
+							value={name}
+							ariaLabel={`Rename folder ${name}`}
+							onCommit={handleCommitRename}
+							onCancel={cancelRename}
+						/>
+					) : (
+						<span className="truncate font-medium text-[11px]">{name}</span>
+					)}
 				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent
-				className={cn(
-					"min-w-44 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-xl",
-					isLiquid && "bg-popover/90 backdrop-blur-xl",
-				)}
-			>
+			<ContextMenuContent className={glassMenu(isLiquid)}>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onOpen(id)}
@@ -219,10 +209,27 @@ export function FolderPreviewCard({
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onEdit(id)}
+					onClick={() => onNewSubfolder(id)}
+				>
+					<Icon name="folder-plus" size={14} />
+					New subfolder
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => beginRename({ kind: "folder", id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => {
+						const selected = useSelectionStore.getState().selectedIds;
+						openMoveDialog(selected.includes(id) ? selected : [id]);
+					}}
+				>
+					<Icon name="folder" size={14} />
+					Move to…
 				</ContextMenuItem>
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}
@@ -240,13 +247,7 @@ export function FolderPreviewCard({
 	);
 }
 
-function FolderMiniTile({
-	card,
-	isLiquid,
-}: {
-	card: FolderPreviewItem;
-	isLiquid: boolean;
-}) {
+function FolderMiniTile({ card }: { card: FolderPreviewItem }) {
 	const getThumbnail = useImageStore((s) => s.getThumbnail);
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
@@ -262,26 +263,28 @@ function FolderMiniTile({
 		};
 	}, [card.thumbId, getThumbnail]);
 
+	// Missing screenshots reuse the bookmark gradient fallback so the tile
+	// belongs to the same family instead of rendering as a flat empty box.
+	const fallback = softGradientFromString(card.url || card.id);
+
 	return (
 		<div
-			className={cn(
-				"relative flex size-full items-center justify-center overflow-hidden rounded-[7px]",
-				isLiquid
-					? "bg-white/[0.08]"
-					: "bg-muted/60",
-			)}
+			className="relative flex size-full items-center justify-center overflow-hidden rounded-[7px]"
+			style={{ background: fallback }}
 		>
 			{thumbUrl ? (
 				<img
 					src={thumbUrl}
 					alt=""
-					className="absolute inset-0 size-full object-cover"
+					draggable={false}
+					className="absolute inset-0 size-full object-cover object-center"
 				/>
 			) : (
 				<img
 					src={card.favicon}
 					alt=""
-					className="size-3.5 object-contain"
+					draggable={false}
+					className="size-3.5 rounded-[3px] object-contain"
 					onError={(e) => {
 						e.currentTarget.style.display = "none";
 					}}
