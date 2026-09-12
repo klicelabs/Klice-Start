@@ -1,73 +1,81 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getBreadcrumb } from "../../../lib/folder-tree";
+import { glassText } from "../../../lib/glass";
 import { TOOLBAR } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
+import type { InsertPosition } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
 import { FolderTabsOverflow } from "./folder-tabs-overflow";
 import { ToolbarActions } from "./toolbar-actions";
 import { ToolbarBack } from "./toolbar-back";
-import { ToolbarBreadcrumb } from "./toolbar-breadcrumb";
 
 interface NavigationToolbarProps {
-	folders: Folder[];
 	rootFolders: Folder[];
-	activeFolderId: string;
 	activeRootId: string;
+	/** Full breadcrumb to the active folder (length > 1 inside a subfolder). */
+	breadcrumb: Folder[];
+	/** Navigate to the parent folder. */
+	onBack: () => void;
+	/**
+	 * Show back + breadcrumb in the toolbar's left zone. True only once the
+	 * in-flow control scrolls out of view — never alongside it.
+	 */
+	showBackNav: boolean;
 	onSelectFolder: (id: string) => void;
 	onAddFolder: (name: string) => string;
-	onAddSubfolder?: (parentId: string | null) => void;
+	/** Direct root-folder creation ("New Folder" + inline rename). */
+	onNewRootFolder: () => void;
+	/** Direct subfolder creation ("New Folder" + inline rename). */
+	onNewSubfolder: (parentId: string | null) => void;
 	onOpenSettings: () => void;
 	onOpenSearch: () => void;
-	onEditFolder?: (id: string) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (draggedId: string, targetId: string) => void;
-	onDropCard?: (cardId: string, folderId: string) => void;
-	onMoveFolder?: (folderId: string, targetFolderId: string) => void;
+	onReorderFolders?: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
+	onDropCards?: (cardId: string, folderId: string) => void;
+	onMoveFolders?: (folderId: string, targetFolderId: string) => void;
+	onMoveFolderToRoot?: (
+		folderId: string,
+		targetId: string,
+		position: InsertPosition,
+	) => void;
+	isRootFolder?: (id: string) => boolean;
 	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
 }
 
 /**
- * Floating toolbar with three independent zones:
+ * Floating toolbar with three independent zones on one centerline:
  *
- *   Left    [‹] Home / AI / OpenAI (subfolders only)
- *   Center  [ Home | AI | Design | ⋯ ] (root tabs + overflow)
+ *   Left    [‹] Current folder (back button + page title, subfolders only)
+ *   Center  [ Home | AI | Design | + | ⋯ ] (root tabs + inline add + overflow)
  *   Right   [ 🔍 ⚙ ] (Search + Settings)
  */
 export function NavigationToolbar({
-	folders,
 	rootFolders,
-	activeFolderId,
 	activeRootId,
+	breadcrumb,
+	onBack,
+	showBackNav,
 	onSelectFolder,
 	onAddFolder,
-	onAddSubfolder,
+	onNewRootFolder,
+	onNewSubfolder,
 	onOpenSettings,
 	onOpenSearch,
-	onEditFolder,
 	onDeleteFolder,
 	onReorderFolders,
-	onDropCard,
-	onMoveFolder,
+	onDropCards,
+	onMoveFolders,
+	onMoveFolderToRoot,
+	isRootFolder,
 	canNestFolder,
 }: NavigationToolbarProps) {
 	const { isLiquid } = useAppearance();
-
-	// Breadcrumb.
-	const breadcrumb = useMemo(
-		() => getBreadcrumb(folders, activeFolderId),
-		[folders, activeFolderId],
-	);
-	const isSubfolder = breadcrumb.length > 1;
-
-	// Back button navigates to parent folder.
-	const handleBack = useCallback(() => {
-		if (breadcrumb.length >= 2) {
-			const parent = breadcrumb[breadcrumb.length - 2];
-			if (parent) onSelectFolder(parent.id);
-		}
-	}, [breadcrumb, onSelectFolder]);
+	const currentFolder = breadcrumb[breadcrumb.length - 1];
 
 	// Sorted root folders for tab display.
 	const sorted = useMemo(
@@ -97,6 +105,8 @@ export function NavigationToolbar({
 		const tabGap = 2;
 		const surfacePadding = 8;
 		const overflowPillWidth = 42; // "…" button width
+		// Inline "+" width (34px control + gap). Budgeted only while visible.
+		const addButtonWidth = 36;
 
 		let totalNatural = surfacePadding;
 		const widths: number[] = [];
@@ -108,8 +118,10 @@ export function NavigationToolbar({
 			totalNatural += w + (i > 0 ? tabGap : 0);
 		}
 
-		// If everything fits at natural width, no overflow needed.
-		if (totalNatural <= available) {
+		// The inline "+" only exists while everything (tabs + "+") fits at
+		// natural width. Once folders overflow, creation lives in the
+		// overflow dropdown instead — no viewport breakpoint, just layout.
+		if (totalNatural + tabGap + addButtonWidth <= available) {
 			setVisibleCount(sorted.length);
 			return;
 		}
@@ -178,38 +190,51 @@ export function NavigationToolbar({
 
 			{/* Toolbar — three areas on one centerline */}
 			<header className="fixed top-0 right-0 left-0 z-50 mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center px-5">
-				{/* Left: back + breadcrumb */}
-				<div
-					className={cn(
-						"flex w-44 shrink-0 items-center gap-2 overflow-hidden",
-						isSubfolder ? "toolbar-leading-enter" : "toolbar-leading-exit",
-					)}
-				>
-					{isSubfolder && <ToolbarBack onBack={handleBack} />}
-					{isSubfolder && (
-						<ToolbarBreadcrumb
-							crumbs={breadcrumb}
-							onNavigate={onSelectFolder}
-						/>
+				{/* Left: back button + current page title (no breadcrumb).
+				    Appears only once the in-flow control scrolls out of view
+				    (see App sentinel); empty spacer otherwise, keeping the
+				    tab lane centered. The button itself stays unclipped so
+				    its shadow renders naturally. */}
+				<div className="flex w-44 shrink-0 items-center gap-2">
+					{showBackNav && currentFolder && (
+						<div
+							key="toolbar-back-nav"
+							className="toolbar-back-enter flex min-w-0 flex-1 items-center gap-2"
+						>
+							<ToolbarBack onBack={onBack} />
+							<span
+								className={cn(
+									"min-w-0 max-w-[96px] shrink-0 truncate font-medium text-[13px]",
+									glassText(isLiquid, "primary"),
+								)}
+								title={currentFolder.name}
+							>
+								{currentFolder.name}
+							</span>
+						</div>
 					)}
 				</div>
 
 				{/* Center: capped tab-bar lane */}
 				<div
 					ref={containerRef}
-					className="pointer-events-auto relative mx-auto flex min-w-0 max-w-[720px] flex-1 items-center justify-center px-2"
+					className="pointer-events-auto relative mx-auto flex min-w-0 max-w-[880px] flex-1 items-center justify-center px-2"
 				>
 					<div className="flex items-center gap-0.5">
 						<FolderTabs
 							folders={visibleFolders}
 							activeRootId={activeRootId}
+							showAddButton={!hasOverflow}
+							onAddRoot={onNewRootFolder}
 							onSelectFolder={onSelectFolder}
-							onAddFolder={onAddSubfolder}
-							onEditFolder={onEditFolder}
+							onNewRootFolder={onNewRootFolder}
+							onNewSubfolder={onNewSubfolder}
 							onDeleteFolder={onDeleteFolder}
 							onReorderFolders={onReorderFolders}
-							onDropCard={onDropCard}
-							onMoveFolder={onMoveFolder}
+							onDropCards={onDropCards}
+							onMoveFolders={onMoveFolders}
+							onMoveFolderToRoot={onMoveFolderToRoot}
+							isRootFolder={isRootFolder}
 							canNestFolder={canNestFolder}
 						/>
 						{hasOverflow && (
@@ -218,6 +243,9 @@ export function NavigationToolbar({
 								activeRootId={activeRootId}
 								onSelectFolder={onSelectFolder}
 								onAddFolder={onAddFolder}
+								onDropCards={onDropCards}
+								onMoveFolders={onMoveFolders}
+								canNestFolder={canNestFolder}
 							/>
 						)}
 					</div>
@@ -246,10 +274,7 @@ export function NavigationToolbar({
 
 				{/* Right: Search + Settings */}
 				<div className="flex w-44 shrink-0 items-center justify-end">
-					<ToolbarActions
-						onSearch={onOpenSearch}
-						onSettings={onOpenSettings}
-					/>
+					<ToolbarActions onSearch={onOpenSearch} onSettings={onOpenSettings} />
 				</div>
 			</header>
 

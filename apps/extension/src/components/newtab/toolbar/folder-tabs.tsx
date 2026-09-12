@@ -8,49 +8,91 @@ import {
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type DragEvent, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
-import { getActiveDrag, getDragId, isDragKind, setDragData } from "../../../lib/dnd";
-import { glassDropdownItem } from "../../../lib/glass";
+import {
+	dropZoneFor,
+	resolveDragRef,
+	setActiveDrag,
+	setDragData,
+} from "../../../lib/dnd";
+import {
+	glassDropdownItem,
+	glassFocusRing,
+	glassMenu,
+} from "../../../lib/glass";
 import {
 	TOOLBAR,
 	toolbarControlClassic,
 	toolbarControlLiquid,
 } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
+import { useMoveDialogStore } from "../../../stores/move-dialog-store";
+import { useRenameStore } from "../../../stores/rename-store";
+import { useSelectionStore } from "../../../stores/selection-store";
+import {
+	type InsertPosition,
+	useSetupStore,
+} from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
+import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "./glass-surface";
 
 interface FolderTabsProps {
 	folders: Folder[];
 	activeRootId: string;
+	/** Inline "+" affordance. Only true while the lane has room (no overflow). */
+	showAddButton?: boolean;
+	onAddRoot?: () => void;
 	onSelectFolder: (id: string) => void;
-	onAddFolder?: (parentId: string | null) => void;
-	onEditFolder?: (id: string) => void;
+	onNewRootFolder?: () => void;
+	onNewSubfolder?: (parentId: string) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (draggedId: string, targetId: string) => void;
-	onDropCard?: (cardId: string, folderId: string) => void;
-	onMoveFolder?: (folderId: string, targetFolderId: string) => void;
+	onReorderFolders?: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
+	onDropCards?: (cardId: string, folderId: string) => void;
+	onMoveFolders?: (folderId: string, targetFolderId: string) => void;
+	/** Drop a non-root folder on a tab edge: hoist to root at that position. */
+	onMoveFolderToRoot?: (
+		folderId: string,
+		targetId: string,
+		position: InsertPosition,
+	) => void;
+	isRootFolder?: (id: string) => boolean;
 	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
 }
 
 /**
  * Floating tab bar with spring-load dwell navigation and tab context menu.
+ *
+ * Drop intent is zonal, identical to the grid: the center nests/moves the
+ * dragged item into the tab (persisted first, navigation second), while the
+ * edges live-reorder root tabs. Spring-load only arms on center hover.
  */
 export function FolderTabs({
 	folders,
 	activeRootId,
+	showAddButton = false,
+	onAddRoot,
 	onSelectFolder,
-	onAddFolder,
-	onEditFolder,
+	onNewRootFolder,
+	onNewSubfolder,
 	onDeleteFolder,
 	onReorderFolders,
-	onDropCard,
-	onMoveFolder,
+	onDropCards,
+	onMoveFolders,
+	onMoveFolderToRoot,
+	isRootFolder,
 	canNestFolder,
 }: FolderTabsProps) {
 	const { isLiquid } = useAppearance();
 	const sorted = [...folders].sort((a, b) => a.order - b.order);
-	const dragFolderId = useRef<string | null>(null);
+	const [insertion, setInsertion] = useState<{
+		key: string;
+		position: InsertPosition;
+	} | null>(null);
 
 	return (
 		<GlassSurface
@@ -64,17 +106,38 @@ export function FolderTabs({
 					folder={folder}
 					active={folder.id === activeRootId}
 					isLiquid={isLiquid}
-					dragFolderId={dragFolderId}
+					insertion={insertion?.key === folder.id ? insertion.position : null}
+					onInsertionChange={setInsertion}
 					onSelectFolder={onSelectFolder}
-					onAddFolder={onAddFolder}
-					onEditFolder={onEditFolder}
+					onNewRootFolder={onNewRootFolder}
+					onNewSubfolder={onNewSubfolder}
 					onDeleteFolder={onDeleteFolder}
 					onReorderFolders={onReorderFolders}
-					onDropCard={onDropCard}
-					onMoveFolder={onMoveFolder}
+					onDropCards={onDropCards}
+					onMoveFolders={onMoveFolders}
+					onMoveFolderToRoot={onMoveFolderToRoot}
+					isRootFolder={isRootFolder}
 					canNestFolder={canNestFolder}
 				/>
 			))}
+			{showAddButton && (
+				<button
+					type="button"
+					onClick={onAddRoot}
+					aria-label="New folder"
+					title="New folder"
+					className={cn(
+						TOOLBAR.controlHeight,
+						"flex w-[34px] shrink-0 items-center justify-center rounded-full transition-colors duration-150",
+						glassFocusRing(isLiquid),
+						isLiquid
+							? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+							: "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-accent",
+					)}
+				>
+					<Icon name="plus" size={15} />
+				</button>
+			)}
 		</GlassSurface>
 	);
 }
@@ -83,14 +146,27 @@ interface FolderTabProps {
 	folder: Folder;
 	active: boolean;
 	isLiquid: boolean;
-	dragFolderId: React.RefObject<string | null>;
+	insertion: InsertPosition | null;
+	onInsertionChange: (
+		value: { key: string; position: InsertPosition } | null,
+	) => void;
 	onSelectFolder: (id: string) => void;
-	onAddFolder?: (parentId: string | null) => void;
-	onEditFolder?: (id: string) => void;
+	onNewRootFolder?: () => void;
+	onNewSubfolder?: (parentId: string) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (draggedId: string, targetId: string) => void;
-	onDropCard?: (cardId: string, folderId: string) => void;
-	onMoveFolder?: (folderId: string, targetFolderId: string) => void;
+	onReorderFolders?: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
+	onDropCards?: (cardId: string, folderId: string) => void;
+	onMoveFolders?: (folderId: string, targetFolderId: string) => void;
+	onMoveFolderToRoot?: (
+		folderId: string,
+		targetId: string,
+		position: InsertPosition,
+	) => void;
+	isRootFolder?: (id: string) => boolean;
 	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
 }
 
@@ -98,70 +174,125 @@ function FolderTab({
 	folder,
 	active,
 	isLiquid,
-	dragFolderId,
+	insertion,
+	onInsertionChange,
 	onSelectFolder,
-	onAddFolder,
-	onEditFolder,
+	onNewRootFolder,
+	onNewSubfolder,
 	onDeleteFolder,
 	onReorderFolders,
-	onDropCard,
-	onMoveFolder,
+	onDropCards,
+	onMoveFolders,
+	onMoveFolderToRoot,
+	isRootFolder,
 	canNestFolder,
 }: FolderTabProps) {
 	const [dropActive, setDropActive] = useState(false);
 	const spring = useSpringLoad(() => onSelectFolder(folder.id));
+	const lastApplied = useRef<string | null>(null);
 
-	function accepts(e: DragEvent): boolean {
-		if (isDragKind(e, "card")) return true;
-		if (isDragKind(e, "folder")) {
-			const activeDrag = getActiveDrag();
-			const draggedId = activeDrag?.id || getDragId(e);
-			if (!draggedId) return true;
-			if (draggedId === folder.id) return false;
-			return canNestFolder ? canNestFolder(draggedId, folder.id) : true;
-		}
-		return false;
+	const editing = useRenameStore((s) => s.isEditing("folder", folder.id));
+	const beginRename = useRenameStore((s) => s.begin);
+	const cancelRename = useRenameStore((s) => s.cancel);
+	const openMoveDialog = useMoveDialogStore((s) => s.open);
+
+	function handleCommitRename(name: string) {
+		useSetupStore.getState().updateFolder(folder.id, name);
+		cancelRename();
+	}
+
+	function liveReorder(draggedId: string, position: InsertPosition) {
+		const stamp = `${draggedId}|${folder.id}|${position}`;
+		if (lastApplied.current === stamp) return;
+		lastApplied.current = stamp;
+		onReorderFolders?.(draggedId, folder.id, position);
 	}
 
 	function handleDragOver(e: DragEvent) {
-		if (!accepts(e)) return;
+		const dragged = resolveDragRef(e);
+		if (!dragged || !dragged.id || dragged.id === folder.id) return;
+		const el = e.currentTarget;
+		if (!(el instanceof HTMLElement)) return;
+		const zone = dropZoneFor(e, el);
+
+		if (dragged.kind === "card") {
+			// Cards always move into the tab, edge or center alike.
+			e.preventDefault();
+			e.dataTransfer.dropEffect = "move";
+			onInsertionChange(null);
+			if (!dropActive) setDropActive(true);
+			spring.start();
+			return;
+		}
+
+		// Folder drag.
+		if (zone === "center") {
+			if (canNestFolder && !canNestFolder(dragged.id, folder.id)) return;
+			e.preventDefault();
+			e.dataTransfer.dropEffect = "move";
+			onInsertionChange(null);
+			if (!dropActive) setDropActive(true);
+			spring.start();
+			return;
+		}
+
+		// Edge: live root reorder for roots; hoist-to-root for subfolders.
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
-		if (!dropActive) setDropActive(true);
-		spring.start();
+		spring.cancel();
+		setDropActive(false);
+		if (isRootFolder?.(dragged.id) ?? true) {
+			onInsertionChange({ key: folder.id, position: zone });
+			liveReorder(dragged.id, zone);
+		} else {
+			onInsertionChange({ key: folder.id, position: zone });
+		}
 	}
 
-	function handleDragLeave() {
+	function handleDragLeave(e: DragEvent) {
+		const related = e.relatedTarget as Node | null;
+		if (
+			related &&
+			e.currentTarget instanceof Node &&
+			e.currentTarget.contains(related)
+		) {
+			return;
+		}
 		setDropActive(false);
 		spring.cancel();
+		onInsertionChange(null);
 	}
 
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
+		e.stopPropagation();
 		setDropActive(false);
 		spring.cancel();
+		onInsertionChange(null);
+		setActiveDrag(null);
+		const dragged = resolveDragRef(e);
+		if (!dragged || !dragged.id || dragged.id === folder.id) return;
+		const el = e.currentTarget;
+		const zone = el instanceof HTMLElement ? dropZoneFor(e, el) : "center";
 
-		const draggedFolder = dragFolderId.current;
-		if (draggedFolder) {
-			if (draggedFolder !== folder.id)
-				onReorderFolders?.(draggedFolder, folder.id);
-			dragFolderId.current = null;
+		if (dragged.kind === "card") {
+			onDropCards?.(dragged.id, folder.id);
 			return;
 		}
-
-		const activeDrag = getActiveDrag();
-		const draggedId = activeDrag?.id || getDragId(e);
-		if (!draggedId) return;
-
-		if (isDragKind(e, "folder")) {
-			if (
-				draggedId !== folder.id &&
-				(canNestFolder ? canNestFolder(draggedId, folder.id) : true)
-			) {
-				onMoveFolder?.(draggedId, folder.id);
+		if (zone === "center") {
+			if (canNestFolder && !canNestFolder(dragged.id, folder.id)) return;
+			// Persist the move first; spring-load navigation (if armed) is
+			// only ever a view change on top of it.
+			onMoveFolders?.(dragged.id, folder.id);
+			return;
+		}
+		if (isRootFolder?.(dragged.id) ?? true) {
+			const stamp = `${dragged.id}|${folder.id}|${zone}`;
+			if (lastApplied.current !== stamp) {
+				onReorderFolders?.(dragged.id, folder.id, zone);
 			}
-		} else if (isDragKind(e, "card")) {
-			onDropCard?.(draggedId, folder.id);
+		} else {
+			onMoveFolderToRoot?.(dragged.id, folder.id, zone);
 		}
 	}
 
@@ -175,6 +306,27 @@ function FolderTab({
 			: "bg-accent text-accent-foreground ring-1 ring-ring"
 		: "";
 
+	if (editing) {
+		return (
+			<div
+				className={cn(
+					TOOLBAR.controlHeight,
+					TOOLBAR.radius,
+					"flex max-w-[160px] items-center px-3",
+					baseClass,
+				)}
+			>
+				<InlineRenameInput
+					value={folder.name}
+					ariaLabel={`Rename folder ${folder.name}`}
+					onCommit={handleCommitRename}
+					onCancel={cancelRename}
+					className="text-[13px]"
+				/>
+			</div>
+		);
+	}
+
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
@@ -182,9 +334,12 @@ function FolderTab({
 				className={cn(
 					TOOLBAR.controlHeight,
 					TOOLBAR.radius,
-					"max-w-[160px] truncate px-3 font-medium text-[13px] transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97]",
+					"max-w-[160px] truncate px-3 font-medium text-[13px] transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97] select-none [-webkit-user-drag:element]",
+					glassFocusRing(isLiquid),
 					baseClass,
 					dropClass,
+					insertion === "before" && "drop-insert-before",
+					insertion === "after" && "drop-insert-after",
 				)}
 				title={folder.name}
 				render={
@@ -195,11 +350,15 @@ function FolderTab({
 						draggable
 						onClick={() => onSelectFolder(folder.id)}
 						onDragStart={(e) => {
-							dragFolderId.current = folder.id;
+							lastApplied.current = null;
 							setDragData(e, "folder", folder.id);
 						}}
 						onDragEnd={() => {
-							dragFolderId.current = null;
+							lastApplied.current = null;
+							setActiveDrag(null);
+							setDropActive(false);
+							spring.cancel();
+							onInsertionChange(null);
 						}}
 						onDragOver={handleDragOver}
 						onDragLeave={handleDragLeave}
@@ -210,12 +369,7 @@ function FolderTab({
 				{folder.name}
 			</ContextMenuTrigger>
 
-			<ContextMenuContent
-				className={cn(
-					"min-w-44 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-xl",
-					isLiquid && "bg-popover/90 backdrop-blur-xl",
-				)}
-			>
+			<ContextMenuContent className={glassMenu(isLiquid)}>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
 					onClick={() => onSelectFolder(folder.id)}
@@ -225,17 +379,36 @@ function FolderTab({
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onAddFolder?.(folder.id)}
+					onClick={onNewRootFolder}
+				>
+					<Icon name="folder-plus" size={14} />
+					New Folder
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => onNewSubfolder?.(folder.id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onEditFolder?.(folder.id)}
+					onClick={() => beginRename({ kind: "folder", id: folder.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onClick={() => {
+						const selected = useSelectionStore.getState().selectedIds;
+						openMoveDialog(
+							selected.includes(folder.id) ? selected : [folder.id],
+						);
+					}}
+				>
+					<Icon name="folder" size={14} />
+					Move to…
 				</ContextMenuItem>
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}

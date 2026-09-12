@@ -5,7 +5,7 @@ interface ToolbarBackProps {
 }
 
 /**
- * Back chevron — a standalone glass circle (the button *is* the glass, no
+ * Back chevron - a standalone glass circle (the button *is* the glass, no
  * surrounding pill). See {@link ToolbarIconButton}.
  */
 export function ToolbarBack({ onBack }: ToolbarBackProps) {
