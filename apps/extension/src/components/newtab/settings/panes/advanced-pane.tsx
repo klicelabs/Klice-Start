@@ -19,7 +19,9 @@ interface AdvancedPaneProps {
 export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards as Card[]);
-	const customWallpapers = useSetupStore((s) => s.settings.background.customWallpapers ?? []);
+	const customWallpapers = useSetupStore(
+		(s) => s.settings.background.customWallpapers ?? [],
+	);
 	const resetAll = useSetupStore((s) => s.resetAll);
 
 	const [confirmResetOpen, setConfirmResetOpen] = useState(false);
@@ -46,18 +48,71 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 				<div className="grid grid-cols-3 gap-3 py-2.5">
 					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
 						<span className="text-muted-foreground text-xs">Total folders</span>
-						<span className="font-semibold text-foreground text-lg">{folders.length}</span>
+						<span className="font-semibold text-foreground text-lg">
+							{folders.length}
+						</span>
 					</div>
 					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
-						<span className="text-muted-foreground text-xs">Total bookmarks</span>
-						<span className="font-semibold text-foreground text-lg">{cards.length}</span>
+						<span className="text-muted-foreground text-xs">
+							Total bookmarks
+						</span>
+						<span className="font-semibold text-foreground text-lg">
+							{cards.length}
+						</span>
 					</div>
 					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
-						<span className="text-muted-foreground text-xs">Custom wallpapers</span>
-						<span className="font-semibold text-foreground text-lg">{customWallpapers.length}</span>
+						<span className="text-muted-foreground text-xs">
+							Custom wallpapers
+						</span>
+						<span className="font-semibold text-foreground text-lg">
+							{customWallpapers.length}
+						</span>
 					</div>
 				</div>
 			</SectionCard>
+
+			{/* Developer seed (development builds only — tree-shaken from prod) */}
+			{import.meta.env.DEV && (
+				<SectionCard
+					title="Developer"
+					description="Sample library for testing scroll, overflow, nesting and drag-and-drop"
+				>
+					<div className="flex items-center justify-between gap-3 py-2.5">
+						<span className="text-muted-foreground text-xs">
+							Loads deterministic folders, subfolders and bookmarks. Never
+							available in production builds.
+						</span>
+						<div className="flex shrink-0 gap-2">
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								onClick={() => {
+									void import("../../../../dev/seed").then((m) =>
+										m.seedDevData(),
+									);
+								}}
+								className="h-8 rounded-lg text-xs"
+							>
+								Load seed data
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								onClick={() => {
+									void import("../../../../dev/seed").then((m) =>
+										m.resetDevData(),
+									);
+								}}
+								className="h-8 rounded-lg text-xs"
+							>
+								Reset
+							</Button>
+						</div>
+					</div>
+				</SectionCard>
+			)}
 
 			{/* Danger Zone */}
 			<SectionCard
@@ -67,9 +122,12 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 			>
 				<div className="flex items-center justify-between py-2.5">
 					<div className="flex flex-col">
-						<span className="font-medium text-destructive text-sm">Reset all dashboard data</span>
+						<span className="font-medium text-destructive text-sm">
+							Reset all dashboard data
+						</span>
 						<span className="text-muted-foreground text-xs">
-							Permanently erases all folders, links, custom wallpapers, and stored thumbnails
+							Permanently erases all folders, links, custom wallpapers, and
+							stored thumbnails
 						</span>
 					</div>
 					<Button
@@ -86,11 +144,15 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 
 			{/* Reset Confirmation Dialog */}
 			<Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
-				<DialogContent className="sm:max-w-[420px]">
+				<DialogContent className="rounded-3xl sm:max-w-[420px]">
 					<DialogHeader>
 						<DialogTitle>Reset all dashboard data?</DialogTitle>
 						<DialogDescription>
-							This will permanently delete all {cards.length} bookmark{cards.length === 1 ? "" : "s"} across {folders.length} folder{folders.length === 1 ? "" : "s"}, your custom uploaded wallpapers, and all thumbnail caches. This action cannot be undone.
+							This will permanently delete all {cards.length} bookmark
+							{cards.length === 1 ? "" : "s"} across {folders.length} folder
+							{folders.length === 1 ? "" : "s"}, your custom uploaded
+							wallpapers, and all thumbnail caches. This action cannot be
+							undone.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter className="pt-2">
