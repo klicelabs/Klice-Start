@@ -16,23 +16,30 @@ export const SETTINGS_PANE_LABELS: Record<SettingsPaneId, string> = {
 export interface SettingsNavigationState {
 	entries: SettingsPaneId[];
 	index: number;
+	root: boolean;
 }
 
 export function createSettingsNavigation(
-	initialPane: SettingsPaneId,
+	initialPane?: SettingsPaneId,
 ): SettingsNavigationState {
-	return { entries: [initialPane], index: 0 };
+	return initialPane
+		? { entries: [initialPane], index: 0, root: false }
+		: { entries: [], index: 0, root: true };
 }
 
 export function pushSettingsNavigation(
 	state: SettingsNavigationState,
 	nextPane: SettingsPaneId,
 ): SettingsNavigationState {
+	if (state.root) {
+		return { entries: [nextPane], index: 0, root: false };
+	}
 	if (state.entries[state.index] === nextPane) return state;
 
 	return {
 		entries: [...state.entries.slice(0, state.index + 1), nextPane],
 		index: state.index + 1,
+		root: false,
 	};
 }
 
@@ -40,6 +47,11 @@ export function stepSettingsNavigation(
 	state: SettingsNavigationState,
 	direction: "back" | "forward",
 ): SettingsNavigationState {
+	if (state.root) return state;
+	if (direction === "back" && state.index === 0) {
+		return { entries: [], index: 0, root: true };
+	}
+
 	const delta = direction === "back" ? -1 : 1;
 	const index = Math.min(
 		state.entries.length - 1,

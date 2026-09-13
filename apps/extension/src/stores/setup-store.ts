@@ -93,11 +93,78 @@ interface SetupActions {
 	updateThumbnailCapture: (
 		changes: Partial<Settings["thumbnailCapture"]>,
 	) => void;
+	beginSettingsDraft: () => void;
+	updateSettingsDraft: (changes: Partial<Settings>) => void;
+	saveSettingsDraft: () => Promise<void>;
+	discardSettingsDraft: () => void;
+	/**
+	 * Persist a confirmed upload into the wallpaper library immediately —
+	 * independent from Save. The library (bytes in IndexedDB + metadata) is
+	 * retained even if Settings closes without Save; only the *active*
+	 * selection stays in the draft until Save applies it.
+	 */
+	commitCustomWallpaper: (entry: { id: string; name: string }) => void;
+	/** Remove library metadata immediately (bytes are deleted by the caller). */
+	removeCustomWallpaper: (id: string) => void;
 	replaceSetup: (setup: Setup) => void;
 	resetAll: () => Promise<void>;
 }
 
-export type SetupStore = Setup & SetupActions;
+export type SetupStore = Setup &
+	SetupActions & {
+		/** Effective in-memory settings while the Settings panel is being edited. */
+		settingsDraft: Settings | null;
+		/** Persisted snapshot used to discard an uncommitted Settings session. */
+		settingsDraftBaseline: Settings | null;
+		isSettingsDirty: boolean;
+	};
+
+function cloneSettings(settings: Settings): Settings {
+	return structuredClone(settings);
+}
+
+function settingsMatch(left: Settings, right: Settings): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+let settingsDraftPersistSnapshot: Settings | null = null;
+
+function applySettingsUpdate(
+	state: SetupStore,
+	changes: Partial<Settings>,
+): Pick<SetupStore, "settings" | "settingsDraft" | "isSettingsDirty"> {
+	const settings = { ...state.settings, ...changes };
+	const baseline = state.settingsDraftBaseline;
+	return {
+		settings,
+		settingsDraft: baseline ? settings : state.settingsDraft,
+		isSettingsDirty: baseline ? !settingsMatch(settings, baseline) : false,
+	};
+}
+
+type NestedSettingsKey =
+	| "background"
+	| "clock"
+	| "greeting"
+	| "search"
+	| "thumbnailCapture";
+
+function applyNestedSettingsUpdate<K extends NestedSettingsKey>(
+	state: SetupStore,
+	key: K,
+	changes: Partial<Settings[K]>,
+): Pick<SetupStore, "settings" | "settingsDraft" | "isSettingsDirty"> {
+	const settings = {
+		...state.settings,
+		[key]: { ...state.settings[key], ...changes },
+	};
+	const baseline = state.settingsDraftBaseline;
+	return {
+		settings,
+		settingsDraft: baseline ? settings : state.settingsDraft,
+		isSettingsDirty: baseline ? !settingsMatch(settings, baseline) : false,
+	};
+}
 
 /**
  * Every structural mutation below keeps the unified `itemOrder` map in sync
@@ -109,6 +176,9 @@ export const useSetupStore = create<SetupStore>()(
 	persist(
 		(set, get) => ({
 			...normalizeState(null),
+			settingsDraft: null,
+			settingsDraftBaseline: null,
+			isSettingsDirty: false,
 
 			addFolder: (name, parentId = null) => {
 				const id = generateId();
@@ -500,50 +570,163 @@ export const useSetupStore = create<SetupStore>()(
 				return id;
 			},
 
-			updateSettings: (changes) =>
-				set((s) => ({ settings: { ...s.settings, ...changes } })),
+			updateSettings: (changes) => set((s) => applySettingsUpdate(s, changes)),
 
 			updateBackground: (changes) =>
-				set((s) => ({
-					settings: {
-						...s.settings,
-						background: { ...s.settings.background, ...changes },
-					},
-				})),
+				set((s) => applyNestedSettingsUpdate(s, "background", changes)),
 
 			updateClock: (changes) =>
-				set((s) => ({
-					settings: {
-						...s.settings,
-						clock: { ...s.settings.clock, ...changes },
-					},
-				})),
+				set((s) => applyNestedSettingsUpdate(s, "clock", changes)),
 
 			updateGreeting: (changes) =>
-				set((s) => ({
-					settings: {
-						...s.settings,
-						greeting: { ...s.settings.greeting, ...changes },
-					},
-				})),
+				set((s) => applyNestedSettingsUpdate(s, "greeting", changes)),
 
 			updateSearch: (changes) =>
-				set((s) => ({
-					settings: {
-						...s.settings,
-						search: { ...s.settings.search, ...changes },
-					},
-				})),
+				set((s) => applyNestedSettingsUpdate(s, "search", changes)),
 
 			updateThumbnailCapture: (changes) =>
+				set((s) => applyNestedSettingsUpdate(s, "thumbnailCapture", changes)),
+
+			beginSettingsDraft: () =>
+				set((s) => {
+					if (s.settingsDraftBaseline) return {};
+					const baseline = cloneSettings(s.settings);
+					return {
+						settingsDraft: cloneSettings(s.settings),
+						settingsDraftBaseline: baseline,
+						isSettingsDirty: false,
+					};
+				}),
+
+			updateSettingsDraft: (changes) =>
+				set((s) => applySettingsUpdate(s, changes)),
+
+			saveSettingsDraft: async () => {
+				const state = get();
+				if (!state.settingsDraftBaseline || !state.settingsDraft) return;
+				const draft = cloneSettings(state.settingsDraft);
+				const baseline = cloneSettings(state.settingsDraftBaseline);
+				const wasDirty = state.isSettingsDirty;
+				settingsDraftPersistSnapshot = draft;
+				set({ settingsDraft: draft });
+				try {
+					await flushPersist();
+				} catch (error) {
+					settingsDraftPersistSnapshot = null;
+					const current = get();
+					if (
+						current.settingsDraft &&
+						current.settingsDraftBaseline &&
+						settingsMatch(current.settingsDraft, draft) &&
+						settingsMatch(current.settingsDraftBaseline, baseline)
+					) {
+						set({
+							settingsDraft: draft,
+							settingsDraftBaseline: baseline,
+							isSettingsDirty: wasDirty,
+						});
+					}
+					throw error;
+				}
+				settingsDraftPersistSnapshot = null;
+				const current = get();
+				if (
+					!current.settingsDraft ||
+					!current.settingsDraftBaseline ||
+					!settingsMatch(current.settingsDraft, draft) ||
+					!settingsMatch(current.settingsDraftBaseline, baseline)
+				) {
+					return;
+				}
+				const persistedSettings = cloneSettings(draft);
+				set({
+					settingsDraft: persistedSettings,
+					settingsDraftBaseline: cloneSettings(persistedSettings),
+					isSettingsDirty: false,
+				});
+			},
+
+			discardSettingsDraft: () =>
 				set((s) => ({
-					settings: {
-						...s.settings,
-						thumbnailCapture: { ...s.settings.thumbnailCapture, ...changes },
-					},
+					settings: s.settingsDraftBaseline
+						? cloneSettings(s.settingsDraftBaseline)
+						: s.settings,
+					settingsDraft: null,
+					settingsDraftBaseline: null,
+					isSettingsDirty: false,
 				})),
 
-			replaceSetup: (setup) => set(normalizeState(setup)),
+			commitCustomWallpaper: (entry) =>
+				set((s) => {
+					const current = s.settings.background.customWallpapers ?? [];
+					const customWallpapers = current.some((w) => w.id === entry.id)
+						? current
+						: [...current, entry];
+					const settings: Settings = {
+						...s.settings,
+						background: { ...s.settings.background, customWallpapers },
+					};
+					const baseline = s.settingsDraftBaseline;
+					if (!baseline) return { settings };
+					// The library is retained regardless of Save, so the baseline
+					// moves with it — only a changed *selection* keeps the
+					// panel dirty.
+					const nextBaseline: Settings = {
+						...baseline,
+						background: { ...baseline.background, customWallpapers },
+					};
+					return {
+						settings,
+						settingsDraft: settings,
+						settingsDraftBaseline: nextBaseline,
+						isSettingsDirty: !settingsMatch(settings, nextBaseline),
+					};
+				}),
+
+			removeCustomWallpaper: (id) =>
+				set((s) => {
+					const strip = (bg: Settings["background"]) => {
+						const customWallpapers = (bg.customWallpapers ?? []).filter(
+							(w) => w.id !== id,
+						);
+						const isActive = bg.type === "image" && bg.imageId === id;
+						return {
+							...bg,
+							customWallpapers,
+							...(isActive
+								? {
+										type: "wallpaper" as const,
+										wallpaperId: "tokyo-skyline",
+										imageId: null,
+									}
+								: {}),
+						};
+					};
+					const settings: Settings = {
+						...s.settings,
+						background: strip(s.settings.background),
+					};
+					const baseline = s.settingsDraftBaseline;
+					if (!baseline) return { settings };
+					const nextBaseline: Settings = {
+						...baseline,
+						background: strip(baseline.background),
+					};
+					return {
+						settings,
+						settingsDraft: settings,
+						settingsDraftBaseline: nextBaseline,
+						isSettingsDirty: !settingsMatch(settings, nextBaseline),
+					};
+				}),
+
+			replaceSetup: (setup) =>
+				set({
+					...normalizeState(setup),
+					settingsDraft: null,
+					settingsDraftBaseline: null,
+					isSettingsDirty: false,
+				}),
 
 			resetAll: async () => {
 				const previous = get();
@@ -553,7 +736,12 @@ export const useSetupStore = create<SetupStore>()(
 					// "perch-setup" is the legacy persist name; kept for data continuity.
 					await chrome.storage.local.remove("perch-setup");
 					await useImageStore.getState().clearAll();
-					set(normalizeState(null));
+					set({
+						...normalizeState(null),
+						settingsDraft: null,
+						settingsDraftBaseline: null,
+						isSettingsDirty: false,
+					});
 					await flushPersist();
 				} catch (error) {
 					set({
@@ -575,7 +763,10 @@ export const useSetupStore = create<SetupStore>()(
 				folders: s.folders,
 				cards: s.cards,
 				activeFolderId: s.activeFolderId,
-				settings: s.settings,
+				// Draft values stay in memory for live previews. While editing,
+				// persist the baseline; Save supplies its snapshot for the confirmed write.
+				settings:
+					settingsDraftPersistSnapshot ?? s.settingsDraftBaseline ?? s.settings,
 				itemOrder: s.itemOrder,
 			}),
 		},

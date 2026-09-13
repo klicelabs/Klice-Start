@@ -1,5 +1,6 @@
 import type { PersistStorage, StorageValue } from "zustand/middleware";
 import type {
+	AppearanceMode,
 	BackgroundSettings,
 	Card,
 	CustomWallpaper,
@@ -80,6 +81,15 @@ function normalizeId(value: unknown): string | null {
 	if (typeof value !== "string") return null;
 	const id = value.trim();
 	return id.length > 0 ? id : null;
+}
+
+function normalizeAppearanceMode(
+	value: unknown,
+	fallback: AppearanceMode,
+): AppearanceMode {
+	if (value === "liquid") return "liquid";
+	if (value === "classic" || value === "flat") return "classic";
+	return fallback;
 }
 
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
@@ -205,6 +215,10 @@ export function normalizeState(
 		settings: {
 			...defaults.settings,
 			...sourceSettings,
+			appearanceMode: normalizeAppearanceMode(
+				sourceSettings?.appearanceMode,
+				defaults.settings.appearanceMode,
+			),
 			thumbnailCapture: {
 				...defaults.settings.thumbnailCapture,
 				...(sourceSettings?.thumbnailCapture ?? {}),

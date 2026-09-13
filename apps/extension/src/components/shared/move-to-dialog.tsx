@@ -1,4 +1,3 @@
-import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -8,11 +7,15 @@ import {
 	DialogTitle,
 } from "@klice-start/ui/components/dialog";
 import { useMemo, useState } from "react";
+import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { getSubtreeIds } from "../../lib/folder-tree";
+import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import { FolderTreePicker } from "./folder-tree-picker";
+import { SettingsAction } from "../newtab/settings/shared/settings-action";
+import { SETTINGS_RADIUS } from "../newtab/settings/shared/settings-tokens";
 
 /**
  * Lightweight "Move to…" destination picker for the current selection (or a
@@ -77,7 +80,14 @@ export function MoveToDialog() {
 				if (!isOpen) handleClose();
 			}}
 		>
-			<DialogContent className="rounded-[24px] sm:max-w-[360px]">
+			<DialogContent
+				className={cn(
+					"squircle",
+					SETTINGS_SCOPE_CLASS,
+					SETTINGS_RADIUS.panel,
+					"sm:max-w-[360px]",
+				)}
+			>
 				<DialogHeader>
 					<DialogTitle>Move to folder</DialogTitle>
 					<DialogDescription>
@@ -106,12 +116,14 @@ export function MoveToDialog() {
 				</div>
 
 				<DialogFooter className="pt-1">
-					<Button type="button" variant="ghost" onClick={handleClose}>
-						Cancel
-					</Button>
-					<Button type="button" onClick={handleMove} disabled={!destinationId}>
+					<SettingsAction onClick={handleClose}>Cancel</SettingsAction>
+					<SettingsAction
+						tone="primary"
+						onClick={handleMove}
+						disabled={!destinationId}
+					>
 						Move here
-					</Button>
+					</SettingsAction>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

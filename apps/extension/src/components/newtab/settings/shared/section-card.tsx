@@ -1,47 +1,41 @@
+import type { ReactNode } from "react";
+
 import { cn } from "../../../../lib/utils";
+import {
+	SETTINGS_CARD,
+	SETTINGS_CARD_SURFACE,
+	SETTINGS_CARD_SURFACE_DANGER,
+	SETTINGS_RADIUS,
+} from "./settings-tokens";
 
 interface SectionCardProps {
-	title?: string;
-	description?: string;
-	children: React.ReactNode;
+	children: ReactNode;
 	className?: string;
-	action?: React.ReactNode;
+	/** Destructive groups get a faint red wash instead of the neutral one. */
+	tone?: "default" | "danger";
 }
 
+/**
+ * One group of related preferences. Rows provide their own inset, so the card
+ * only owns the surface, the radius and a thin edge — enough to group without
+ * adding visual weight. Never nest a card inside a card.
+ */
 export function SectionCard({
-	title,
-	description,
 	children,
 	className,
-	action,
+	tone = "default",
 }: SectionCardProps) {
 	return (
-		<div className="flex flex-col">
-			{(title || action) && (
-				<div className="mb-2 flex items-center justify-between px-1">
-					<div className="flex flex-col">
-						{title && (
-							<h3 className="font-semibold text-[13px] text-foreground tracking-tight">
-								{title}
-							</h3>
-						)}
-						{description && (
-							<p className="mt-0.5 text-muted-foreground/80 text-xs">
-								{description}
-							</p>
-						)}
-					</div>
-					{action && <div>{action}</div>}
-				</div>
+		<div
+			className={cn(
+				"squircle relative overflow-visible shadow-none",
+				SETTINGS_RADIUS.section,
+				SETTINGS_CARD,
+				tone === "danger" ? SETTINGS_CARD_SURFACE_DANGER : SETTINGS_CARD_SURFACE,
+				className,
 			)}
-			<div
-				className={cn(
-					"relative mb-3 overflow-hidden rounded-xl border border-border/50 bg-card/60 px-4 py-0.5",
-					className,
-				)}
-			>
-				{children}
-			</div>
+		>
+			{children}
 		</div>
 	);
 }

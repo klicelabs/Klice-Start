@@ -1,4 +1,3 @@
-import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -7,15 +6,33 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@klice-start/ui/components/dialog";
+import { Icon, type IconName } from "@klice-start/ui/icons/icon";
 import { useState } from "react";
+import { toast } from "sonner";
+import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
+import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
 import type { Card } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
+import { SettingRow } from "../shared/setting-row";
+import { SettingsAction } from "../shared/settings-action";
+import { SETTINGS_PAGE, SETTINGS_RADIUS } from "../shared/settings-tokens";
 
 interface AdvancedPaneProps {
 	onCloseParent?: () => void;
 }
 
+interface Stat {
+	icon: IconName;
+	label: string;
+	value: number;
+}
+
+/**
+ * Advanced is the end of the panel: what the dashboard currently holds, and
+ * the one irreversible action. The stats are read-only context for the reset,
+ * which is why they sit directly above it.
+ */
 export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards as Card[]);
@@ -26,6 +43,12 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 
 	const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 	const [isResetting, setIsResetting] = useState(false);
+
+	const stats: Stat[] = [
+		{ icon: "folder", label: "Folders", value: folders.length },
+		{ icon: "bookmark", label: "Bookmarks", value: cards.length },
+		{ icon: "image", label: "Wallpapers", value: customWallpapers.length },
+	];
 
 	async function handlePerformReset() {
 		setIsResetting(true);
@@ -39,139 +62,124 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 	}
 
 	return (
-		<div className="space-y-2">
-			{/* System & Storage Footprint */}
-			<SectionCard
-				title="Storage & statistics"
-				description="Local IndexedDB and extension storage usage overview"
-			>
-				<div className="grid grid-cols-3 gap-3 py-2.5">
-					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
-						<span className="text-muted-foreground text-xs">Total folders</span>
-						<span className="font-semibold text-foreground text-lg">
-							{folders.length}
-						</span>
-					</div>
-					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
-						<span className="text-muted-foreground text-xs">
-							Total bookmarks
-						</span>
-						<span className="font-semibold text-foreground text-lg">
-							{cards.length}
-						</span>
-					</div>
-					<div className="flex flex-col rounded-xl bg-secondary/40 p-3">
-						<span className="text-muted-foreground text-xs">
-							Custom wallpapers
-						</span>
-						<span className="font-semibold text-foreground text-lg">
-							{customWallpapers.length}
-						</span>
-					</div>
+		<div className={SETTINGS_PAGE}>
+			<SectionCard>
+				<div className="grid grid-cols-3 divide-x divide-white/[0.06] p-1.5">
+					{stats.map((stat) => (
+						<div key={stat.label} className="flex flex-col gap-1.5 px-2 py-1">
+							<span className="flex items-center gap-2 text-[12px] text-neutral-500 leading-[1.35] dark:text-neutral-400">
+								<Icon
+									name={stat.icon}
+									size={15}
+									strokeWidth={1.75}
+									className="shrink-0 text-neutral-400 dark:text-neutral-500"
+									aria-hidden="true"
+								/>
+								<span className="truncate">{stat.label}</span>
+							</span>
+							<span className="font-semibold text-[17px] text-neutral-900 tabular-nums leading-none dark:text-neutral-100">
+								{stat.value}
+							</span>
+						</div>
+					))}
 				</div>
 			</SectionCard>
 
 			{/* Developer seed (development builds only — tree-shaken from prod) */}
-			{import.meta.env.DEV && (
-				<SectionCard
-					title="Developer"
-					description="Sample library for testing scroll, overflow, nesting and drag-and-drop"
-				>
-					<div className="flex items-center justify-between gap-3 py-2.5">
-						<span className="text-muted-foreground text-xs">
-							Loads deterministic folders, subfolders and bookmarks. Never
-							available in production builds.
-						</span>
-						<div className="flex shrink-0 gap-2">
-							<Button
-								type="button"
-								size="sm"
-								variant="secondary"
-								onClick={() => {
-									void import("../../../../dev/seed").then((m) =>
-										m.seedDevData(),
-									);
-								}}
-								className="h-8 rounded-lg text-xs"
-							>
-								Load seed data
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								variant="ghost"
-								onClick={() => {
-									void import("../../../../dev/seed").then((m) =>
-										m.resetDevData(),
-									);
-								}}
-								className="h-8 rounded-lg text-xs"
-							>
-								Reset
-							</Button>
-						</div>
-					</div>
-				</SectionCard>
-			)}
-
-			{/* Danger Zone */}
-			<SectionCard
-				title="Danger zone"
-				description="Irreversible actions that affect your local data"
-				className="border-destructive/30"
-			>
-				<div className="flex items-center justify-between py-2.5">
-					<div className="flex flex-col">
-						<span className="font-medium text-destructive text-sm">
-							Reset all dashboard data
-						</span>
-						<span className="text-muted-foreground text-xs">
-							Permanently erases all folders, links, custom wallpapers, and
-							stored thumbnails
-						</span>
-					</div>
-					<Button
-						type="button"
-						variant="destructive"
-						size="sm"
-						onClick={() => setConfirmResetOpen(true)}
-						className="h-8 rounded-lg text-xs"
+			{import.meta.env.DEV ? (
+				<SectionCard>
+					<SettingRow
+						label="Development data"
+						icon="database"
+						tooltip="Local fixtures."
 					>
-						Reset all data
-					</Button>
-				</div>
+						<SettingsAction
+							onClick={async () => {
+								try {
+									const seed = await import("../../../../dev/seed");
+									await seed.seedDevData();
+									toast.success("Seed data loaded.");
+								} catch (err) {
+									toast.error("Seed failed", {
+										description:
+											err instanceof Error ? err.message : "Could not load seed.",
+									});
+								}
+							}}
+						>
+							Load seed
+						</SettingsAction>
+						<SettingsAction
+							onClick={async () => {
+								try {
+									const seed = await import("../../../../dev/seed");
+									await seed.resetDevData();
+									toast.success("Seed data cleared.");
+								} catch (err) {
+									toast.error("Clear failed", {
+										description:
+											err instanceof Error ? err.message : "Could not clear seed.",
+									});
+								}
+							}}
+						>
+							Clear
+						</SettingsAction>
+					</SettingRow>
+				</SectionCard>
+			) : null}
+
+			<SectionCard tone="danger">
+				<SettingRow
+					label={
+						<span className="text-red-600 dark:text-red-400">
+							Reset everything
+						</span>
+					}
+					icon="alert"
+					tooltip="Deletes everything. Can't be undone."
+				>
+					<SettingsAction
+						tone="danger"
+						onClick={() => setConfirmResetOpen(true)}
+					>
+						Reset…
+					</SettingsAction>
+				</SettingRow>
 			</SectionCard>
 
-			{/* Reset Confirmation Dialog */}
 			<Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
-				<DialogContent className="rounded-3xl sm:max-w-[420px]">
+				<DialogContent
+					className={cn(
+						"squircle",
+						SETTINGS_SCOPE_CLASS,
+						SETTINGS_RADIUS.panel,
+						"sm:max-w-[420px]",
+					)}
+				>
 					<DialogHeader>
-						<DialogTitle>Reset all dashboard data?</DialogTitle>
+						<DialogTitle>Reset all data?</DialogTitle>
 						<DialogDescription>
-							This will permanently delete all {cards.length} bookmark
+							This deletes {cards.length} bookmark
 							{cards.length === 1 ? "" : "s"} across {folders.length} folder
-							{folders.length === 1 ? "" : "s"}, your custom uploaded
-							wallpapers, and all thumbnail caches. This action cannot be
-							undone.
+							{folders.length === 1 ? "" : "s"}, your uploaded wallpapers, and
+							every cached preview. This can&rsquo;t be undone.
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter className="pt-2">
-						<Button
-							type="button"
-							variant="ghost"
+						<SettingsAction
 							onClick={() => setConfirmResetOpen(false)}
 							disabled={isResetting}
 						>
 							Cancel
-						</Button>
-						<Button
-							type="button"
-							variant="destructive"
+						</SettingsAction>
+						<SettingsAction
+							tone="danger"
 							onClick={handlePerformReset}
 							disabled={isResetting}
 						>
-							{isResetting ? "Resetting…" : "Yes, reset everything"}
-						</Button>
+							{isResetting ? "Resetting…" : "Reset everything"}
+						</SettingsAction>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

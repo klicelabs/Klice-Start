@@ -1,0 +1,165 @@
+/**
+ * Settings design tokens.
+ *
+ * One scale governs the whole panel so nothing is ever placed by feel. All
+ * values sit on a 2px grid, and every gap is either the *row beat* (inside a
+ * card) or the *card beat* (between cards) — never an arbitrary number.
+ *
+ *   panel gutter   16px  px-4      → content never touches the panel edge
+ *   card padding    8/6  px-2 py-1.5 → card edge to row edge
+ *   row padding     6/10 px-1.5 py-2.5 → row edge to row content
+ *   row height     48px  min-h-12   → one exact beat per row
+ *   card gap       10px  gap-2.5    → the only separation between groups
+ *
+ * Row content therefore lands on a 30px optical gutter from the panel edge,
+ * and stacked rows share a single 48px rhythm.
+ */
+
+/**
+ * Corner radii. One step per structural role, so a surface never picks a
+ * radius by feel.
+ *
+ * Each entry pairs the Chrome radius with its `--squircle-r` fallback, which
+ * the `.squircle` utility swaps in for engines without `corner-shape` (Gecko).
+ * The fallback is ~60% of the Chrome radius so both renderings read as the
+ * same roundness — always change the pair together.
+ */
+export const SETTINGS_RADIUS = {
+	/** The panel shell. */
+	panel: "rounded-[28px] [--squircle-r:17px]",
+	/** A section card, and floating surfaces at the same level (menus). */
+	section: "rounded-[20px] [--squircle-r:12px]",
+	/** A row-level surface: nav rows, media tiles, the drop zone. */
+	surface: "rounded-[16px] [--squircle-r:10px]",
+	/** A control: buttons, inputs, selects, folder pickers. */
+	control: "rounded-[14px] [--squircle-r:9px]",
+	/** A thumbnail: upload previews, small media thumbs inside cards. */
+	thumbnail: "rounded-[10px] [--squircle-r:6px]",
+	/** Fully round: switches, segmented track, colour swatch, badges. */
+	pill: "rounded-full",
+} as const;
+
+/** The scroll region: one vertical column, one card beat. */
+export const SETTINGS_PAGE = "flex flex-col gap-2.5";
+
+/** Interior of every section card. Rows add their own px on top of this. */
+export const SETTINGS_CARD = "px-2 py-1.5";
+
+/** The single row rhythm — 48px tall, 6px inset, 12px label↔control gap. */
+export const SETTINGS_ROW = "min-h-12 gap-x-3 px-1.5 py-2.5";
+
+/** Page-level gutter + breathing room, shared by the root and every pane. */
+export const SETTINGS_PAGE_INSET = "px-4 pt-1 pb-5";
+
+/**
+ * Header padding = the panel gutter (16px), on both sides.
+ *
+ * That puts the leading close/back control on the same left edge as every
+ * card, and the Save button on the same right edge as every card. Cards must
+ * therefore keep the full padding box — which is why `.settings-content-scroll`
+ * hides its scrollbar instead of reserving a gutter, or the cards would sit
+ * ~10px inside the header and Save would float past them.
+ */
+export const SETTINGS_HEADER_INSET = "px-4";
+
+/**
+ * Type roles. Light-first with dark overrides — the panel follows the app
+ * theme (Light / Dark / Auto) while always staying Flat, even when Liquid
+ * Glass is enabled on the Speed Dial.
+ */
+export const SETTINGS_LABEL =
+	"block text-[13px] font-medium leading-[1.35] text-neutral-900 dark:text-neutral-100";
+export const SETTINGS_DESCRIPTION =
+	"mt-1 block text-[12px] leading-[1.4] text-neutral-500 dark:text-neutral-400";
+
+
+/** Control column width — the widest a select, picker or input may grow. */
+export const SETTINGS_CONTROL_WIDTH = "w-[min(11rem,100%)]";
+
+/**
+ * Focus ring. One definition for the entire panel: a 2px ring lifted 1px off
+ * the surface. Light-first, dark override — always change the pair together.
+ */
+export const SETTINGS_FOCUS_RING =
+	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-white/40 dark:focus-visible:ring-offset-[#252525]";
+
+/**
+ * Same ring, applied to a *container* when a nested control takes focus.
+ * Used where the focusable node is smaller than the thing the user perceives
+ * as the control — a slider's thumb is 4px wide, so the ring belongs on the
+ * track wrapper instead.
+ */
+export const SETTINGS_FOCUS_RING_WITHIN =
+	"focus-within:ring-2 focus-within:ring-neutral-400/60 focus-within:ring-offset-1 focus-within:ring-offset-white dark:focus-within:ring-white/40 dark:focus-within:ring-offset-[#252525] [&_[role=slider]]:focus-visible:ring-0";
+
+/** Header close/back control — a quiet circular hit target. */
+export const SETTINGS_HEADER_CONTROL =
+	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
+
+/** Header save affordance — appears only while there are unsaved changes. */
+export const SETTINGS_HEADER_SAVE =
+	"inline-flex h-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] px-3.5 font-medium text-[13px] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.98] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
+
+export const SETTINGS_SELECT_TRIGGER =
+	"squircle min-w-0 max-w-full rounded-[14px] [--squircle-r:9px] !bg-none bg-neutral-900/[0.05] text-neutral-900 shadow-none hover:!bg-none hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
+
+/**
+ * Picker trigger surface — the folder picker's button, and any equivalent
+ * compact trigger. The exact twin of the select trigger (same wash, type
+ * size, radius, theme pair, no border, no elevation), without
+ * select-specific resets, so pickers never drift from selects.
+ */
+export const SETTINGS_TRIGGER =
+	"squircle bg-neutral-900/[0.05] text-neutral-900 text-xs shadow-none transition-[background-color,box-shadow] duration-150 hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
+
+export const SETTINGS_SWITCH =
+	"shadow-none [&_[data-slot=switch-thumb]]:shadow-none";
+
+export const SETTINGS_INPUT =
+	"squircle border-neutral-900/[0.08] bg-neutral-900/[0.04] text-neutral-900 shadow-none placeholder:text-neutral-400 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-neutral-100 dark:placeholder:text-neutral-500";
+
+/**
+ * In-row actions. One quiet default, one clear primary, one destructive —
+ * the palette never carries more than one of each per group, so a card always
+ * has an obvious "do this" affordance.
+ *
+ * Shape comes from `SETTINGS_RADIUS.control`, applied by the component, so
+ * every action in the panel is identical by construction.
+ */
+export const SETTINGS_ACTION =
+	"h-8 gap-1.5 border-0 bg-neutral-900/[0.05] px-2.5 text-neutral-800 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-neutral-900/[0.09] active:scale-[0.98] dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.1]";
+
+export const SETTINGS_ACTION_PRIMARY =
+	"h-8 gap-1.5 border-0 bg-neutral-900/[0.1] px-3 font-medium text-neutral-900 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-neutral-900/[0.15] active:scale-[0.98] dark:bg-white/[0.14] dark:text-neutral-50 dark:hover:bg-white/[0.2]";
+
+export const SETTINGS_ACTION_DANGER =
+	"h-8 gap-1.5 border-0 bg-transparent px-2.5 text-red-600 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-red-500/10 hover:text-red-500 active:scale-[0.98] dark:text-red-400 dark:hover:text-red-300";
+
+/** Icon-only row action — 32px hit target, revealed on row hover/focus. */
+export const SETTINGS_ICON_BUTTON =
+	"inline-flex size-8 shrink-0 items-center justify-center border-0 bg-transparent text-neutral-500 shadow-none transition-[background-color,color,transform,opacity] duration-150 hover:bg-neutral-900/[0.06] hover:text-neutral-900 active:scale-[0.94] dark:text-neutral-400 dark:hover:bg-white/[0.08] dark:hover:text-neutral-100";
+
+/** Panel surface — Flat in both themes, never Liquid Glass. */
+export const SETTINGS_PANEL_SURFACE =
+	"bg-white text-neutral-900 shadow-[0_18px_50px_rgb(0_0_0/0.22)] dark:bg-[#252525] dark:text-neutral-100 dark:shadow-[0_18px_50px_rgb(0_0_0/0.32)]";
+
+/** Card surface — groups rows without adding visual weight. */
+export const SETTINGS_CARD_SURFACE =
+	"bg-neutral-900/[0.035] dark:bg-white/[0.04]";
+export const SETTINGS_CARD_SURFACE_DANGER = "bg-red-500/[0.07] dark:bg-destructive/[0.06]";
+
+/** Quiet hover wash for rows and nav items. */
+export const SETTINGS_HOVER_WASH =
+	"hover:bg-neutral-900/[0.045] dark:hover:bg-white/[0.05]";
+export const SETTINGS_ROW_HOVER_WASH =
+	"hover:bg-neutral-900/[0.03] dark:hover:bg-white/[0.04]";
+
+export const SETTINGS_ACTION_ICON = "shrink-0 opacity-70";
+
+/**
+ * The one tooltip delay for the whole Settings panel (ms).
+ *
+ * Fast enough for repeated use, slow enough to skip accidental brushes —
+ * one shared value so every page feels identical.
+ */
+export const SETTINGS_TOOLTIP_DELAY = 200;

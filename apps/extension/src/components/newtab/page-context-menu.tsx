@@ -4,9 +4,10 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@klice-start/ui/components/context-menu";
+} from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
+import { isInsideSettingsScope } from "../../lib/context-scope";
 import { glassDropdownItem, glassMenu } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
@@ -21,6 +22,8 @@ interface PageContextMenuProps {
 	onAddQuickLink: () => void;
 	onAddFolder?: () => void;
 	onOpenGeneralSettings?: () => void;
+	onEnterRestMode?: () => void;
+	enabled?: boolean;
 }
 
 export function PageContextMenu({
@@ -29,6 +32,8 @@ export function PageContextMenu({
 	onAddQuickLink,
 	onAddFolder,
 	onOpenGeneralSettings,
+	onEnterRestMode,
+	enabled = true,
 }: PageContextMenuProps) {
 	const { isLiquid } = useAppearance();
 	const bgType = useSetupStore((s) => s.settings.background.type);
@@ -82,31 +87,46 @@ export function PageContextMenu({
 		// If clicking an interactive card/tab with its own context menu, skip
 		const target = event.target as HTMLElement | null;
 		if (target?.closest("[data-local-context-menu]")) {
+			event.preventDefault();
 			return;
 		}
-		setOpen(true);
+		// Settings is its own surface: never open the global Home menu there.
+		// This covers the panel itself plus settings-owned floating UI, which
+		// portals render outside the panel DOM (see `lib/context-scope`).
+		// The beUI trigger only stands down on defaultPrevented, so — exactly
+		// like the local-menu rule above — prevention here is what keeps the
+		// global menu closed. Everything else (clicks, keys, selection)
+		// passes through untouched.
+		if (isInsideSettingsScope(target)) {
+			event.preventDefault();
+			return;
+		}
 	}
 
 	const itemClassName = cn("font-medium", glassDropdownItem(isLiquid));
 
+	if (!enabled) return children;
+
 	return (
 		<ContextMenu open={open} onOpenChange={setOpen}>
-			<ContextMenuTrigger
-				className="block min-h-screen w-full"
-				onContextMenu={handleContextMenu}
-				render={<div />}
-			>
-				{children}
+			<ContextMenuTrigger>
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: the page surface is the context-menu trigger and the beUI trigger adds keyboard handling. */}
+				<div
+					className="block min-h-screen w-full"
+					onContextMenu={handleContextMenu}
+				>
+					{children}
+				</div>
 			</ContextMenuTrigger>
 
 			<ContextMenuContent className={cn(glassMenu(isLiquid), "min-w-48")}>
 				{onAddFolder && (
-					<ContextMenuItem className={itemClassName} onClick={onAddFolder}>
+					<ContextMenuItem className={itemClassName} onSelect={onAddFolder}>
 						<Icon name="folder-plus" size={14} />
 						New folder
 					</ContextMenuItem>
 				)}
-				<ContextMenuItem className={itemClassName} onClick={onAddQuickLink}>
+				<ContextMenuItem className={itemClassName} onSelect={onAddQuickLink}>
 					<Icon name="plus" size={14} />
 					Add link
 				</ContextMenuItem>
@@ -117,18 +137,24 @@ export function PageContextMenu({
 
 				<ContextMenuItem
 					className={itemClassName}
-					onClick={onOpenBackgroundSettings}
+					onSelect={onOpenBackgroundSettings}
 				>
 					<Icon name="settings" size={14} />
 					Edit background
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={itemClassName}
-					onClick={onOpenGeneralSettings ?? onOpenBackgroundSettings}
+					onSelect={onOpenGeneralSettings ?? onOpenBackgroundSettings}
 				>
 					<Icon name="settings" size={14} />
 					Settings
 				</ContextMenuItem>
+				{onEnterRestMode && (
+					<ContextMenuItem className={itemClassName} onSelect={onEnterRestMode}>
+						<Icon name="clock" size={14} />
+						Enter Rest Mode
+					</ContextMenuItem>
+				)}
 
 				{isPexels && (
 					<>
@@ -137,7 +163,7 @@ export function PageContextMenu({
 						/>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleDownloadBackground}
+							onSelect={handleDownloadBackground}
 						>
 							<svg
 								aria-hidden="true"
@@ -154,7 +180,7 @@ export function PageContextMenu({
 						</ContextMenuItem>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleToggleLock}
+							onSelect={handleToggleLock}
 						>
 							<svg
 								aria-hidden="true"
@@ -177,7 +203,7 @@ export function PageContextMenu({
 						</ContextMenuItem>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleNextBackground}
+							onSelect={handleNextBackground}
 						>
 							<svg
 								aria-hidden="true"

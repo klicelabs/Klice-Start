@@ -1,4 +1,3 @@
-import { Button } from "@klice-start/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -7,10 +6,18 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@klice-start/ui/components/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@klice-start/ui/components/dropdown-menu";
 import { Input } from "@klice-start/ui/components/input";
 import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
 	getBreadcrumb,
 	getDescendantIds,
@@ -24,6 +31,8 @@ import {
 	isValidUrl,
 	normalizeUrl,
 } from "../../../../lib/url";
+import { cn } from "../../../../lib/utils";
+import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 import { exportBackup, importBackup } from "../../../../services/backup";
 import {
 	exportBookmarksHtml,
@@ -35,6 +44,19 @@ import type { Card } from "../../../../types";
 import { FolderTreePicker } from "../../../shared/folder-tree-picker";
 import { SectionCard } from "../shared/section-card";
 import { SettingRow } from "../shared/setting-row";
+import { SettingsAction, SettingsIconButton } from "../shared/settings-action";
+import { SettingsExpandable } from "../shared/settings-expandable";
+import { SettingsEmpty } from "../shared/settings-feedback";
+import {
+	SETTINGS_CONTROL_WIDTH,
+	SETTINGS_FOCUS_RING,
+	SETTINGS_ICON_BUTTON,
+	SETTINGS_INPUT,
+	SETTINGS_PAGE,
+	SETTINGS_RADIUS,
+	SETTINGS_ROW_HOVER_WASH,
+	SETTINGS_SWITCH,
+} from "../shared/settings-tokens";
 import { SliderRow } from "../shared/slider-row";
 
 interface BookmarksPaneProps {
@@ -45,6 +67,22 @@ interface BookmarksPaneProps {
 	};
 }
 
+const FIELD_LABEL =
+	"text-[12px] font-medium leading-[1.35] text-neutral-600 dark:text-neutral-300";
+
+/**
+ * Bookmarks is the one page that manages real content, so it is organised as
+ * a small workflow rather than a list of switches:
+ *
+ *   1. which folder you are working in (and its few, occasional actions)
+ *   2. the links in that folder (add, edit, remove)
+ *   3. how previews are captured
+ *   4. how content moves in and out
+ *
+ * Folder actions and per-row actions are disclosed progressively — behind one
+ * menu and behind row hover — so the page opens on the two things that matter:
+ * the current folder, and adding a link.
+ */
 export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards as Card[]);
@@ -65,7 +103,6 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const [selectedFolderId, setSelectedFolderId] =
 		useState<string>(activeFolderId);
 
-	// Ensure selected folder is valid
 	useEffect(() => {
 		if (!folders.some((f) => f.id === selectedFolderId)) {
 			setSelectedFolderId(folders[0]?.id || "default");
@@ -94,11 +131,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		string | null
 	>(null);
 
-	// Import / Export states
-	const htmlFileRef = useRef<HTMLInputElement>(null);
-	const jsonFileRef = useRef<HTMLInputElement>(null);
-	const [ioStatus, setIoStatus] = useState("");
-	const [ioType, setIoType] = useState<"info" | "success" | "error">("info");
+	// Import / Export states (results surface as toasts; only the
+	// in-flight flag lives here)
+	const fileRef = useRef<HTMLInputElement>(null);
 	const [isProcessingIo, setIsProcessingIo] = useState(false);
 
 	// Handle initial action if provided from outside
@@ -154,6 +189,11 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		() => getBreadcrumb(folders, selectedFolderId),
 		[folders, selectedFolderId],
 	);
+	/** Everything above the current folder — omitted at the root. */
+	const parentPath = breadcrumbs
+		.slice(0, -1)
+		.map((crumb) => crumb.name)
+		.join(" › ");
 
 	// URL validation and duplicate detection
 	const urlValidation = useMemo(() => {
@@ -175,7 +215,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		if (duplicate) {
 			return {
 				status: "duplicate" as const,
-				message: "This link already exists in the selected folder.",
+				message: "This link is already in that folder.",
 			};
 		}
 		return { status: "valid" as const, message: "" };
@@ -228,6 +268,15 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setTitleTouched(false);
 	}
 
+	function handleStartAddLink() {
+		setEditingCardId(null);
+		setLinkUrl("");
+		setLinkTitle("");
+		setTitleTouched(false);
+		setLinkFolderId(selectedFolderId);
+		setIsAddingLink(true);
+	}
+
 	function handleStartEditLink(card: Card) {
 		setEditingCardId(card.id);
 		setLinkUrl(card.url);
@@ -243,6 +292,23 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setLinkUrl("");
 		setLinkTitle("");
 		setTitleTouched(false);
+	}
+
+	function handleOpenNewFolder() {
+		setEditingFolderId(null);
+		setFolderNameInput("");
+		setFolderParentInput(selectedFolderId);
+		setFolderError("");
+		setFolderModalOpen(true);
+	}
+
+	function handleOpenEditFolder() {
+		if (!selectedFolder) return;
+		setEditingFolderId(selectedFolder.id);
+		setFolderNameInput(selectedFolder.name);
+		setFolderParentInput(selectedFolder.parentId ?? null);
+		setFolderError("");
+		setFolderModalOpen(true);
 	}
 
 	function handleSaveFolder(e: React.FormEvent) {
@@ -301,46 +367,60 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		};
 	}, [deleteConfirmFolderId, folders, cards]);
 
-	// Import / Export Handlers
+	// Import / Export Handlers.
+	//
+	// These are fire-and-forget actions, so their *results* surface as
+	// temporary toasts. Anything that needs a decision (forms, destructive
+	// confirms) stays inline — toasts never carry persistent state.
+	function importedSummary(foldersCreated: number, cardsCreated: number) {
+		return `Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`;
+	}
+
 	async function handleImportFromBrowser() {
 		setIsProcessingIo(true);
-		setIoType("info");
-		setIoStatus("Reading browser bookmarks…");
 		try {
 			const { foldersCreated, cardsCreated } =
 				await importBookmarksFromBrowser();
-			setIoType("success");
-			setIoStatus(
-				`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`,
-			);
+			toast.success("Import completed", {
+				description: importedSummary(foldersCreated, cardsCreated),
+			});
 		} catch (err) {
-			setIoType("error");
-			setIoStatus(
-				err instanceof Error ? err.message : "Could not import bookmarks.",
-			);
+			toast.error("Import failed", {
+				description:
+					err instanceof Error ? err.message : "Could not import bookmarks.",
+			});
 		} finally {
 			setIsProcessingIo(false);
 		}
 	}
 
-	async function handleImportHtml(e: ChangeEvent<HTMLInputElement>) {
+	/** One picker for both formats — the file name decides how it is read. */
+	async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
 		const file = e.target.files?.[0];
 		if (!file) return;
+		const isBackup = /\.json$/i.test(file.name);
 		setIsProcessingIo(true);
-		setIoType("info");
-		setIoStatus("Parsing HTML file…");
 		try {
 			const text = await file.text();
-			const { foldersCreated, cardsCreated } = await importBookmarksHtml(text);
-			setIoType("success");
-			setIoStatus(
-				`Imported ${cardsCreated} link${cardsCreated === 1 ? "" : "s"} across ${foldersCreated} folder${foldersCreated === 1 ? "" : "s"}.`,
-			);
+			if (isBackup) {
+				await importBackup(text);
+				toast.success("Backup restored.");
+			} else {
+				const { foldersCreated, cardsCreated } =
+					await importBookmarksHtml(text);
+				toast.success("Import completed", {
+					description: importedSummary(foldersCreated, cardsCreated),
+				});
+			}
 		} catch (err) {
-			setIoType("error");
-			setIoStatus(
-				err instanceof Error ? err.message : "Failed to parse HTML file.",
-			);
+			toast.error(isBackup ? "Restore failed" : "Import failed", {
+				description:
+					err instanceof Error
+						? err.message
+						: isBackup
+							? "Could not restore that backup."
+							: "Could not read that file.",
+			});
 		} finally {
 			setIsProcessingIo(false);
 			e.target.value = "";
@@ -351,11 +431,13 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setIsProcessingIo(true);
 		try {
 			await exportBookmarksHtml();
-			setIoType("success");
-			setIoStatus("Exported bookmarks.html file.");
+			toast.success("Export completed", {
+				description: "Saved bookmarks.html.",
+			});
 		} catch (err) {
-			setIoType("error");
-			setIoStatus(err instanceof Error ? err.message : "Export failed.");
+			toast.error("Export failed", {
+				description: err instanceof Error ? err.message : "Export failed.",
+			});
 		} finally {
 			setIsProcessingIo(false);
 		}
@@ -365,148 +447,148 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setIsProcessingIo(true);
 		try {
 			await exportBackup();
-			setIoType("success");
-			setIoStatus("Exported full backup archive with images.");
+			toast.success("Backup created", {
+				description: "Saved a full backup with images.",
+			});
 		} catch (err) {
-			setIoType("error");
-			setIoStatus(err instanceof Error ? err.message : "Backup failed.");
+			toast.error("Backup failed", {
+				description: err instanceof Error ? err.message : "Backup failed.",
+			});
 		} finally {
 			setIsProcessingIo(false);
 		}
 	}
 
-	async function handleRestoreBackup(e: ChangeEvent<HTMLInputElement>) {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		setIsProcessingIo(true);
-		setIoType("info");
-		setIoStatus("Restoring backup archive…");
-		try {
-			const text = await file.text();
-			await importBackup(text);
-			setIoType("success");
-			setIoStatus("Backup restored successfully!");
-		} catch (err) {
-			setIoType("error");
-			setIoStatus(
-				err instanceof Error ? err.message : "Failed to restore backup.",
-			);
-		} finally {
-			setIsProcessingIo(false);
-			e.target.value = "";
-		}
-	}
+	const bookmarkCount = folderCards.length;
 
 	return (
-		<div className="space-y-3">
-			{/* Folder Header & Navigation */}
-			<SectionCard
-				title="Folder organization"
-				action={
-					<Button
-						type="button"
-						size="sm"
-						variant="outline"
-						onClick={() => {
-							setEditingFolderId(null);
-							setFolderNameInput("");
-							setFolderParentInput(selectedFolderId);
-							setFolderError("");
-							setFolderModalOpen(true);
-						}}
-						className="h-7 gap-1.5 rounded-lg text-xs"
-					>
-						<Icon name="folder-plus" size={13} />
-						New folder
-					</Button>
-				}
-			>
-				<div className="flex flex-wrap items-center justify-between gap-3 py-2">
-					<div className="flex items-center gap-2">
-						<span className="font-medium text-muted-foreground text-xs">
-							Current folder:
-						</span>
-						<FolderTreePicker
-							folders={folders}
-							value={selectedFolderId}
-							onChange={(id) => id && setSelectedFolderId(id)}
-							allowRoot={false}
-							className="h-8 min-w-[180px] text-xs"
-						/>
-					</div>
-
-					<div className="flex items-center gap-1">
-						{selectedFolder && (
-							<>
-								<Button
-									type="button"
-									size="sm"
-									variant="ghost"
-									onClick={() => {
-										setEditingFolderId(selectedFolder.id);
-										setFolderNameInput(selectedFolder.name);
-										setFolderParentInput(selectedFolder.parentId ?? null);
-										setFolderError("");
-										setFolderModalOpen(true);
-									}}
-									className="h-7 gap-1 rounded-lg px-2 text-xs"
-									title="Rename or move folder"
-								>
-									<Icon name="pencil" size={12} />
-									Rename
-								</Button>
-
-								{canDeleteCurrentFolder && (
-									<Button
-										type="button"
-										size="sm"
-										variant="ghost"
-										onClick={() => setDeleteConfirmFolderId(selectedFolder.id)}
-										className="h-7 gap-1 rounded-lg px-2 text-destructive text-xs hover:bg-destructive/10 hover:text-destructive"
-										title="Delete folder"
-									>
-										<Icon name="trash" size={12} />
-										Delete
-									</Button>
-								)}
-							</>
+		<div className={SETTINGS_PAGE}>
+			{/* 1 — The folder you are working in. */}
+			<SectionCard>
+				<SettingRow
+					label="Folder"
+					icon="folder"
+					description={
+						/* The picker already shows the folder itself, so the
+						   supporting line carries its *location* — and disappears
+						   at the root, where there is nothing above it. */
+						parentPath ? (
+							<span className="block truncate" title={parentPath}>
+								{parentPath}
+							</span>
+						) : undefined
+					}
+				>
+					<FolderTreePicker
+						folders={folders}
+						value={selectedFolderId}
+						onChange={(id) => id && setSelectedFolderId(id)}
+						allowRoot={false}
+						label="Folder"
+						className={cn(
+							SETTINGS_CONTROL_WIDTH,
+							SETTINGS_RADIUS.control,
+							"h-8",
 						)}
-					</div>
-				</div>
-
-				{breadcrumbs.length > 1 && (
-					<div className="flex items-center gap-1 border-border/30 border-t pt-2 pb-1 text-muted-foreground text-xs">
-						<span>Path:</span>
-						{breadcrumbs.map((crumb, idx) => (
-							<span key={crumb.id} className="flex items-center gap-1">
-								{idx > 0 && <span className="opacity-40">/</span>}
+					/>
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
 								<button
 									type="button"
-									onClick={() => setSelectedFolderId(crumb.id)}
-									className="hover:text-foreground hover:underline"
+									aria-label="Folder actions"
+									className={cn(
+										SETTINGS_ICON_BUTTON,
+										SETTINGS_RADIUS.control,
+										SETTINGS_FOCUS_RING,
+									)}
 								>
-									{crumb.name}
+									<Icon name="ellipsis" size={16} aria-hidden="true" />
 								</button>
-							</span>
-						))}
-					</div>
-				)}
+							}
+						/>
+						<DropdownMenuContent
+							align="end"
+							className={cn(
+								"squircle w-auto min-w-44 p-1 text-xs",
+								SETTINGS_SCOPE_CLASS,
+								SETTINGS_RADIUS.section,
+							)}
+						>
+							<DropdownMenuItem
+								className={cn(
+									"gap-2 px-2.5 py-1.5 text-xs",
+									SETTINGS_RADIUS.control,
+								)}
+								onClick={handleOpenNewFolder}
+							>
+								<Icon name="folder-plus" size={14} aria-hidden="true" />
+								New folder
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								className={cn(
+									"gap-2 px-2.5 py-1.5 text-xs",
+									SETTINGS_RADIUS.control,
+								)}
+								disabled={!selectedFolder}
+								onClick={handleOpenEditFolder}
+							>
+								<Icon name="folder-move" size={14} aria-hidden="true" />
+								Rename or move…
+							</DropdownMenuItem>
+							{canDeleteCurrentFolder ? (
+								<>
+									<DropdownMenuSeparator />
+									<DropdownMenuItem
+										className={cn(
+											"gap-2 px-2.5 py-1.5 text-red-600 text-xs focus:text-red-500 dark:text-red-400 dark:focus:text-red-300",
+											SETTINGS_RADIUS.control,
+										)}
+										onClick={() =>
+											selectedFolder &&
+											setDeleteConfirmFolderId(selectedFolder.id)
+										}
+									>
+										<Icon name="trash" size={14} aria-hidden="true" />
+										Delete folder
+									</DropdownMenuItem>
+								</>
+							) : null}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</SettingRow>
 			</SectionCard>
 
-			{/* Add / Edit Link Form */}
-			{isAddingLink && (
-				<SectionCard title={editingCardId ? "Edit bookmark" : "Add bookmark"}>
-					<form onSubmit={handleSaveLink} className="space-y-3 py-2">
-						<div>
-							<div className="mb-1 flex items-center justify-between">
-								<label
-									htmlFor="bookmark-url-input"
-									className="font-medium text-muted-foreground text-xs"
-								>
-									Website address (URL)
+			{/* 2 — The links in that folder. */}
+			<SectionCard>
+				<SettingRow
+					label="Bookmarks"
+					icon="bookmark"
+					description={
+						bookmarkCount === 1
+							? "1 link in this folder"
+							: `${bookmarkCount} links in this folder`
+					}
+				>
+					{isAddingLink || bookmarkCount === 0 ? null : (
+						<SettingsAction icon="plus" onClick={handleStartAddLink}>
+							Add link
+						</SettingsAction>
+					)}
+				</SettingRow>
+
+				{isAddingLink ? (
+					<form
+						onSubmit={handleSaveLink}
+						className="flex flex-col gap-2.5 p-1.5"
+					>
+						<div className="flex flex-col gap-1.5">
+							<div className="flex items-center justify-between gap-3">
+								<label htmlFor="bookmark-url-input" className={FIELD_LABEL}>
+									Link
 								</label>
-								{urlValidation.status === "valid" && (
-									<span className="flex items-center gap-1 font-medium text-emerald-400 text-xs">
+								{urlValidation.status === "valid" ? (
+									<span className="flex items-center gap-1.5 font-medium text-[11px] text-emerald-600 dark:text-emerald-400">
 										<img
 											src={faviconUrl(normalizeUrl(linkUrl))}
 											alt=""
@@ -515,9 +597,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 												e.currentTarget.style.display = "none";
 											}}
 										/>
-										Valid URL
+										Looks good
 									</span>
-								)}
+								) : null}
 							</div>
 							<Input
 								id="bookmark-url-input"
@@ -527,25 +609,25 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								value={linkUrl}
 								onChange={(e) => handleUrlChange(e.target.value)}
 								autoFocus
-								className="h-9 rounded-lg border-border/60 bg-secondary/50 px-3 text-foreground text-sm"
+								className={cn(
+									cn("h-9 w-full px-3 text-sm", SETTINGS_RADIUS.control),
+									SETTINGS_INPUT,
+								)}
 								aria-invalid={
 									urlValidation.status === "invalid" ||
 									urlValidation.status === "duplicate"
 								}
 							/>
-							{urlValidation.message && (
-								<p className="mt-1 text-destructive text-xs" role="alert">
+							{urlValidation.message ? (
+								<p className="text-[12px] text-red-600 dark:text-red-400" role="alert">
 									{urlValidation.message}
 								</p>
-							)}
+							) : null}
 						</div>
 
-						<div>
-							<label
-								htmlFor="bookmark-title-input"
-								className="mb-1 block font-medium text-muted-foreground text-xs"
-							>
-								Title (optional)
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="bookmark-title-input" className={FIELD_LABEL}>
+								Title
 							</label>
 							<Input
 								id="bookmark-title-input"
@@ -556,134 +638,114 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 									setTitleTouched(true);
 									setLinkTitle(e.target.value);
 								}}
-								className="h-9 rounded-lg border-border/60 bg-secondary/50 px-3 text-foreground text-sm"
+								className={cn(
+									cn("h-9 w-full px-3 text-sm", SETTINGS_RADIUS.control),
+									SETTINGS_INPUT,
+								)}
 							/>
 						</div>
 
-						<div>
-							<span className="mb-1 block font-medium text-muted-foreground text-xs">
-								Destination folder
-							</span>
+						<div className="flex flex-col gap-1.5">
+							<span className={FIELD_LABEL}>Folder</span>
 							<FolderTreePicker
 								folders={folders}
 								value={linkFolderId}
 								onChange={(id) => id && setLinkFolderId(id)}
 								allowRoot={false}
-								className="h-9 w-full text-xs"
+								label="Folder"
+								className={cn("h-9 w-full", SETTINGS_RADIUS.control)}
 							/>
 						</div>
 
-						<div className="flex items-center justify-end gap-2 pt-1">
-							<Button
-								type="button"
-								variant="ghost"
-								size="sm"
-								onClick={handleCancelLinkEdit}
-								className="h-8 rounded-lg text-xs"
-							>
+						<div className="flex items-center justify-end gap-2 pt-0.5">
+							<SettingsAction onClick={handleCancelLinkEdit}>
 								Cancel
-							</Button>
-							<Button
+							</SettingsAction>
+							<SettingsAction
+								tone="primary"
 								type="submit"
-								size="sm"
 								disabled={urlValidation.status !== "valid"}
-								className="h-8 rounded-lg text-xs"
 							>
-								{editingCardId ? "Save changes" : "Add bookmark"}
-							</Button>
+								{editingCardId ? "Save changes" : "Add link"}
+							</SettingsAction>
 						</div>
 					</form>
-				</SectionCard>
-			)}
-
-			{/* Bookmarks List */}
-			<SectionCard
-				title={`Links in ${selectedFolder?.name || "Folder"}`}
-				description={`${folderCards.length} bookmark${folderCards.length === 1 ? "" : "s"}`}
-				action={
-					!isAddingLink && (
-						<Button
-							type="button"
-							size="sm"
-							onClick={() => {
-								setEditingCardId(null);
-								setLinkUrl("");
-								setLinkTitle("");
-								setTitleTouched(false);
-								setLinkFolderId(selectedFolderId);
-								setIsAddingLink(true);
-							}}
-							className="h-7 gap-1.5 rounded-lg text-xs"
-						>
-							<Icon name="plus" size={13} />
-							Add link
-						</Button>
-					)
-				}
-			>
-				{folderCards.length > 0 ? (
-					<div className="divide-y divide-border/30">
+				) : bookmarkCount > 0 ? (
+					<div
+						role="region"
+						aria-label={`Bookmarks in ${selectedFolder?.name ?? "this folder"}. Scroll for more.`}
+						tabIndex={0}
+						data-beui-smooth-scroll="true"
+						className={cn(
+							"flex max-h-64 scroll-smooth flex-col overflow-y-auto overscroll-contain pr-0.5",
+							SETTINGS_FOCUS_RING,
+							SETTINGS_RADIUS.surface,
+						)}
+					>
 						{folderCards.map((card) => (
-							<div
+							<SettingRow
 								key={card.id}
-								className="group flex items-center justify-between gap-3 py-2 transition-colors hover:bg-muted/20"
-							>
-								<div className="flex min-w-0 flex-1 items-center gap-2.5">
-									<img
-										src={card.favicon || faviconUrl(card.url)}
-										alt=""
-										className="size-4 shrink-0 rounded-xs"
-										onError={(e) => {
-											e.currentTarget.style.display = "none";
-										}}
-									/>
-									<div className="flex min-w-0 flex-1 flex-col">
-										<span className="truncate font-medium text-foreground text-xs">
+								className={cn(
+									"squircle group transition-colors duration-150",
+									SETTINGS_ROW_HOVER_WASH,
+									SETTINGS_RADIUS.surface,
+								)}
+								label={
+									<span className="flex min-w-0 items-center gap-2.5">
+										<img
+											src={card.favicon || faviconUrl(card.url)}
+											alt=""
+											className="size-4 shrink-0 rounded-xs"
+											onError={(e) => {
+												e.currentTarget.style.display = "none";
+											}}
+										/>
+										<span className="min-w-0 truncate">
 											{card.title || card.url}
 										</span>
-										<span className="truncate font-mono text-[11px] text-muted-foreground">
-											{card.url}
-										</span>
-									</div>
-								</div>
-
-								<div className="flex shrink-0 items-center gap-1 opacity-80 group-hover:opacity-100">
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
+									</span>
+								}
+							>
+								<div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+									<SettingsIconButton
+										icon="pencil"
+										label={`Edit ${card.title || card.url}`}
 										onClick={() => handleStartEditLink(card)}
-										title="Edit bookmark"
-										className="size-7 rounded-lg"
-									>
-										<Icon name="pencil" size={13} />
-									</Button>
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
+									/>
+									<SettingsIconButton
+										icon="trash"
+										label={`Delete ${card.title || card.url}`}
+										tone="danger"
 										onClick={() => deleteCard(card.id)}
-										title="Delete bookmark"
-										className="size-7 rounded-lg text-destructive hover:bg-destructive/10 hover:text-destructive"
-									>
-										<Icon name="trash" size={13} />
-									</Button>
+									/>
 								</div>
-							</div>
+							</SettingRow>
 						))}
 					</div>
 				) : (
-					<div className="py-6 text-center text-muted-foreground text-xs">
-						No bookmarks in this folder yet.
-					</div>
+					<SettingsEmpty
+						icon="bookmark"
+						title="Nothing saved here yet"
+						description="Save a page and it will appear on your dashboard in this folder."
+						action={
+							<SettingsAction icon="plus" onClick={handleStartAddLink}>
+								Add link
+							</SettingsAction>
+						}
+					/>
 				)}
 			</SectionCard>
 
-			{/* Thumbnail Capture */}
-			<SectionCard title="Thumbnail capture">
-				<SettingRow label="Automatic screenshot capture">
+			{/* 3 — How previews are captured. */}
+			<SectionCard>
+				<SettingRow
+					label="Screenshot previews"
+					icon="camera"
+					tooltip="Capture a preview of each site automatically."
+				>
 					<Switch
-						aria-label="Automatic screenshot capture"
+						className={SETTINGS_SWITCH}
+						aria-label="Screenshot previews"
 						checked={thumbnailCapture.enabled}
 						onCheckedChange={(enabled: boolean) =>
 							updateThumbnailCapture({ enabled })
@@ -691,181 +753,103 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 					/>
 				</SettingRow>
 
-				<SliderRow
-					label="Capture delay"
-					value={thumbnailCapture.delayMs || 1200}
-					suffix="ms"
-					min={400}
-					max={4000}
-					step={200}
-					onChange={(v) => updateThumbnailCapture({ delayMs: v })}
-				/>
+				<SettingsExpandable
+					expanded={thumbnailCapture.enabled}
+					label="Screenshot preview options"
+				>
+					<SliderRow
+						label="Capture delay"
+						icon="timer"
+						value={thumbnailCapture.delayMs || 1200}
+						suffix="ms"
+						min={400}
+						max={4000}
+						step={400}
+						onChange={(v) => updateThumbnailCapture({ delayMs: v })}
+					/>
+				</SettingsExpandable>
 			</SectionCard>
 
-			{/* Import & Export */}
-			<SectionCard title="Import & export">
+			{/* 4 — Moving content in and out. */}
+			<SectionCard>
 				<input
-					ref={htmlFileRef}
+					ref={fileRef}
 					type="file"
-					accept="text/html,.htm,.html"
+					accept=".html,.htm,.json,application/json,text/html"
 					className="hidden"
-					onChange={handleImportHtml}
-				/>
-				<input
-					ref={jsonFileRef}
-					type="file"
-					accept=".json,application/json"
-					className="hidden"
-					onChange={handleRestoreBackup}
+					onChange={handleImportFile}
 				/>
 
-				<div className="flex items-center justify-between border-border/30 border-b py-2">
-					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">
-							Browser bookmarks
-						</span>
-						<span className="text-[11px] text-muted-foreground">
-							Import native Chrome / Firefox bookmarks
-						</span>
-					</div>
-					<Button
-						type="button"
-						size="sm"
-						variant="secondary"
+				<SettingRow label="Import from browser" icon="import">
+					<SettingsAction
+						icon="import"
 						onClick={handleImportFromBrowser}
 						disabled={isProcessingIo}
-						className="h-7 gap-1 rounded-lg text-xs"
 					>
-						<Icon name="globe" size={12} />
 						Import
-					</Button>
-				</div>
+					</SettingsAction>
+				</SettingRow>
 
-				<div className="flex items-center justify-between border-border/30 border-b py-2">
-					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">
-							HTML file
-						</span>
-						<span className="text-[11px] text-muted-foreground">
-							Netscape bookmarks.html file
-						</span>
-					</div>
-					<div className="flex items-center gap-1.5">
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={() => htmlFileRef.current?.click()}
-							disabled={isProcessingIo}
-							className="h-7 gap-1 rounded-lg text-xs"
-						>
-							<Icon name="upload" size={12} />
-							Import
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={handleExportHtml}
-							disabled={isProcessingIo}
-							className="h-7 gap-1 rounded-lg text-xs"
-						>
-							<svg
-								aria-hidden="true"
-								width="12"
-								height="12"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2.5"
-							>
-								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-							</svg>
-							Export
-						</Button>
-					</div>
-				</div>
-
-				<div className="flex items-center justify-between py-2">
-					<div className="flex flex-col">
-						<span className="font-medium text-foreground text-xs">
-							Full backup archive
-						</span>
-						<span className="text-[11px] text-muted-foreground">
-							All folders, links, settings, and wallpaper images
-						</span>
-					</div>
-					<div className="flex items-center gap-1.5">
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={() => jsonFileRef.current?.click()}
-							disabled={isProcessingIo}
-							className="h-7 gap-1 rounded-lg text-xs"
-						>
-							<Icon name="upload" size={12} />
-							Restore
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							variant="secondary"
-							onClick={handleExportBackup}
-							disabled={isProcessingIo}
-							className="h-7 gap-1 rounded-lg text-xs"
-						>
-							<svg
-								aria-hidden="true"
-								width="12"
-								height="12"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2.5"
-							>
-								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-							</svg>
-							Export JSON
-						</Button>
-					</div>
-				</div>
-
-				{ioStatus && (
-					<p
-						className={`mt-1 font-medium text-xs ${
-							ioType === "success"
-								? "text-emerald-400"
-								: ioType === "error"
-									? "text-destructive"
-									: "text-muted-foreground"
-						}`}
-						role="status"
+				<SettingRow
+					label="Import from file"
+					icon="file-import"
+					tooltip="Reads a browser bookmarks HTML file or a Klice backup."
+				>
+					<SettingsAction
+						icon="file-import"
+						onClick={() => fileRef.current?.click()}
+						disabled={isProcessingIo}
 					>
-						{ioStatus}
-					</p>
-				)}
+						Choose file
+					</SettingsAction>
+				</SettingRow>
+
+				<SettingRow label="Export" icon="file-export">
+					<SettingsAction
+						icon="download"
+						onClick={handleExportHtml}
+						disabled={isProcessingIo}
+					>
+						HTML
+					</SettingsAction>
+					<SettingsAction
+						icon="archive"
+						onClick={handleExportBackup}
+						disabled={isProcessingIo}
+					>
+						Backup
+					</SettingsAction>
+				</SettingRow>
 			</SectionCard>
 
-			{/* Folder Edit Modal */}
+			{/* Folder edit modal */}
 			<Dialog open={folderModalOpen} onOpenChange={setFolderModalOpen}>
-				<DialogContent className="rounded-3xl sm:max-w-[420px]">
+				<DialogContent
+					className={cn(
+						"squircle",
+						SETTINGS_SCOPE_CLASS,
+						SETTINGS_RADIUS.panel,
+						"sm:max-w-[420px]",
+					)}
+				>
 					<DialogHeader>
 						<DialogTitle>
-							{editingFolderId ? "Edit Folder" : "New Folder"}
+							{editingFolderId ? "Edit folder" : "New folder"}
 						</DialogTitle>
 						<DialogDescription>
-							Organize your bookmarks into hierarchical folders.
+							{editingFolderId
+								? "Rename this folder or move it somewhere else."
+								: "Give the folder a name and choose where it lives."}
 						</DialogDescription>
 					</DialogHeader>
 
-					<form onSubmit={handleSaveFolder} className="space-y-4 py-2">
-						<div>
-							<label
-								htmlFor="folder-name-modal-input"
-								className="mb-1 block font-medium text-muted-foreground text-xs"
-							>
-								Folder Name
+					<form
+						onSubmit={handleSaveFolder}
+						className="flex flex-col gap-3 py-2"
+					>
+						<div className="flex flex-col gap-1.5">
+							<label htmlFor="folder-name-modal-input" className={FIELD_LABEL}>
+								Name
 							</label>
 							<Input
 								id="folder-name-modal-input"
@@ -876,19 +860,17 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 									if (folderError) setFolderError("");
 								}}
 								autoFocus
-								className="h-9 rounded-lg text-sm"
+								className={cn("h-9 text-sm", SETTINGS_RADIUS.control)}
 							/>
-							{folderError && (
-								<p className="mt-1 text-destructive text-xs" role="alert">
+							{folderError ? (
+								<p className="text-[12px] text-red-600 dark:text-red-400" role="alert">
 									{folderError}
 								</p>
-							)}
+							) : null}
 						</div>
 
-						<div>
-							<span className="mb-1 block font-medium text-muted-foreground text-xs">
-								Parent Folder (optional)
-							</span>
+						<div className="flex flex-col gap-1.5">
+							<span className={FIELD_LABEL}>Parent folder</span>
 							<FolderTreePicker
 								folders={folders}
 								value={folderParentInput ?? "__root__"}
@@ -899,67 +881,68 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 										? getSubtreeIds(folders, editingFolderId)
 										: undefined
 								}
-								className="h-9 w-full text-xs"
+								label="Parent folder"
+								className={cn("h-9 w-full", SETTINGS_RADIUS.control)}
 							/>
 						</div>
 
-						<DialogFooter className="pt-2">
-							<Button
-								type="button"
-								variant="ghost"
-								onClick={() => setFolderModalOpen(false)}
-							>
+						<DialogFooter className="pt-1">
+							<SettingsAction onClick={() => setFolderModalOpen(false)}>
 								Cancel
-							</Button>
-							<Button type="submit">
+							</SettingsAction>
+							<SettingsAction type="submit" tone="primary">
 								{editingFolderId ? "Save folder" : "Create folder"}
-							</Button>
+							</SettingsAction>
 						</DialogFooter>
 					</form>
 				</DialogContent>
 			</Dialog>
 
-			{/* Delete Folder Confirm Dialog */}
+			{/* Delete folder confirm */}
 			<Dialog
 				open={Boolean(deleteConfirmFolderId)}
 				onOpenChange={(open) => {
 					if (!open) setDeleteConfirmFolderId(null);
 				}}
 			>
-				<DialogContent className="rounded-3xl sm:max-w-[420px]">
+				<DialogContent
+					className={cn(
+						"squircle",
+						SETTINGS_SCOPE_CLASS,
+						SETTINGS_RADIUS.panel,
+						"sm:max-w-[420px]",
+					)}
+				>
 					<DialogHeader>
-						<DialogTitle>Delete folder?</DialogTitle>
+						<DialogTitle>Delete this folder?</DialogTitle>
 						<DialogDescription>
-							{folderDeleteInfo && (
-								<span>
-									Are you sure you want to delete &ldquo;{folderDeleteInfo.name}
-									&rdquo;?
-									{folderDeleteInfo.cardCount > 0 && (
-										<span className="mt-1 block text-destructive">
-											This will permanently remove {folderDeleteInfo.cardCount}{" "}
-											bookmark
+							{folderDeleteInfo ? (
+								<>
+									&ldquo;{folderDeleteInfo.name}&rdquo; will be removed
+									{folderDeleteInfo.cardCount > 0 ? (
+										<span className="mt-1 block text-red-600 dark:text-red-400">
+											{folderDeleteInfo.cardCount} bookmark
 											{folderDeleteInfo.cardCount === 1 ? "" : "s"}
 											{folderDeleteInfo.subfolderCount > 0
 												? ` and ${folderDeleteInfo.subfolderCount} subfolder${folderDeleteInfo.subfolderCount === 1 ? "" : "s"}`
-												: ""}
-											.
+												: ""}{" "}
+											will be deleted too.
 										</span>
+									) : (
+										" It is empty, so nothing else is affected."
 									)}
-								</span>
-							)}
+								</>
+							) : null}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<Button
-							type="button"
-							variant="ghost"
+						<SettingsAction
 							onClick={() => setDeleteConfirmFolderId(null)}
 						>
 							Cancel
-						</Button>
-						<Button
-							type="button"
-							variant="destructive"
+						</SettingsAction>
+						<SettingsAction
+							tone="danger"
 							onClick={() => {
 								if (deleteConfirmFolderId) {
 									deleteFolder(deleteConfirmFolderId);
@@ -968,7 +951,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							}}
 						>
 							Delete folder
-						</Button>
+						</SettingsAction>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>

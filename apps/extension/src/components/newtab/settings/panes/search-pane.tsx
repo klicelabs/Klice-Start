@@ -1,21 +1,25 @@
 import { Input } from "@klice-start/ui/components/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@klice-start/ui/components/select";
 import { Switch } from "@klice-start/ui/components/switch";
+import { useMemo } from "react";
 import { useSvgIcon } from "../../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../../lib/constants";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../../lib/svgl-mapping";
+import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
 import { SvgIcon } from "../../../shared/svg-icon";
 import { SectionCard } from "../shared/section-card";
 import { SelectRow } from "../shared/select-row";
 import { SettingRow } from "../shared/setting-row";
+import { SettingsExpandable } from "../shared/settings-expandable";
+import {
+	SETTINGS_CONTROL_WIDTH,
+	SETTINGS_INPUT,
+	SETTINGS_PAGE,
+	SETTINGS_RADIUS,
+	SETTINGS_SWITCH,
+} from "../shared/settings-tokens";
 
+/** The engine's real brand mark, with its initial as a graceful fallback. */
 function EngineIcon({ engineId }: { engineId: string }) {
 	const svglTitle = SEARCH_ENGINE_TO_SVGL[engineId];
 	const { svgXml, isLoading } = useSvgIcon(svglTitle ?? null);
@@ -23,34 +27,54 @@ function EngineIcon({ engineId }: { engineId: string }) {
 	if (isLoading || !svgXml) {
 		const label = SEARCH_ENGINES.find((e) => e.id === engineId)?.label ?? "?";
 		return (
-			<span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-muted font-bold text-[9px] text-muted-foreground">
+			<span
+				aria-hidden="true"
+				className="inline-flex size-4 shrink-0 items-center justify-center font-semibold text-[10px] text-neutral-400 leading-none"
+			>
 				{label.charAt(0)}
 			</span>
 		);
 	}
 
 	return (
-		<SvgIcon svgXml={svgXml} className="size-4 shrink-0" alt={svglTitle} />
+		<span
+			aria-hidden="true"
+			className="inline-flex size-4 shrink-0 items-center"
+		>
+			<SvgIcon svgXml={svgXml} className="size-4 shrink-0" />
+		</span>
 	);
 }
 
 const ICON_MODE_OPTIONS = [
-	{ value: "search", label: "Classic magnifying glass" },
-	{ value: "engine", label: "Active engine logo" },
+	{ value: "search", label: "Magnifier" },
+	{ value: "engine", label: "Engine logo" },
 ] as const;
 
+/**
+ * Search owns one thing: the search bar. The bar switch gates everything else,
+ * so the page shows a single decision until the user opts in.
+ */
 export function SearchPane() {
 	const search = useSetupStore((s) => s.settings.search);
 	const updateSearch = useSetupStore((s) => s.updateSearch);
 
-	const activeEngine =
-		SEARCH_ENGINES.find((e) => e.id === search.engine) ?? SEARCH_ENGINES[0];
+	const engineOptions = useMemo(
+		() =>
+			SEARCH_ENGINES.map((engine) => ({
+				value: engine.id as string,
+				label: engine.label,
+				icon: <EngineIcon engineId={engine.id} />,
+			})),
+		[],
+	);
 
 	return (
-		<div className="space-y-2">
-			<SectionCard title="Search bar">
-				<SettingRow label="Show search bar">
+		<div className={SETTINGS_PAGE}>
+			<SectionCard>
+				<SettingRow label="Search bar" icon="search">
 					<Switch
+						className={SETTINGS_SWITCH}
 						aria-label="Show search bar"
 						checked={search.enabled}
 						onCheckedChange={(checked: boolean) =>
@@ -60,66 +84,47 @@ export function SearchPane() {
 				</SettingRow>
 			</SectionCard>
 
-			{search.enabled && (
-				<SectionCard title="Search configuration">
-					<SettingRow label="Default search engine">
-						<Select
-							value={search.engine}
-							onValueChange={(v) => v && updateSearch({ engine: v })}
-						>
-							<SelectTrigger
-								size="sm"
-								className="min-w-[140px]"
-								aria-label="Search engine"
-							>
-								<span className="flex items-center gap-2">
-									<EngineIcon engineId={search.engine} />
-									<SelectValue />
-								</span>
-							</SelectTrigger>
-							<SelectContent>
-								{SEARCH_ENGINES.map((engine) => (
-									<SelectItem key={engine.id} value={engine.id}>
-										<span className="flex items-center gap-2">
-											<EngineIcon engineId={engine.id} />
-											{engine.label}
-										</span>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</SettingRow>
-
+			<SettingsExpandable expanded={search.enabled} label="Search options">
+				<SectionCard>
 					<SelectRow
-						label="Input leading icon"
-						value={search.iconMode}
-						options={ICON_MODE_OPTIONS}
-						onChange={(v) =>
-							updateSearch({ iconMode: v as "engine" | "search" })
-						}
-						triggerClassName="min-w-[180px]"
+						label="Search engine"
+						icon="compass"
+						value={search.engine}
+						options={engineOptions}
+						onChange={(v) => updateSearch({ engine: v })}
 					/>
 
-					<div className="border-border/40 border-t px-1 pt-3 pb-2">
-						<label
-							htmlFor="search-placeholder-input"
-							className="mb-1 block font-medium text-muted-foreground text-xs"
-						>
-							Custom placeholder text
-						</label>
+					<SelectRow
+						label="Icon"
+						icon="sparkles"
+						value={search.iconMode}
+						options={ICON_MODE_OPTIONS}
+						onChange={(v) => updateSearch({ iconMode: v })}
+					/>
+
+					<SettingRow
+						label="Placeholder"
+						icon="text"
+						tooltip="Leave empty to use the default text."
+					>
 						<Input
 							id="search-placeholder-input"
-							placeholder={`Search with "${activeEngine.label}"`}
+							aria-label="Search placeholder text"
+							placeholder="Search the web"
 							value={search.placeholder}
 							onChange={(e) => updateSearch({ placeholder: e.target.value })}
-							className="h-9 rounded-lg border-border/60 bg-secondary/50 px-3 text-foreground text-sm"
+							className={cn(
+								cn(
+									SETTINGS_CONTROL_WIDTH,
+									SETTINGS_RADIUS.control,
+									"h-9 px-3 text-sm",
+								),
+								SETTINGS_INPUT,
+							)}
 						/>
-						<p className="mt-1.5 px-0.5 text-muted-foreground/80 text-xs">
-							Leave empty to automatically name the active search engine.
-						</p>
-					</div>
+					</SettingRow>
 				</SectionCard>
-			)}
+			</SettingsExpandable>
 		</div>
 	);
 }
