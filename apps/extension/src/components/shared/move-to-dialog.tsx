@@ -6,13 +6,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@klice-start/ui/components/dialog";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { getSubtreeIds } from "../../lib/folder-tree";
 import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
+import { describeMoveGroup } from "../../lib/move-selection";
 import { FolderTreePicker } from "./folder-tree-picker";
 import { SettingsAction } from "../newtab/settings/shared/settings-action";
 import { SETTINGS_RADIUS } from "../newtab/settings/shared/settings-tokens";
@@ -32,10 +34,21 @@ export function MoveToDialog() {
 	const cards = useSetupStore((s) => s.cards);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
 
-	const [destinationId, setDestinationId] = useState<string | null>(null);
+	// undefined = nothing chosen yet; null = explicitly chosen Top level.
+	const [destinationId, setDestinationId] = useState<string | null | undefined>(
+		undefined,
+	);
 	const [error, setError] = useState<string | null>(null);
 
 	const open = ids !== null;
+
+	// Fresh session per opening: never inherit a previous destination.
+	useEffect(() => {
+		if (open) {
+			setDestinationId(undefined);
+			setError(null);
+		}
+	}, [open, ids]);
 
 	const { cardIds, folderIds, excludeIds, summary } = useMemo(() => {
 		if (!ids)
@@ -57,18 +70,32 @@ export function MoveToDialog() {
 	}, [ids, cards, folders]);
 
 	function handleClose() {
-		setDestinationId(null);
+		setDestinationId(undefined);
 		setError(null);
 		close();
 	}
 
 	function handleMove() {
-		if (!destinationId) return;
+		if (destinationId === undefined) return;
 		if (cardIds.length === 0 && folderIds.length === 0) {
 			setError("Nothing left to move.");
 			return;
 		}
+		if (destinationId === null && cardIds.length > 0) {
+			setError("Bookmarks can't live at the top level.");
+			return;
+		}
+		const dest =
+			destinationId === null
+				? null
+				: (folders.find((f) => f.id === destinationId) ?? null);
 		moveItemsToContainer(destinationId, cardIds, folderIds);
+		const total = cardIds.length + folderIds.length;
+		toast.success(total === 1 ? "Item moved" : `${total} items moved`, {
+			description: dest
+				? `to ${dest.name} · ${describeMoveGroup(cardIds.length, folderIds.length)}`
+				: `to the top level · ${describeMoveGroup(cardIds.length, folderIds.length)}`,
+		});
 		useSelectionStore.getState().clear();
 		handleClose();
 	}
@@ -98,7 +125,7 @@ export function MoveToDialog() {
 				<div className="flex flex-col gap-2 py-1">
 					<FolderTreePicker
 						folders={folders}
-						value={destinationId}
+						value={destinationId ?? null}
 						onChange={(id) => {
 							setDestinationId(id);
 							setError(null);
@@ -120,7 +147,7 @@ export function MoveToDialog() {
 					<SettingsAction
 						tone="primary"
 						onClick={handleMove}
-						disabled={!destinationId}
+						disabled={destinationId === undefined}
 					>
 						Move here
 					</SettingsAction>

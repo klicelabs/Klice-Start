@@ -49,6 +49,7 @@ import {
 	SlidersHorizontal,
 	Sparkles,
 	Square,
+	SquareCheck,
 	SunMedium,
 	SunMoon,
 	Timer,
@@ -134,6 +135,8 @@ export const iconMap = {
 	wrench: Wrench,
 	user: UserRound,
 	hourglass: Hourglass,
+	// Multi-select transport — one glyph for entering selection mode.
+	"check-square": SquareCheck,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof iconMap;

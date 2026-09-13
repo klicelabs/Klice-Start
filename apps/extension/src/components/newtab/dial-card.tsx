@@ -30,7 +30,7 @@ interface DialCardProps {
 	card: Card;
 	onDelete: (id: string) => void;
 	isSelected?: boolean;
-	showMultiBadge?: boolean;
+
 	onClick?: (e: React.MouseEvent) => void;
 	dragProps?: GridItemDragProps;
 	/** Live insertion marker drawn on the card's leading/trailing edge. */
@@ -45,7 +45,6 @@ export function DialCard({
 	card,
 	onDelete,
 	isSelected = false,
-	showMultiBadge = false,
 	onClick,
 	dragProps,
 	insertion = null,
@@ -96,6 +95,7 @@ export function DialCard({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
+				data-selected={isSelected ? "true" : undefined}
 				className={cn(
 					// Calm by default: no hover lift/translate/glow. Hover only
 					// deepens the shadow a whisper via drop-shadow (a filter, so
@@ -106,8 +106,6 @@ export function DialCard({
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
 					!isLiquid && flatSurface("floating"),
 					glassFocusRing(isLiquid),
-					isSelected &&
-						"scale-[1.02] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background/40",
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
 					combineActive && "scale-[1.02] ring-2 ring-white/80",
@@ -120,9 +118,21 @@ export function DialCard({
 					href={card.url}
 					target={openInNewTab ? "_blank" : "_self"}
 					rel={openInNewTab ? "noopener noreferrer" : undefined}
-					aria-label={label}
+					aria-label={isSelected ? `${label}, selected` : label}
 					title={label}
 					onClick={onClick}
+					onKeyDown={(e) => {
+						// Space toggles selection while selection mode is
+						// active (Enter keeps opening the link natively).
+						if (e.key === " " && useSelectionStore.getState().scope !== null) {
+							e.preventDefault();
+							useSelectionStore.getState().toggle({
+								id: card.id,
+								kind: "card",
+								sourceId: card.folderId,
+							});
+						}
+					}}
 					draggable={editing ? false : (dragProps?.draggable ?? true)}
 					onDragStart={editing ? undefined : dragProps?.onDragStart}
 					onDragEnd={dragProps?.onDragEnd}
@@ -188,7 +198,7 @@ export function DialCard({
 										// Same squircle system as the outer card so the
 										// footer follows the card geometry in every
 										// browser (corner-shape aware or fallback).
-										"card-footer squircle flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2.5 [--squircle-r:10px]",
+										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
 										glassCardFooter(isLiquid),
 									)}
 									style={{ height: "var(--card-footer-h, 30px)" }}
@@ -220,10 +230,10 @@ export function DialCard({
 						</>
 					)}
 
-					{isSelected && showMultiBadge && (
+					{isSelected && (
 						<div
 							aria-hidden="true"
-							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs"
+							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--apple-blue)] text-white shadow-md"
 						>
 							<Icon name="check" size={11} strokeWidth={3} />
 						</div>
@@ -245,6 +255,17 @@ export function DialCard({
 				>
 					<Icon name="pencil" size={14} />
 					Rename
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onSelect={() =>
+						useSelectionStore
+							.getState()
+							.toggle({ id: card.id, kind: "card", sourceId: card.folderId })
+					}
+				>
+					<Icon name="check-square" size={14} />
+					Select
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}

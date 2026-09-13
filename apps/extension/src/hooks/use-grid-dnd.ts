@@ -34,6 +34,12 @@ export interface GridDndHandlers {
 	canNest: (folderId: string, targetFolderId: string) => boolean;
 	/** True when the ref belongs to this grid's container. */
 	isInContainer: (ref: ItemRef) => boolean;
+	/**
+	 * Runs first inside dragstart, synchronously: the owner adjusts selection
+	 * (dragging an unselected item starts a fresh single drag) and may set a
+	 * custom drag image while the browser still accepts one.
+	 */
+	onItemDragStart?: (ref: ItemRef, e: DragEvent) => void;
 }
 
 function resolveDrag(e: DragEvent): ItemRef | null {
@@ -150,6 +156,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 
 	const handleItemDragStart = useCallback(
 		(ref: ItemRef) => (e: DragEvent) => {
+			handlersRef.current.onItemDragStart?.(ref, e);
 			dragRef.current = ref;
 			lastApplied.current = null;
 			setDragData(e, ref.kind, ref.id);

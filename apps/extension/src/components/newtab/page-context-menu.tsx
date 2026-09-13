@@ -21,6 +21,7 @@ interface PageContextMenuProps {
 	onOpenShortcutSettings: () => void;
 	onAddQuickLink: () => void;
 	onAddFolder?: () => void;
+	onSelectAll?: () => void;
 	onOpenGeneralSettings?: () => void;
 	onEnterRestMode?: () => void;
 	enabled?: boolean;
@@ -31,6 +32,7 @@ export function PageContextMenu({
 	onOpenBackgroundSettings,
 	onAddQuickLink,
 	onAddFolder,
+	onSelectAll,
 	onOpenGeneralSettings,
 	onEnterRestMode,
 	enabled = true,
@@ -130,6 +132,12 @@ export function PageContextMenu({
 					<Icon name="plus" size={14} />
 					Add link
 				</ContextMenuItem>
+				{onSelectAll && (
+					<ContextMenuItem className={itemClassName} onSelect={onSelectAll}>
+						<Icon name="check-square" size={14} />
+						Select all
+					</ContextMenuItem>
+				)}
 
 				<ContextMenuSeparator
 					className={isLiquid ? "bg-white/10" : undefined}

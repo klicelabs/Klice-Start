@@ -31,6 +31,12 @@ export type InsertPosition = "before" | "after";
 
 interface SetupActions {
 	addFolder: (name: string, parentId?: string | null) => string;
+	/** Atomically create a folder and place the selected items inside it. */
+	createFolderFromSelection: (
+		name: string,
+		parentId: string | null,
+		selectedIds: string[],
+	) => string | null;
 	updateFolder: (id: string, name: string) => void;
 	moveFolder: (id: string, parentId: string | null) => void;
 	moveFolders: (ids: string[], parentId: string | null) => void;
@@ -54,7 +60,7 @@ interface SetupActions {
 	 * skipped in place; unknown ids are ignored.
 	 */
 	moveItemsToContainer: (
-		folderId: string,
+		folderId: string | null,
 		cardIds: string[],
 		folderIds: string[],
 	) => void;
@@ -197,6 +203,95 @@ export const useSetupStore = create<SetupStore>()(
 					return { ...reindexOrders(folders, s.cards, itemOrder), itemOrder };
 				});
 				return id;
+			},
+
+			createFolderFromSelection: (name, parentId, selectedIds) => {
+				const nextName = name.trim();
+				if (nextName.length === 0 || selectedIds.length === 0) return null;
+
+				const id = generateId();
+				let created = false;
+
+				set((s) => {
+					if (
+						parentId !== null &&
+						!s.folders.some((folder) => folder.id === parentId)
+					)
+						return {};
+
+					const cardById = new Map(s.cards.map((card) => [card.id, card]));
+					const folderById = new Map(
+						s.folders.map((folder) => [folder.id, folder]),
+					);
+					const cardIds: string[] = [];
+					const folderIds: string[] = [];
+					const seen = new Set<string>();
+
+					for (const selectedId of selectedIds) {
+						if (seen.has(selectedId)) continue;
+						seen.add(selectedId);
+
+						if (cardById.has(selectedId)) {
+							cardIds.push(selectedId);
+							continue;
+						}
+
+						const folder = folderById.get(selectedId);
+						if (!folder) continue;
+						// Creating a child below an ancestor of a selected folder would
+						// make the subsequent move cyclic. Reject the full operation so
+						// the user never gets a partially grouped selection.
+						if (wouldCreateCycle(s.folders, folder.id, parentId)) return {};
+						folderIds.push(selectedId);
+					}
+
+					if (cardIds.length === 0 && folderIds.length === 0) return {};
+
+					const movedCards = new Set(cardIds);
+					const movedFolders = new Set(folderIds);
+					const movedKeys = selectedIds.flatMap((selectedId) => {
+						if (movedCards.has(selectedId))
+							return [itemKey("card", selectedId)];
+						if (movedFolders.has(selectedId))
+							return [itemKey("folder", selectedId)];
+						return [];
+					});
+					const base = s.itemOrder ?? {};
+					const parentContainer = containerKeyOf(parentId);
+					const itemOrder: ItemOrder = {
+						...base,
+						[parentContainer]: [
+							...(base[parentContainer] ?? []),
+							itemKey("folder", id),
+						],
+					};
+					const movedKeySet = new Set(movedKeys);
+
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						const next = keys.filter((key) => !movedKeySet.has(key));
+						if (next.length !== keys.length) itemOrder[container] = next;
+					}
+					itemOrder[id] = movedKeys;
+
+					const folders = [
+						...s.folders,
+						{ id, name: nextName, order: 0, parentId },
+					];
+					const cards = s.cards.map((card) =>
+						movedCards.has(card.id) ? { ...card, folderId: id } : card,
+					);
+					const nextFolders = folders.map((folder) =>
+						movedFolders.has(folder.id) ? { ...folder, parentId: id } : folder,
+					);
+
+					created = true;
+					return {
+						...reindexOrders(nextFolders, cards, itemOrder),
+						itemOrder,
+					};
+				});
+
+				return created ? id : null;
 			},
 
 			updateFolder: (id, name) =>
@@ -418,7 +513,12 @@ export const useSetupStore = create<SetupStore>()(
 			moveItemsToContainer: (folderId, cardIds, folderIds) =>
 				set((s) => {
 					const existingCards = new Set(s.cards.map((c) => c.id));
-					const validCards = cardIds.filter((id) => existingCards.has(id));
+					// Bookmarks cannot live at the top level; folders hoist to
+					// root through the shared root container key.
+					const validCards =
+						folderId === null
+							? []
+							: cardIds.filter((id) => existingCards.has(id));
 					const validFolders = folderIds.filter(
 						(id) =>
 							id !== folderId &&
@@ -441,8 +541,9 @@ export const useSetupStore = create<SetupStore>()(
 						});
 						if (next.length !== keys.length) itemOrder[container] = next;
 					}
-					itemOrder[folderId] = [
-						...(itemOrder[folderId] ?? []),
+					const targetKey = containerKeyOf(folderId);
+					itemOrder[targetKey] = [
+						...(itemOrder[targetKey] ?? []),
 						...validCards.map((id) => itemKey("card", id)),
 						...validFolders.map((id) => itemKey("folder", id)),
 					];
@@ -450,7 +551,7 @@ export const useSetupStore = create<SetupStore>()(
 						if (!(id in itemOrder)) itemOrder[id] = base[id] ?? [];
 					}
 					const cards = s.cards.map((c) =>
-						validCardSet.has(c.id) ? { ...c, folderId } : c,
+						validCardSet.has(c.id) ? { ...c, folderId: folderId as string } : c,
 					);
 					const folders = s.folders.map((f) =>
 						validFolderSet.has(f.id) ? { ...f, parentId: folderId } : f,

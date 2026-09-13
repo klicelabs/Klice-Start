@@ -15,6 +15,7 @@ import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { RestMode } from "../../src/components/newtab/rest-mode";
 import { GlobalSearch } from "../../src/components/newtab/search/global-search";
 import { SearchBar } from "../../src/components/newtab/search/search-bar";
+import { SelectionTray } from "../../src/components/newtab/selection-tray";
 import {
 	SettingsDialog,
 	type SettingsDialogProps,
@@ -28,7 +29,7 @@ import {
 	getChildren,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
-import type { ItemRef } from "../../src/lib/item-order";
+import { getOrderedRefs, type ItemRef } from "../../src/lib/item-order";
 import type { NavigationState } from "../../src/lib/navigation";
 import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
@@ -145,6 +146,23 @@ export default function App() {
 		() => getChildren(folders, activeFolderId),
 		[folders, activeFolderId],
 	);
+	const orderedRefs = useMemo(
+		() => getOrderedRefs(activeFolderId, subfolders, cards, itemOrder),
+		[activeFolderId, subfolders, cards, itemOrder],
+	);
+	const selectableItems = useMemo(
+		() =>
+			orderedRefs.map((ref) => ({
+				id: ref.id,
+				kind: ref.kind,
+				sourceId: activeFolderId,
+			})),
+		[orderedRefs, activeFolderId],
+	);
+	const handleSelectAll = useCallback(() => {
+		if (selectableItems.length === 0) return;
+		useSelectionStore.getState().selectAll(selectableItems);
+	}, [selectableItems]);
 	const breadcrumb = useMemo(
 		() => getBreadcrumb(folders, activeFolderId),
 		[folders, activeFolderId],
@@ -370,13 +388,42 @@ export default function App() {
 		return () => document.removeEventListener("keydown", handleKey);
 	}, []);
 
-	// Clear multi-selection on clicking outside interactive elements
+	// Select every bookmark and subfolder in the current view. Keep native
+	// select-all available inside editable and settings-owned surfaces.
 	useEffect(() => {
-		function handlePointerDown(e: MouseEvent) {
+		function handleSelectAllShortcut(e: KeyboardEvent) {
+			if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+			const target = e.target;
+			if (
+				target instanceof HTMLElement &&
+				target.closest(
+					'input, textarea, [contenteditable="true"], [role="dialog"], [data-settings-panel], [data-settings-ui]',
+				)
+			) {
+				return;
+			}
+			if (selectableItems.length === 0) return;
+			e.preventDefault();
+			useSelectionStore.getState().selectAll(selectableItems);
+		}
+		document.addEventListener("keydown", handleSelectAllShortcut);
+		return () =>
+			document.removeEventListener("keydown", handleSelectAllShortcut);
+	}, [selectableItems]);
+
+	// Clear multi-selection on left-pressing truly blank surface. Everything
+	// interactive is excluded: grid cells manage their own click semantics,
+	// the tabbar header stays navigable, and floating layers (settings and
+	// its portals, the tray, toasts, menus, dialogs) never cost the user
+	// their carried selection. Non-primary buttons never clear either, so
+	// right-clicking blank space keeps the selection for menu actions.
+	useEffect(() => {
+		function handlePointerDown(e: PointerEvent) {
+			if (e.pointerType === "mouse" && e.button !== 0) return;
 			const target = e.target as HTMLElement | null;
 			if (
 				target?.closest(
-					'.dial-cell, [data-local-context-menu], [data-settings-panel], button, input, a, header, [role="dialog"], [role="menu"]',
+					'.dial-cell, [data-local-context-menu], [data-settings-panel], [data-settings-ui], [data-selection-tray], [data-sonner-toaster], button, input, a, header, [role="dialog"], [role="menu"], [role="listbox"], [role="tree"]',
 				)
 			) {
 				return;
@@ -396,6 +443,7 @@ export default function App() {
 					handleOpenSettings("bookmarks", { type: "add-link" })
 				}
 				onAddFolder={() => handleNewSubfolder(activeFolderId)}
+				onSelectAll={selectableItems.length > 0 ? handleSelectAll : undefined}
 				onOpenGeneralSettings={() => handleOpenSettings("general")}
 				onEnterRestMode={enterRestMode}
 				enabled={!restMode}
@@ -513,6 +561,9 @@ export default function App() {
 
 							{/* Lightweight Move-to destination picker */}
 							<MoveToDialog />
+
+							{/* Floating multi-select transport tray */}
+							<SelectionTray onNavigateFolder={handleSelectFolder} />
 
 							{/* macOS-style Settings Window */}
 							<SettingsDialog

@@ -97,6 +97,28 @@ export function FolderTabs({
 		key: string;
 		position: InsertPosition;
 	} | null>(null);
+	const selectedIds = useSelectionStore((s) => s.selectedIds);
+	// A modifier-click toggles selection without navigating. The Tabs
+	// primitive still fires onValueChange for the same click, so the flag
+	// below absorbs exactly one navigation right after a toggle.
+	const suppressNav = useRef(false);
+
+	function handleSelectFolder(id: string) {
+		if (suppressNav.current) {
+			suppressNav.current = false;
+			return;
+		}
+		onSelectFolder(id);
+	}
+
+	function handleToggleSelect(id: string) {
+		suppressNav.current = true;
+		// Tabs are always roots: selecting one enters (or stays in) the
+		// roots domain, intentionally replacing any content selection.
+		useSelectionStore
+			.getState()
+			.toggle({ id, kind: "folder", sourceId: null });
+	}
 
 	return (
 		<GlassSurface className={cn(TOOLBAR.groupPadding, "gap-0.5")}>
@@ -104,7 +126,7 @@ export function FolderTabs({
 				value={activeRootId}
 				variant="pill"
 				direction={navigationDirection}
-				onValueChange={onSelectFolder}
+				onValueChange={handleSelectFolder}
 				className="flex items-center"
 			>
 				<TabsList
@@ -117,6 +139,8 @@ export function FolderTabs({
 							folder={folder}
 							active={folder.id === activeRootId}
 							isLiquid={isLiquid}
+							isSelected={selectedIds.includes(folder.id)}
+							onToggleSelect={handleToggleSelect}
 							insertion={
 								insertion?.key === folder.id ? insertion.position : null
 							}
@@ -161,6 +185,8 @@ interface FolderTabProps {
 	folder: Folder;
 	active: boolean;
 	isLiquid: boolean;
+	isSelected?: boolean;
+	onToggleSelect?: (id: string) => void;
 	insertion: InsertPosition | null;
 	onInsertionChange: (
 		value: { key: string; position: InsertPosition } | null,
@@ -189,6 +215,8 @@ function FolderTab({
 	folder,
 	active,
 	isLiquid,
+	isSelected = false,
+	onToggleSelect,
 	insertion,
 	onInsertionChange,
 	onSelectFolder,
@@ -324,6 +352,8 @@ function FolderTab({
 			: isLiquid
 				? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
 				: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
+		isSelected &&
+			(isLiquid ? "ring-1 ring-inset ring-white/50" : "ring-1 ring-inset ring-flat-edge-strong"),
 	);
 
 	const dropClass = dropActive
@@ -377,8 +407,19 @@ function FolderTab({
 							type="button"
 							title={folder.name}
 							draggable
+							onClick={(e) => {
+								if (e.metaKey || e.ctrlKey) {
+									e.preventDefault();
+									onToggleSelect?.(folder.id);
+								}
+							}}
 							onDragStart={(e) => {
 								lastApplied.current = null;
+								if (
+									!useSelectionStore.getState().selectedIds.includes(folder.id)
+								) {
+									useSelectionStore.getState().clear();
+								}
 								setDragData(e, "folder", folder.id);
 							}}
 							onDragEnd={() => {
@@ -426,6 +467,17 @@ function FolderTab({
 				>
 					<Icon name="pencil" size={14} />
 					Rename
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid)}
+					onSelect={() =>
+						useSelectionStore
+							.getState()
+							.toggle({ id: folder.id, kind: "folder", sourceId: null })
+					}
+				>
+					<Icon name="check-square" size={14} />
+					Select
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}

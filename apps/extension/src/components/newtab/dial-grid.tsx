@@ -1,8 +1,11 @@
 import { EASE_OUT, SPRING_SEGMENT } from "@klice-start/ui/lib/ease";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
+import { showGroupDragGhost } from "../../lib/drag-ghost";
+import { describeMoveGroup } from "../../lib/move-selection";
 import {
 	getOrderedRefs,
 	type ItemOrder,
@@ -97,7 +100,6 @@ export function DialGrid({
 	const reduceMotion = useReducedMotion() ?? false;
 
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
-	const select = useSelectionStore((s) => s.select);
 	const toggle = useSelectionStore((s) => s.toggle);
 	const selectRange = useSelectionStore((s) => s.selectRange);
 	const clearSelection = useSelectionStore((s) => s.clear);
@@ -113,7 +115,6 @@ export function DialGrid({
 		[subfolders],
 	);
 	const cardById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
-	const allItemIds = useMemo(() => orderedRefs.map((r) => r.id), [orderedRefs]);
 
 	// Clear selection on Escape
 	useEffect(() => {
@@ -139,6 +140,28 @@ export function DialGrid({
 		[cardById, folderById],
 	);
 
+	function movedToast(
+		cardIds: string[],
+		folderIds: string[],
+		targetFolderId: string,
+	) {
+		const total = cardIds.length + folderIds.length;
+		if (total === 0) return;
+		const dest = allFolders.find((f) => f.id === targetFolderId);
+		const movedCards = allCards.filter((c) => cardIds.includes(c.id)).length;
+		const movedFolders = allFolders.filter((f) =>
+			folderIds.includes(f.id),
+		).length;
+		toast.success(
+			total === 1 ? "Item moved" : `${total} items moved`,
+			{
+				description: dest
+					? `to ${dest.name} · ${describeMoveGroup(movedCards, movedFolders)}`
+					: describeMoveGroup(movedCards, movedFolders),
+			},
+		);
+	}
+
 	// Multi-item drop on folder: cards move in; folders nest when valid.
 	// Cards already inside the target stay put (explicit drop ≠ reorder).
 	// One store call — a mixed group can never be half-moved.
@@ -156,6 +179,7 @@ export function DialGrid({
 			);
 			if (cardIds.length > 0 || folderIds.length > 0) {
 				onMoveItems(cardIds, folderIds, targetFolderId);
+				movedToast(cardIds, folderIds, targetFolderId);
 			}
 			clearSelection();
 		},
@@ -187,6 +211,7 @@ export function DialGrid({
 			);
 			if (cardIds.length > 0 || folderIds.length > 0) {
 				onMoveItems(cardIds, folderIds, folderId);
+				movedToast(cardIds, folderIds, folderId);
 			}
 			clearSelection();
 		},
@@ -201,6 +226,22 @@ export function DialGrid({
 		],
 	);
 
+	// Dragstart rule: dragging an unselected item starts a fresh single drag
+	// (previous selection clears); dragging a selected item carries the whole
+	// set with a premium group overlay instead of N duplicated cards.
+	const handleItemDragStart = useCallback(
+		(ref: ItemRef, e: React.DragEvent) => {
+			const store = useSelectionStore.getState();
+			if (!store.selectedIds.includes(ref.id)) {
+				store.clear();
+				return;
+			}
+			const group = store.selectedIds;
+			if (group.length > 1) showGroupDragGhost(e, group.length);
+		},
+		[],
+	);
+
 	const dnd = useGridDnd({
 		onLiveReorder: useCallback(
 			(dragged: ItemRef, target: ItemRef, position: "before" | "after") =>
@@ -213,6 +254,7 @@ export function DialGrid({
 		onOpenFolder,
 		canNest: canNestFolder,
 		isInContainer,
+		onItemDragStart: handleItemDragStart,
 	} as Parameters<typeof useGridDnd>[0]);
 
 	// The coordinator outlives container swaps (same hook instance): when the
@@ -224,18 +266,34 @@ export function DialGrid({
 		if (folderId) dndResetVisuals();
 	}, [folderId, dndResetVisuals]);
 
+	// Ordered view items with explicit source metadata for range select.
+	const orderedItems = useMemo(
+		() =>
+			orderedRefs.map((ref) => ({
+				id: ref.id,
+				kind: ref.kind,
+				sourceId: folderId,
+			})),
+		[orderedRefs, folderId],
+	);
+
 	function handleCardClick(e: React.MouseEvent, id: string) {
+		const item = { id, kind: "card" as const, sourceId: folderId };
 		if (e.metaKey || e.ctrlKey) {
 			e.preventDefault();
 			e.stopPropagation();
-			toggle(id);
+			toggle(item);
 		} else if (e.shiftKey) {
 			e.preventDefault();
 			e.stopPropagation();
-			selectRange(id, allItemIds);
-		} else if (selectedIds.length > 0 && !selectedIds.includes(id)) {
-			select(id);
+			selectRange(id, orderedItems);
+		} else if (useSelectionStore.getState().scope !== null) {
+			// Content selection mode: plain clicks add/remove, no modifiers.
+			e.preventDefault();
+			e.stopPropagation();
+			toggle(item);
 		}
+		// Otherwise the link navigates normally (mode not entered).
 	}
 
 	function handleFolderClick(
@@ -243,18 +301,21 @@ export function DialGrid({
 		id: string,
 		onOpen: () => void,
 	) {
+		const item = { id, kind: "folder" as const, sourceId: folderId };
 		if (e.metaKey || e.ctrlKey) {
 			e.preventDefault();
 			e.stopPropagation();
-			toggle(id);
+			toggle(item);
 		} else if (e.shiftKey) {
 			e.preventDefault();
 			e.stopPropagation();
-			selectRange(id, allItemIds);
-		} else if (selectedIds.length > 0 && !selectedIds.includes(id)) {
+			selectRange(id, orderedItems);
+		} else if (useSelectionStore.getState().scope !== null) {
+			// Content selection mode: plain clicks add/remove. Opening uses
+			// the card's chevron affordance or the Open context action.
 			e.preventDefault();
 			e.stopPropagation();
-			select(id);
+			toggle(item);
 		} else {
 			onOpen();
 		}
@@ -321,7 +382,7 @@ export function DialGrid({
 											previewCards={previewCards[folder.id] ?? []}
 											dragging={dnd.drag?.id === folder.id}
 											isSelected={isSelected}
-											showMultiBadge={selectedIds.length > 1}
+											showOpenAction={selectedIds.length > 0}
 											insertion={
 												dnd.insertion?.key === folder.id
 													? dnd.insertion.position
@@ -353,7 +414,6 @@ export function DialGrid({
 										card={card}
 										onDelete={onDelete}
 										isSelected={isSelected}
-										showMultiBadge={selectedIds.length > 1}
 										onClick={(e) => handleCardClick(e, card.id)}
 										dragProps={dnd.getItemDragProps({
 											kind: "card",

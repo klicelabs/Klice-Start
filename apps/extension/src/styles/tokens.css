@@ -81,6 +81,21 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		box-shadow 150ms var(--ease-out);
 }
 
+/* Selection is one surface-level treatment. Painting it as a positioned
+   pseudo-element keeps the outline above the thumbnail and footer instead of
+   letting either child surface cover an inset ring. `inherit` carries the
+   card's native rounded/squircle geometry into the outline. */
+.dial-card[data-selected="true"]::before {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	border: 2px solid var(--apple-blue);
+	border-radius: inherit;
+	corner-shape: inherit;
+	content: "";
+	pointer-events: none;
+}
+
 .dial-card:active {
 	transform: scale(0.97);
 }
