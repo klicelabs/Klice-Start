@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { glassText } from "../../../lib/glass";
+import type { NavigationDirection } from "../../../lib/navigation";
 import { TOOLBAR } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import type { InsertPosition } from "../../../stores/setup-store";
@@ -13,6 +14,7 @@ import { ToolbarBack } from "./toolbar-back";
 interface NavigationToolbarProps {
 	rootFolders: Folder[];
 	activeRootId: string;
+	navigationDirection: NavigationDirection;
 	/** Full breadcrumb to the active folder (length > 1 inside a subfolder). */
 	breadcrumb: Folder[];
 	/** Navigate to the parent folder. */
@@ -29,6 +31,8 @@ interface NavigationToolbarProps {
 	/** Direct subfolder creation ("New Folder" + inline rename). */
 	onNewSubfolder: (parentId: string | null) => void;
 	onOpenSettings: () => void;
+	settingsOpen?: boolean;
+	settingsPopover?: boolean;
 	onOpenSearch: () => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (
@@ -57,6 +61,7 @@ interface NavigationToolbarProps {
 export function NavigationToolbar({
 	rootFolders,
 	activeRootId,
+	navigationDirection,
 	breadcrumb,
 	onBack,
 	showBackNav,
@@ -65,6 +70,8 @@ export function NavigationToolbar({
 	onNewRootFolder,
 	onNewSubfolder,
 	onOpenSettings,
+	settingsOpen = false,
+	settingsPopover = false,
 	onOpenSearch,
 	onDeleteFolder,
 	onReorderFolders,
@@ -224,6 +231,7 @@ export function NavigationToolbar({
 						<FolderTabs
 							folders={visibleFolders}
 							activeRootId={activeRootId}
+							navigationDirection={navigationDirection}
 							showAddButton={!hasOverflow}
 							onAddRoot={onNewRootFolder}
 							onSelectFolder={onSelectFolder}
@@ -274,7 +282,12 @@ export function NavigationToolbar({
 
 				{/* Right: Search + Settings */}
 				<div className="flex w-44 shrink-0 items-center justify-end">
-					<ToolbarActions onSearch={onOpenSearch} onSettings={onOpenSettings} />
+					<ToolbarActions
+						onSearch={onOpenSearch}
+						onSettings={onOpenSettings}
+						settingsOpen={settingsOpen}
+						settingsPopover={settingsPopover}
+					/>
 				</div>
 			</header>
 

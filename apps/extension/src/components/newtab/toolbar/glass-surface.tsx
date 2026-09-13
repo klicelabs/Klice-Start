@@ -1,4 +1,5 @@
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { flatSurface } from "@klice-start/ui/lib/surface";
 import type { HTMLAttributes } from "react";
 import { cn } from "../../../lib/utils";
 import { useAppearance } from "../appearance-provider";
@@ -40,7 +41,8 @@ export function GlassSurface({
 	return (
 		<div
 			className={cn(
-				"flex items-center rounded-full border border-border bg-card shadow-sm",
+				"flex items-center rounded-full",
+				flatSurface("floating"),
 				className,
 			)}
 			{...props}

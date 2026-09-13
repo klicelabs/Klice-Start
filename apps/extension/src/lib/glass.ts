@@ -1,4 +1,5 @@
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { flatSunken, flatSurface } from "@klice-start/ui/lib/surface";
 import { cn } from "./utils";
 
 /**
@@ -26,9 +27,7 @@ export function glassDropdown(isLiquid: boolean): string {
 			"rounded-2xl p-1.5 text-white/95 shadow-2xl",
 		);
 	}
-	return cn(
-		"rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-lg",
-	);
+	return cn(flatSurface("menu"), "rounded-2xl p-1.5 text-popover-foreground");
 }
 
 /**
@@ -43,7 +42,7 @@ export function glassDropdownItem(isLiquid: boolean): string {
 	if (isLiquid) {
 		return "rounded-xl px-3 py-2 text-[13px] text-white/90 transition-colors duration-100 hover:bg-white/[0.12] hover:text-white focus:bg-white/[0.16] focus:text-white";
 	}
-	return "rounded-xl px-3 py-2 text-[13px] text-foreground transition-colors duration-100 hover:bg-muted focus:bg-muted focus:text-foreground";
+	return "rounded-xl px-3 py-2 text-[13px] text-flat-ink transition-colors duration-100 hover:bg-flat-sunken-raised focus:bg-flat-sunken-raised focus:text-flat-ink";
 }
 
 /**
@@ -80,7 +79,8 @@ export function glassMenu(isLiquid: boolean): string {
 
 	return cn(
 		layout,
-		"border border-border bg-popover text-popover-foreground",
+		flatSurface("menu"),
+		"text-flat-ink",
 		clearInheritedBackdrop,
 	);
 }
@@ -102,10 +102,9 @@ export function glassField(isLiquid: boolean): string {
 		);
 	}
 	return cn(
-		"border border-border/70 bg-transparent text-foreground placeholder-muted-foreground outline-none transition-[border-color,box-shadow] duration-150",
-		"focus:border-ring/60 focus:ring-1 focus:ring-ring/25",
-		"focus-within:border-ring/60 focus-within:ring-1 focus-within:ring-ring/25",
-		"has-[[data-slot=input-group-control]:focus-visible]:border-ring/60 has-[[data-slot=input-group-control]:focus-visible]:ring-1 has-[[data-slot=input-group-control]:focus-visible]:ring-ring/25",
+		flatSunken("controlPressed"),
+		"text-flat-ink placeholder-flat-ink-muted outline-none transition-[box-shadow,color] duration-150",
+		"focus:ring-1 focus:ring-ring/35 focus-within:ring-1 focus-within:ring-ring/35",
 	);
 }
 
@@ -130,7 +129,7 @@ export function glassCardFooter(isLiquid: boolean): string {
 			"backdrop-blur-[12px] backdrop-saturate-[1.8]",
 		);
 	}
-	return "bg-muted text-foreground";
+	return "bg-flat-sunken-raised text-flat-ink";
 }
 
 /**

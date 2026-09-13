@@ -5,6 +5,9 @@ export interface ClockState {
 	time: string;
 	date: string;
 	greeting: string;
+	/** Clock and greeting are independent — each has its own visibility. */
+	clockVisible: boolean;
+	greetingVisible: boolean;
 	visible: boolean;
 }
 
@@ -76,14 +79,15 @@ export function useClock(): ClockState {
 		return () => clearInterval(timer);
 	}, [showSeconds]);
 
-	if (!enabled) {
-		return { time: "", date: "", greeting: "", visible: false };
-	}
+	const clockVisible = enabled;
+	const greetingVisible = greetingEnabled;
 
 	return {
-		time: formatTime(now, format24, showSeconds, timezone),
-		date: formatDate(now, timezone),
-		greeting: greetingEnabled ? computeGreeting(now, name, timezone) : "",
-		visible: true,
+		time: clockVisible ? formatTime(now, format24, showSeconds, timezone) : "",
+		date: clockVisible ? formatDate(now, timezone) : "",
+		greeting: greetingVisible ? computeGreeting(now, name, timezone) : "",
+		clockVisible,
+		greetingVisible,
+		visible: clockVisible || greetingVisible,
 	};
 }

@@ -4,6 +4,7 @@ import {
 } from "@klice-start/ui/components/input-group";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { flatSurface } from "@klice-start/ui/lib/surface";
 import { type FormEvent, useState } from "react";
 import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
@@ -63,7 +64,7 @@ export function SearchBar() {
 			onSubmit={handleSubmit}
 			data-slot="input-group"
 			className={cn(
-				"group/input-group relative flex w-full max-w-xl items-center gap-2.5 rounded-full px-4 py-2.5 transition-all duration-200",
+				"group/input-group relative flex w-full max-w-xl items-center gap-2.5 rounded-full px-4 py-2.5 transition-[background-color,color,box-shadow,transform,opacity] duration-200",
 				// The whole rounded container is the field. In liquid mode it uses
 				// the exact same shared "liquid" glass variant as every other
 				// surface; in flat mode a solid opaque card.
@@ -72,7 +73,10 @@ export function SearchBar() {
 							glassVariantStyles.liquid,
 							"focus-within:ring-2 focus-within:ring-white/40",
 						)
-					: "border border-border bg-card shadow-sm focus-within:ring-2 focus-within:ring-ring hover:bg-muted",
+					: cn(
+							flatSurface("floating"),
+							"focus-within:ring-2 focus-within:ring-ring hover:bg-flat-face-hover",
+						),
 			)}
 		>
 			<InputGroupAddon align="inline-start" className="py-0 pl-0">

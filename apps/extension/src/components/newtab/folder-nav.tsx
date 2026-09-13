@@ -27,11 +27,11 @@ export function InlineFolderNav({
 			aria-label={`Back to ${parentName}`}
 			title={`Back to ${parentName}`}
 			className={cn(
-				"group flex min-w-0 max-w-full items-center gap-1 rounded-full py-1 pr-3 pl-1 transition-colors duration-150",
+				"folder-nav-enter group flex min-w-0 max-w-full items-center gap-1 rounded-full py-1 pr-3 pl-1 transition-colors duration-150",
 				glassFocusRing(isLiquid),
 				isLiquid
 					? "text-white/85 hover:bg-white/[0.10] hover:text-white"
-					: "text-foreground hover:bg-muted",
+					: "text-flat-ink hover:bg-flat-sunken-raised",
 			)}
 		>
 			<Icon
@@ -39,7 +39,7 @@ export function InlineFolderNav({
 				size={20}
 				className={cn(
 					"shrink-0 transition-transform duration-150 group-active:scale-95",
-					isLiquid ? "text-white/60" : "text-muted-foreground",
+					isLiquid ? "text-white/60" : "text-flat-ink-muted",
 				)}
 			/>
 			<span className="truncate font-semibold text-[17px] tracking-tight">

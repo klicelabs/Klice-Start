@@ -1,3 +1,5 @@
+import { flatControl } from "@klice-start/ui/lib/surface";
+
 /**
  * Shared toolbar design tokens. Every control in the toolbar must use these
  * exact values so all pills share one height, radius, and inner padding.
@@ -41,7 +43,7 @@ export function toolbarControlLiquid(active: boolean): string {
  */
 export function toolbarControlClassic(active: boolean): string {
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-secondary text-secondary-foreground shadow-sm`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} ${flatControl()} text-flat-ink`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-muted-foreground hover:text-foreground hover:bg-muted active:bg-accent`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-flat-ink-muted hover:text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
 }

@@ -4,9 +4,10 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@klice-start/ui/components/context-menu";
+} from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { flatSurface } from "@klice-start/ui/lib/surface";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
 import {
@@ -86,144 +87,137 @@ export function FolderPreviewCard({
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
-				data-local-context-menu
 				className={cn(
 					// Calm by default: no hover lift/translate/glow — same rule
 					// as bookmark cards. Drop-target states are untouched.
-					"dial-card squircle group/folder relative flex h-full w-full flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,filter,opacity] duration-150 [--squircle-r:10px] hover:drop-shadow-[0_6px_14px_rgba(0,0,0,0.28)] active:scale-[0.97] select-none [-webkit-user-drag:element]",
+					"dial-card squircle group/folder relative flex h-full w-full select-none flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
 					glassFocusRing(isLiquid),
-					isLiquid
-						? glassVariantStyles.liquid
-						: "border border-border bg-card shadow-sm",
+					isLiquid ? glassVariantStyles.liquid : flatSurface("floating"),
 					isSelected &&
 						"scale-[1.02] shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background/40",
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
-					dropActive && "shadow-md ring-2 ring-white/80",
-					dragging && "opacity-40",
+					dropActive && "scale-[1.02] shadow-md ring-2 ring-white/80",
+					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
-				render={
-					<button
-						type="button"
-						aria-label={
-							editing ? `Rename folder ${name}` : `Open folder ${name}`
-						}
-						title={name}
-						onClick={onClick}
-						draggable={
-							dragProps ? (editing ? false : dragProps.draggable) : true
-						}
-						onDragStart={editing ? undefined : dragProps?.onDragStart}
-						onDragEnd={dragProps?.onDragEnd}
-						onDragOver={dragProps?.onDragOver}
-						onDragLeave={dragProps?.onDragLeave}
-						onDrop={dragProps?.onDrop}
-					/>
-				}
 			>
-				<div className="relative min-h-0 flex-1 overflow-hidden p-1.5">
-					{hasPreviews ? (
-						<div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
-							{previewCards.slice(0, 4).map((card) => (
-								<FolderMiniTile key={card.id} card={card} />
-							))}
-							{Array.from({
-								length: Math.max(0, 4 - previewCards.length),
-							}).map((_, i) => (
-								<div
-									key={`empty-${String(i)}`}
+				<button
+					data-local-context-menu
+					type="button"
+					aria-label={editing ? `Rename folder ${name}` : `Open folder ${name}`}
+					title={name}
+					onClick={onClick}
+					draggable={dragProps ? (editing ? false : dragProps.draggable) : true}
+					onDragStart={editing ? undefined : dragProps?.onDragStart}
+					onDragEnd={dragProps?.onDragEnd}
+					onDragOver={dragProps?.onDragOver}
+					onDragLeave={dragProps?.onDragLeave}
+					onDrop={dragProps?.onDrop}
+				>
+					<div className="relative min-h-0 flex-1 overflow-hidden p-1.5">
+						{hasPreviews ? (
+							<div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
+								{previewCards.slice(0, 4).map((card) => (
+									<FolderMiniTile key={card.id} card={card} />
+								))}
+								{Array.from({
+									length: Math.max(0, 4 - previewCards.length),
+								}).map((_, i) => (
+									<div
+										key={`empty-${String(i)}`}
+										className={cn(
+											"rounded-[7px]",
+											isLiquid ? "bg-white/[0.05]" : "bg-muted",
+										)}
+									/>
+								))}
+							</div>
+						) : (
+							<div className="flex h-full w-full items-center justify-center">
+								<Icon
+									name="folder"
+									size={32}
 									className={cn(
-										"rounded-[7px]",
-										isLiquid ? "bg-white/[0.05]" : "bg-muted",
+										"transition-opacity",
+										dropActive ? "opacity-100" : "opacity-60",
 									)}
 								/>
-							))}
-						</div>
-					) : (
-						<div className="flex h-full w-full items-center justify-center">
-							<Icon
-								name="folder"
-								size={32}
-								className={cn(
-									"transition-opacity",
-									dropActive ? "opacity-100" : "opacity-60",
-								)}
-							/>
-						</div>
-					)}
-
-					<span
-						className={cn(
-							"absolute top-2 right-2 rounded-full px-1.5 text-[10px]",
-							isLiquid
-								? "bg-black/45 text-white/80"
-								: "bg-muted text-muted-foreground",
+							</div>
 						)}
-					>
-						{itemCount}
-					</span>
 
-					{isSelected && showMultiBadge && (
-						<div
-							aria-hidden="true"
-							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs"
+						<span
+							className={cn(
+								"absolute top-2 right-2 rounded-full px-1.5 text-[10px]",
+								isLiquid
+									? "bg-black/45 text-white/80"
+									: "bg-muted text-muted-foreground",
+							)}
 						>
-							<Icon name="check" size={11} strokeWidth={3} />
-						</div>
-					)}
-				</div>
+							{itemCount}
+						</span>
 
-				<div
-					className={cn(
-						// Same squircle system as the outer card so the footer
-						// follows the card geometry instead of reading as an
-						// independent capsule. Same material recipe as the
-						// bookmark footer via glassCardFooter.
-						"card-footer squircle flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2.5 [--squircle-r:10px]",
-						glassCardFooter(isLiquid),
-					)}
-					style={{ height: "var(--card-footer-h, 30px)" }}
-				>
-					<Icon name="folder" size={14} className="shrink-0 opacity-70" />
-					{editing ? (
-						<InlineRenameInput
-							value={name}
-							ariaLabel={`Rename folder ${name}`}
-							onCommit={handleCommitRename}
-							onCancel={cancelRename}
-						/>
-					) : (
-						<span className="truncate font-medium text-[11px]">{name}</span>
-					)}
-				</div>
+						{isSelected && showMultiBadge && (
+							<div
+								aria-hidden="true"
+								className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs"
+							>
+								<Icon name="check" size={11} strokeWidth={3} />
+							</div>
+						)}
+					</div>
+
+					<div
+						className={cn(
+							// Same squircle system as the outer card so the footer
+							// follows the card geometry instead of reading as an
+							// independent capsule. Same material recipe as the
+							// bookmark footer via glassCardFooter.
+							"card-footer squircle flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2.5 [--squircle-r:10px]",
+							glassCardFooter(isLiquid),
+						)}
+						style={{ height: "var(--card-footer-h, 30px)" }}
+					>
+						<Icon name="folder" size={14} className="shrink-0 opacity-70" />
+						{editing ? (
+							<InlineRenameInput
+								value={name}
+								ariaLabel={`Rename folder ${name}`}
+								onCommit={handleCommitRename}
+								onCancel={cancelRename}
+							/>
+						) : (
+							<span className="truncate font-medium text-[11px]">{name}</span>
+						)}
+					</div>
+				</button>
 			</ContextMenuTrigger>
 
 			<ContextMenuContent className={glassMenu(isLiquid)}>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onOpen(id)}
+					onSelect={() => onOpen(id)}
 				>
 					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onNewSubfolder(id)}
+					onSelect={() => onNewSubfolder(id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => beginRename({ kind: "folder", id })}
+					onSelect={() => beginRename({ kind: "folder", id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => {
+					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(selected.includes(id) ? selected : [id]);
 					}}
@@ -236,8 +230,8 @@ export function FolderPreviewCard({
 				/>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					variant="destructive"
-					onClick={() => onDelete(id)}
+					tone="destructive"
+					onSelect={() => onDelete(id)}
 				>
 					<Icon name="trash" size={14} />
 					Delete

@@ -1,5 +1,7 @@
 import { Fragment } from "react";
+import { Button as MotionButton } from "@klice-start/ui/components/motion/button/base";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { flatControl } from "@klice-start/ui/lib/surface";
 import { glassFocusRing, glassText, HERO_TEXT_SHADOW } from "../../lib/glass";
 import { RECOMMENDED_SITES } from "../../lib/recommended-sites";
 import { faviconUrl } from "../../lib/url";
@@ -98,20 +100,23 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 				</p>
 
 				{/* 4. The single primary action. */}
-				<button
+				<MotionButton
 					type="button"
 					onClick={onAdd}
+					variant="ghost"
+					size="md"
+					ripple={!isLiquid}
 					className={cn(
-						"mt-6 inline-flex h-9 items-center gap-1.5 rounded-full px-4 font-medium text-xs transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out active:scale-[0.97]",
+						"mt-6 inline-flex h-9 items-center gap-1.5 rounded-full px-4 font-medium text-xs transition-[background-color,border-color,box-shadow] duration-150 ease-out",
 						glassFocusRing(isLiquid),
 						isLiquid
 							? "border border-white/25 bg-white/20 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_8px_20px_-8px_rgba(0,0,0,0.45)] backdrop-blur-md hover:bg-white/30"
-							: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+							: `${flatControl()} text-flat-ink`,
 					)}
 				>
 					<Icon name="plus" size={13} />
 					Add link
-				</button>
+				</MotionButton>
 
 				{/* 5. Optional secondary actions, reduced to a single quiet line so
 				    they never compete with the CTA. `text-shadow` inherits, so

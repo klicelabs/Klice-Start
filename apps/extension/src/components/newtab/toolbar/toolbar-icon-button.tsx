@@ -1,6 +1,7 @@
 import { GlassIcon } from "@klice-start/ui/components/glass-icon";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { flatControl, flatFocusRing } from "@klice-start/ui/lib/surface";
 import { glassFocusRing } from "../../../lib/glass";
 import { TOOLBAR } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
@@ -62,11 +63,12 @@ export function ToolbarIconButton({
 			aria-label={label}
 			aria-pressed={active}
 			className={cn(
-				"flex aspect-square size-[42px] shrink-0 items-center justify-center rounded-full border shadow-sm transition-all duration-150 active:scale-95",
-				glassFocusRing(isLiquid),
+				"flex aspect-square size-[42px] shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform,box-shadow] duration-150 active:scale-95",
+				flatControl(),
+				flatFocusRing(),
 				active
-					? "border-border bg-primary text-primary-foreground"
-					: "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+					? "text-flat-ink"
+					: "text-flat-ink-muted hover:text-flat-ink",
 			)}
 		>
 			<Icon name={icon} size={iconSize} />

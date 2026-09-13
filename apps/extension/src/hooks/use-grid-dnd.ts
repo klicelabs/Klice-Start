@@ -6,8 +6,8 @@ import {
 	useState,
 } from "react";
 import {
-	dropZoneFor,
 	clearActiveDrag,
+	dropZoneFor,
 	type GridItemDragProps,
 	resolveDragRef,
 	setDragData,
@@ -49,6 +49,28 @@ function edgeScroll(e: DragEvent) {
 	} else if (window.innerHeight - e.clientY < 50) {
 		window.scrollBy({ top: 10, behavior: "instant" as ScrollBehavior });
 	}
+}
+
+function isValidItemDrop(
+	dragged: ItemRef,
+	target: ItemRef,
+	zone: "before" | "after" | "center",
+	handlers: GridDndHandlers,
+) {
+	if (dragged.id === target.id) return false;
+	if (zone === "center") {
+		if (target.kind === "folder") {
+			return (
+				dragged.kind !== "folder" || handlers.canNest(dragged.id, target.id)
+			);
+		}
+		return dragged.kind === "card" && handlers.isInContainer(dragged);
+	}
+	return (
+		handlers.isInContainer(dragged) ||
+		target.kind === "folder" ||
+		target.kind === "card"
+	);
 }
 
 /**
@@ -171,12 +193,13 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			if (!(el instanceof HTMLElement)) return;
 			const zone = dropZoneFor(e, el);
 			const foreign = !h.isInContainer(dragged);
+			if (!isValidItemDrop(dragged, ref, zone, h)) {
+				e.dataTransfer.dropEffect = "none";
+				return;
+			}
 
 			if (ref.kind === "folder") {
 				if (zone === "center") {
-					if (dragged.kind === "folder" && !h.canNest(dragged.id, ref.id)) {
-						return;
-					}
 					e.preventDefault();
 					e.dataTransfer.dropEffect = "move";
 					edgeScroll(e);
@@ -198,7 +221,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				e.preventDefault();
 				e.dataTransfer.dropEffect = "move";
 				edgeScroll(e);
-					springCancel();
+				springCancel();
 				springTarget.current = null;
 				setNestId(null);
 				setCombineKey(null);
@@ -215,7 +238,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				e.dataTransfer.dropEffect = "move";
 				edgeScroll(e);
 				lastApplied.current = null;
-					springCancel();
+				springCancel();
 				springTarget.current = null;
 				setInsertion(null);
 				setNestId(null);
@@ -285,18 +308,13 @@ export function useGridDnd(handlers: GridDndHandlers) {
 
 			const el = e.currentTarget;
 			const zone = el instanceof HTMLElement ? dropZoneFor(e, el) : "center";
+			if (!isValidItemDrop(dragged, ref, zone, h)) return;
 
 			if (ref.kind === "folder" && zone === "center") {
-				if (dragged.kind === "folder" && !h.canNest(dragged.id, ref.id)) return;
 				h.onDropOnFolder(dragged.id, ref.id);
 				return;
 			}
-			if (
-				ref.kind === "card" &&
-				dragged.kind === "card" &&
-				zone === "center" &&
-				h.isInContainer(dragged)
-			) {
+			if (ref.kind === "card" && dragged.kind === "card" && zone === "center") {
 				h.onCombineCards(dragged.id, ref.id);
 				return;
 			}
@@ -320,6 +338,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		if (!dragged || !dragged.id) return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
+		edgeScroll(e);
 	}, []);
 
 	const handleBackgroundDrop = useCallback(

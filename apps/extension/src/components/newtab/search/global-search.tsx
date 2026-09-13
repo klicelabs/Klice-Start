@@ -160,7 +160,7 @@ export function GlobalSearch({
 		>
 			{/* Scrim */}
 			<div
-				className={`absolute inset-0 bg-black/60 transition-opacity ${
+				className={`absolute inset-0 bg-black/60 transition-opacity duration-150 ${
 					isLiquid ? "backdrop-blur-sm" : ""
 				}`}
 			/>
@@ -187,6 +187,7 @@ export function GlobalSearch({
 							setSelectedIdx(0);
 						}}
 						placeholder="Search bookmarks and folders..."
+						aria-label="Search bookmarks and folders"
 						className={`flex-1 bg-transparent text-[15px] outline-none ${
 							isLiquid
 								? "text-white/90 placeholder:text-white/75"
@@ -199,7 +200,7 @@ export function GlobalSearch({
 						className={`hidden items-center gap-0.5 rounded-md px-1.5 py-0.5 font-medium text-[10px] sm:inline-flex ${
 							isLiquid
 								? "border border-white/10 bg-white/[0.08] text-white/75"
-								: "border border-border bg-muted text-muted-foreground"
+								: "border border-flat-edge bg-flat-sunken text-flat-ink-muted"
 						}`}
 					>
 						ESC
@@ -207,7 +208,7 @@ export function GlobalSearch({
 				</div>
 
 				{/* Separator */}
-				<div className={`h-px ${isLiquid ? "bg-white/[0.08]" : "bg-border"}`} />
+				<div className={`h-px ${isLiquid ? "bg-white/[0.08]" : "bg-separator-groove"}`} />
 
 				{/* Results */}
 				<div ref={listRef} className="max-h-[380px] overflow-y-auto py-1">
@@ -242,12 +243,12 @@ export function GlobalSearch({
 													flatIdx === selectedIdx
 														? isLiquid
 															? "bg-white/[0.12]"
-															: "bg-muted"
+															: "bg-flat-sunken-raised"
 														: ""
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-														: "hover:bg-muted/50"
+									: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<img
@@ -303,12 +304,12 @@ export function GlobalSearch({
 													flatIdx === selectedIdx
 														? isLiquid
 															? "bg-white/[0.12]"
-															: "bg-muted"
+															: "bg-flat-sunken-raised"
 														: ""
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-														: "hover:bg-muted/50"
+									: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<Icon
@@ -352,12 +353,12 @@ export function GlobalSearch({
 													webIdx === selectedIdx
 														? isLiquid
 															? "bg-white/[0.12]"
-															: "bg-muted"
+															: "bg-flat-sunken-raised"
 														: ""
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-														: "hover:bg-muted/50"
+									: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<div className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-primary/20 text-primary">

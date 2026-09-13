@@ -4,7 +4,12 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@klice-start/ui/components/context-menu";
+} from "@klice-start/ui/components/motion/context-menu";
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+} from "@klice-start/ui/components/motion/tabs";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type DragEvent, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
@@ -19,11 +24,8 @@ import {
 	glassFocusRing,
 	glassMenu,
 } from "../../../lib/glass";
-import {
-	TOOLBAR,
-	toolbarControlClassic,
-	toolbarControlLiquid,
-} from "../../../lib/toolbar-tokens";
+import type { NavigationDirection } from "../../../lib/navigation";
+import { TOOLBAR } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import { useMoveDialogStore } from "../../../stores/move-dialog-store";
 import { useRenameStore } from "../../../stores/rename-store";
@@ -40,6 +42,7 @@ import { GlassSurface } from "./glass-surface";
 interface FolderTabsProps {
 	folders: Folder[];
 	activeRootId: string;
+	navigationDirection: NavigationDirection;
 	/** Inline "+" affordance. Only true while the lane has room (no overflow). */
 	showAddButton?: boolean;
 	onAddRoot?: () => void;
@@ -74,6 +77,7 @@ interface FolderTabsProps {
 export function FolderTabs({
 	folders,
 	activeRootId,
+	navigationDirection,
 	showAddButton = false,
 	onAddRoot,
 	onSelectFolder,
@@ -95,31 +99,42 @@ export function FolderTabs({
 	} | null>(null);
 
 	return (
-		<GlassSurface
-			role="tablist"
-			aria-label="Folders"
-			className={cn(TOOLBAR.groupPadding, "gap-0.5")}
-		>
-			{sorted.map((folder) => (
-				<FolderTab
-					key={folder.id}
-					folder={folder}
-					active={folder.id === activeRootId}
-					isLiquid={isLiquid}
-					insertion={insertion?.key === folder.id ? insertion.position : null}
-					onInsertionChange={setInsertion}
-					onSelectFolder={onSelectFolder}
-					onNewRootFolder={onNewRootFolder}
-					onNewSubfolder={onNewSubfolder}
-					onDeleteFolder={onDeleteFolder}
-					onReorderFolders={onReorderFolders}
-					onDropCards={onDropCards}
-					onMoveFolders={onMoveFolders}
-					onMoveFolderToRoot={onMoveFolderToRoot}
-					isRootFolder={isRootFolder}
-					canNestFolder={canNestFolder}
-				/>
-			))}
+		<GlassSurface className={cn(TOOLBAR.groupPadding, "gap-0.5")}>
+			<Tabs
+				value={activeRootId}
+				variant="pill"
+				direction={navigationDirection}
+				onValueChange={onSelectFolder}
+				className="flex items-center"
+			>
+				<TabsList
+					ariaLabel="Folders"
+					className="gap-0.5 rounded-full bg-transparent p-0"
+				>
+					{sorted.map((folder) => (
+						<FolderTab
+							key={folder.id}
+							folder={folder}
+							active={folder.id === activeRootId}
+							isLiquid={isLiquid}
+							insertion={
+								insertion?.key === folder.id ? insertion.position : null
+							}
+							onInsertionChange={setInsertion}
+							onSelectFolder={onSelectFolder}
+							onNewRootFolder={onNewRootFolder}
+							onNewSubfolder={onNewSubfolder}
+							onDeleteFolder={onDeleteFolder}
+							onReorderFolders={onReorderFolders}
+							onDropCards={onDropCards}
+							onMoveFolders={onMoveFolders}
+							onMoveFolderToRoot={onMoveFolderToRoot}
+							isRootFolder={isRootFolder}
+							canNestFolder={canNestFolder}
+						/>
+					))}
+				</TabsList>
+			</Tabs>
 			{showAddButton && (
 				<button
 					type="button"
@@ -132,7 +147,7 @@ export function FolderTabs({
 						glassFocusRing(isLiquid),
 						isLiquid
 							? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-							: "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-accent",
+							: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
 					)}
 				>
 					<Icon name="plus" size={15} />
@@ -210,7 +225,7 @@ function FolderTab({
 
 	function handleDragOver(e: DragEvent) {
 		const dragged = resolveDragRef(e);
-		if (!dragged || !dragged.id || dragged.id === folder.id) return;
+		if (!dragged?.id || dragged.id === folder.id) return;
 		const el = e.currentTarget;
 		if (!(el instanceof HTMLElement)) return;
 		const zone = dropZoneFor(e, el);
@@ -271,7 +286,7 @@ function FolderTab({
 		onInsertionChange(null);
 		setActiveDrag(null);
 		const dragged = resolveDragRef(e);
-		if (!dragged || !dragged.id || dragged.id === folder.id) return;
+		if (!dragged?.id || dragged.id === folder.id) return;
 		const el = e.currentTarget;
 		const zone = el instanceof HTMLElement ? dropZoneFor(e, el) : "center";
 
@@ -296,111 +311,125 @@ function FolderTab({
 		}
 	}
 
-	const baseClass = isLiquid
-		? toolbarControlLiquid(active)
-		: toolbarControlClassic(active);
+	const baseClass = cn(
+		TOOLBAR.controlHeight,
+		TOOLBAR.radius,
+		TOOLBAR.transition,
+		"max-w-[160px] select-none truncate px-3 font-medium text-[13px] [-webkit-user-drag:element]",
+		glassFocusRing(isLiquid),
+		active
+			? isLiquid
+				? "text-white"
+				: "text-flat-ink"
+			: isLiquid
+				? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+				: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
+	);
 
 	const dropClass = dropActive
 		? isLiquid
 			? "bg-white/25 text-white ring-1 ring-white/40 shadow-xs"
-			: "bg-accent text-accent-foreground ring-1 ring-ring"
+			: "bg-flat-sunken-raised text-flat-ink ring-1 ring-flat-edge-strong"
 		: "";
+	const indicatorClass = cn(
+		"pointer-events-none",
+		isLiquid ? "bg-white/25 shadow-sm" : "face-control shadow-control",
+		dropActive &&
+			(isLiquid ? "ring-1 ring-white/40" : "ring-1 ring-flat-edge-strong"),
+	);
 
 	if (editing) {
 		return (
-			<div
-				className={cn(
-					TOOLBAR.controlHeight,
-					TOOLBAR.radius,
-					"flex max-w-[160px] items-center px-3",
-					baseClass,
-				)}
-			>
-				<InlineRenameInput
-					value={folder.name}
-					ariaLabel={`Rename folder ${folder.name}`}
-					onCommit={handleCommitRename}
-					onCancel={cancelRename}
-					className="text-[13px]"
-				/>
-			</div>
+			<TabsTrigger
+				value={folder.id}
+				className={cn(baseClass, "flex items-center")}
+				indicatorClassName={indicatorClass}
+				render={
+					<div className="flex max-w-[160px] items-center px-3">
+						<InlineRenameInput
+							value={folder.name}
+							ariaLabel={`Rename folder ${folder.name}`}
+							onCommit={handleCommitRename}
+							onCancel={cancelRename}
+							className="text-[13px]"
+						/>
+					</div>
+				}
+			/>
 		);
 	}
 
 	return (
 		<ContextMenu>
-			<ContextMenuTrigger
-				data-local-context-menu
+			<TabsTrigger
+				value={folder.id}
 				className={cn(
-					TOOLBAR.controlHeight,
-					TOOLBAR.radius,
-					"max-w-[160px] truncate px-3 font-medium text-[13px] transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97] select-none [-webkit-user-drag:element]",
-					glassFocusRing(isLiquid),
 					baseClass,
 					dropClass,
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
 				)}
-				title={folder.name}
+				indicatorClassName={indicatorClass}
 				render={
-					<button
-						type="button"
-						role="tab"
-						aria-selected={active}
-						draggable
-						onClick={() => onSelectFolder(folder.id)}
-						onDragStart={(e) => {
-							lastApplied.current = null;
-							setDragData(e, "folder", folder.id);
-						}}
-						onDragEnd={() => {
-							lastApplied.current = null;
-							setActiveDrag(null);
-							setDropActive(false);
-							spring.cancel();
-							onInsertionChange(null);
-						}}
-						onDragOver={handleDragOver}
-						onDragLeave={handleDragLeave}
-						onDrop={handleDrop}
-					/>
+					<ContextMenuTrigger title={folder.name}>
+						<button
+							data-local-context-menu
+							type="button"
+							title={folder.name}
+							draggable
+							onDragStart={(e) => {
+								lastApplied.current = null;
+								setDragData(e, "folder", folder.id);
+							}}
+							onDragEnd={() => {
+								lastApplied.current = null;
+								setActiveDrag(null);
+								setDropActive(false);
+								spring.cancel();
+								onInsertionChange(null);
+							}}
+							onDragOver={handleDragOver}
+							onDragLeave={handleDragLeave}
+							onDrop={handleDrop}
+						>
+							{folder.name}
+						</button>
+					</ContextMenuTrigger>
 				}
-			>
-				{folder.name}
-			</ContextMenuTrigger>
+			/>
 
 			<ContextMenuContent className={glassMenu(isLiquid)}>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onSelectFolder(folder.id)}
+					onSelect={() => onSelectFolder(folder.id)}
 				>
 					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={onNewRootFolder}
+					onSelect={onNewRootFolder}
 				>
 					<Icon name="folder-plus" size={14} />
 					New Folder
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => onNewSubfolder?.(folder.id)}
+					onSelect={() => onNewSubfolder?.(folder.id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => beginRename({ kind: "folder", id: folder.id })}
+					onSelect={() => beginRename({ kind: "folder", id: folder.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					onClick={() => {
+					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(
 							selected.includes(folder.id) ? selected : [folder.id],
@@ -415,8 +444,8 @@ function FolderTab({
 				/>
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid)}
-					variant="destructive"
-					onClick={() => onDeleteFolder?.(folder.id)}
+					tone="destructive"
+					onSelect={() => onDeleteFolder?.(folder.id)}
 				>
 					<Icon name="trash" size={14} />
 					Delete

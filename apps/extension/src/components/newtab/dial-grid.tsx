@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { EASE_OUT, SPRING_SEGMENT } from "@klice-start/ui/lib/ease";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import {
@@ -6,6 +8,7 @@ import {
 	type ItemOrder,
 	type ItemRef,
 } from "../../lib/item-order";
+import type { NavigationState } from "../../lib/navigation";
 import { useSelectionStore } from "../../stores/selection-store";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
@@ -43,7 +46,28 @@ interface DialGridProps {
 	) => void;
 	onCombineCards: (draggedCardId: string, targetCardId: string) => void;
 	canNestFolder: (folderId: string, targetFolderId: string) => boolean;
+	navigation: NavigationState;
+	emptyState?: ReactNode;
 }
+
+const GRID_TRANSITIONS = {
+	"root-forward": {
+		initial: { opacity: 0, transform: "translate3d(104px, 0, 0)" },
+		exit: { opacity: 0, transform: "translate3d(-104px, 0, 0)" },
+	},
+	"root-back": {
+		initial: { opacity: 0, transform: "translate3d(-104px, 0, 0)" },
+		exit: { opacity: 0, transform: "translate3d(104px, 0, 0)" },
+	},
+	"depth-forward": {
+		initial: { opacity: 0, transform: "translate3d(0, 48px, 0)" },
+		exit: { opacity: 0, transform: "translate3d(0, -34px, 0)" },
+	},
+	"depth-back": {
+		initial: { opacity: 0, transform: "translate3d(0, -42px, 0)" },
+		exit: { opacity: 0, transform: "translate3d(0, 50px, 0)" },
+	},
+} as const;
 
 export function DialGrid({
 	folderId,
@@ -62,12 +86,15 @@ export function DialGrid({
 	onLiveReorder,
 	onCombineCards,
 	canNestFolder,
+	navigation,
+	emptyState,
 }: DialGridProps) {
 	const tileSize = useSetupStore((s) => s.settings.tileSize);
 	const maxColumns = useSetupStore((s) => s.settings.maxColumns);
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
 	const gridMaxWidth = computeGridMaxWidth(tileSize, maxColumns);
+	const reduceMotion = useReducedMotion() ?? false;
 
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	const select = useSelectionStore((s) => s.select);
@@ -194,7 +221,7 @@ export function DialGrid({
 	// to the newly rendered grid until the browser emits drop/dragend/Escape.
 	const dndResetVisuals = dnd.resetVisuals;
 	useEffect(() => {
-		dndResetVisuals();
+		if (folderId) dndResetVisuals();
 	}, [folderId, dndResetVisuals]);
 
 	function handleCardClick(e: React.MouseEvent, id: string) {
@@ -239,75 +266,114 @@ export function DialGrid({
 			style={{ maxWidth: gridMaxWidth }}
 			{...dnd.backgroundProps}
 		>
-			<div
-				className="dial-grid"
-				data-tile={tileSize}
-				data-layout={dialLayout}
-				style={{
-					display: "grid",
-					gridTemplateColumns: "repeat(auto-fill, var(--tile-w, 148px))",
-					gap: "var(--grid-gap, 22px)",
-					justifyContent: "center",
-					...cellAspectStyle,
-				}}
-			>
-				{orderedRefs.map((ref) => {
-					if (ref.kind === "folder") {
-						const folder = folderById.get(ref.id);
-						if (!folder) return null;
-						const isSelected = selectedIds.includes(folder.id);
-						return (
-							<FolderPreviewCard
-								key={folder.id}
-								id={folder.id}
-								name={folder.name}
-								itemCount={cardCounts[folder.id] ?? 0}
-								previewCards={previewCards[folder.id] ?? []}
-								dragging={dnd.drag?.id === folder.id}
-								isSelected={isSelected}
-								showMultiBadge={selectedIds.length > 1}
-								insertion={
-									dnd.insertion?.key === folder.id
-										? dnd.insertion.position
-										: null
-								}
-								dropActive={dnd.nestId === folder.id}
-								onClick={(e) =>
-									handleFolderClick(e, folder.id, () => onOpenFolder(folder.id))
-								}
-								onOpen={onOpenFolder}
-								onNewSubfolder={onNewSubfolder}
-								onDelete={onDeleteFolder}
-								dragProps={dnd.getItemDragProps({
-									kind: "folder",
-									id: folder.id,
-								})}
-								className="dial-cell"
-							/>
-						);
-					}
-					const card = cardById.get(ref.id);
-					if (!card) return null;
-					const isSelected = selectedIds.includes(card.id);
-					return (
-						<DialCard
-							key={card.id}
-							card={card}
-							onDelete={onDelete}
-							isSelected={isSelected}
-							showMultiBadge={selectedIds.length > 1}
-							onClick={(e) => handleCardClick(e, card.id)}
-							dragProps={dnd.getItemDragProps({ kind: "card", id: card.id })}
-							insertion={
-								dnd.insertion?.key === card.id ? dnd.insertion.position : null
+			{orderedRefs.length === 0 ? (
+				emptyState
+			) : (
+				<div className="dial-grid-stage">
+					<AnimatePresence initial={false} mode="sync">
+						<motion.div
+							key={folderId}
+							initial={reduceMotion ? false : "initial"}
+							animate={{
+								opacity: 1,
+								transform: "translate3d(0, 0, 0)",
+							}}
+							exit={
+								reduceMotion
+									? { opacity: 0, transform: "translate3d(0, 0, 0)" }
+									: "exit"
 							}
-							combineActive={dnd.combineKey === card.id}
-							dragging={dnd.drag?.id === card.id}
-							className="dial-cell"
-						/>
-					);
-				})}
-			</div>
+							variants={
+								GRID_TRANSITIONS[
+									`${navigation.kind}-${navigation.direction}` as keyof typeof GRID_TRANSITIONS
+								]
+							}
+							transition={
+								reduceMotion
+									? { duration: 0.08, ease: EASE_OUT }
+									: SPRING_SEGMENT
+							}
+							className="dial-grid will-change-[transform,opacity]"
+							data-tile={tileSize}
+							data-layout={dialLayout}
+							data-nav-direction={navigation.direction}
+							data-nav-kind={navigation.kind}
+							style={{
+								display: "grid",
+								gridTemplateColumns: "repeat(auto-fill, var(--tile-w, 148px))",
+								gap: "var(--grid-gap, 22px)",
+								justifyContent: "center",
+								gridArea: "1 / 1",
+								...cellAspectStyle,
+							}}
+						>
+							{orderedRefs.map((ref) => {
+								if (ref.kind === "folder") {
+									const folder = folderById.get(ref.id);
+									if (!folder) return null;
+									const isSelected = selectedIds.includes(folder.id);
+									return (
+										<FolderPreviewCard
+											key={folder.id}
+											id={folder.id}
+											name={folder.name}
+											itemCount={cardCounts[folder.id] ?? 0}
+											previewCards={previewCards[folder.id] ?? []}
+											dragging={dnd.drag?.id === folder.id}
+											isSelected={isSelected}
+											showMultiBadge={selectedIds.length > 1}
+											insertion={
+												dnd.insertion?.key === folder.id
+													? dnd.insertion.position
+													: null
+											}
+											dropActive={dnd.nestId === folder.id}
+											onClick={(e) =>
+												handleFolderClick(e, folder.id, () =>
+													onOpenFolder(folder.id),
+												)
+											}
+											onOpen={onOpenFolder}
+											onNewSubfolder={onNewSubfolder}
+											onDelete={onDeleteFolder}
+											dragProps={dnd.getItemDragProps({
+												kind: "folder",
+												id: folder.id,
+											})}
+											className="dial-cell"
+										/>
+									);
+								}
+								const card = cardById.get(ref.id);
+								if (!card) return null;
+								const isSelected = selectedIds.includes(card.id);
+								return (
+									<DialCard
+										key={card.id}
+										card={card}
+										onDelete={onDelete}
+										isSelected={isSelected}
+										showMultiBadge={selectedIds.length > 1}
+										onClick={(e) => handleCardClick(e, card.id)}
+										dragProps={dnd.getItemDragProps({
+											kind: "card",
+											id: card.id,
+										})}
+										insertion={
+											dnd.insertion?.key === card.id
+												? dnd.insertion.position
+												: null
+										}
+										combineActive={dnd.combineKey === card.id}
+										dragging={dnd.drag?.id === card.id}
+										className="dial-cell"
+									/>
+								);
+							})}
+						</motion.div>
+					</AnimatePresence>
+				</div>
+			)}
 		</section>
 	);
 }
