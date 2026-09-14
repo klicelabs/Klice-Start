@@ -7,6 +7,8 @@ import {
 	DropdownMenuTrigger,
 } from "@klice-start/ui/components/dropdown-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { flatSurface } from "@klice-start/ui/lib/surface";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -43,9 +45,9 @@ interface CreateRequest {
  * carry items into another folder and commit with Move here — no dragging
  * required. Dragging the preview cluster also works as a group drag source.
  *
- * Deliberately NOT a card, toast or modal: one compact squircle bar with a
- * stacked preview, a count summary and a compact set of quiet actions, in the
- * same Glass/Flat material as the context menus.
+ * Deliberately NOT a card, toast or modal: one compact floating squircle shelf
+ * with a centered preview stack, a count summary and quiet overflow actions,
+ * in the same Glass/Flat material as the context menus.
  */
 export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
@@ -87,14 +89,8 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 		[selectedIds, folderById],
 	);
 	const total = selCards.length + selFolders.length;
-	const items = useSelectionStore((s) => s.items);
-
-	// Distinct source folders across the selection, for the multi-source
-	// indicator. Null sources are roots.
-	const sourceCount = useMemo(
-		() => new Set(items.map((i) => i.sourceId ?? "__root__")).size,
-		[items],
-	);
+	const totalLabel = `${total} ${total === 1 ? "item" : "items"}`;
+	const pillLabel = selectionPillLabel(selCards.length, selFolders.length);
 
 	// First three members across both kinds, in selection order, for the
 	// stacked preview. Never renders every item, however large the set.
@@ -131,9 +127,6 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 		[selFolders, folders, activeFolderId],
 	);
 	const canMoveHere = invalidFolder === null && move.movable > 0;
-	const moveHereReason = invalidFolder
-		? "Can't move a folder into itself or its subfolders."
-		: move.blockedReason;
 
 	function selectionSummary(ids: string[]) {
 		let cardCount = 0;
@@ -215,8 +208,9 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 						className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4"
 					>
 						<motion.div
+							layout
 							role="region"
-							aria-label={`Selection tray, ${total} selected`}
+							aria-label={"Selection tray, " + totalLabel}
 							initial={
 								reduceMotion
 									? { opacity: 0 }
@@ -233,74 +227,51 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 							transition={
 								reduceMotion
 									? { duration: 0.12 }
-									: { duration: 0.22, ease: [0.23, 1, 0.32, 1] }
+									: {
+											layout: { duration: 0.22, ease: [0.23, 1, 0.32, 1] },
+											opacity: { duration: 0.18, ease: [0.23, 1, 0.32, 1] },
+											y: { duration: 0.22, ease: [0.23, 1, 0.32, 1] },
+											scale: { duration: 0.22, ease: [0.23, 1, 0.32, 1] },
+										}
 							}
 							className={cn(
-								"squircle pointer-events-auto flex max-w-[min(430px,100%)] items-center gap-2.5 rounded-[20px] py-2 pr-2 pl-3 [--squircle-r:12px]",
-								glassMenu(isLiquid),
+								"squircle pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden rounded-[24px] px-3 py-3 [--squircle-r:15px]",
+								isLiquid
+									? cn(glassVariantStyles.liquid, "text-white")
+									: cn(flatSurface("floating"), "text-flat-ink"),
 							)}
 						>
-							{/* Preview cluster — also the group drag handle. */}
-							<button
-								type="button"
-								draggable
-								onDragStart={handleTrayDragStart}
-								title={
-									total > 1
-										? `Drag to move ${total} items`
-										: "Drag to move this item"
-								}
-								aria-label={`Drag to move ${total} selected ${total === 1 ? "item" : "items"}`}
-								className="relative h-8 w-11 shrink-0 cursor-grab touch-none border-0 bg-transparent p-0 active:cursor-grabbing"
-							>
-								{previewItems.map((item, i) => (
-									<TrayMini
-										key={item.card?.id ?? item.folder?.id ?? String(i)}
-										index={i as 0 | 1 | 2}
-										card={item.card}
-										folder={item.folder}
-										isLiquid={isLiquid}
-									/>
-								))}
-								<span
-									aria-hidden="true"
-									className="absolute -right-1 -bottom-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--apple-blue)] px-1 font-semibold text-[10px] text-white tabular-nums"
-								>
-									{total > 99 ? "99+" : total}
-								</span>
-							</button>
-
-							<div className="min-w-0 flex-1 leading-tight">
-								<p className="truncate font-semibold text-[13px]">
-									{total} selected
-								</p>
-								<p
+							<div className="flex h-8 items-center justify-between">
+								<button
+									type="button"
+									onClick={clearSelection}
+									aria-label="Clear selection"
+									title="Clear selection"
 									className={cn(
-										"truncate text-[11px]",
-										isLiquid ? "text-white/65" : "text-flat-ink-muted",
+										"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+										isLiquid
+											? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-white/[0.18] hover:text-white"
+											: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink",
 									)}
 								>
-									{describeMoveGroup(selCards.length, selFolders.length)}
-									{sourceCount > 1 ? ` · from ${sourceCount} folders` : ""}
-								</p>
-							</div>
+									<Icon name="x" size={15} aria-hidden="true" />
+								</button>
 
-							<div className="flex shrink-0 items-center gap-1">
 								<DropdownMenu>
 									<DropdownMenuTrigger
 										render={
 											<button
 												type="button"
-												aria-label="Create from selection"
-												title="Create from selection"
+												aria-label="Selection actions"
+												title="Selection actions"
 												className={cn(
-													"inline-flex size-8 shrink-0 items-center justify-center rounded-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+													"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 													isLiquid
-														? "text-white/80 hover:bg-white/[0.12] hover:text-white aria-expanded:bg-white/[0.14]"
-														: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
+														? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-white/[0.18] hover:text-white aria-expanded:bg-white/[0.18]"
+														: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
 												)}
 											>
-												<Icon name="folder-plus" size={15} aria-hidden="true" />
+												<Icon name="ellipsis" size={16} aria-hidden="true" />
 											</button>
 										}
 									/>
@@ -308,7 +279,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										side="top"
 										align="end"
 										sideOffset={10}
-										className={cn(glassMenu(isLiquid), "min-w-52")}
+										className={cn(glassMenu(isLiquid), "min-w-56")}
 									>
 										<DropdownMenuGroup>
 											<DropdownMenuLabel
@@ -317,8 +288,15 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 													isLiquid ? "text-white/55" : "text-flat-ink-muted",
 												)}
 											>
-												Create from selection
+												Selection actions
 											</DropdownMenuLabel>
+											<DropdownMenuItem
+												className={glassMenuItem(isLiquid)}
+												onClick={() => openMoveDialog(selectedIds)}
+											>
+												<Icon name="folder-move" size={14} aria-hidden="true" />
+												Move to…
+											</DropdownMenuItem>
 											<DropdownMenuItem
 												className={glassMenuItem(isLiquid)}
 												onClick={() => startCreate("folder")}
@@ -342,52 +320,103 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										</DropdownMenuGroup>
 									</DropdownMenuContent>
 								</DropdownMenu>
+							</div>
+
+							{/* Preview cluster — the shelf's visual protagonist and group drag handle. */}
+							<div className="flex h-[100px] items-center justify-center">
 								<button
 									type="button"
-									onClick={() => openMoveDialog(selectedIds)}
-									className={cn(
-										"inline-flex h-8 shrink-0 items-center justify-center rounded-[12px] px-2.5 font-medium text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-										isLiquid
-											? "text-white/85 hover:bg-white/[0.12] hover:text-white"
-											: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink",
-									)}
-								>
-									Move to…
-								</button>
-								<button
-									type="button"
-									onClick={handleMoveHere}
-									disabled={!canMoveHere}
+									draggable
+									onDragStart={handleTrayDragStart}
 									title={
-										canMoveHere
-											? destName
-												? `Move here, to ${destName}`
-												: "Move here"
-											: (moveHereReason ?? "Can't move here")
+										total > 1
+											? `Drag to move ${total} items`
+											: "Drag to move this item"
 									}
 									aria-label={
-										canMoveHere
-											? `Move here${destName ? `, to ${destName}` : ""}`
-											: `Move here unavailable: ${moveHereReason ?? "invalid destination"}`
+										"Drag to move " +
+										total +
+										" selected " +
+										(total === 1 ? "item" : "items")
 									}
-									className="inline-flex h-8 shrink-0 items-center justify-center rounded-[12px] bg-[var(--apple-blue)] px-3 font-medium text-white text-xs transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+									className="relative h-[100px] w-[116px] shrink-0 cursor-grab touch-none border-0 bg-transparent p-0 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
 								>
-									Move here
-								</button>
-								<button
-									type="button"
-									onClick={clearSelection}
-									aria-label="Clear selection"
-									className={cn(
-										"inline-flex size-8 shrink-0 items-center justify-center rounded-[12px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-										isLiquid
-											? "text-white/70 hover:bg-white/[0.12] hover:text-white"
-											: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink",
-									)}
-								>
-									<Icon name="x" size={14} aria-hidden="true" />
+									<AnimatePresence initial={false} mode="popLayout">
+										{previewItems.map((item, i) => (
+											<TrayMini
+												key={item.card?.id ?? item.folder?.id ?? String(i)}
+												index={i as 0 | 1 | 2}
+												card={item.card}
+												folder={item.folder}
+												isLiquid={isLiquid}
+												reduceMotion={reduceMotion}
+											/>
+										))}
+									</AnimatePresence>
 								</button>
 							</div>
+
+							<div
+								role="status"
+								aria-live="polite"
+								className={cn(
+									"mx-auto inline-flex max-w-[92%] items-center justify-center rounded-full px-3 py-1.5 text-[12px] font-medium leading-none tracking-[-0.01em] tabular-nums",
+									isLiquid
+										? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+										: "bg-flat-sunken-raised text-flat-ink-muted shadow-control",
+								)}
+							>
+								<span className="truncate">{pillLabel}</span>
+							</div>
+
+							<AnimatePresence initial={false} mode="popLayout">
+								{canMoveHere && (
+									<motion.button
+										key="move-here"
+										layout
+										type="button"
+										onClick={handleMoveHere}
+										aria-label={
+											"Move here" + (destName ? ", to " + destName : "")
+										}
+										title={"Move here" + (destName ? ", to " + destName : "")}
+										initial={
+											reduceMotion
+												? { opacity: 0 }
+												: { opacity: 0, y: 6, scale: 0.97 }
+										}
+										animate={
+											reduceMotion
+												? { opacity: 1 }
+												: { opacity: 1, y: 0, scale: 1 }
+										}
+										exit={
+											reduceMotion
+												? { opacity: 0 }
+												: { opacity: 0, y: 4, scale: 0.98 }
+										}
+										transition={
+											reduceMotion
+												? { duration: 0.1 }
+												: {
+														layout: {
+															duration: 0.22,
+															ease: [0.23, 1, 0.32, 1],
+														},
+														opacity: {
+															duration: 0.16,
+															ease: [0.23, 1, 0.32, 1],
+														},
+														y: { duration: 0.2, ease: [0.23, 1, 0.32, 1] },
+														scale: { duration: 0.2, ease: [0.23, 1, 0.32, 1] },
+													}
+										}
+										className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-[12px] bg-[var(--apple-blue)] px-3.5 font-semibold text-[12px] text-white shadow-[0_6px_14px_rgba(10,132,255,0.24)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									>
+										Move here
+									</motion.button>
+								)}
+							</AnimatePresence>
 						</motion.div>
 					</div>
 				)}
@@ -417,10 +446,23 @@ function glassMenuItem(isLiquid: boolean) {
 	return cn("gap-2.5", glassDropdownItem(isLiquid));
 }
 
+function selectionPillLabel(cardCount: number, folderCount: number) {
+	if (cardCount > 0 && folderCount > 0) {
+		return describeMoveGroup(cardCount, folderCount);
+	}
+	if (cardCount > 0) {
+		return String(cardCount) + " bookmark" + (cardCount === 1 ? "" : "s");
+	}
+	if (folderCount > 0) {
+		return String(folderCount) + " folder" + (folderCount === 1 ? "" : "s");
+	}
+	return "Selected items";
+}
+
 const MINI_POS = [
-	"left-0 top-[5px] -rotate-6",
-	"left-[9px] top-[3px] rotate-[5deg]",
-	"left-[18px] top-[6px] -rotate-3",
+	"left-[4px] top-[18px] -rotate-6",
+	"left-[26px] top-0 rotate-[4deg]",
+	"left-[48px] top-[18px] -rotate-3",
 ] as const;
 
 function TrayMini({
@@ -428,41 +470,60 @@ function TrayMini({
 	card,
 	folder,
 	isLiquid,
+	reduceMotion,
 }: {
 	index: 0 | 1 | 2;
 	card: Card | null;
 	folder: Folder | null;
 	isLiquid: boolean;
+	reduceMotion: boolean;
 }) {
 	return (
-		<span
+		<motion.span
 			aria-hidden="true"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={
+				reduceMotion
+					? { duration: 0.1 }
+					: { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
+			}
 			className={cn(
-				"absolute flex size-[22px] items-center justify-center overflow-hidden rounded-[7px] border",
-				isLiquid
-					? "border-white/25 bg-black/40"
-					: "border-black/10 bg-flat-sunken-raised dark:border-white/10",
+				"absolute flex size-[64px] items-center justify-center",
+				"[filter:drop-shadow(0_5px_7px_rgba(15,23,42,0.28))]",
 				MINI_POS[index],
 			)}
 		>
 			{card ? (
-				<img
-					src={card.favicon ?? undefined}
-					alt=""
-					draggable={false}
-					className="size-3.5 rounded-[3px] object-contain"
-					onError={(e) => {
-						e.currentTarget.style.display = "none";
-					}}
-				/>
+				<>
+					<Icon
+						name="globe"
+						size={52}
+						className={isLiquid ? "text-white/55" : "text-flat-ink-muted/70"}
+						aria-hidden="true"
+					/>
+					{card.favicon ? (
+						<img
+							src={card.favicon}
+							alt=""
+							draggable={false}
+							className="squircle absolute size-14 rounded-[20px] object-contain [--squircle-r:12px]"
+							onError={(e) => {
+								e.currentTarget.style.display = "none";
+							}}
+						/>
+					) : null}
+				</>
 			) : folder ? (
 				<Icon
 					name="folder"
-					size={12}
-					className={isLiquid ? "text-white/80" : "text-flat-ink-muted"}
+					size={52}
+					fill="currentColor"
+					className="text-[var(--apple-blue)]"
 					aria-hidden="true"
 				/>
 			) : null}
-		</span>
+		</motion.span>
 	);
 }
