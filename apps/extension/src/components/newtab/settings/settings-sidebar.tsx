@@ -3,7 +3,7 @@ import {
 	SidebarContent,
 	SidebarHeader,
 } from "@klice-start/ui/components/sidebar";
-import { Icon, type IconName } from "@klice-start/ui/icons/icon";
+import { Icon } from "@klice-start/ui/icons/icon";
 import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,7 +12,9 @@ import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
 import { GeneralPane } from "./panes/general-pane";
+import { SettingsRootPane } from "./panes/root-settings-pane";
 import { SearchPane } from "./panes/search-pane";
+import { WallpaperPane } from "./panes/wallpaper-pane";
 import {
 	createSettingsNavigation,
 	pushSettingsNavigation,
@@ -29,52 +31,10 @@ import {
 	SETTINGS_HEADER_CONTROL,
 	SETTINGS_HEADER_INSET,
 	SETTINGS_HEADER_TRANSPORT_CONTROL,
-	SETTINGS_HOVER_WASH,
 	SETTINGS_RADIUS,
 	SETTINGS_SIDEBAR_SHELL,
 } from "./shared/settings-tokens";
 import { SettingsTransportControl } from "./shared/settings-transport-control";
-
-interface PreferenceCategory {
-	id: SettingsPaneId;
-	label: string;
-	/** One line of orientation — what the page is for, not a section title. */
-	description: string;
-	icon: IconName;
-}
-
-const CATEGORIES: readonly PreferenceCategory[] = [
-	{
-		id: "general",
-		label: "General",
-		description: "Layout, clock and greeting",
-		icon: "settings",
-	},
-	{
-		id: "appearance",
-		label: "Appearance",
-		description: "Theme, background and effects",
-		icon: "palette",
-	},
-	{
-		id: "search",
-		label: "Search",
-		description: "Search bar, engine and placeholder",
-		icon: "search",
-	},
-	{
-		id: "bookmarks",
-		label: "Bookmarks",
-		description: "Folders, links and backups",
-		icon: "bookmark",
-	},
-	{
-		id: "advanced",
-		label: "Advanced",
-		description: "Storage footprint and reset",
-		icon: "wrench",
-	},
-];
 
 /**
  * Settings lives in the app's shared layout, not in a portal. The motion slot
@@ -93,12 +53,14 @@ export function SettingsSidebar({
 	const [paneDirection, setPaneDirection] = useState<1 | -1>(1);
 	const reduceMotion = useReducedMotion() ?? false;
 	const contentRef = useRef<HTMLElement>(null);
+	const rootScrollTopRef = useRef(0);
 	const closeControlRef = useRef<HTMLButtonElement>(null);
 	const wasOpenRef = useRef(open);
 	const restoreFocusRef = useRef(false);
 
 	useEffect(() => {
 		if (!open) return;
+		rootScrollTopRef.current = 0;
 		setNavigation(createSettingsNavigation(initialPane));
 	}, [initialPane, open]);
 
@@ -126,15 +88,20 @@ export function SettingsSidebar({
 	const activePaneLabel = SETTINGS_PANE_LABELS[activePane];
 	const showRoot = navigation.root;
 
-	const navigateTo = useCallback((pane: SettingsPaneId) => {
-		setPaneDirection(1);
-		setNavigation((state) => pushSettingsNavigation(state, pane));
-	}, []);
+	const navigateTo = useCallback(
+		(pane: SettingsPaneId) => {
+			if (showRoot) {
+				rootScrollTopRef.current = contentRef.current?.scrollTop ?? 0;
+			}
+			setPaneDirection(1);
+			setNavigation((state) => pushSettingsNavigation(state, pane));
+		},
+		[showRoot],
+	);
 
 	const goRoot = useCallback(() => {
 		setPaneDirection(-1);
 		setNavigation((state) => stepSettingsNavigation(state, "back"));
-		contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
 	}, []);
 
 	const handleClose = useCallback(() => {
@@ -159,9 +126,19 @@ export function SettingsSidebar({
 	}, [handleClose, open]);
 
 	useEffect(() => {
-		if (!showRoot && activePane) {
-			contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
-		}
+		const frame = requestAnimationFrame(() => {
+			if (showRoot) {
+				contentRef.current?.scrollTo({
+					top: rootScrollTopRef.current,
+					behavior: "auto",
+				});
+				return;
+			}
+			if (activePane) {
+				contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
+			}
+		});
+		return () => cancelAnimationFrame(frame);
 	}, [activePane, showRoot]);
 
 	return (
@@ -239,102 +216,85 @@ export function SettingsSidebar({
 						)}
 						data-settings-ui="true"
 					>
-						{showRoot ? (
-							<main
-								className={cn(
-									"settings-content-scroll scrollbar-hidden min-h-0 flex-1 overflow-y-auto",
-									SETTINGS_CONTENT_PADDING,
-								)}
-							>
-								<nav aria-label="Preference sections">
-									<div className="flex flex-col gap-0.5">
-										{CATEGORIES.map((category) => (
-											<button
-												key={category.id}
-												type="button"
-												onClick={() => navigateTo(category.id)}
-												className={cn(
-													"group flex min-h-14 w-full items-center gap-3 bg-transparent px-2 py-2 text-left transition-colors duration-150 motion-reduce:transition-none",
-													SETTINGS_HOVER_WASH,
-													SETTINGS_RADIUS.surface,
-													SETTINGS_FOCUS_RING,
-												)}
-												data-settings-ui="true"
-											>
-												<Icon
-													name={category.icon}
-													size={18}
-													strokeWidth={1.75}
-													className="shrink-0 text-neutral-500 transition-colors group-hover:text-neutral-900 dark:text-neutral-400 dark:group-hover:text-neutral-100"
-													aria-hidden="true"
-												/>
-												<span className="min-w-0 flex-1">
-													<span className="block font-medium text-[13px] text-neutral-900 leading-[1.35] dark:text-neutral-100">
-														{category.label}
-													</span>
-													<span className="mt-0.5 block truncate text-[12px] text-neutral-500 leading-[1.35] dark:text-neutral-400">
-														{category.description}
-													</span>
-												</span>
-												<Icon
-													name="chevron-right"
-													size={15}
-													className="shrink-0 text-neutral-400 transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none dark:text-neutral-500"
-													aria-hidden="true"
-												/>
-											</button>
-										))}
-									</div>
-								</nav>
-							</main>
-						) : (
-							<main
-								id="settings-page-content"
-								ref={contentRef}
-								className={cn(
-									"settings-content-scroll scrollbar-hidden min-h-0 flex-1 overflow-y-auto",
-									SETTINGS_CONTENT_PADDING,
-								)}
-								aria-labelledby="settings-panel-title"
-							>
+						<main
+							id="settings-page-content"
+							ref={contentRef}
+							className={cn(
+								"settings-content-scroll scrollbar-hidden min-h-0 flex-1 overflow-y-auto",
+								SETTINGS_CONTENT_PADDING,
+							)}
+							aria-labelledby="settings-panel-title"
+						>
+							<div className="grid min-h-0 w-full">
 								<AnimatePresence
 									initial={false}
-									mode="wait"
+									mode="popLayout"
 									custom={paneDirection}
 								>
-									<motion.div
-										key={activePane}
-										initial={
-											reduceMotion
-												? { opacity: 0 }
-												: { opacity: 0, x: paneDirection * 16 }
-										}
-										animate={{ opacity: 1, x: 0 }}
-										exit={
-											reduceMotion
-												? { opacity: 0 }
-												: { opacity: 0, x: paneDirection * -12 }
-										}
-										transition={
-											reduceMotion
-												? { duration: DURATION.instant }
-												: { duration: DURATION.navigation, ease: EASE.out }
-										}
-										className="w-full"
-									>
-										{activePane === "general" && <GeneralPane />}
-										{activePane === "appearance" && <AppearancePane />}
-										{activePane === "search" && <SearchPane />}
-										{activePane === "bookmarks" && (
-											<BookmarksPane initialAction={initialAction} />
-										)}
-										{activePane === "advanced" && (
-											<AdvancedPane onCloseParent={onClose} />
-										)}
-									</motion.div>
+									{showRoot ? (
+										<motion.div
+											key="settings-root"
+											initial={
+												reduceMotion
+													? { opacity: 0 }
+													: { opacity: 0, x: paneDirection * 16 }
+											}
+											animate={{ opacity: 1, x: 0 }}
+											exit={
+												reduceMotion
+													? { opacity: 0 }
+													: { opacity: 0, x: paneDirection * -12 }
+											}
+											transition={
+												reduceMotion
+													? { duration: DURATION.instant }
+													: { duration: DURATION.navigation, ease: EASE.out }
+											}
+											className="w-full [grid-area:1/1]"
+											data-settings-root="true"
+										>
+											<SettingsRootPane onNavigate={navigateTo} />
+										</motion.div>
+									) : (
+										<motion.div
+											key={activePane}
+											initial={
+												reduceMotion
+													? { opacity: 0 }
+													: { opacity: 0, x: paneDirection * 16 }
+											}
+											animate={{ opacity: 1, x: 0 }}
+											exit={
+												reduceMotion
+													? { opacity: 0 }
+													: { opacity: 0, x: paneDirection * -12 }
+											}
+											transition={
+												reduceMotion
+													? { duration: DURATION.instant }
+													: { duration: DURATION.navigation, ease: EASE.out }
+											}
+											className="w-full [grid-area:1/1]"
+										>
+											{activePane === "general" && <GeneralPane />}
+											{activePane === "appearance" && (
+												<AppearancePane
+													onOpenWallpaper={() => navigateTo("wallpaper")}
+												/>
+											)}
+											{activePane === "wallpaper" && <WallpaperPane />}
+											{activePane === "search" && <SearchPane />}
+											{activePane === "bookmarks" && (
+												<BookmarksPane initialAction={initialAction} />
+											)}
+											{activePane === "advanced" && (
+												<AdvancedPane onCloseParent={onClose} />
+											)}
+										</motion.div>
+									)}
 								</AnimatePresence>
-							</main>
-						)}
+							</div>
+						</main>
 					</div>
 				</SidebarContent>
 			</Sidebar>

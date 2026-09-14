@@ -28,7 +28,7 @@ export const SETTINGS_RADIUS = {
 	/** The panel shell. */
 	panel: "rounded-[28px] [--squircle-r:17px]",
 	/** A section card, and floating surfaces at the same level (menus). */
-	section: "rounded-[20px] [--squircle-r:12px]",
+	section: "rounded-[22px] [--squircle-r:13px]",
 	/** A row-level surface: nav rows, media tiles, the drop zone. */
 	surface: "rounded-[16px] [--squircle-r:10px]",
 	/** A control: buttons, inputs, selects, folder pickers. */

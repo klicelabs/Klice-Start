@@ -71,6 +71,51 @@ const FIELD_LABEL =
 	"text-[12px] font-medium leading-[1.35] text-neutral-600 dark:text-neutral-300";
 
 /**
+ * The small, high-frequency part of Bookmarks belongs on the root Settings
+ * view. The management workflow below stays behind its dedicated subpage,
+ * while this component keeps one source of truth for preview preferences.
+ */
+export function BookmarkPreviewSettings() {
+	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
+	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
+
+	return (
+		<SectionCard>
+			<SettingRow
+				label="Screenshot previews"
+				icon="camera"
+				tooltip="Capture a preview of each site automatically."
+			>
+				<Switch
+					className={SETTINGS_SWITCH}
+					aria-label="Screenshot previews"
+					checked={thumbnailCapture.enabled}
+					onCheckedChange={(enabled: boolean) =>
+						updateThumbnailCapture({ enabled })
+					}
+				/>
+			</SettingRow>
+
+			<SettingsExpandable
+				expanded={thumbnailCapture.enabled}
+				label="Screenshot preview options"
+			>
+				<SliderRow
+					label="Capture delay"
+					icon="timer"
+					value={thumbnailCapture.delayMs || 1200}
+					suffix="ms"
+					min={400}
+					max={4000}
+					step={400}
+					onChange={(v) => updateThumbnailCapture({ delayMs: v })}
+				/>
+			</SettingsExpandable>
+		</SectionCard>
+	);
+}
+
+/**
  * Bookmarks is the one page that manages real content, so it is organised as
  * a small workflow rather than a list of switches:
  *
@@ -87,7 +132,6 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards as Card[]);
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
-	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
 
 	const addCard = useSetupStore((s) => s.addCard);
 	const updateCard = useSetupStore((s) => s.updateCard);
@@ -97,7 +141,6 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const updateFolder = useSetupStore((s) => s.updateFolder);
 	const moveFolder = useSetupStore((s) => s.moveFolder);
 	const deleteFolder = useSetupStore((s) => s.deleteFolder);
-	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
 
 	// Currently inspected folder in the settings pane
 	const [selectedFolderId, setSelectedFolderId] =
@@ -758,38 +801,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			</SectionCard>
 
 			{/* 3 — How previews are captured. */}
-			<SectionCard>
-				<SettingRow
-					label="Screenshot previews"
-					icon="camera"
-					tooltip="Capture a preview of each site automatically."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Screenshot previews"
-						checked={thumbnailCapture.enabled}
-						onCheckedChange={(enabled: boolean) =>
-							updateThumbnailCapture({ enabled })
-						}
-					/>
-				</SettingRow>
-
-				<SettingsExpandable
-					expanded={thumbnailCapture.enabled}
-					label="Screenshot preview options"
-				>
-					<SliderRow
-						label="Capture delay"
-						icon="timer"
-						value={thumbnailCapture.delayMs || 1200}
-						suffix="ms"
-						min={400}
-						max={4000}
-						step={400}
-						onChange={(v) => updateThumbnailCapture({ delayMs: v })}
-					/>
-				</SettingsExpandable>
-			</SectionCard>
+			<BookmarkPreviewSettings />
 
 			{/* 4 — Moving content in and out. */}
 			<SectionCard>
