@@ -21,12 +21,13 @@ html.dark body {
 	--apple-blue: #0a84ff;
 }
 
-/* Reserve scrollbar space permanently — eliminates layout shift when
-   navigating between pages with/without scroll. */
-html {
-	scrollbar-gutter: stable;
-	scrollbar-width: thin;
-	scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+/* The new-tab workspace owns its scroll regions. Keep the browser viewport
+   fixed so the Speed Dial's internal scroll is the only page-level scroll. */
+html,
+body,
+#root {
+	height: 100%;
+	overflow: hidden;
 }
 
 /* Switch — system blue when active, white thumb always */
@@ -315,12 +316,55 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	display: none;
 }
 
-/* Settings window scroll region.
+/* Settings sidebar scroll region.
    The scrollbar itself is hidden (see the `scrollbar-hidden` utility applied
-   alongside this class) so the region keeps the full padding box: the header's
-   Save button and the controls inside every card then share one exact right
-   edge. Wheel, trackpad, keyboard and touch scrolling all still work, and
-   `overscroll-behavior` keeps a scroll from escaping the panel. */
+   alongside this class) so the controls keep the full padding box. Wheel,
+   trackpad, keyboard and touch scrolling all still work, and
+   `overscroll-behavior` keeps a scroll from escaping the inner frame. */
+.settings-workspace {
+	--settings-sidebar-width: clamp(320px, 29vw, 408px);
+	--workspace-gutter: 8px;
+	/* One authored moment for the complete push transition. */
+	--workspace-motion-duration: 220ms;
+	--workspace-motion-ease: var(--ease-drawer);
+	transition: padding var(--workspace-motion-duration) var(--workspace-motion-ease);
+}
+
+/* The slot owns the only structural width transition. It includes the
+   inter-panel gutter, so the closed layout has no phantom gap. Its fixed
+   child is right-anchored in React, revealing the sidebar from the right
+   without reflowing the Settings content on every frame. */
+[data-settings-sidebar-slot] {
+	width: 0;
+	transition: width var(--workspace-motion-duration) var(--workspace-motion-ease);
+}
+[data-settings-sidebar-slot][data-settings-open="true"] {
+	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
+}
+
+/* The frame shares that exact transition. Gecko gets its calibrated fallback
+   radius while Chromium uses the larger radius with corner-shape:squircle. */
+[data-speed-dial-frame] {
+	border-radius: 0;
+	transition: border-radius var(--workspace-motion-duration) var(--workspace-motion-ease);
+}
+[data-speed-dial-frame][data-settings-open="true"] {
+	border-radius: 24px;
+}
+@supports not (corner-shape: squircle) {
+	[data-speed-dial-frame].squircle[data-settings-open="true"] {
+		border-radius: 15px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.settings-workspace,
+	[data-settings-sidebar-slot],
+	[data-speed-dial-frame] {
+		transition: none;
+	}
+}
+
 .settings-content-scroll {
 	overscroll-behavior: contain;
 }

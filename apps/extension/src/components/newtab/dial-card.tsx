@@ -81,7 +81,7 @@ export function DialCard({
 	}, [card.thumbId, getThumbnail]);
 
 	const fallbackColor = softGradientFromString(card.url);
-	const initial = (card.title || card.url).trim().charAt(0).toUpperCase();
+	const faviconSrc = card.favicon || faviconUrl(card.url);
 	const label = card.title || card.url;
 
 	function handleOpenNewTab() {
@@ -144,7 +144,7 @@ export function DialCard({
 					{dialLayout === "icon" ? (
 						<div className="flex flex-col items-center gap-1 p-2.5">
 							<img
-								src={card.favicon || faviconUrl(card.url)}
+								src={faviconSrc}
 								alt=""
 								draggable={false}
 								className="h-9 w-9 shrink-0 rounded-full object-cover"
@@ -171,7 +171,7 @@ export function DialCard({
 					) : (
 						<>
 							{/* Cover fills the bounded media box without stretching or letterbox
-						    bands. The fallback keeps its gradient while the screenshot loads. */}
+							    bands. The fallback keeps its gradient behind the site's favicon. */}
 							<div
 								className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 								style={{ background: fallbackColor }}
@@ -185,11 +185,16 @@ export function DialCard({
 										draggable={false}
 									/>
 								) : (
-									<div className="thumb-fallback flex min-h-0 flex-1 items-center justify-center font-semibold text-2xl text-white/60">
-										<span className="flex h-full w-full items-center justify-center">
-											{initial}
-										</span>
-									</div>
+									<img
+										src={faviconSrc}
+										alt=""
+										draggable={false}
+										className="favicon size-10 shrink-0 rounded-full object-contain"
+										onError={(e) => {
+											(e.target as HTMLImageElement).onerror = null;
+											(e.target as HTMLImageElement).src = faviconUrl(card.url);
+										}}
+									/>
 								)}
 							</div>
 
@@ -205,7 +210,7 @@ export function DialCard({
 									style={{ height: "var(--card-footer-h, 30px)" }}
 								>
 									<img
-										src={card.favicon || faviconUrl(card.url)}
+										src={faviconSrc}
 										alt=""
 										draggable={false}
 										className="favicon h-4 w-4 shrink-0 rounded-full"

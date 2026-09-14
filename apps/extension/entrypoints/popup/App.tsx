@@ -1,5 +1,6 @@
 import { Button } from "@klice-start/ui/components/button";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { findBookmarkInFolder } from "../../src/lib/bookmark-match";
 import { flattenForPicker } from "../../src/lib/folder-tree";
 import {
 	PENDING_SAVE_KEY,
@@ -10,11 +11,11 @@ import {
 	pendingSaveThumbId,
 } from "../../src/lib/pending-save";
 import { flushPersist } from "../../src/lib/storage";
-import { canonicalUrl, faviconUrl } from "../../src/lib/url";
+import { faviconUrl } from "../../src/lib/url";
 import { useImageStore } from "../../src/stores/image-store";
 import { useSetupStore } from "../../src/stores/setup-store";
 
-type SaveState = "idle" | "saving" | "saved" | "duplicate" | "error";
+type SaveState = "idle" | "saving" | "saved" | "updated" | "error";
 type PendingState =
 	| "loading"
 	| "ready"
@@ -218,32 +219,55 @@ export default function App() {
 	async function handleSave() {
 		if (!tabInfo || saveState === "saving") return;
 
-		const currentCards = useSetupStore.getState().cards;
-		const canon = canonicalUrl(tabInfo.url);
-		const isDuplicate = currentCards.some(
-			(c) => c.folderId === folderId && canonicalUrl(c.url) === canon,
-		);
-		if (isDuplicate) {
-			setSaveState("duplicate");
-			return;
-		}
-
 		setSaveState("saving");
+		let thumbId: string | null = null;
+		let persisted = false;
 		try {
-			let thumbId: string | null = null;
 			if (previewUrl) {
 				thumbId = await saveThumbnail(previewUrl);
 			}
-			useSetupStore.getState().addCard({
-				folderId,
-				title: titleRef.current?.value.trim() || tabInfo.title,
-				url: tabInfo.url,
-				favicon: tabInfo.favicon || faviconUrl(tabInfo.url),
-				thumbId,
-			});
-			setSaveState("saved");
+
+			// Re-read after the screenshot finishes: a context-menu save or a
+			// second popup may have written the same URL while this popup was open.
+			const store = useSetupStore.getState();
+			const existing = findBookmarkInFolder(store.cards, folderId, tabInfo.url);
+			const title = titleRef.current?.value.trim() || tabInfo.title;
+			if (existing) {
+				const previousThumbId = existing.thumbId;
+				const changes = {
+					title,
+					...(tabInfo.favicon ? { favicon: tabInfo.favicon } : {}),
+					...(thumbId ? { thumbId } : {}),
+				};
+				store.updateCard(existing.id, changes);
+				await flushPersist();
+				persisted = true;
+				if (thumbId && previousThumbId && previousThumbId !== thumbId) {
+					const stillReferenced = useSetupStore
+						.getState()
+						.cards.some((card) => card.thumbId === previousThumbId);
+					if (!stillReferenced) {
+						await deleteThumbnail(previousThumbId).catch(() => undefined);
+					}
+				}
+				setSaveState("updated");
+			} else {
+				store.addCard({
+					folderId,
+					title,
+					url: tabInfo.url,
+					favicon: tabInfo.favicon || faviconUrl(tabInfo.url),
+					thumbId,
+				});
+				await flushPersist();
+				persisted = true;
+				setSaveState("saved");
+			}
 			setTimeout(() => window.close(), 600);
 		} catch {
+			if (!persisted && thumbId) {
+				await deleteThumbnail(thumbId).catch(() => undefined);
+			}
 			setSaveState("error");
 		}
 	}
@@ -400,8 +424,8 @@ export default function App() {
 			? "Saving…"
 			: saveState === "saved"
 				? "Added ✓"
-				: saveState === "duplicate"
-					? "Already saved in this folder."
+				: saveState === "updated"
+					? "Bookmark updated ✓"
 					: saveState === "error"
 						? "Error saving."
 						: "";
@@ -462,7 +486,7 @@ export default function App() {
 							value={folderId}
 							onChange={(e) => {
 								setFolderId(e.target.value);
-								if (saveState === "duplicate") setSaveState("idle");
+								if (saveState !== "idle") setSaveState("idle");
 							}}
 							className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 font-medium text-white text-xs outline-none focus:border-white/30"
 						>
@@ -483,9 +507,9 @@ export default function App() {
 					{statusText && (
 						<p
 							className={`text-center font-medium text-[11px] ${
-								saveState === "saved"
+								saveState === "saved" || saveState === "updated"
 									? "text-emerald-400"
-									: saveState === "duplicate" || saveState === "error"
+									: saveState === "error"
 										? "text-red-400"
 										: "text-white/50"
 							}`}
@@ -498,10 +522,18 @@ export default function App() {
 						type="button"
 						size="sm"
 						onClick={handleSave}
-						disabled={saveState === "saving" || saveState === "saved"}
+						disabled={
+							saveState === "saving" ||
+							saveState === "saved" ||
+							saveState === "updated"
+						}
 						className="h-8 w-full rounded-md font-medium text-xs shadow-xs"
 					>
-						{saveState === "saved" ? "Saved ✓" : "Save Page"}
+						{saveState === "saved"
+							? "Saved ✓"
+							: saveState === "updated"
+								? "Updated ✓"
+								: "Save Page"}
 					</Button>
 				</div>
 			)}

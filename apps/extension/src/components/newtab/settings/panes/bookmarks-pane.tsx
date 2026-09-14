@@ -18,6 +18,8 @@ import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { findBookmarkInFolder } from "../../../../lib/bookmark-match";
+import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 import {
 	getBreadcrumb,
 	getDescendantIds,
@@ -25,14 +27,12 @@ import {
 	wouldCreateCycle,
 } from "../../../../lib/folder-tree";
 import {
-	canonicalUrl,
 	deriveTitleFromUrl,
 	faviconUrl,
 	isValidUrl,
 	normalizeUrl,
 } from "../../../../lib/url";
 import { cn } from "../../../../lib/utils";
-import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 import { exportBackup, importBackup } from "../../../../services/backup";
 import {
 	exportBookmarksHtml,
@@ -205,17 +205,13 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				message: "Enter a valid web address.",
 			};
 		}
-		const canon = canonicalUrl(trimmed);
-		const duplicate = cards.find(
-			(c) =>
-				c.folderId === linkFolderId &&
-				c.id !== editingCardId &&
-				canonicalUrl(c.url) === canon,
-		);
-		if (duplicate) {
+		const duplicate = findBookmarkInFolder(cards, linkFolderId, trimmed);
+		if (duplicate && duplicate.id !== editingCardId) {
 			return {
-				status: "duplicate" as const,
-				message: "This link is already in that folder.",
+				status: editingCardId ? ("duplicate" as const) : ("existing" as const),
+				message: editingCardId
+					? "This link is already in that folder."
+					: "Already saved here — saving will update it.",
 			};
 		}
 		return { status: "valid" as const, message: "" };
@@ -235,7 +231,8 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 	function handleSaveLink(e: React.FormEvent) {
 		e.preventDefault();
-		if (urlValidation.status !== "valid") return;
+		if (urlValidation.status !== "valid" && urlValidation.status !== "existing")
+			return;
 
 		const normalized = normalizeUrl(linkUrl.trim());
 		const finalTitle = (linkTitle.trim() || derivedTitle || normalized).trim();
@@ -252,13 +249,22 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				moveCard(editingCardId, linkFolderId);
 			}
 		} else {
-			addCard({
-				folderId: linkFolderId,
-				title: finalTitle,
-				url: normalized,
-				favicon: finalFavicon,
-				thumbId: null,
-			});
+			const existing = findBookmarkInFolder(cards, linkFolderId, normalized);
+			if (existing) {
+				updateCard(existing.id, {
+					title: finalTitle,
+					url: normalized,
+					favicon: finalFavicon,
+				});
+			} else {
+				addCard({
+					folderId: linkFolderId,
+					title: finalTitle,
+					url: normalized,
+					favicon: finalFavicon,
+					thumbId: null,
+				});
+			}
 		}
 
 		setIsAddingLink(false);
@@ -619,7 +625,17 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								}
 							/>
 							{urlValidation.message ? (
-								<p className="text-[12px] text-red-600 dark:text-red-400" role="alert">
+								<p
+									className={cn(
+										"text-[12px]",
+										urlValidation.status === "existing"
+											? "text-amber-600 dark:text-amber-400"
+											: "text-red-600 dark:text-red-400",
+									)}
+									role={
+										urlValidation.status === "existing" ? "status" : "alert"
+									}
+								>
 									{urlValidation.message}
 								</p>
 							) : null}
@@ -664,20 +680,25 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							<SettingsAction
 								tone="primary"
 								type="submit"
-								disabled={urlValidation.status !== "valid"}
+								disabled={
+									urlValidation.status !== "valid" &&
+									urlValidation.status !== "existing"
+								}
 							>
-								{editingCardId ? "Save changes" : "Add link"}
+								{editingCardId
+									? "Save changes"
+									: urlValidation.status === "existing"
+										? "Update link"
+										: "Add link"}
 							</SettingsAction>
 						</div>
 					</form>
 				) : bookmarkCount > 0 ? (
-					<div
-						role="region"
+					<section
 						aria-label={`Bookmarks in ${selectedFolder?.name ?? "this folder"}. Scroll for more.`}
-						tabIndex={0}
 						data-beui-smooth-scroll="true"
 						className={cn(
-							"flex max-h-64 scroll-smooth flex-col overflow-y-auto overscroll-contain pr-0.5",
+							"flex max-h-64 flex-col overflow-y-auto overscroll-contain scroll-smooth pr-0.5",
 							SETTINGS_FOCUS_RING,
 							SETTINGS_RADIUS.surface,
 						)}
@@ -721,7 +742,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								</div>
 							</SettingRow>
 						))}
-					</div>
+					</section>
 				) : (
 					<SettingsEmpty
 						icon="bookmark"
@@ -863,7 +884,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								className={cn("h-9 text-sm", SETTINGS_RADIUS.control)}
 							/>
 							{folderError ? (
-								<p className="text-[12px] text-red-600 dark:text-red-400" role="alert">
+								<p
+									className="text-[12px] text-red-600 dark:text-red-400"
+									role="alert"
+								>
 									{folderError}
 								</p>
 							) : null}
@@ -936,9 +960,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
-						<SettingsAction
-							onClick={() => setDeleteConfirmFolderId(null)}
-						>
+						<SettingsAction onClick={() => setDeleteConfirmFolderId(null)}>
 							Cancel
 						</SettingsAction>
 						<SettingsAction

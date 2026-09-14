@@ -1,6 +1,17 @@
-import { Popover } from "@klice-start/ui/components/popover";
+import {
+	SidebarInset,
+	SidebarProvider,
+} from "@klice-start/ui/components/sidebar";
 import { Toaster } from "@klice-start/ui/components/sonner";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LayoutGroup } from "motion/react";
+import {
+	type CSSProperties,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	AppearanceProvider,
 	useAppearance,
@@ -17,9 +28,9 @@ import { GlobalSearch } from "../../src/components/newtab/search/global-search";
 import { SearchBar } from "../../src/components/newtab/search/search-bar";
 import { SelectionTray } from "../../src/components/newtab/selection-tray";
 import {
-	SettingsDialog,
-	type SettingsDialogProps,
 	type SettingsPaneId,
+	SettingsSidebar,
+	type SettingsSidebarProps,
 } from "../../src/components/newtab/settings";
 import { NavigationToolbar } from "../../src/components/newtab/toolbar/navigation-toolbar";
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
@@ -244,7 +255,7 @@ export default function App() {
 	const [showSettings, setShowSettings] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
-		useState<SettingsDialogProps["initialAction"]>(undefined);
+		useState<SettingsSidebarProps["initialAction"]>(undefined);
 	const [showSearch, setShowSearch] = useState(false);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
@@ -289,7 +300,7 @@ export default function App() {
 
 	// Open Settings window with optional pane & action deep-linking
 	const handleOpenSettings = useCallback(
-		(pane?: SettingsPaneId, action?: SettingsDialogProps["initialAction"]) => {
+		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
 			setSettingsPane(pane);
 			setSettingsAction(action);
 			setShowSettings(true);
@@ -450,135 +461,161 @@ export default function App() {
 				onEnterRestMode={enterRestMode}
 				enabled={!restMode}
 			>
-				<Popover
+				<SidebarProvider
 					open={showSettings}
-					triggerId="settings-trigger"
-					modal={false}
 					onOpenChange={(isOpen) => {
 						setShowSettings(isOpen);
 						if (!isOpen) setSettingsAction(undefined);
 					}}
+					style={
+						{
+							"--sidebar-width": "var(--settings-sidebar-width)",
+						} as CSSProperties
+					}
+					className={cn(
+						"settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]",
+						showSettings && "p-[var(--workspace-gutter)]",
+					)}
 				>
-					<div
-						className={cn(
-							"relative flex min-h-screen flex-col text-white",
-							wakeActive && "klice-wake",
-						)}
-						data-rest-mode={restMode ? "true" : undefined}
-					>
-						<BackgroundLayer />
-						{restMode && <RestMode onExit={exitRestMode} />}
+					<LayoutGroup id="settings-workspace-transition">
+						<div
+							className="flex h-full min-h-0 min-w-0 flex-1"
+							data-settings-workspace-panels="true"
+						>
+							<SidebarInset
+								className="h-full min-h-0 min-w-0 bg-transparent p-0"
+								data-speed-dial-inset="true"
+							>
+								<div
+									className={cn(
+										"squircle relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+										wakeActive && "klice-wake",
+									)}
+									data-rest-mode={restMode ? "true" : undefined}
+									data-settings-open={showSettings ? "true" : "false"}
+									data-speed-dial-frame="true"
+								>
+									<BackgroundLayer contained />
+									{restMode && <RestMode onExit={exitRestMode} />}
 
-						<div className={cn(restMode && "rest-mode-hidden")}>
-							<NavigationToolbar
-								rootFolders={rootFolders}
-								activeRootId={activeRootId}
-								navigationDirection={navigation.direction}
-								breadcrumb={breadcrumb}
-								onBack={handleBack}
-								showBackNav={isSubfolder && navScrolledPast}
-								onSelectFolder={handleSelectFolder}
-								onAddFolder={(name) => addFolder(name, null)}
-								onNewRootFolder={() => handleNewSubfolder(null)}
-								onNewSubfolder={handleNewSubfolder}
-								onOpenSettings={() => handleOpenSettings()}
-								settingsOpen={showSettings}
-								settingsPopover
-								onOpenSearch={() => setShowSearch(true)}
-								onDeleteFolder={deleteFolder}
-								onReorderFolders={(fromId, toId, position) =>
-									reorderFolders(fromId, toId, position)
-								}
-								onDropCards={handleTabDrop}
-								onMoveFolders={handleTabDrop}
-								onMoveFolderToRoot={handleMoveFolderToRoot}
-								isRootFolder={isRootFolder}
-								canNestFolder={canNestFolder}
-							/>
-
-							{/* Hero: Clock + Web Search */}
-							<div className="pb-20">
-								<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
-									<ClockWidget />
-									<SearchBar />
-								</main>
-
-								{/* In-flow subfolder navigation between Search and grid. */}
-								{isSubfolder && currentFolder && parentFolder && (
 									<div
-										ref={sentinelRef}
-										className="mx-auto w-full px-6 pb-6"
-										style={{ maxWidth: gridMaxWidth }}
+										className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+										data-speed-dial-scroll="true"
 									>
-										<InlineFolderNav
-											currentName={currentFolder.name}
-											parentName={parentFolder.name}
-											onBack={handleBack}
-										/>
-									</div>
-								)}
-
-								<DialGrid
-									folderId={activeFolderId}
-									cards={cards}
-									subfolders={subfolders}
-									allCards={allCards}
-									allFolders={folders}
-									itemOrder={itemOrder}
-									cardCounts={cardCounts}
-									previewCards={previewCards}
-									onDelete={deleteCard}
-									onDeleteFolder={deleteFolder}
-									onOpenFolder={handleSelectFolder}
-									onNewSubfolder={handleNewSubfolder}
-									onMoveItems={(cardIds, folderIds, targetId) =>
-										moveItemsToContainer(targetId, cardIds, folderIds)
-									}
-									onLiveReorder={handleLiveReorder}
-									onCombineCards={handleCombineCards}
-									canNestFolder={canNestFolder}
-									navigation={navigation}
-									emptyState={
-										isEmpty ? (
-											<EmptyLanding
-												folderName={currentFolderName}
-												onAdd={() =>
-													handleOpenSettings("bookmarks", { type: "add-link" })
+										<div className={cn(restMode && "rest-mode-hidden")}>
+											<NavigationToolbar
+												rootFolders={rootFolders}
+												activeRootId={activeRootId}
+												navigationDirection={navigation.direction}
+												breadcrumb={breadcrumb}
+												onBack={handleBack}
+												showBackNav={isSubfolder && navScrolledPast}
+												onSelectFolder={handleSelectFolder}
+												onAddFolder={(name) => addFolder(name, null)}
+												onNewRootFolder={() => handleNewSubfolder(null)}
+												onNewSubfolder={handleNewSubfolder}
+												onOpenSettings={() => handleOpenSettings()}
+												settingsOpen={showSettings}
+												onOpenSearch={() => setShowSearch(true)}
+												onDeleteFolder={deleteFolder}
+												onReorderFolders={(fromId, toId, position) =>
+													reorderFolders(fromId, toId, position)
 												}
+												onDropCards={handleTabDrop}
+												onMoveFolders={handleTabDrop}
+												onMoveFolderToRoot={handleMoveFolderToRoot}
+												isRootFolder={isRootFolder}
+												canNestFolder={canNestFolder}
 											/>
-										) : null
-									}
-								/>
-							</div>
 
-							{/* Global Search overlay (Spotlight-style favorites/folders search) */}
-							<GlobalSearch
-								open={showSearch}
-								onClose={() => setShowSearch(false)}
-								onNavigateFolder={(id) => {
-									handleSelectFolder(id);
-									setShowSearch(false);
-								}}
-							/>
+											{/* Hero: Clock + Web Search */}
+											<div className="pb-20">
+												<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
+													<ClockWidget />
+													<SearchBar />
+												</main>
 
-							{/* Lightweight Move-to destination picker */}
-							<MoveToDialog />
+												{/* In-flow subfolder navigation between Search and grid. */}
+												{isSubfolder && currentFolder && parentFolder && (
+													<div
+														ref={sentinelRef}
+														className="mx-auto w-full px-6 pb-6"
+														style={{ maxWidth: gridMaxWidth }}
+													>
+														<InlineFolderNav
+															currentName={currentFolder.name}
+															parentName={parentFolder.name}
+															onBack={handleBack}
+														/>
+													</div>
+												)}
 
-							{/* Floating multi-select transport tray */}
-							<SelectionTray onNavigateFolder={handleSelectFolder} />
+												<DialGrid
+													folderId={activeFolderId}
+													cards={cards}
+													subfolders={subfolders}
+													allCards={allCards}
+													allFolders={folders}
+													itemOrder={itemOrder}
+													cardCounts={cardCounts}
+													previewCards={previewCards}
+													onDelete={deleteCard}
+													onDeleteFolder={deleteFolder}
+													onOpenFolder={handleSelectFolder}
+													onNewSubfolder={handleNewSubfolder}
+													onMoveItems={(cardIds, folderIds, targetId) =>
+														moveItemsToContainer(targetId, cardIds, folderIds)
+													}
+													onLiveReorder={handleLiveReorder}
+													onCombineCards={handleCombineCards}
+													canNestFolder={canNestFolder}
+													navigation={navigation}
+													emptyState={
+														isEmpty ? (
+															<EmptyLanding
+																folderName={currentFolderName}
+																onAdd={() =>
+																	handleOpenSettings("bookmarks", {
+																		type: "add-link",
+																	})
+																}
+															/>
+														) : null
+													}
+												/>
+											</div>
 
-							{/* macOS-style Settings Window */}
-							<SettingsDialog
+											{/* Global Search overlay (Spotlight-style favorites/folders search) */}
+											<GlobalSearch
+												open={showSearch}
+												onClose={() => setShowSearch(false)}
+												onNavigateFolder={(id) => {
+													handleSelectFolder(id);
+													setShowSearch(false);
+												}}
+											/>
+
+											{/* Lightweight Move-to destination picker */}
+											<MoveToDialog />
+
+											{/* Floating multi-select transport tray */}
+											<SelectionTray onNavigateFolder={handleSelectFolder} />
+										</div>
+									</div>
+								</div>
+							</SidebarInset>
+
+							<SettingsSidebar
 								open={showSettings}
 								onClose={() => setShowSettings(false)}
 								initialPane={settingsPane}
 								initialAction={settingsAction}
 							/>
-
-							<ThemedToaster />
 						</div>
-					</div>
-				</Popover>
+					</LayoutGroup>
+
+					<ThemedToaster />
+				</SidebarProvider>
 			</PageContextMenu>
 		</AppearanceProvider>
 	);

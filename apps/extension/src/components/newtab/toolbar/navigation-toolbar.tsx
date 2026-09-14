@@ -32,7 +32,6 @@ interface NavigationToolbarProps {
 	onNewSubfolder: (parentId: string | null) => void;
 	onOpenSettings: () => void;
 	settingsOpen?: boolean;
-	settingsPopover?: boolean;
 	onOpenSearch: () => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (
@@ -71,7 +70,6 @@ export function NavigationToolbar({
 	onNewSubfolder,
 	onOpenSettings,
 	settingsOpen = false,
-	settingsPopover = false,
 	onOpenSearch,
 	onDeleteFolder,
 	onReorderFolders,
@@ -170,14 +168,26 @@ export function NavigationToolbar({
 	);
 	const hasOverflow = hiddenFolders.length > 0;
 
-	// Floating header: detect scroll to fade in a subtle gradient mask
+	// Sticky header: detect scroll to fade in a subtle gradient mask
+	const headerRef = useRef<HTMLElement>(null);
 	const [scrolled, setScrolled] = useState(false);
 	useEffect(() => {
-		const handleScroll = () => {
-			setScrolled(window.scrollY > 20);
-		};
-		window.addEventListener("scroll", handleScroll, { passive: true });
-		return () => window.removeEventListener("scroll", handleScroll);
+		const scrollContainer = headerRef.current?.closest<HTMLElement>(
+			"[data-speed-dial-scroll]",
+		);
+		if (scrollContainer) {
+			const handleScroll = () => setScrolled(scrollContainer.scrollTop > 20);
+			handleScroll();
+			scrollContainer.addEventListener("scroll", handleScroll, {
+				passive: true,
+			});
+			return () => scrollContainer.removeEventListener("scroll", handleScroll);
+		}
+
+		const handleWindowScroll = () => setScrolled(window.scrollY > 20);
+		handleWindowScroll();
+		window.addEventListener("scroll", handleWindowScroll, { passive: true });
+		return () => window.removeEventListener("scroll", handleWindowScroll);
 	}, []);
 
 	return (
@@ -185,7 +195,7 @@ export function NavigationToolbar({
 			{/* Top edge gradient mask — only visible when page is scrolled */}
 			<div
 				className={cn(
-					"pointer-events-none fixed top-0 right-0 left-0 z-40 transition-opacity duration-300",
+					"pointer-events-none absolute top-0 right-0 left-0 z-40 transition-opacity duration-300",
 					"h-[calc(2.5rem+max(env(safe-area-inset-top),0.75rem))]",
 					isLiquid
 						? "bg-gradient-to-b from-black/75 via-black/40 to-transparent"
@@ -195,8 +205,11 @@ export function NavigationToolbar({
 				aria-hidden="true"
 			/>
 
-			{/* Toolbar — three areas on one centerline */}
-			<header className="fixed top-0 right-0 left-0 z-50 mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center px-5">
+			{/* Sticky toolbar — three areas on one centerline */}
+			<header
+				ref={headerRef}
+				className="sticky top-0 right-0 left-0 z-50 mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center px-5"
+			>
 				{/* Left: back button + current page title (no breadcrumb).
 				    Appears only once the in-flow control scrolls out of view
 				    (see App sentinel); empty spacer otherwise, keeping the
@@ -286,16 +299,9 @@ export function NavigationToolbar({
 						onSearch={onOpenSearch}
 						onSettings={onOpenSettings}
 						settingsOpen={settingsOpen}
-						settingsPopover={settingsPopover}
 					/>
 				</div>
 			</header>
-
-			{/* Spacer */}
-			<div
-				aria-hidden="true"
-				className="h-[calc(3.5rem+max(env(safe-area-inset-top),0.75rem))] shrink-0"
-			/>
 		</>
 	);
 }

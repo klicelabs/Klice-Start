@@ -48,14 +48,18 @@ export const SETTINGS_CARD = "px-2 py-1.5";
 /** The single row rhythm — 48px tall, 6px inset, 12px label↔control gap. */
 export const SETTINGS_ROW = "min-h-12 gap-x-3 px-1.5 py-2.5";
 
-/** Page-level gutter + breathing room, shared by the root and every pane. */
-export const SETTINGS_PAGE_INSET = "px-4 pt-1 pb-5";
+/**
+ * Inner padding for the scrollable Settings content frame. Both the root
+ * navigation and every pane inherit the same all-side gutter.
+ */
+export const SETTINGS_CONTENT_PADDING = "p-4";
 
 /**
- * Header padding = the panel gutter (16px), on both sides. That keeps the
- * leading close/back control on the same left edge as every card.
+ * Header padding follows the workspace gutter at the sidebar boundary. That
+ * keeps the leading back control and trailing close control on the same axes
+ * as the sidebar content frame.
  */
-export const SETTINGS_HEADER_INSET = "px-4";
+export const SETTINGS_HEADER_INSET = "px-[var(--workspace-gutter)]";
 
 /**
  * Type roles. Light-first with dark overrides — the panel follows the app
@@ -89,6 +93,14 @@ export const SETTINGS_FOCUS_RING_WITHIN =
 /** Header close/back control — a quiet circular hit target. */
 export const SETTINGS_HEADER_CONTROL =
 	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
+
+/**
+ * Header close control variant for Motion shared-layout transport. Its
+ * transform is intentionally excluded so layout projection remains the only
+ * owner of position during the workspace transition.
+ */
+export const SETTINGS_HEADER_TRANSPORT_CONTROL =
+	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
 
 export const SETTINGS_SELECT_TRIGGER =
 	"squircle min-w-0 max-w-full rounded-[14px] [--squircle-r:9px] !bg-none bg-neutral-900/[0.05] text-neutral-900 shadow-none hover:!bg-none hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
@@ -129,9 +141,19 @@ export const SETTINGS_ACTION_DANGER =
 export const SETTINGS_ICON_BUTTON =
 	"inline-flex size-8 shrink-0 items-center justify-center border-0 bg-transparent text-neutral-500 shadow-none transition-[background-color,color,transform,opacity] duration-150 hover:bg-neutral-900/[0.06] hover:text-neutral-900 active:scale-[0.94] dark:text-neutral-400 dark:hover:bg-white/[0.08] dark:hover:text-neutral-100";
 
-/** Panel surface — Flat in both themes, never Liquid Glass. */
-export const SETTINGS_PANEL_SURFACE =
-	"bg-white text-neutral-900 shadow-[0_18px_50px_rgb(0_0_0/0.22)] dark:bg-[#252525] dark:text-neutral-100 dark:shadow-[0_18px_50px_rgb(0_0_0/0.32)]";
+/**
+ * The sidebar's outer workspace surface. It is intentionally quiet and
+ * opaque: Settings remains Flat even while Speed Dial is Liquid Glass.
+ */
+export const SETTINGS_SIDEBAR_SHELL =
+	"bg-neutral-100 text-neutral-900 dark:bg-[#252525] dark:text-neutral-100";
+
+/**
+ * The inset content frame. Keeping this one tone step away from the shell
+ * gives the pages a home without changing any of their existing controls.
+ */
+export const SETTINGS_CONTENT_FRAME =
+	"bg-white text-neutral-900 shadow-[0_1px_0_rgb(255_255_255/0.65)] dark:bg-[#1d1d1d] dark:text-neutral-100 dark:shadow-[0_1px_0_rgb(255_255_255/0.04)]";
 
 /** Card surface — groups rows without adding visual weight. */
 export const SETTINGS_CARD_SURFACE =

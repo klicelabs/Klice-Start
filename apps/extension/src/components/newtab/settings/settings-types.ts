@@ -65,7 +65,7 @@ export interface SettingsPaneProps {
 	className?: string;
 }
 
-export interface SettingsDialogProps {
+export interface SettingsSidebarProps {
 	open: boolean;
 	onClose: () => void;
 	initialPane?: SettingsPaneId;

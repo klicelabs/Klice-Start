@@ -1,6 +1,6 @@
-export { SettingsDialog } from "./settings-dialog";
+export { SettingsSidebar } from "./settings-sidebar";
 export type {
-	SettingsDialogProps,
+	SettingsSidebarProps,
 	SettingsPaneId,
 	SettingsPaneProps,
 } from "./settings-types";

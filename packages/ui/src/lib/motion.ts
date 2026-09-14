@@ -68,6 +68,16 @@ export const EASE_CSS = {
 } as const;
 
 /**
+ * Shared layout transition for the Settings workspace and its transported
+ * control. Keeping this as one preset prevents the sidebar, frame and shared
+ * element from settling on different timelines.
+ */
+export const SHARED_LAYOUT_TRANSITION = {
+	duration: DURATION.navigation,
+	ease: EASE.drawer,
+} as const satisfies Transition;
+
+/**
  * Spring presets. Springs are preferred over duration-based easing for
  * anything the user can grab, interrupt or repeat rapidly.
  */

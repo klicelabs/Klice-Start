@@ -25,25 +25,45 @@ export const TOOLBAR = {
 	/** Transition for all interactive states — explicit properties, never transition-all. */
 	transition:
 		"transition-[background-color,color,transform,box-shadow,opacity] duration-150 ease-out active:scale-[0.97]",
+	/**
+	 * Same feedback language without transform interpolation. Motion layout
+	 * projection owns transform while this control travels into Settings.
+	 */
+	layoutTransition:
+		"transition-[background-color,color,box-shadow,opacity] duration-150 ease-out active:scale-[0.97]",
 } as const;
 
 /**
  * Shared control styles — liquid mode. Transparent by default; the enclosing
  * GlassSurface is the material. Active/hover paint over it.
  */
-export function toolbarControlLiquid(active: boolean): string {
+
+export function toolbarControlLiquid(
+	active: boolean,
+	sharedLayout = false,
+): string {
+	const transition = sharedLayout
+		? TOOLBAR.layoutTransition
+		: TOOLBAR.transition;
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-white/25 text-white shadow-sm`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${transition} bg-white/25 text-white shadow-sm`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-white/70 hover:text-white hover:bg-white/[0.12] active:bg-white/20`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${transition} text-white/70 hover:text-white hover:bg-white/[0.12] active:bg-white/20`;
 }
 
 /**
  * Shared control styles — classic mode.
  */
-export function toolbarControlClassic(active: boolean): string {
+
+export function toolbarControlClassic(
+	active: boolean,
+	sharedLayout = false,
+): string {
+	const transition = sharedLayout
+		? TOOLBAR.layoutTransition
+		: TOOLBAR.transition;
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} ${flatControl()} text-flat-ink`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${transition} ${flatControl()} text-flat-ink`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-flat-ink-muted hover:text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${transition} text-flat-ink-muted hover:text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
 }

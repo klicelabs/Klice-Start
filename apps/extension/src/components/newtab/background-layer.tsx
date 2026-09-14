@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_BACKGROUND, GRADIENTS, WALLPAPERS } from "../../lib/constants";
-import { cssUrl } from "../../lib/utils";
+import { cn, cssUrl } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
@@ -39,7 +39,7 @@ async function preDecodeImage(src: string): Promise<boolean> {
 	}
 }
 
-export function BackgroundLayer() {
+export function BackgroundLayer({ contained = false }: { contained?: boolean }) {
 	const type = useSetupStore((s) => s.settings.background.type);
 	const imageId = useSetupStore((s) => s.settings.background.imageId);
 	const wallpaperId = useSetupStore((s) => s.settings.background.wallpaperId);
@@ -179,7 +179,10 @@ export function BackgroundLayer() {
 	return (
 		<div
 			id="bg-layer"
-			className="fixed inset-0 -z-10 transition-[filter,opacity] duration-200 ease-out"
+			className={cn(
+				contained ? "absolute z-0" : "fixed -z-10",
+				"inset-0 transition-[filter,opacity] duration-200 ease-out",
+			)}
 			style={{
 				background: bgCss,
 				filter: `blur(${blur || 0}px) brightness(${brightness || 100}%)`,
