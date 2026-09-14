@@ -1,16 +1,29 @@
-import { EASE_OUT, SPRING_SEGMENT } from "@klice-start/ui/lib/ease";
+import {
+	EASE_OUT,
+	SPRING_DEPTH,
+	SPRING_SEGMENT,
+} from "@klice-start/ui/lib/ease";
+import type { Variants } from "motion/react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
-import { describeMoveGroup } from "../../lib/move-selection";
 import {
 	getOrderedRefs,
 	type ItemOrder,
 	type ItemRef,
 } from "../../lib/item-order";
+import { describeMoveGroup } from "../../lib/move-selection";
 import type { NavigationState } from "../../lib/navigation";
 import { useSelectionStore } from "../../stores/selection-store";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
@@ -21,9 +34,91 @@ import {
 	type FolderPreviewItem,
 } from "./folders/folder-preview-card";
 
+type GridMotionContext = NavigationState & {
+	stageWidth: number;
+	depthTravel: number;
+	reduceMotion: boolean;
+};
+
+const REDUCED_GRID_TRANSITION = { duration: 0.08, ease: EASE_OUT } as const;
+
+function gridTransition(context: GridMotionContext) {
+	if (context.reduceMotion) return REDUCED_GRID_TRANSITION;
+	return context.kind === "depth" ? SPRING_DEPTH : SPRING_SEGMENT;
+}
+
+const GRID_VARIANTS: Variants = {
+	initial: (context: GridMotionContext) => {
+		if (context.kind === "root") {
+			const offset =
+				context.direction === "forward"
+					? context.stageWidth
+					: -context.stageWidth;
+			return {
+				transform: `translate3d(${offset}px, 0, 0)`,
+				transition: gridTransition(context),
+			};
+		}
+
+		return context.direction === "forward"
+			? {
+					opacity: 0.96,
+					transform: `translate3d(0, ${context.depthTravel}px, 0) scale(0.985)`,
+					transition: gridTransition(context),
+				}
+			: {
+					opacity: 0.96,
+					transform: `translate3d(0, -${context.depthTravel}px, 0) scale(0.985)`,
+					transition: gridTransition(context),
+				};
+	},
+	animate: (context: GridMotionContext) =>
+		context.kind === "root"
+			? {
+					transform: "translate3d(0, 0, 0)",
+					transition: gridTransition(context),
+				}
+			: {
+					transform: "translate3d(0, 0, 0)",
+					opacity: 1,
+					transition: gridTransition(context),
+				},
+	exit: (context: GridMotionContext) => {
+		if (context.kind === "root") {
+			const offset =
+				context.direction === "forward"
+					? -context.stageWidth
+					: context.stageWidth;
+			return {
+				transform: `translate3d(${offset}px, 0, 0)`,
+				transition: gridTransition(context),
+			};
+		}
+
+		return context.direction === "forward"
+			? {
+					opacity: 0.88,
+					transform: `translate3d(0, -${context.depthTravel}px, 0) scale(0.985)`,
+					transition: gridTransition(context),
+				}
+			: {
+					opacity: 0.88,
+					transform: `translate3d(0, ${context.depthTravel}px, 0) scale(0.985)`,
+					transition: gridTransition(context),
+				};
+	},
+	"reduced-exit": {
+		opacity: 0,
+		transform: "translate3d(0, 0, 0)",
+		transition: REDUCED_GRID_TRANSITION,
+	},
+};
+
 interface DialGridProps {
 	/** Item-order container being rendered (the active folder id). */
 	folderId: string;
+	/** Layout commit signal used to refresh the navigation travel distance. */
+	layoutOpen?: boolean;
 	cards: Card[];
 	subfolders: Folder[];
 	allCards: Card[];
@@ -53,27 +148,9 @@ interface DialGridProps {
 	emptyState?: ReactNode;
 }
 
-const GRID_TRANSITIONS = {
-	"root-forward": {
-		initial: { opacity: 0, transform: "translate3d(104px, 0, 0)" },
-		exit: { opacity: 0, transform: "translate3d(-104px, 0, 0)" },
-	},
-	"root-back": {
-		initial: { opacity: 0, transform: "translate3d(-104px, 0, 0)" },
-		exit: { opacity: 0, transform: "translate3d(104px, 0, 0)" },
-	},
-	"depth-forward": {
-		initial: { opacity: 0, transform: "translate3d(0, 48px, 0)" },
-		exit: { opacity: 0, transform: "translate3d(0, -34px, 0)" },
-	},
-	"depth-back": {
-		initial: { opacity: 0, transform: "translate3d(0, -42px, 0)" },
-		exit: { opacity: 0, transform: "translate3d(0, 50px, 0)" },
-	},
-} as const;
-
 export function DialGrid({
 	folderId,
+	layoutOpen = false,
 	cards,
 	subfolders,
 	allCards,
@@ -98,6 +175,49 @@ export function DialGrid({
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
 	const gridMaxWidth = computeGridMaxWidth(tileSize, maxColumns);
 	const reduceMotion = useReducedMotion() ?? false;
+	const stageRef = useRef<HTMLDivElement>(null);
+	const [stageWidth, setStageWidth] = useState(0);
+
+	useLayoutEffect(() => {
+		const stage = stageRef.current;
+		if (!stage) return;
+
+		const updateStageWidth = () => {
+			const width = stage.getBoundingClientRect().width;
+			setStageWidth((currentWidth) =>
+				currentWidth === width ? currentWidth : width,
+			);
+		};
+
+		updateStageWidth();
+		const layoutFrame = layoutOpen
+			? requestAnimationFrame(updateStageWidth)
+			: 0;
+		window.addEventListener("resize", updateStageWidth);
+		return () => {
+			if (layoutFrame !== 0) cancelAnimationFrame(layoutFrame);
+			window.removeEventListener("resize", updateStageWidth);
+		};
+	}, [layoutOpen]);
+
+	const motionContext: GridMotionContext = {
+		...navigation,
+		stageWidth,
+		// Measure against the visible scroll viewport, never the full grid
+		// height. This lets depth navigation enter from the screen edge even
+		// when the current folder has many rows below the fold.
+		depthTravel: (() => {
+			const stage = stageRef.current;
+			const scrollContainer = stage?.closest<HTMLElement>(
+				"[data-speed-dial-scroll]",
+			);
+			if (!stage || !scrollContainer) return 96;
+			const stageRect = stage.getBoundingClientRect();
+			const scrollRect = scrollContainer.getBoundingClientRect();
+			return Math.max(96, Math.round(scrollRect.bottom - stageRect.top));
+		})(),
+		reduceMotion,
+	};
 
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	const toggle = useSelectionStore((s) => s.toggle);
@@ -140,27 +260,23 @@ export function DialGrid({
 		[cardById, folderById],
 	);
 
-	function movedToast(
-		cardIds: string[],
-		folderIds: string[],
-		targetFolderId: string,
-	) {
-		const total = cardIds.length + folderIds.length;
-		if (total === 0) return;
-		const dest = allFolders.find((f) => f.id === targetFolderId);
-		const movedCards = allCards.filter((c) => cardIds.includes(c.id)).length;
-		const movedFolders = allFolders.filter((f) =>
-			folderIds.includes(f.id),
-		).length;
-		toast.success(
-			total === 1 ? "Item moved" : `${total} items moved`,
-			{
+	const movedToast = useCallback(
+		(cardIds: string[], folderIds: string[], targetFolderId: string) => {
+			const total = cardIds.length + folderIds.length;
+			if (total === 0) return;
+			const dest = allFolders.find((f) => f.id === targetFolderId);
+			const movedCards = allCards.filter((c) => cardIds.includes(c.id)).length;
+			const movedFolders = allFolders.filter((f) =>
+				folderIds.includes(f.id),
+			).length;
+			toast.success(total === 1 ? "Item moved" : `${total} items moved`, {
 				description: dest
 					? `to ${dest.name} · ${describeMoveGroup(movedCards, movedFolders)}`
 					: describeMoveGroup(movedCards, movedFolders),
-			},
-		);
-	}
+			});
+		},
+		[allCards, allFolders],
+	);
 
 	// Multi-item drop on folder: cards move in; folders nest when valid.
 	// Cards already inside the target stay put (explicit drop ≠ reorder).
@@ -190,6 +306,7 @@ export function DialGrid({
 			onMoveItems,
 			canNestFolder,
 			clearSelection,
+			movedToast,
 		],
 	);
 
@@ -223,6 +340,7 @@ export function DialGrid({
 			onMoveItems,
 			canNestFolder,
 			clearSelection,
+			movedToast,
 		],
 	);
 
@@ -327,113 +445,104 @@ export function DialGrid({
 			style={{ maxWidth: gridMaxWidth }}
 			{...dnd.backgroundProps}
 		>
-			{orderedRefs.length === 0 ? (
-				emptyState
-			) : (
-				<div className="dial-grid-stage">
-					<AnimatePresence initial={false} mode="sync">
-						<motion.div
-							key={folderId}
-							initial={reduceMotion ? false : "initial"}
-							animate={{
-								opacity: 1,
-								transform: "translate3d(0, 0, 0)",
-							}}
-							exit={
-								reduceMotion
-									? { opacity: 0, transform: "translate3d(0, 0, 0)" }
-									: "exit"
-							}
-							variants={
-								GRID_TRANSITIONS[
-									`${navigation.kind}-${navigation.direction}` as keyof typeof GRID_TRANSITIONS
-								]
-							}
-							transition={
-								reduceMotion
-									? { duration: 0.08, ease: EASE_OUT }
-									: SPRING_SEGMENT
-							}
-							className="dial-grid will-change-[transform,opacity]"
-							data-tile={tileSize}
-							data-layout={dialLayout}
-							data-nav-direction={navigation.direction}
-							data-nav-kind={navigation.kind}
-							style={{
-								display: "grid",
-								gridTemplateColumns: "repeat(auto-fill, var(--tile-w, 148px))",
-								gap: "var(--grid-gap, 22px)",
-								justifyContent: "center",
-								gridArea: "1 / 1",
-								...cellAspectStyle,
-							}}
-						>
-							{orderedRefs.map((ref) => {
-								if (ref.kind === "folder") {
-									const folder = folderById.get(ref.id);
-									if (!folder) return null;
-									const isSelected = selectedIds.includes(folder.id);
+			<div ref={stageRef} className="dial-grid-stage overflow-hidden">
+				<AnimatePresence initial={false} mode="sync" custom={motionContext}>
+					<motion.div
+						key={folderId}
+						initial={
+							reduceMotion || (navigation.kind === "root" && stageWidth <= 0)
+								? false
+								: "initial"
+						}
+						animate="animate"
+						exit={reduceMotion ? "reduced-exit" : "exit"}
+						variants={GRID_VARIANTS}
+						custom={motionContext}
+						className="dial-grid"
+						data-tile={tileSize}
+						data-layout={dialLayout}
+						data-nav-direction={navigation.direction}
+						data-nav-kind={navigation.kind}
+						style={{
+							display: orderedRefs.length === 0 ? undefined : "grid",
+							gridTemplateColumns:
+								orderedRefs.length === 0
+									? undefined
+									: "repeat(auto-fill, var(--tile-w, 148px))",
+							gap:
+								orderedRefs.length === 0 ? undefined : "var(--grid-gap, 22px)",
+							justifyContent: orderedRefs.length === 0 ? undefined : "center",
+							gridArea: "1 / 1",
+							...cellAspectStyle,
+						}}
+					>
+						{orderedRefs.length === 0
+							? emptyState
+							: orderedRefs.map((ref) => {
+									if (ref.kind === "folder") {
+										const folder = folderById.get(ref.id);
+										if (!folder) return null;
+										const isSelected = selectedIds.includes(folder.id);
+										return (
+											<FolderPreviewCard
+												key={folder.id}
+												id={folder.id}
+												name={folder.name}
+												itemCount={cardCounts[folder.id] ?? 0}
+												previewCards={previewCards[folder.id] ?? []}
+												dragging={dnd.drag?.id === folder.id}
+												isSelected={isSelected}
+												showOpenAction={selectedIds.length > 0}
+												insertion={
+													dnd.insertion?.key === folder.id
+														? dnd.insertion.position
+														: null
+												}
+												dropActive={dnd.nestId === folder.id}
+												onClick={(e) =>
+													handleFolderClick(e, folder.id, () =>
+														onOpenFolder(folder.id),
+													)
+												}
+												onOpen={onOpenFolder}
+												onNewSubfolder={onNewSubfolder}
+												onDelete={onDeleteFolder}
+												dragProps={dnd.getItemDragProps({
+													kind: "folder",
+													id: folder.id,
+												})}
+												className="dial-cell"
+											/>
+										);
+									}
+									const card = cardById.get(ref.id);
+									if (!card) return null;
+									const isSelected = selectedIds.includes(card.id);
 									return (
-										<FolderPreviewCard
-											key={folder.id}
-											id={folder.id}
-											name={folder.name}
-											itemCount={cardCounts[folder.id] ?? 0}
-											previewCards={previewCards[folder.id] ?? []}
-											dragging={dnd.drag?.id === folder.id}
+										<DialCard
+											key={card.id}
+											card={card}
+											onDelete={onDelete}
 											isSelected={isSelected}
-											showOpenAction={selectedIds.length > 0}
+											onClick={(e) => handleCardClick(e, card.id)}
+											dragProps={dnd.getItemDragProps({
+												kind: "card",
+												id: card.id,
+											})}
 											insertion={
-												dnd.insertion?.key === folder.id
+												dnd.insertion?.key === card.id
 													? dnd.insertion.position
 													: null
 											}
-											dropActive={dnd.nestId === folder.id}
-											onClick={(e) =>
-												handleFolderClick(e, folder.id, () =>
-													onOpenFolder(folder.id),
-												)
-											}
-											onOpen={onOpenFolder}
-											onNewSubfolder={onNewSubfolder}
-											onDelete={onDeleteFolder}
-											dragProps={dnd.getItemDragProps({
-												kind: "folder",
-												id: folder.id,
-											})}
+											combineActive={dnd.combineKey === card.id}
+											dragging={dnd.drag?.id === card.id}
 											className="dial-cell"
 										/>
 									);
-								}
-								const card = cardById.get(ref.id);
-								if (!card) return null;
-								const isSelected = selectedIds.includes(card.id);
-								return (
-									<DialCard
-										key={card.id}
-										card={card}
-										onDelete={onDelete}
-										isSelected={isSelected}
-										onClick={(e) => handleCardClick(e, card.id)}
-										dragProps={dnd.getItemDragProps({
-											kind: "card",
-											id: card.id,
-										})}
-										insertion={
-											dnd.insertion?.key === card.id
-												? dnd.insertion.position
-												: null
-										}
-										combineActive={dnd.combineKey === card.id}
-										dragging={dnd.drag?.id === card.id}
-										className="dial-cell"
-									/>
-								);
-							})}
-						</motion.div>
-					</AnimatePresence>
-				</div>
-			)}
+								})}
+					</motion.div>
+				</AnimatePresence>
+			</div>
 		</section>
 	);
 }

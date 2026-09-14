@@ -10,10 +10,10 @@ import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../lib/dnd";
 import {
 	glassCardFooter,
+	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
 	glassFocusRing,
-	glassMaterial,
 	glassMenu,
 } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
@@ -98,14 +98,13 @@ export function DialCard({
 			<ContextMenuTrigger
 				data-selected={isSelected ? "true" : undefined}
 				className={cn(
-					// Calm by default: no hover lift/translate/glow. Hover only
-					// deepens the shadow a whisper via drop-shadow (a filter, so
-					// the glass material's own box-shadow stack is untouched).
+					// Calm by default: no hover lift/translate/glow. The card's
+					// material stays local to its own rounded surface.
 					// `cursor-default` is explicit because the card renders as an
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
-					glassMaterial(isLiquid),
+					glassCardMaterial(isLiquid),
 					glassFocusRing(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",

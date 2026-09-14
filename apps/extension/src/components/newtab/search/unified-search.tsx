@@ -1,5 +1,6 @@
 "use client";
 
+import { SharedLayoutBg } from "@klice-start/ui/components/motion/shared-layout-bg";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useReducedMotion } from "motion/react";
 import {
@@ -18,7 +19,7 @@ import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
 import { getBreadcrumb } from "../../../lib/folder-tree";
 import { glassText } from "../../../lib/glass";
-import { searchIndex } from "../../../lib/search-index";
+import { createSearchIndex } from "../../../lib/search-index";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
@@ -92,6 +93,13 @@ export const UnifiedSearch = forwardRef<
 		iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[engineId] : null;
 	const { svgXml, isLoading } = useSvgIcon(svglTitle);
 	const showEngineLogo = iconMode === "engine" && logoFailedFor !== engineId;
+	const folderPathById = useMemo(() => {
+		const paths = new Map<string, string>();
+		for (const folder of folders) {
+			paths.set(folder.id, displayPath(folders, folder.id));
+		}
+		return paths;
+	}, [folders]);
 
 	// Klice does not persist visit telemetry in the Card model yet. Keep the
 	// empty state useful with a deterministic relevance fallback: authored
@@ -130,9 +138,13 @@ export const UnifiedSearch = forwardRef<
 		[cards],
 	);
 
+	const localSearchIndex = useMemo(
+		() => createSearchIndex(cards, folders),
+		[cards, folders],
+	);
 	const localResults = useMemo(
-		() => searchIndex(query, cards, folders),
-		[query, cards, folders],
+		() => localSearchIndex(query),
+		[localSearchIndex, query],
 	);
 
 	useEffect(() => {
@@ -381,10 +393,11 @@ export const UnifiedSearch = forwardRef<
 			/>
 		);
 
-	const groupLabel = (label: string) => (
+	const groupLabel = (label: string, key: string) => (
 		<div
+			key={key}
 			className={cn(
-				"px-3 pt-2 pb-1 font-semibold text-[10px] uppercase tracking-[0.12em]",
+				"px-3 pt-2 pb-1 font-medium text-[11px]",
 				glassText(isLiquid, "muted"),
 			)}
 		>
@@ -439,21 +452,144 @@ export const UnifiedSearch = forwardRef<
 					{card.title || card.url}
 				</span>
 				<span className="block truncate text-[11px] opacity-60">
-					{displayPath(folders, card.folderId)}
+					{folderPathById.get(card.folderId) ?? ""}
 				</span>
 			</span>
 		</>
 	);
+
+	const resultNodes: React.ReactNode[] = [];
+	const trimmedQuery = query.trim();
+	if (!trimmedQuery) {
+		const emptySuggestionValues =
+			suggestions.length > 0
+				? suggestions.slice(0, 4)
+				: fallbackSuggestionQueries;
+		if (emptySuggestionValues.length > 0) {
+			resultNodes.push(groupLabel("Suggestions", "suggestions-label"));
+			for (const value of emptySuggestionValues) {
+				resultNodes.push(
+					option(
+						{
+							type: "suggestion",
+							id: `suggestion:${value}`,
+							query: value,
+							source: suggestions.length > 0 ? "web" : "local",
+						},
+						<>
+							<Icon name="search" size={16} className="shrink-0 opacity-65" />
+							<span className="truncate text-[14px]">{value}</span>
+						</>,
+					),
+				);
+			}
+		}
+
+		if (frequentCards.length > 0) {
+			resultNodes.push(groupLabel("Frequently visited", "frequent-label"));
+			for (const card of frequentCards) {
+				resultNodes.push(
+					option(
+						{ type: "frequent", id: `frequent:${card.id}`, data: card },
+						bookmarkContent(card),
+					),
+				);
+			}
+		}
+
+		if (emptySuggestionValues.length === 0 && frequentCards.length === 0) {
+			resultNodes.push(
+				<p
+					key="empty-results"
+					className={cn(
+						"px-3 py-8 text-center text-[13px]",
+						glassText(isLiquid, "muted"),
+					)}
+				>
+					Type to search Klice or the web
+				</p>,
+			);
+		}
+	} else {
+		if (suggestions.length > 0) {
+			resultNodes.push(groupLabel("Search suggestions", "suggestions-label"));
+			for (const value of suggestions.slice(0, 4)) {
+				resultNodes.push(
+					option(
+						{
+							type: "suggestion",
+							id: `suggestion:${value}`,
+							query: value,
+							source: "web",
+						},
+						<>
+							<Icon name="search" size={16} className="shrink-0 opacity-65" />
+							<span className="truncate text-[14px]">{value}</span>
+						</>,
+					),
+				);
+			}
+		}
+
+		if (localResults.folders.length > 0 || localResults.sites.length > 0) {
+			resultNodes.push(groupLabel("Klice", "klice-label"));
+			for (const folder of localResults.folders) {
+				resultNodes.push(
+					option(
+						{ type: "folder", id: `folder:${folder.id}`, data: folder },
+						<>
+							<Icon name="folder" size={17} className="shrink-0 opacity-70" />
+							<span className="min-w-0 truncate">
+								<span className="block truncate font-medium text-[14px]">
+									{folder.name}
+								</span>
+								<span className="block truncate text-[11px] opacity-60">
+									{folderPathById.get(folder.id) ?? ""}
+								</span>
+							</span>
+						</>,
+					),
+				);
+			}
+			for (const card of localResults.sites) {
+				resultNodes.push(
+					option(
+						{ type: "bookmark", id: `bookmark:${card.id}`, data: card },
+						bookmarkContent(card),
+					),
+				);
+			}
+		}
+
+		resultNodes.push(groupLabel("Web", "web-label"));
+		resultNodes.push(
+			option(
+				{ type: "web", id: "web-search", query: trimmedQuery },
+				<>
+					<Icon name="globe" size={16} className="shrink-0 opacity-70" />
+					<span className="min-w-0 truncate">
+						<span className="block truncate font-medium text-[14px]">
+							Search {engine.label} for “{trimmedQuery}”
+						</span>
+						<span className="block truncate text-[11px] opacity-60">
+							Open web search
+						</span>
+					</span>
+				</>,
+			),
+		);
+	}
 
 	return (
 		<div
 			ref={shellRef}
 			className="relative w-full max-w-2xl"
 			data-unified-search
+			data-search-open={open ? "true" : "false"}
 		>
 			<GlassSurface
 				className={cn(
-					"relative w-full flex-col items-stretch overflow-hidden will-change-[height,border-radius]",
+					"relative w-full flex-col items-stretch overflow-hidden",
 					!open && "hover:brightness-[1.04]",
 				)}
 				style={{
@@ -543,7 +679,7 @@ export const UnifiedSearch = forwardRef<
 					aria-hidden={!open}
 					inert={!open}
 					className={cn(
-						"absolute top-14 right-0 left-0 max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto px-2 pb-2 will-change-[transform,opacity]",
+						"absolute top-14 right-0 left-0 max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto px-2 pb-2",
 						isLiquid ? "border-white/10" : "border-separator-groove",
 					)}
 					style={{
@@ -555,155 +691,15 @@ export const UnifiedSearch = forwardRef<
 						transition: reduceMotion ? "none" : SEARCH_CONTENT_CSS,
 					}}
 				>
-					{!query.trim() ? (
-						<>
-							{(suggestions.length > 0 ||
-								fallbackSuggestionQueries.length > 0) && (
-								<>
-									{groupLabel("Suggestions")}
-									{(suggestions.length > 0
-										? suggestions.slice(0, 4)
-										: fallbackSuggestionQueries
-									).map((value) =>
-										option(
-											{
-												type: "suggestion",
-												id: `suggestion:${value}`,
-												query: value,
-												source: suggestions.length > 0 ? "web" : "local",
-											},
-											<>
-												<Icon
-													name="search"
-													size={16}
-													className="shrink-0 opacity-65"
-												/>
-												<span className="truncate text-[14px]">{value}</span>
-											</>,
-										),
-									)}
-								</>
-							)}
-
-							{frequentCards.length > 0 && (
-								<>
-									{groupLabel("Frequently visited")}
-									{frequentCards.map((card) =>
-										option(
-											{
-												type: "frequent",
-												id: `frequent:${card.id}`,
-												data: card,
-											},
-											bookmarkContent(card),
-										),
-									)}
-								</>
-							)}
-
-							{suggestions.length === 0 &&
-								fallbackSuggestionQueries.length === 0 &&
-								frequentCards.length === 0 && (
-									<p
-										className={cn(
-											"px-3 py-8 text-center text-[13px]",
-											glassText(isLiquid, "muted"),
-										)}
-									>
-										Type to search Klice or the web
-									</p>
-								)}
-						</>
-					) : (
-						<>
-							{suggestions.length > 0 && (
-								<>
-									{groupLabel("Search suggestions")}
-									{suggestions.slice(0, 4).map((value) =>
-										option(
-											{
-												type: "suggestion",
-												id: `suggestion:${value}`,
-												query: value,
-												source: "web",
-											},
-											<>
-												<Icon
-													name="search"
-													size={16}
-													className="shrink-0 opacity-65"
-												/>
-												<span className="truncate text-[14px]">{value}</span>
-											</>,
-										),
-									)}
-								</>
-							)}
-
-							{(localResults.folders.length > 0 ||
-								localResults.sites.length > 0) && (
-								<>
-									{groupLabel("Klice")}
-									{localResults.folders.map((folder) =>
-										option(
-											{
-												type: "folder",
-												id: `folder:${folder.id}`,
-												data: folder,
-											},
-											<>
-												<Icon
-													name="folder"
-													size={17}
-													className="shrink-0 opacity-70"
-												/>
-												<span className="min-w-0 truncate">
-													<span className="block truncate font-medium text-[14px]">
-														{folder.name}
-													</span>
-													<span className="block truncate text-[11px] opacity-60">
-														{displayPath(folders, folder.id)}
-													</span>
-												</span>
-											</>,
-										),
-									)}
-								</>
-							)}
-
-							{localResults.sites.length > 0 &&
-								localResults.sites.map((card) =>
-									option(
-										{
-											type: "bookmark",
-											id: `bookmark:${card.id}`,
-											data: card,
-										},
-										bookmarkContent(card),
-									),
-								)}
-
-							{groupLabel("Web")}
-							{option(
-								{ type: "web", id: "web-search", query: query.trim() },
-								<>
-									<Icon
-										name="globe"
-										size={16}
-										className="shrink-0 opacity-70"
-									/>
-									<span className="min-w-0 truncate">
-										<span className="block truncate font-medium text-[14px]">
-											Search {engine.label} for “{query.trim()}”
-										</span>
-										<span className="block truncate text-[11px] opacity-60">
-											Open web search
-										</span>
-									</span>
-								</>,
-							)}
-						</>
-					)}
+					<SharedLayoutBg
+						inset={8}
+						pillClassName={
+							isLiquid ? "bg-white/[0.08]" : "bg-flat-sunken-raised"
+						}
+						className="gap-0.5"
+					>
+						{resultNodes}
+					</SharedLayoutBg>
 				</div>
 			</GlassSurface>
 		</div>

@@ -5,9 +5,21 @@ export interface SearchResult {
 	folders: Folder[];
 }
 
-function scoreCard(card: Card, q: string): number {
-	const title = card.title.toLowerCase();
-	const url = card.url.toLowerCase();
+export type SearchIndex = (query: string) => SearchResult;
+
+interface IndexedCard {
+	data: Card;
+	title: string;
+	url: string;
+}
+
+interface IndexedFolder {
+	data: Folder;
+	name: string;
+}
+
+function scoreCard(card: IndexedCard, q: string): number {
+	const { title, url } = card;
 
 	if (title === q) return 100;
 	if (title.startsWith(q)) return 80;
@@ -22,12 +34,59 @@ function scoreCard(card: Card, q: string): number {
 	return 0;
 }
 
-function scoreFolder(folder: Folder, q: string): number {
-	const name = folder.name.toLowerCase();
+function scoreFolder(folder: IndexedFolder, q: string): number {
+	const { name } = folder;
 	if (name === q) return 100;
 	if (name.startsWith(q)) return 80;
 	if (name.includes(q)) return 60;
 	return 0;
+}
+
+/**
+ * Build the normalized search data once for a cards/folders snapshot.
+ * Queries only score the cached strings and never rebuild the index.
+ */
+export function createSearchIndex(
+	cards: Card[],
+	folders: Folder[],
+): SearchIndex {
+	const indexedCards: IndexedCard[] = cards.map((card) => ({
+		data: card,
+		title: card.title.toLowerCase(),
+		url: card.url.toLowerCase(),
+	}));
+	const indexedFolders: IndexedFolder[] = folders.map((folder) => ({
+		data: folder,
+		name: folder.name.toLowerCase(),
+	}));
+
+	return (query) => {
+		const q = query.trim().toLowerCase();
+		if (!q) return { sites: [], folders: [] };
+
+		const scoredSites: Array<{ card: IndexedCard; score: number }> = [];
+		for (const card of indexedCards) {
+			const score = scoreCard(card, q);
+			if (score > 0) scoredSites.push({ card, score });
+		}
+		scoredSites.sort(
+			(a, b) => b.score - a.score || a.card.data.order - b.card.data.order,
+		);
+
+		const scoredFolders: Array<{ folder: IndexedFolder; score: number }> = [];
+		for (const folder of indexedFolders) {
+			const score = scoreFolder(folder, q);
+			if (score > 0) scoredFolders.push({ folder, score });
+		}
+		scoredFolders.sort(
+			(a, b) => b.score - a.score || a.folder.data.order - b.folder.data.order,
+		);
+
+		return {
+			sites: scoredSites.slice(0, 16).map(({ card }) => card.data),
+			folders: scoredFolders.slice(0, 8).map(({ folder }) => folder.data),
+		};
+	};
 }
 
 /**
@@ -39,27 +98,5 @@ export function searchIndex(
 	cards: Card[],
 	folders: Folder[],
 ): SearchResult {
-	const q = query.trim().toLowerCase();
-	if (!q) return { sites: [], folders: [] };
-
-	const scoredSites: Array<{ card: Card; score: number }> = [];
-	for (const card of cards) {
-		const score = scoreCard(card, q);
-		if (score > 0) scoredSites.push({ card, score });
-	}
-	scoredSites.sort((a, b) => b.score - a.score || a.card.order - b.card.order);
-
-	const scoredFolders: Array<{ folder: Folder; score: number }> = [];
-	for (const folder of folders) {
-		const score = scoreFolder(folder, q);
-		if (score > 0) scoredFolders.push({ folder, score });
-	}
-	scoredFolders.sort(
-		(a, b) => b.score - a.score || a.folder.order - b.folder.order,
-	);
-
-	return {
-		sites: scoredSites.slice(0, 16).map((s) => s.card),
-		folders: scoredFolders.slice(0, 8).map((f) => f.folder),
-	};
+	return createSearchIndex(cards, folders)(query);
 }

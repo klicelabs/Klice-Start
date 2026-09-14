@@ -10,10 +10,10 @@ import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
 import {
 	glassCardFooter,
+	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
 	glassFocusRing,
-	glassMaterial,
 	glassMenu,
 } from "../../../lib/glass";
 import { cn, softGradientFromString } from "../../../lib/utils";
@@ -99,7 +99,7 @@ export function FolderPreviewCard({
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
 					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-					glassMaterial(isLiquid),
+					glassCardMaterial(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
 					dropActive && cn("scale-[1.02]", glassDropRing(isLiquid)),

@@ -37,15 +37,18 @@ import {
 import type { Folder } from "../../../types";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
+import { FolderTabsOverflow } from "./folder-tabs-overflow";
 import { GlassSurface } from "./glass-surface";
 
 interface FolderTabsProps {
 	folders: Folder[];
+	hiddenFolders: Folder[];
 	activeRootId: string;
 	navigationDirection: NavigationDirection;
 	/** Inline "+" affordance. Only true while the lane has room (no overflow). */
 	showAddButton?: boolean;
 	onAddRoot?: () => void;
+	onAddFolder: (name: string) => string;
 	onSelectFolder: (id: string) => void;
 	onNewRootFolder?: () => void;
 	onNewSubfolder?: (parentId: string) => void;
@@ -76,10 +79,12 @@ interface FolderTabsProps {
  */
 export function FolderTabs({
 	folders,
+	hiddenFolders,
 	activeRootId,
 	navigationDirection,
 	showAddButton = false,
 	onAddRoot,
+	onAddFolder,
 	onSelectFolder,
 	onNewRootFolder,
 	onNewSubfolder,
@@ -115,9 +120,7 @@ export function FolderTabs({
 		suppressNav.current = true;
 		// Tabs are always roots: selecting one enters (or stays in) the
 		// roots domain, intentionally replacing any content selection.
-		useSelectionStore
-			.getState()
-			.toggle({ id, kind: "folder", sourceId: null });
+		useSelectionStore.getState().toggle({ id, kind: "folder", sourceId: null });
 	}
 
 	return (
@@ -176,6 +179,17 @@ export function FolderTabs({
 				>
 					<Icon name="plus" size={15} />
 				</button>
+			)}
+			{hiddenFolders.length > 0 && (
+				<FolderTabsOverflow
+					hiddenFolders={hiddenFolders}
+					activeRootId={activeRootId}
+					onSelectFolder={onSelectFolder}
+					onAddFolder={onAddFolder}
+					onDropCards={onDropCards}
+					onMoveFolders={onMoveFolders}
+					canNestFolder={canNestFolder}
+				/>
 			)}
 		</GlassSurface>
 	);
@@ -354,8 +368,8 @@ function FolderTab({
 				: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
 		isSelected &&
 			(isLiquid
-				? "ring-1 ring-inset ring-white/50"
-				: "ring-1 ring-inset ring-flat-edge-strong"),
+				? "ring-1 ring-white/50 ring-inset"
+				: "ring-1 ring-flat-edge-strong ring-inset"),
 	);
 
 	const dropClass = dropActive

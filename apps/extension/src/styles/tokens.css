@@ -24,6 +24,7 @@ html.dark body {
 	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	--motion-toolbar-duration: 180ms;
 }
 .dark {
 	--apple-blue: var(--klice-accent);
@@ -65,6 +66,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		   navigation toolbar and grid in one spacing system. */
 		--speed-dial-content-gutter: 24px;
 		--speed-dial-toolbar-gutter: 20px;
+		--speed-dial-toolbar-compact-gap: 8px;
+		/* Reserve balanced side lanes without starving the in-flow Back slot
+		   on narrow viewports. The 11rem cap preserves desktop geometry. */
+		--speed-dial-navigation-rail: clamp(2.5rem, 10vw, 11rem);
+		/* Semantic workspace layers. Keep the material surfaces stable and move
+		   whole interaction families between these boundaries. */
+		--speed-dial-layer-content: 0;
+		--speed-dial-layer-scroll-fade: 20;
+		--speed-dial-layer-navigation: 30;
+		--speed-dial-layer-app-toolbar: 60;
+		--speed-dial-layer-search: 80;
 		--speed-dial-hero-top: 68px;
 		--speed-dial-hero-gap: 36px;
 		--speed-dial-hero-bottom: 40px;
@@ -231,24 +243,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Toolbar back-nav: subtle fade-in from the left when it takes over from
-   the in-flow control. Collapsed to an instant swap by the reduced-motion
-   rule below. */
-@keyframes toolbarBackEnter {
-	from {
-		opacity: 0;
-		transform: translateX(-8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
-}
-
-.toolbar-back-enter {
-	animation: toolbarBackEnter 180ms var(--ease-out) both;
-}
-
 /* =========================================================
    8.2 — prefers-reduced-motion
    ========================================================= */
@@ -359,29 +353,36 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	/* One authored moment for the complete push transition. */
 	--workspace-motion-duration: 220ms;
 	--workspace-motion-ease: var(--ease-drawer);
-	transition: padding var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
 }
 
-/* The slot owns the only structural width transition. It includes the
-   inter-panel gutter, so the closed layout has no phantom gap. Its fixed
-   child is right-anchored in React, revealing the sidebar from the right
-   without reflowing the Settings content on every frame. */
+/* The slot owns the sidebar's structural footprint. It includes the
+   inter-panel gutter, so the closed layout has no phantom gap. The footprint
+   settles atomically; only the already-mounted panel moves below. */
 [data-settings-sidebar-slot] {
 	width: 0;
-	transition: width var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
 }
-[data-settings-sidebar-slot][data-settings-open="true"] {
+[data-settings-sidebar-slot][data-settings-layout-open="true"] {
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
 }
 
-/* The frame shares that exact transition. Gecko gets its calibrated fallback
-   radius while Chromium uses the larger radius with corner-shape:squircle. */
+/* Geometry settles once at the start/end of the workspace transition. Only
+   the already-mounted, opaque Settings surface moves on the compositor path;
+   the Speed Dial never changes width on animation frames. */
+[data-settings-sidebar-slot] > [data-slot="sidebar"] {
+	transform: translate3d(100%, 0, 0);
+	transition: transform var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
+}
+[data-settings-sidebar-slot][data-settings-open="true"]
+	> [data-slot="sidebar"] {
+	transform: translate3d(0, 0, 0);
+}
+
+/* Keep the frame radius discrete with the layout commit. Gecko gets its
+   calibrated fallback radius while Chromium uses the larger radius with
+   corner-shape:squircle. */
 [data-speed-dial-frame] {
 	border-radius: 0;
-	transition: border-radius var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: 24px;
@@ -395,7 +396,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 @media (prefers-reduced-motion: reduce) {
 	.settings-workspace,
 	[data-settings-sidebar-slot],
-	[data-speed-dial-frame] {
+	[data-speed-dial-frame],
+	[data-settings-sidebar-slot] > [data-slot="sidebar"] {
 		transition: none;
 	}
 }
@@ -432,6 +434,49 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding-inline: var(--speed-dial-toolbar-gutter);
 }
 
+.speed-dial-navigation-group {
+	gap: var(--speed-dial-toolbar-compact-gap);
+}
+
+/* Keep the Back identity as one visual sibling of the fixed-width Tabbar.
+   Its absolute positioning means the Tabbar never measures this group. */
+.toolbar-back-identity {
+	position: absolute;
+	top: calc(50% - 21px);
+	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
+	z-index: 3;
+}
+
+.toolbar-back-identity[data-navigation-sticky="true"] {
+	left: var(--speed-dial-toolbar-gutter);
+	right: auto;
+	z-index: 3;
+}
+
+.toolbar-compact-search {
+	position: static;
+	flex: 0 0 auto;
+	transform: translate3d(0, 0, 0) scale(1);
+	opacity: 1;
+	visibility: visible;
+	transition:
+		transform var(--motion-toolbar-duration) var(--ease-out),
+		opacity var(--motion-toolbar-duration) var(--ease-out),
+		visibility 0s linear 0s;
+}
+
+[data-speed-dial-frame]:not([data-compact-search="true"])
+	.toolbar-compact-search {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform: translate3d(0, -6px, 0) scale(0.92);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition-delay: 0s, 0s, var(--motion-toolbar-duration);
+}
+
 .speed-dial-navigation-toolbar {
 	padding-inline: var(--speed-dial-toolbar-gutter);
 }
@@ -451,14 +496,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    below without changing the document geometry. */
 .speed-dial-search-anchor {
 	position: relative;
-	/* Local surface layers: search is above the sticky navigation, while the
-	   frame-level toolbar/fade remain independent app-chrome layers. */
-	z-index: 3;
+	/* Closed search stays with content. Opening it promotes this whole
+	   ancestor above the toolbar so its Glass surface and results share one
+	   stacking boundary. */
+	z-index: var(--speed-dial-layer-content);
 	display: flex;
 	width: 100%;
 	height: 56px;
 	align-items: flex-start;
 	justify-content: center;
+	transform: translate3d(0, var(--ambient-search-y), 0);
+	opacity: var(--ambient-search-opacity);
 }
 .speed-dial-search-anchor:not(:has(> [data-unified-search])) {
 	display: none;
@@ -468,10 +516,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	top: 0;
 	right: 0;
 	left: 0;
-	z-index: 3;
 	width: 100%;
 	max-width: 42rem;
 	margin-inline: auto;
+}
+.speed-dial-search-anchor:has([data-search-open="true"]) {
+	z-index: var(--speed-dial-layer-search);
 }
 
 .speed-dial-grid-region {
@@ -479,64 +529,53 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding-bottom: var(--speed-dial-grid-bottom);
 }
 
-/* This fade belongs to the workspace chrome, not to the moving Tabbar. Its
-   position is fixed by the Speed Dial frame while its intensity follows the
-   same scroll progress signal as the ambient hero. */
+/* Layer order is deliberate: wallpaper/content, this fade, navigation/app
+   toolbar, then the promoted Search surface. The scroll viewport must stay
+   non-stacking so these frame-level boundaries remain predictable. */
 .speed-dial-top-fade {
-	height: calc(7rem + max(env(safe-area-inset-top), 0.75rem));
-	opacity: 0.34;
-	background-image: linear-gradient(
-		to bottom,
-		rgb(0 0 0 / 0.28),
-		rgb(0 0 0 / 0.1) 42%,
-		transparent 100%
-	);
-	transition: opacity 160ms var(--ease-out);
+	height: calc(9rem + max(env(safe-area-inset-top), 0.75rem));
+	opacity: 0;
+	background-image:
+		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
+		linear-gradient(
+			to bottom,
+			rgb(0 0 0 / 0.82),
+			rgb(0 0 0 / 0.52) 38%,
+			rgb(0 0 0 / 0.16) 72%,
+			transparent 100%
+		);
+	transition: opacity var(--motion-toolbar-duration) var(--ease-out);
 }
-[data-speed-dial-frame][data-scrolled="true"] .speed-dial-top-fade {
-	opacity: 0.9;
+[data-speed-dial-frame][data-navigation-sticky="true"] .speed-dial-top-fade {
+	opacity: 1;
 }
 
 /* Scroll Craft-inspired ambient exit. The hero's layout box stays in flow so
    the tabbar reaches its sticky position naturally; only the ambient content
-   itself recedes visually. */
+   itself recedes visually. Values are written by the scroll rAF in App. */
 [data-speed-dial-scroll] {
 	--ambient-progress: 0;
+	--ambient-hero-y: 0px;
+	--ambient-hero-opacity: 1;
+	--ambient-search-y: 0px;
+	--ambient-search-opacity: 1;
 }
 
 .klice-ambient-hero {
-	transform: translate3d(0, calc(var(--ambient-progress) * -10px), 0)
+	transform: translate3d(0, var(--ambient-hero-y), 0)
 		scale(calc(1 - var(--ambient-progress) * 0.018));
-	opacity: calc(1 - var(--ambient-progress) * 0.28);
+	opacity: var(--ambient-hero-opacity);
 	transform-origin: center top;
-	will-change: transform, opacity;
-}
-
-@supports (animation-timeline: scroll()) {
-	[data-speed-dial-scroll] .klice-ambient-hero {
-		animation: kliceAmbientExit linear both;
-		animation-timeline: scroll(nearest block);
-		animation-range: 0 240px;
-	}
-}
-
-@keyframes kliceAmbientExit {
-	from {
-		opacity: 1;
-		transform: translate3d(0, 0, 0) scale(1);
-	}
-	to {
-		opacity: 0.72;
-		transform: translate3d(0, -10px, 0) scale(0.982);
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.klice-ambient-hero {
-		animation: none !important;
+	.klice-ambient-hero,
+	[data-speed-dial-scroll] .speed-dial-search-anchor {
 		transform: none;
 		opacity: 1;
-		will-change: auto;
+	}
+	.toolbar-compact-search {
+		transition: none;
 	}
 	.speed-dial-top-fade {
 		transition: none;

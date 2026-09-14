@@ -19,7 +19,6 @@ import { BackgroundLayer } from "../../src/components/newtab/background-layer";
 import { ClockWidget } from "../../src/components/newtab/clock-widget";
 import { DialGrid } from "../../src/components/newtab/dial-grid";
 import { EmptyLanding } from "../../src/components/newtab/empty-landing";
-import { InlineFolderNav } from "../../src/components/newtab/folder-nav";
 import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
 import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { RestMode } from "../../src/components/newtab/rest-mode";
@@ -49,10 +48,7 @@ import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useRenameStore } from "../../src/stores/rename-store";
 import { useSelectionStore } from "../../src/stores/selection-store";
-import {
-	computeGridMaxWidth,
-	useSetupStore,
-} from "../../src/stores/setup-store";
+import { useSetupStore } from "../../src/stores/setup-store";
 import type { Card } from "../../src/types";
 
 import "../../src/styles/tokens.css";
@@ -73,9 +69,11 @@ function ThemedToaster() {
 }
 
 function SpeedDialTopFade() {
+	// Keep this frame-level readability layer above scrolling cards but below
+	// the complete toolbar surface; controls inherit one shared layer boundary.
 	return (
 		<div
-			className="speed-dial-top-fade pointer-events-none absolute inset-x-0 top-0 z-20"
+			className="speed-dial-top-fade pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-scroll-fade)]"
 			aria-hidden="true"
 		/>
 	);
@@ -126,9 +124,7 @@ export default function App() {
 		(s) => s.createSubfolderFromCards,
 	);
 	const itemOrder = useSetupStore((s) => s.itemOrder ?? {});
-	const tileSize = useSetupStore((s) => s.settings.tileSize);
-	const maxColumns = useSetupStore((s) => s.settings.maxColumns);
-	const gridMaxWidth = computeGridMaxWidth(tileSize, maxColumns);
+	const searchEnabled = useSetupStore((s) => s.settings.search.enabled);
 
 	const beginRename = useRenameStore((s) => s.begin);
 	const cancelRename = useRenameStore((s) => s.cancel);
@@ -219,7 +215,6 @@ export default function App() {
 		[folders, activeFolderId],
 	);
 	const isSubfolder = breadcrumb.length > 1;
-	const currentFolder = breadcrumb[breadcrumb.length - 1];
 	const parentFolder = breadcrumb[breadcrumb.length - 2];
 	const activeRootId = breadcrumb[0]?.id ?? activeFolderId;
 	const rootFolders = useMemo(() => getChildren(folders, null), [folders]);
@@ -227,31 +222,6 @@ export default function App() {
 	const handleBack = useCallback(() => {
 		if (parentFolder) handleSelectFolder(parentFolder.id);
 	}, [parentFolder, handleSelectFolder]);
-
-	// Inline nav sentinel: the toolbar's left zone takes over with back +
-	// breadcrumb only once the in-flow control actually scrolls out through
-	// the top — never on an arbitrary pixel threshold, and never both at once.
-	const sentinelRef = useRef<HTMLDivElement>(null);
-	const [navScrolledPast, setNavScrolledPast] = useState(false);
-	useEffect(() => {
-		if (!isSubfolder) {
-			setNavScrolledPast(false);
-			return;
-		}
-		const el = sentinelRef.current;
-		if (!el) return;
-		const io = new IntersectionObserver(
-			([entry]) => {
-				setNavScrolledPast(
-					!entry.isIntersecting && entry.boundingClientRect.top < 0,
-				);
-			},
-			{ threshold: 0 },
-		);
-		io.observe(el);
-		return () => io.disconnect();
-		// Re-run only when the sentinel mounts/unmounts (root <-> subfolder).
-	}, [isSubfolder]);
 
 	// Item count per folder (cards only).
 	const cardCounts = useMemo(() => {
@@ -291,12 +261,14 @@ export default function App() {
 
 	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
+	const [settingsLayoutOpen, setSettingsLayoutOpen] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
 		useState<SettingsSidebarProps["initialAction"]>(undefined);
 	const unifiedSearchRef = useRef<UnifiedSearchHandle>(null);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
+	const [navigationSticky, setNavigationSticky] = useState(false);
 
 	const triggerWake = useCallback(() => {
 		setWakeActive(true);
@@ -338,12 +310,21 @@ export default function App() {
 	// Open Settings window with optional pane & action deep-linking
 	const handleOpenSettings = useCallback(
 		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
+			setSettingsLayoutOpen(true);
 			setSettingsPane(pane);
 			setSettingsAction(action);
 			setShowSettings(true);
 		},
 		[],
 	);
+
+	useEffect(() => {
+		if (showSettings) setSettingsLayoutOpen(true);
+	}, [showSettings]);
+
+	const handleSettingsLayoutTransitionEnd = useCallback(() => {
+		if (!showSettings) setSettingsLayoutOpen(false);
+	}, [showSettings]);
 
 	const handleToggleSettings = useCallback(() => {
 		if (showSettings) {
@@ -479,10 +460,14 @@ export default function App() {
 	}, [handleOpenSearch]);
 
 	// Scroll Craft-style ambient transition without per-frame React renders.
-	// The scroll signal is written to CSS once per animation frame, where the
-	// hero and fixed top fade can consume it with compositor-friendly transforms.
+	// Geometry is sampled once per animation frame and written directly to CSS;
+	// the hero, search, compact search affordance, and top fade stay on the
+	// compositor-friendly transform/opacity path.
 	const speedDialScrollRef = useRef<HTMLDivElement>(null);
 	const speedDialFrameRef = useRef<HTMLDivElement>(null);
+	const navigationRef = useRef<HTMLElement>(null);
+	const searchAnchorRef = useRef<HTMLDivElement>(null);
+	const navigationStickyRef = useRef(false);
 	useEffect(() => {
 		const scrollContainer = speedDialScrollRef.current;
 		if (!scrollContainer) return;
@@ -501,33 +486,71 @@ export default function App() {
 		const scrollContainer = speedDialScrollRef.current;
 		if (!scrollContainer) return;
 		let frame = 0;
+		const clamp = (value: number) => Math.min(1, Math.max(0, value));
 		const syncScrollProgress = () => {
 			frame = 0;
-			const progress = Math.min(1, scrollContainer.scrollTop / 240);
-			scrollContainer.style.setProperty("--ambient-progress", String(progress));
-			const scrolled = progress > 0.08 ? "true" : "false";
-			scrollContainer.dataset.scrolled = scrolled;
-			if (speedDialFrameRef.current) {
-				speedDialFrameRef.current.dataset.scrolled = scrolled;
+			const scrollTop = scrollContainer.scrollTop;
+			const ambientProgress = clamp(scrollTop / 240);
+			const frameElement = speedDialFrameRef.current;
+			const frameTop = frameElement?.getBoundingClientRect().top ?? 0;
+			const navigation = navigationRef.current;
+			const searchAnchor = searchAnchorRef.current;
+			const navigationRect = navigation?.getBoundingClientRect();
+			const searchRect = searchAnchor?.getBoundingClientRect();
+			const navigationMarginTop = navigation
+				? Number.parseFloat(getComputedStyle(navigation).marginTop) || 0
+				: 0;
+			const nextNavigationSticky = Boolean(
+				navigationRect &&
+					navigationRect.top <= frameTop + navigationMarginTop + 1,
+			);
+			const searchScrolledAway = Boolean(
+				searchRect && searchRect.bottom <= frameTop + navigationMarginTop,
+			);
+
+			scrollContainer.style.setProperty(
+				"--ambient-progress",
+				String(ambientProgress),
+			);
+			scrollContainer.style.setProperty(
+				"--ambient-hero-y",
+				`${-18 * ambientProgress}px`,
+			);
+			scrollContainer.style.setProperty(
+				"--ambient-hero-opacity",
+				String(1 - ambientProgress * 0.38),
+			);
+			scrollContainer.style.setProperty(
+				"--ambient-search-y",
+				`${-12 * ambientProgress}px`,
+			);
+			scrollContainer.style.setProperty(
+				"--ambient-search-opacity",
+				String(1 - ambientProgress * 0.82),
+			);
+			if (frameElement) {
+				frameElement.dataset.navigationSticky = nextNavigationSticky
+					? "true"
+					: "false";
+				frameElement.dataset.compactSearch = searchScrolledAway
+					? "true"
+					: "false";
+			}
+			if (navigationStickyRef.current !== nextNavigationSticky) {
+				navigationStickyRef.current = nextNavigationSticky;
+				setNavigationSticky(nextNavigationSticky);
 			}
 		};
 		const onScroll = () => {
-			// Dataset state is cheap enough to update synchronously so the sticky
-			// top fade responds on the same input event. The continuous
-			// transform signal remains rAF-coalesced below.
-			const progress = Math.min(1, scrollContainer.scrollTop / 240);
-			const scrolled = progress > 0.08 ? "true" : "false";
-			scrollContainer.dataset.scrolled = scrolled;
-			if (speedDialFrameRef.current) {
-				speedDialFrameRef.current.dataset.scrolled = scrolled;
-			}
 			if (frame !== 0) return;
 			frame = requestAnimationFrame(syncScrollProgress);
 		};
 		syncScrollProgress();
 		scrollContainer.addEventListener("scroll", onScroll, { passive: true });
+		window.addEventListener("resize", onScroll);
 		return () => {
 			scrollContainer.removeEventListener("scroll", onScroll);
+			window.removeEventListener("resize", onScroll);
 			if (frame !== 0) cancelAnimationFrame(frame);
 		};
 	}, []);
@@ -605,7 +628,7 @@ export default function App() {
 					}
 					className={cn(
 						"settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]",
-						showSettings && "p-[var(--workspace-gutter)]",
+						settingsLayoutOpen && "p-[var(--workspace-gutter)]",
 					)}
 				>
 					<div
@@ -623,14 +646,14 @@ export default function App() {
 								)}
 								ref={speedDialFrameRef}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-settings-open={showSettings ? "true" : "false"}
+								data-settings-open={settingsLayoutOpen ? "true" : "false"}
 								data-speed-dial-frame="true"
 							>
 								<BackgroundLayer contained />
 								<SpeedDialTopFade />
 								{!restMode && (
 									<div
-										className="speed-dial-app-toolbar pointer-events-none absolute inset-x-0 top-0 z-[60] flex h-14 items-center justify-end"
+										className="speed-dial-app-toolbar pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-app-toolbar)] flex h-14 items-center justify-end"
 										data-speed-dial-app-toolbar="true"
 									>
 										<div className="pointer-events-auto flex items-center">
@@ -644,7 +667,7 @@ export default function App() {
 
 								<div
 									ref={speedDialScrollRef}
-									className="scrollbar-hidden relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+									className="scrollbar-hidden relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
 									data-speed-dial-scroll="true"
 								>
 									<div className={cn(restMode && "rest-mode-hidden")}>
@@ -657,7 +680,10 @@ export default function App() {
 											>
 												<ClockWidget />
 											</div>
-											<div className="speed-dial-search-anchor">
+											<div
+												ref={searchAnchorRef}
+												className="speed-dial-search-anchor"
+											>
 												<UnifiedSearch
 													ref={unifiedSearchRef}
 													onNavigateFolder={handleSelectFolder}
@@ -666,12 +692,16 @@ export default function App() {
 										</main>
 
 										<NavigationToolbar
+											navigationRef={navigationRef}
 											rootFolders={rootFolders}
 											activeRootId={activeRootId}
 											navigationDirection={navigation.direction}
 											breadcrumb={breadcrumb}
 											onBack={handleBack}
-											showBackNav={isSubfolder && navScrolledPast}
+											showBackNav={isSubfolder}
+											navigationSticky={navigationSticky}
+											searchEnabled={searchEnabled}
+											onOpenSearch={handleOpenSearch}
 											onSelectFolder={handleSelectFolder}
 											onAddFolder={(name) => addFolder(name, null)}
 											onNewRootFolder={() => handleNewSubfolder(null)}
@@ -688,23 +718,9 @@ export default function App() {
 										/>
 
 										<div className="speed-dial-grid-region">
-											{/* In-flow subfolder navigation between the tabbar and grid. */}
-											{isSubfolder && currentFolder && parentFolder && (
-												<div
-													ref={sentinelRef}
-													className="mx-auto w-full px-6 pb-6"
-													style={{ maxWidth: gridMaxWidth }}
-												>
-													<InlineFolderNav
-														currentName={currentFolder.name}
-														parentName={parentFolder.name}
-														onBack={handleBack}
-													/>
-												</div>
-											)}
-
 											<DialGrid
 												folderId={activeFolderId}
+												layoutOpen={settingsLayoutOpen}
 												cards={cards}
 												subfolders={subfolders}
 												allCards={allCards}
@@ -750,7 +766,9 @@ export default function App() {
 
 						<SettingsSidebar
 							open={showSettings}
+							layoutOpen={settingsLayoutOpen}
 							onClose={() => setShowSettings(false)}
+							onLayoutTransitionEnd={handleSettingsLayoutTransitionEnd}
 							initialPane={settingsPane}
 							initialAction={settingsAction}
 						/>

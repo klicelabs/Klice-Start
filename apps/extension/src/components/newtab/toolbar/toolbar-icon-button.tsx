@@ -18,6 +18,8 @@ interface ToolbarIconButtonProps {
 	expanded?: boolean;
 	controls?: string;
 	dataSettingsUi?: boolean;
+	/** Render as a transparent control inside an existing GlassSurface. */
+	insideSurface?: boolean;
 }
 
 /**
@@ -43,10 +45,11 @@ export function ToolbarIconButton({
 	expanded,
 	controls,
 	dataSettingsUi = false,
+	insideSurface = false,
 }: ToolbarIconButtonProps) {
 	const { isLiquid } = useAppearance();
 
-	if (isLiquid) {
+	if (isLiquid && !insideSurface) {
 		return (
 			<GlassIcon
 				glassVariant="liquid"
@@ -79,10 +82,35 @@ export function ToolbarIconButton({
 			id={id}
 			data-settings-ui={dataSettingsUi ? "true" : undefined}
 			className={cn(
-				"flex aspect-square size-[42px] shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform,box-shadow] duration-150 active:scale-95",
-				flatControl(),
-				flatFocusRing(),
-				active ? "text-flat-ink" : "text-flat-ink-muted hover:text-flat-ink",
+				insideSurface
+					? cn(
+							"flex shrink-0 items-center justify-center",
+							TOOLBAR.controlHeight,
+							TOOLBAR.controlWidth,
+							TOOLBAR.radius,
+							TOOLBAR.transition,
+						)
+					: "flex aspect-square size-[42px] shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform,box-shadow] duration-150 active:scale-95",
+				insideSurface
+					? isLiquid
+						? glassFocusRing(isLiquid)
+						: flatFocusRing()
+					: undefined,
+				insideSurface
+					? isLiquid
+						? active
+							? "bg-white/25 text-white"
+							: "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+						: active
+							? `${flatControl()} text-flat-ink`
+							: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken"
+					: cn(
+							flatControl(),
+							flatFocusRing(),
+							active
+								? "text-flat-ink"
+								: "text-flat-ink-muted hover:text-flat-ink",
+						),
 			)}
 		>
 			<Icon name={icon} size={iconSize} />

@@ -35,13 +35,15 @@ import {
 } from "./shared/settings-tokens";
 
 /**
- * Settings lives in the app's shared layout, not in a portal. The motion slot
- * changes the actual flex width, so the Speed Dial sibling contracts in the
- * same transition instead of being covered by a fixed panel.
+ * Settings lives in the app's shared layout, not in a portal. The layout slot
+ * reserves space atomically while the already-mounted panel enters on its
+ * compositor-friendly transform path.
  */
 export function SettingsSidebar({
 	open,
+	layoutOpen = open,
 	onClose,
+	onLayoutTransitionEnd,
 	initialPane,
 	initialAction,
 }: SettingsSidebarProps) {
@@ -142,10 +144,27 @@ export function SettingsSidebar({
 		return () => cancelAnimationFrame(frame);
 	}, [activePane, showRoot]);
 
+	const handleLayoutTransitionEnd = useCallback(
+		(event: React.TransitionEvent<HTMLElement>) => {
+			if (
+				event.target === event.currentTarget &&
+				event.propertyName === "transform"
+			) {
+				onLayoutTransitionEnd?.();
+			}
+		},
+		[onLayoutTransitionEnd],
+	);
+
+	useEffect(() => {
+		if (!open && reduceMotion) onLayoutTransitionEnd?.();
+	}, [onLayoutTransitionEnd, open, reduceMotion]);
+
 	return (
 		<div
 			className="flex h-full min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
 			data-settings-open={open ? "true" : "false"}
+			data-settings-layout-open={layoutOpen ? "true" : "false"}
 			data-settings-sidebar-slot="true"
 			aria-hidden={!open}
 			inert={!open}
@@ -157,6 +176,7 @@ export function SettingsSidebar({
 				id="settings-sidebar"
 				aria-label="Settings"
 				data-settings-panel="true"
+				onTransitionEnd={handleLayoutTransitionEnd}
 				className={cn("h-full min-w-0 shrink-0", SETTINGS_SIDEBAR_SHELL)}
 			>
 				<SidebarHeader className="p-0">

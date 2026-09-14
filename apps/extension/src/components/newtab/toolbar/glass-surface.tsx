@@ -8,8 +8,8 @@ type GlassSurfaceProps = HTMLAttributes<HTMLDivElement>;
 /**
  * The single pill "material" for every toolbar group.
  *
- *   - Liquid  → glasscn's rich CSS material (backdrop blur + gradient sheen +
- *               ambient drift). Works everywhere.
+ *   - Liquid  → the shared Liquid Glass material (backdrop blur + gradient
+ *               sheen + bevel). Works everywhere.
  *   - Classic → flat shadcn surface from semantic tokens.
  *
  * All transparency lives inside the library styles — we never hardcode
@@ -26,7 +26,7 @@ export function GlassSurface({
 		<div
 			className={cn(
 				"flex items-center rounded-full",
-				glassMaterial(isLiquid),
+				glassMaterial(isLiquid, "floating", "regular"),
 				className,
 			)}
 			{...props}

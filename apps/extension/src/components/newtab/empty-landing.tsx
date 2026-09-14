@@ -1,9 +1,9 @@
 import { Button as MotionButton } from "@klice-start/ui/components/motion/button/base";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { flatControl } from "@klice-start/ui/lib/surface";
 import { Fragment } from "react";
 import {
 	glassFocusRing,
+	glassMaterial,
 	HERO_TEXT_SHADOW,
 	wallpaperText,
 } from "../../lib/glass";
@@ -75,9 +75,8 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 					<div
 						className={cn(
 							"squircle relative flex size-[68px] items-center justify-center rounded-[22px] [--squircle-r:14px]",
-							isLiquid
-								? "border border-white/15 bg-white/[0.09] text-white/85 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.30),0_10px_24px_-12px_rgba(0,0,0,0.45)] backdrop-blur-md"
-								: "border border-border/70 bg-card text-muted-foreground shadow-xs",
+							glassMaterial(isLiquid, "panel"),
+							isLiquid ? "text-white/85" : "text-muted-foreground",
 						)}
 					>
 						<Icon name="bookmark" size={26} />
@@ -116,9 +115,8 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 					className={cn(
 						"mt-6 inline-flex h-9 items-center gap-1.5 rounded-full px-4 font-medium text-xs transition-[background-color,border-color,box-shadow] duration-150 ease-out",
 						glassFocusRing(isLiquid),
-						isLiquid
-							? "border border-white/25 bg-white/20 text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.35),0_8px_20px_-8px_rgba(0,0,0,0.45)] backdrop-blur-md hover:bg-white/30"
-							: `${flatControl()} text-flat-ink`,
+						glassMaterial(isLiquid, "floating"),
+						isLiquid ? "text-white hover:brightness-110" : "text-flat-ink",
 					)}
 				>
 					<Icon name="plus" size={13} />

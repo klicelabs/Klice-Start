@@ -193,6 +193,7 @@ export function FolderTabsOverflow({
 						icon="ellipsis"
 						label="More folders"
 						active={open}
+						insideSurface
 						onClick={() => setOpen(!open)}
 					/>
 				</span>

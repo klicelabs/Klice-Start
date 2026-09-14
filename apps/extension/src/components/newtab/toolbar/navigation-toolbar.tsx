@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SPRING_LAYOUT } from "@klice-start/ui/lib/ease";
+import { motion, useReducedMotion } from "motion/react";
+import {
+	type RefObject,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { glassText } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import { TOOLBAR } from "../../../lib/toolbar-tokens";
@@ -7,8 +16,8 @@ import type { InsertPosition } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
-import { FolderTabsOverflow } from "./folder-tabs-overflow";
 import { ToolbarBack } from "./toolbar-back";
+import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface NavigationToolbarProps {
 	rootFolders: Folder[];
@@ -19,10 +28,15 @@ interface NavigationToolbarProps {
 	/** Navigate to the parent folder. */
 	onBack: () => void;
 	/**
-	 * Show back + breadcrumb in the toolbar's left zone. True only once the
-	 * in-flow control scrolls out of view — never alongside it.
+	 * Keep the single back + current folder identity mounted for the whole
+	 * subfolder state, including the initial render.
 	 */
 	showBackNav: boolean;
+	/** Whether the sticky toolbar threshold has been crossed. */
+	navigationSticky: boolean;
+	searchEnabled: boolean;
+	navigationRef?: RefObject<HTMLElement | null>;
+	onOpenSearch: () => void;
 	onSelectFolder: (id: string) => void;
 	onAddFolder: (name: string) => string;
 	/** Direct root-folder creation ("New Folder" + inline rename). */
@@ -49,8 +63,8 @@ interface NavigationToolbarProps {
 /**
  * Floating toolbar with three independent zones on one centerline:
  *
- *   Left    [‹] Current folder (back button + page title, subfolders only)
- *   Center  [ Home | AI | Design | + | ⋯ ] (root tabs + inline add + overflow)
+ *   Left    [‹] Current folder once the navigation becomes sticky
+ *   Center  [ Search ] [ Home | AI | Design | + | ⋯ ]
  *   Right   [ reserved inset ] (the fixed app Settings action lives above it)
  */
 export function NavigationToolbar({
@@ -60,6 +74,9 @@ export function NavigationToolbar({
 	breadcrumb,
 	onBack,
 	showBackNav,
+	navigationSticky,
+	searchEnabled,
+	onOpenSearch,
 	onSelectFolder,
 	onAddFolder,
 	onNewRootFolder,
@@ -71,8 +88,10 @@ export function NavigationToolbar({
 	onMoveFolderToRoot,
 	isRootFolder,
 	canNestFolder,
+	navigationRef,
 }: NavigationToolbarProps) {
 	const { isLiquid } = useAppearance();
+	const reduceMotion = useReducedMotion() ?? false;
 	const currentFolder = breadcrumb[breadcrumb.length - 1];
 
 	// Sorted root folders for tab display.
@@ -102,9 +121,8 @@ export function NavigationToolbar({
 		// Gap between tabs: 2px (gap-0.5) inside GlassSurface (p-1 padding: 8px total).
 		const tabGap = 2;
 		const surfacePadding = 8;
-		const overflowPillWidth = 42; // "…" button width
-		// Inline "+" width (34px control + gap). Budgeted only while visible.
-		const addButtonWidth = 36;
+		const overflowPillWidth = 34; // "…" control width inside the surface
+		const addButtonWidth = 34;
 
 		let totalNatural = surfacePadding;
 		const widths: number[] = [];
@@ -165,96 +183,125 @@ export function NavigationToolbar({
 		<>
 			{/* Sticky toolbar — centered Tabbar with balanced side insets */}
 			<header
-				className="speed-dial-navigation-toolbar relative sticky top-0 right-0 left-0 isolate z-[2] mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center"
+				ref={navigationRef}
+				className="speed-dial-navigation-toolbar relative sticky top-0 right-0 left-0 isolate z-[var(--speed-dial-layer-navigation)] mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center"
+				data-navigation-sticky={navigationSticky ? "true" : "false"}
 				data-speed-dial-navigation="true"
 			>
-				{/* Left: back button + current page title (no breadcrumb).
-				    Appears only once the in-flow control scrolls out of view
-				    (see App sentinel); empty spacer otherwise, keeping the
-				    tab lane centered. The button itself stays unclipped so
-				    its shadow renders naturally. */}
-				<div className="flex w-44 shrink-0 items-center gap-2">
-					{showBackNav && currentFolder && (
-						<div
-							key="toolbar-back-nav"
-							className="toolbar-back-enter flex min-w-0 flex-1 items-center gap-2"
-						>
-							<ToolbarBack onBack={onBack} />
-							<span
-								className={cn(
-									"min-w-0 max-w-[96px] shrink-0 truncate font-medium text-[13px]",
-									glassText(isLiquid, "primary"),
-								)}
-								title={currentFolder.name}
-							>
-								{currentFolder.name}
-							</span>
-						</div>
-					)}
-				</div>
-
-				{/* Center: capped tab-bar lane */}
+				{/* Balanced responsive rails keep the Tabbar centered while leaving
+				    enough room for the in-flow Back identity at narrow widths. */}
 				<div
-					ref={containerRef}
-					className="pointer-events-auto relative mx-auto flex min-w-0 max-w-[880px] flex-1 items-center justify-center px-2"
-				>
-					<div className="flex items-center gap-0.5">
-						<FolderTabs
-							folders={visibleFolders}
-							activeRootId={activeRootId}
-							navigationDirection={navigationDirection}
-							showAddButton={!hasOverflow}
-							onAddRoot={onNewRootFolder}
-							onSelectFolder={onSelectFolder}
-							onNewRootFolder={onNewRootFolder}
-							onNewSubfolder={onNewSubfolder}
-							onDeleteFolder={onDeleteFolder}
-							onReorderFolders={onReorderFolders}
-							onDropCards={onDropCards}
-							onMoveFolders={onMoveFolders}
-							onMoveFolderToRoot={onMoveFolderToRoot}
-							isRootFolder={isRootFolder}
-							canNestFolder={canNestFolder}
-						/>
-						{hasOverflow && (
-							<FolderTabsOverflow
-								hiddenFolders={hiddenFolders}
-								activeRootId={activeRootId}
-								onSelectFolder={onSelectFolder}
-								onAddFolder={onAddFolder}
-								onDropCards={onDropCards}
-								onMoveFolders={onMoveFolders}
-								canNestFolder={canNestFolder}
-							/>
-						)}
-					</div>
+					className="w-[var(--speed-dial-navigation-rail)] shrink-0"
+					aria-hidden="true"
+				/>
 
-					{/* Hidden measurer with max-w truncation */}
+				{/* Center: one compact navigation group. The Tabbar anchor owns the
+				    fixed-width center; Back is positioned outside it until sticky. */}
+				<div className="pointer-events-auto mx-auto flex min-w-0 max-w-[880px] flex-1 items-center justify-center px-2">
+					{/* The measured lane is the stable Tabbar coordinate system. Its
+					    center track remains unchanged when Back appears or disappears. */}
 					<div
-						ref={measureRef}
-						aria-hidden="true"
-						className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-0.5"
-						style={{ visibility: "hidden" }}
+						ref={containerRef}
+						className="speed-dial-navigation-group grid min-w-0 max-w-full flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
 					>
-						{sorted.map((folder) => (
-							<span
-								key={folder.id}
-								className={cn(
-									TOOLBAR.controlHeight,
-									TOOLBAR.radius,
-									"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
-								)}
-							>
-								{folder.name}
-							</span>
-						))}
+						<div
+							className={cn(
+								"speed-dial-navigation-anchor col-start-2 flex min-w-0 items-center",
+								!navigationSticky && "relative",
+							)}
+						>
+							{showBackNav && currentFolder && (
+								<motion.div
+									layout={reduceMotion ? false : "position"}
+									transition={
+										reduceMotion ? { duration: 0 } : { layout: SPRING_LAYOUT }
+									}
+									className="toolbar-back-identity flex min-w-0 max-w-full shrink items-center gap-2"
+									data-navigation-back="true"
+									data-navigation-sticky={navigationSticky ? "true" : "false"}
+								>
+									<ToolbarBack onBack={onBack} />
+									<span
+										className={cn(
+											"min-w-0 truncate font-medium text-[13px]",
+											glassText(isLiquid, "primary"),
+										)}
+										title={currentFolder.name}
+									>
+										{currentFolder.name}
+									</span>
+								</motion.div>
+							)}
+
+							<div className="speed-dial-tabbar-cluster relative flex min-w-0 items-center">
+								<div className="flex min-w-0 items-center gap-[var(--speed-dial-toolbar-compact-gap)]">
+									{searchEnabled && (
+										<div
+											className="toolbar-compact-search"
+											data-compact-search-control="true"
+										>
+											<ToolbarIconButton
+												icon="search"
+												label="Search"
+												onClick={onOpenSearch}
+											/>
+										</div>
+									)}
+									<div className="min-w-0 shrink-0">
+										<FolderTabs
+											folders={visibleFolders}
+											hiddenFolders={hiddenFolders}
+											activeRootId={activeRootId}
+											navigationDirection={navigationDirection}
+											showAddButton={!hasOverflow}
+											onAddRoot={onNewRootFolder}
+											onAddFolder={onAddFolder}
+											onSelectFolder={onSelectFolder}
+											onNewRootFolder={onNewRootFolder}
+											onNewSubfolder={onNewSubfolder}
+											onDeleteFolder={onDeleteFolder}
+											onReorderFolders={onReorderFolders}
+											onDropCards={onDropCards}
+											onMoveFolders={onMoveFolders}
+											onMoveFolderToRoot={onMoveFolderToRoot}
+											isRootFolder={isRootFolder}
+											canNestFolder={canNestFolder}
+										/>
+									</div>
+								</div>
+
+								{/* Hidden measurer with max-w truncation */}
+								<div
+									ref={measureRef}
+									aria-hidden="true"
+									className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-0.5"
+									style={{ visibility: "hidden" }}
+								>
+									{sorted.map((folder) => (
+										<span
+											key={folder.id}
+											className={cn(
+												TOOLBAR.controlHeight,
+												TOOLBAR.radius,
+												"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
+											)}
+										>
+											{folder.name}
+										</span>
+									))}
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 
 				{/* Right: balanced inset for the stationary app Settings control.
 				    Keeping this lane symmetrical lets the one Tabbar travel into
 				    the sticky toolbar without colliding with that control. */}
-				<div className="w-44 shrink-0" aria-hidden="true" />
+				<div
+					className="w-[var(--speed-dial-navigation-rail)] shrink-0"
+					aria-hidden="true"
+				/>
 			</header>
 		</>
 	);

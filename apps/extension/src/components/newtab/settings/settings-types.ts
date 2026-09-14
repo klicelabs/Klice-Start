@@ -69,7 +69,9 @@ export interface SettingsPaneProps {
 
 export interface SettingsSidebarProps {
 	open: boolean;
+	layoutOpen?: boolean;
 	onClose: () => void;
+	onLayoutTransitionEnd?: () => void;
 	initialPane?: SettingsPaneId;
 	initialAction?: {
 		type: "add-link" | "edit-link" | "add-folder" | "edit-folder";
