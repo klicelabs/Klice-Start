@@ -167,7 +167,7 @@ export function GlobalSearch({
 
 			{/* Search container */}
 			<search
-				className={`relative mx-4 w-full max-w-[580px] ${glassDropdown(isLiquid)} overflow-hidden rounded-2xl shadow-2xl`}
+				className={`relative mx-4 w-full max-w-[580px] ${glassDropdown(isLiquid)} overflow-hidden rounded-2xl`}
 				onClick={(e) => e.stopPropagation()}
 				onKeyDown={handleKeyDown}
 			>
@@ -208,7 +208,9 @@ export function GlobalSearch({
 				</div>
 
 				{/* Separator */}
-				<div className={`h-px ${isLiquid ? "bg-white/[0.08]" : "bg-separator-groove"}`} />
+				<div
+					className={`h-px ${isLiquid ? "bg-white/[0.08]" : "bg-separator-groove"}`}
+				/>
 
 				{/* Results */}
 				<div ref={listRef} className="max-h-[380px] overflow-y-auto py-1">
@@ -248,7 +250,7 @@ export function GlobalSearch({
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-									: "hover:bg-flat-sunken-raised"
+														: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<img
@@ -309,7 +311,7 @@ export function GlobalSearch({
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-									: "hover:bg-flat-sunken-raised"
+														: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<Icon
@@ -358,7 +360,7 @@ export function GlobalSearch({
 												} ${
 													isLiquid
 														? "hover:bg-white/[0.06]"
-									: "hover:bg-flat-sunken-raised"
+														: "hover:bg-flat-sunken-raised"
 												}`}
 											>
 												<div className="flex size-4 shrink-0 items-center justify-center rounded-xs bg-primary/20 text-primary">

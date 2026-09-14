@@ -3,11 +3,10 @@ import {
 	InputGroupInput,
 } from "@klice-start/ui/components/input-group";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { flatSurface } from "@klice-start/ui/lib/surface";
 import { type FormEvent, useState } from "react";
 import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
+import { glassMaterial } from "../../../lib/glass";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
@@ -66,17 +65,12 @@ export function SearchBar() {
 			className={cn(
 				"group/input-group relative flex w-full max-w-xl items-center gap-2.5 rounded-full px-4 py-2.5 transition-[background-color,color,box-shadow,transform,opacity] duration-200",
 				// The whole rounded container is the field. In liquid mode it uses
-				// the exact same shared "liquid" glass variant as every other
-				// surface; in flat mode a solid opaque card.
+				// the exact same shared material as the toolbar and cards; the
+				// mode-specific focus treatment remains local to this field.
+				glassMaterial(isLiquid),
 				isLiquid
-					? cn(
-							glassVariantStyles.liquid,
-							"focus-within:ring-2 focus-within:ring-white/40",
-						)
-					: cn(
-							flatSurface("floating"),
-							"focus-within:ring-2 focus-within:ring-ring hover:bg-flat-face-hover",
-						),
+					? "focus-within:ring-2 focus-within:ring-white/40"
+					: "focus-within:ring-2 focus-within:ring-ring hover:bg-flat-face-hover",
 			)}
 		>
 			<InputGroupAddon align="inline-start" className="py-0 pl-0">

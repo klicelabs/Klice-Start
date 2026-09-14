@@ -1,18 +1,28 @@
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { flatSunken, flatSurface } from "@klice-start/ui/lib/surface";
+import {
+	type FlatElevation,
+	flatSunken,
+	flatSurface,
+} from "@klice-start/ui/lib/surface";
 import { cn } from "./utils";
 
 /**
- * Refractive sheen shared by every Glass-mode transient surface. A light top
- * edge that fades into a darker veil keeps white menu text readable in both
- * themes while still letting the wallpaper read through the blur — this is
- * what keeps menus in the same family as the tabbar instead of reading as
- * generic opaque panels.
+ * Shared material entry point for extension surfaces.
+ *
+ * Liquid Glass is intentionally the exact glasscn recipe used by the toolbar
+ * and search field. Flat mode keeps its own opaque elevation system instead of
+ * inheriting any translucent glass styling. Components should choose geometry
+ * and interaction states around this helper, never re-create the material.
  */
-const GLASS_SHEEN =
-	"[background-image:linear-gradient(180deg,rgba(255,255,255,0.26)_0%,rgba(255,255,255,0.07)_42%,rgba(0,0,0,0.10)_100%)]";
-const GLASS_SHEEN_DARK =
-	"dark:[background-image:linear-gradient(180deg,rgba(255,255,255,0.10)_0%,rgba(0,0,0,0.14)_55%,rgba(0,0,0,0.30)_100%)]";
+export function glassMaterial(
+	isLiquid: boolean,
+	elevation: Extract<
+		FlatElevation,
+		"floating" | "menu" | "panel" | "dialog"
+	> = "floating",
+): string {
+	return isLiquid ? glassVariantStyles.liquid : flatSurface(elevation);
+}
 
 /**
  * Dropdown menu surface (overflow / search popovers).
@@ -21,13 +31,11 @@ const GLASS_SHEEN_DARK =
  * Classic: standard opaque popover.
  */
 export function glassDropdown(isLiquid: boolean): string {
-	if (isLiquid) {
-		return cn(
-			glassVariantStyles.liquid,
-			"rounded-2xl p-1.5 text-white/95 shadow-2xl",
-		);
-	}
-	return cn(flatSurface("menu"), "rounded-2xl p-1.5 text-popover-foreground");
+	return cn(
+		glassMaterial(isLiquid, "menu"),
+		"rounded-2xl p-1.5",
+		isLiquid ? "text-white/95" : "text-popover-foreground",
+	);
 }
 
 /**
@@ -49,10 +57,9 @@ export function glassDropdownItem(isLiquid: boolean): string {
  * Menu surface shared by card, tab, page, and overflow context menus — one
  * recipe so every menu reads as the same layer.
  *
- * Glass mode: the dense sibling of the tabbar's liquid material. It carries a
- * real translucent fill + blur + sheen + hairline highlight (never an opaque
- * black panel), just with a heavier veil than a dropdown so item text stays
- * readable over any wallpaper.
+ * Glass mode uses the same liquid material as the tabbar and cards. The menu
+ * primitive supplies its own layout and animation; it must not introduce a
+ * second glass recipe with different blur, tint, stroke, or shadow values.
  * Flat mode: the existing solid popover, with the primitive's inherited
  * pseudo-element blur cleared so the surface is genuinely opaque.
  */
@@ -64,22 +71,15 @@ export function glassMenu(isLiquid: boolean): string {
 	if (isLiquid) {
 		return cn(
 			layout,
+			glassMaterial(true, "menu"),
 			"text-white/95",
-			"backdrop-blur-[20px] backdrop-saturate-[1.8] backdrop-brightness-[1.02]",
-			"dark:backdrop-saturate-[1.6] dark:backdrop-brightness-[0.96]",
-			"bg-black/[0.16] dark:bg-black/[0.28]",
-			GLASS_SHEEN,
-			GLASS_SHEEN_DARK,
-			"border-[0.5px] border-white/[0.34] dark:border-white/[0.12]",
-			"shadow-[inset_0_1px_0_0_rgba(255,255,255,0.45),inset_0_-12px_22px_-12px_rgba(255,255,255,0.30),0_18px_40px_-10px_rgba(15,23,42,0.34)]",
-			"dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.20),inset_0_-12px_24px_-12px_rgba(180,210,255,0.10),0_20px_48px_-12px_rgba(0,0,0,0.55)]",
 			clearInheritedBackdrop,
 		);
 	}
 
 	return cn(
 		layout,
-		flatSurface("menu"),
+		glassMaterial(false, "menu"),
 		"text-flat-ink",
 		clearInheritedBackdrop,
 	);
@@ -104,7 +104,7 @@ export function glassField(isLiquid: boolean): string {
 	return cn(
 		flatSunken("controlPressed"),
 		"text-flat-ink placeholder-flat-ink-muted outline-none transition-[box-shadow,color] duration-150",
-		"focus:ring-1 focus:ring-ring/35 focus-within:ring-1 focus-within:ring-ring/35",
+		"focus-within:ring-1 focus-within:ring-ring/35 focus:ring-1 focus:ring-ring/35",
 	);
 }
 
@@ -118,15 +118,19 @@ export function glassField(isLiquid: boolean): string {
  * transition is carried by material/background hierarchy alone, so the card
  * reads as one coherent object.
  *
- * Liquid: a translucent frosted strip (backdrop blur) that lets the wallpaper
- *   bloom through, matching the "liquid" glass variant.
+ * Liquid: a restrained tonal veil inside the already-materialised card. It
+ *   preserves the card's shared blur and highlight instead of creating a
+ *   second, brighter glass panel in the footer.
  * Classic: the opaque flat card surface.
  */
 export function glassCardFooter(isLiquid: boolean): string {
 	if (isLiquid) {
 		return cn(
-			"bg-white/[0.10] text-white/90",
-			"backdrop-blur-[12px] backdrop-saturate-[1.8]",
+			"bg-black/[0.06] text-white/90",
+			"dark:bg-black/[0.14]",
+			"backdrop-blur-[4px] backdrop-saturate-[1.15]",
+			"shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]",
+			"dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
 		);
 	}
 	return "bg-flat-sunken-raised text-flat-ink";
@@ -142,6 +146,14 @@ export function glassFocusRing(isLiquid: boolean): string {
 		"focus-visible:outline-none focus-visible:ring-2",
 		isLiquid ? "focus-visible:ring-white/70" : "focus-visible:ring-ring",
 	);
+}
+
+/**
+ * Drop-target emphasis that preserves the material's own elevation. The ring
+ * is mode-aware, while the shared surface underneath stays untouched.
+ */
+export function glassDropRing(isLiquid: boolean): string {
+	return isLiquid ? "ring-2 ring-white/80" : "ring-2 ring-ring/80";
 }
 
 /**

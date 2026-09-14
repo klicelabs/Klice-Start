@@ -1,6 +1,5 @@
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { flatSurface } from "@klice-start/ui/lib/surface";
 import type { HTMLAttributes } from "react";
+import { glassMaterial } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
 import { useAppearance } from "../appearance-provider";
 
@@ -23,26 +22,11 @@ export function GlassSurface({
 }: GlassSurfaceProps) {
 	const { isLiquid } = useAppearance();
 
-	if (isLiquid) {
-		return (
-			<div
-				className={cn(
-					"flex items-center rounded-full",
-					glassVariantStyles.liquid,
-					className,
-				)}
-				{...props}
-			>
-				{children}
-			</div>
-		);
-	}
-
 	return (
 		<div
 			className={cn(
 				"flex items-center rounded-full",
-				flatSurface("floating"),
+				glassMaterial(isLiquid),
 				className,
 			)}
 			{...props}

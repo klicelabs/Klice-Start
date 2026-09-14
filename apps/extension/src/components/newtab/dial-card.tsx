@@ -6,13 +6,14 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { flatSurface } from "@klice-start/ui/lib/surface";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../lib/dnd";
 import {
 	glassCardFooter,
 	glassDropdownItem,
+	glassDropRing,
 	glassFocusRing,
+	glassMaterial,
 	glassMenu,
 } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
@@ -104,11 +105,11 @@ export function DialCard({
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
-					!isLiquid && flatSurface("floating"),
+					glassMaterial(isLiquid),
 					glassFocusRing(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
-					combineActive && "scale-[1.02] ring-2 ring-white/80",
+					combineActive && cn("scale-[1.02]", glassDropRing(isLiquid)),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}

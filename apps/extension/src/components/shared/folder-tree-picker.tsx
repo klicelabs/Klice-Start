@@ -11,10 +11,10 @@ import {
 	PopoverTrigger,
 } from "@klice-start/ui/components/popover";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { buildTree, type FolderTreeNode } from "../../lib/folder-tree";
+import { glassMaterial } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import type { Folder } from "../../types";
 import {
@@ -54,10 +54,7 @@ function renderFolder(
 	);
 }
 
-function expandedChainFor(
-	folders: Folder[],
-	value: string | null,
-): string[] {
+function expandedChainFor(folders: Folder[], value: string | null): string[] {
 	const expanded: string[] = [];
 	const byId = new Map(folders.map((folder) => [folder.id, folder]));
 	let parentId = value ? (byId.get(value)?.parentId ?? null) : null;
@@ -155,10 +152,7 @@ export function FolderTreePicker({
 							SETTINGS_RADIUS.control,
 							SETTINGS_FOCUS_RING,
 							isLiquid &&
-								cn(
-									glassVariantStyles.liquid,
-									"border-white/[0.25] text-white hover:bg-white/[0.16]",
-								),
+								cn(glassMaterial(true), "text-white hover:bg-white/[0.16]"),
 							className,
 						)}
 					>
@@ -185,8 +179,7 @@ export function FolderTreePicker({
 							"squircle w-[min(320px,calc(100vw-32px))] border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-lg outline-none",
 							SETTINGS_SCOPE_CLASS,
 							SETTINGS_RADIUS.section,
-							isLiquid &&
-								cn(glassVariantStyles.liquid, "border-white/[0.16] text-white"),
+							isLiquid && cn(glassMaterial(true, "menu"), "text-white"),
 						)}
 					>
 						<FileTree
@@ -212,9 +205,9 @@ export function FolderTreePicker({
 							)}
 							{tree.map((node) => renderFolder(node, disabledSet))}
 						</FileTree>
-						<div className="flex items-center gap-2 border-t border-border/50 px-1.5 pt-1.5 pb-0.5">
+						<div className="flex items-center gap-2 border-border/50 border-t px-1.5 pt-1.5 pb-0.5">
 							<span
-								className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+								className="min-w-0 flex-1 truncate text-muted-foreground text-xs"
 								aria-live="polite"
 							>
 								{pendingLabel}

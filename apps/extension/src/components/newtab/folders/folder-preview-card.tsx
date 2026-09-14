@@ -6,14 +6,14 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { flatSurface } from "@klice-start/ui/lib/surface";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
 import {
 	glassCardFooter,
 	glassDropdownItem,
+	glassDropRing,
 	glassFocusRing,
+	glassMaterial,
 	glassMenu,
 } from "../../../lib/glass";
 import { cn, softGradientFromString } from "../../../lib/utils";
@@ -99,10 +99,10 @@ export function FolderPreviewCard({
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
 					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-					isLiquid ? glassVariantStyles.liquid : flatSurface("floating"),
+					glassMaterial(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
-					dropActive && "scale-[1.02] shadow-md ring-2 ring-white/80",
+					dropActive && cn("scale-[1.02]", glassDropRing(isLiquid)),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}

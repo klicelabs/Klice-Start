@@ -7,15 +7,13 @@ import {
 	DropdownMenuTrigger,
 } from "@klice-start/ui/components/dropdown-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { flatSurface } from "@klice-start/ui/lib/surface";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { wouldCreateCycle } from "../../lib/folder-tree";
-import { glassDropdownItem, glassMenu } from "../../lib/glass";
+import { glassDropdownItem, glassMaterial, glassMenu } from "../../lib/glass";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -236,9 +234,8 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 							}
 							className={cn(
 								"squircle pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden rounded-[24px] px-3 py-3 [--squircle-r:15px]",
-								isLiquid
-									? cn(glassVariantStyles.liquid, "text-white")
-									: cn(flatSurface("floating"), "text-flat-ink"),
+								glassMaterial(isLiquid),
+								isLiquid ? "text-white" : "text-flat-ink",
 							)}
 						>
 							<div className="flex h-8 items-center justify-between">
