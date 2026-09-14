@@ -39,12 +39,18 @@
 	--sidebar-ring: oklch(0.705 0.015 286.067);
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.141 0.005 285.823);
+	--foreground-on-wallpaper: #ffffff;
+	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
+	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
 }
 
 .dark {
 	/* Neutral graphite ladder anchored by the Flat control base (#252525). */
 	--background: #171717;
 	--foreground: #f2f2f2;
+	--foreground-on-wallpaper: #ffffff;
+	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
+	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
 	--card: #252525;
 	--card-foreground: #f2f2f2;
 	--popover: #252525;
@@ -270,6 +276,9 @@
 	--color-card-foreground: var(--card-foreground);
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
+	--color-foreground-on-wallpaper: var(--foreground-on-wallpaper);
+	--color-foreground-on-wallpaper-muted: var(--foreground-on-wallpaper-muted);
+	--color-foreground-on-wallpaper-subtle: var(--foreground-on-wallpaper-subtle);
 	--color-background: var(--background);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);

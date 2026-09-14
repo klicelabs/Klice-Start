@@ -4,6 +4,7 @@ import type {
 	AppearanceMode,
 	BackgroundSettings,
 	Card,
+	ColorScheme,
 	CustomWallpaper,
 	Folder,
 	Setup,
@@ -98,6 +99,16 @@ function normalizeAppearanceMode(
 ): AppearanceMode {
 	if (value === "liquid") return "liquid";
 	if (value === "classic" || value === "flat") return "classic";
+	return fallback;
+}
+
+function normalizeColorScheme(
+	value: unknown,
+	fallback: ColorScheme,
+): ColorScheme {
+	if (value === "auto" || value === "light" || value === "dark") {
+		return value;
+	}
 	return fallback;
 }
 
@@ -328,6 +339,10 @@ export function normalizeState(
 			appearanceMode: normalizeAppearanceMode(
 				sourceSettings?.appearanceMode,
 				defaults.settings.appearanceMode,
+			),
+			colorScheme: normalizeColorScheme(
+				sourceSettings?.colorScheme,
+				defaults.settings.colorScheme,
 			),
 			accentColor: normalizeAccentColor(
 				sourceSettings?.accentColor,

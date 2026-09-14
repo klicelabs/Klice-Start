@@ -49,12 +49,22 @@ function resolveDrag(e: DragEvent): ItemRef | null {
 }
 
 function edgeScroll(e: DragEvent) {
-	if (typeof window === "undefined") return;
-	if (e.clientY < 50) {
-		window.scrollBy({ top: -10, behavior: "instant" as ScrollBehavior });
-	} else if (window.innerHeight - e.clientY < 50) {
-		window.scrollBy({ top: 10, behavior: "instant" as ScrollBehavior });
+	const source = e.currentTarget;
+	const scrollContainer =
+		source instanceof HTMLElement
+			? source.closest<HTMLElement>("[data-speed-dial-scroll]")
+			: null;
+	if (scrollContainer) {
+		const bounds = scrollContainer.getBoundingClientRect();
+		if (e.clientY - bounds.top < 50) scrollContainer.scrollTop -= 10;
+		else if (bounds.bottom - e.clientY < 50) scrollContainer.scrollTop += 10;
+		return;
 	}
+	if (typeof window === "undefined") return;
+	if (e.clientY < 50)
+		window.scrollBy({ top: -10, behavior: "instant" as ScrollBehavior });
+	else if (window.innerHeight - e.clientY < 50)
+		window.scrollBy({ top: 10, behavior: "instant" as ScrollBehavior });
 }
 
 function isValidItemDrop(

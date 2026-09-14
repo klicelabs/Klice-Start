@@ -116,6 +116,9 @@ export function SettingsSidebar({
 		if (!open) return;
 		function handleKeyDown(event: KeyboardEvent) {
 			if (event.key !== "Escape") return;
+			// A focused unified Search owns Escape first. Let it collapse its
+			// floating result surface without dismissing the sibling sidebar.
+			if (event.defaultPrevented) return;
 			event.preventDefault();
 			handleClose();
 		}

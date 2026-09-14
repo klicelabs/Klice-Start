@@ -23,8 +23,10 @@ import { InlineFolderNav } from "../../src/components/newtab/folder-nav";
 import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
 import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { RestMode } from "../../src/components/newtab/rest-mode";
-import { GlobalSearch } from "../../src/components/newtab/search/global-search";
-import { SearchBar } from "../../src/components/newtab/search/search-bar";
+import {
+	UnifiedSearch,
+	type UnifiedSearchHandle,
+} from "../../src/components/newtab/search/unified-search";
 import { SelectionTray } from "../../src/components/newtab/selection-tray";
 import {
 	type SettingsPaneId,
@@ -32,6 +34,7 @@ import {
 	type SettingsSidebarProps,
 } from "../../src/components/newtab/settings";
 import { NavigationToolbar } from "../../src/components/newtab/toolbar/navigation-toolbar";
+import { ToolbarActions } from "../../src/components/newtab/toolbar/toolbar-actions";
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
 import { usePersistenceErrorToast } from "../../src/hooks/use-persistence-error-toast";
@@ -68,6 +71,42 @@ function ThemedToaster() {
 		/>
 	);
 }
+
+function SpeedDialTopFade() {
+	return (
+		<div
+			className="speed-dial-top-fade pointer-events-none absolute inset-x-0 top-0 z-20"
+			aria-hidden="true"
+		/>
+	);
+}
+
+const SPEED_DIAL_INTERACTIVE_SELECTOR = [
+	"[data-unified-search]",
+	"[data-speed-dial-navigation]",
+	"[data-speed-dial-app-toolbar]",
+	"[data-local-context-menu]",
+	"[data-selection-tray]",
+	"[data-context-menu-portal]",
+	"[data-morph-popover-portal]",
+	"[data-settings-sidebar-slot]",
+	"[data-settings-ui]",
+	".dial-cell",
+	".settings-scope",
+	".clock-widget",
+	"button",
+	"a",
+	"input",
+	"textarea",
+	"select",
+	'[contenteditable="true"]',
+	'[role="button"]',
+	'[role="tab"]',
+	'[role="menu"]',
+	'[role="menuitem"]',
+	'[role="listbox"]',
+	'[role="tree"]',
+].join(",");
 
 export default function App() {
 	useCrossTabSync();
@@ -255,7 +294,7 @@ export default function App() {
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
 		useState<SettingsSidebarProps["initialAction"]>(undefined);
-	const [showSearch, setShowSearch] = useState(false);
+	const unifiedSearchRef = useRef<UnifiedSearchHandle>(null);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
 
@@ -270,7 +309,6 @@ export default function App() {
 	}, []);
 
 	const enterRestMode = useCallback(() => {
-		setShowSearch(false);
 		setShowSettings(false);
 		setRestMode(true);
 	}, []);
@@ -306,6 +344,46 @@ export default function App() {
 		},
 		[],
 	);
+
+	const handleToggleSettings = useCallback(() => {
+		if (showSettings) {
+			setShowSettings(false);
+			setSettingsAction(undefined);
+			return;
+		}
+		handleOpenSettings();
+	}, [handleOpenSettings, showSettings]);
+
+	const handleSpeedDialBackgroundPointer = useCallback(
+		(event: PointerEvent) => {
+			if (!showSettings || event.pointerType !== "mouse") return;
+			if (event.button !== 0 && event.button !== 2) return;
+
+			const target = event.target;
+			if (!(target instanceof Element)) return;
+			if (target.closest(SPEED_DIAL_INTERACTIVE_SELECTOR)) return;
+
+			// This handler is scoped to the real Speed Dial scroll surface. A
+			// background click closes the sidebar, while the subsequent native
+			// contextmenu event is intentionally left untouched for right-clicks.
+			setShowSettings(false);
+			setSettingsAction(undefined);
+		},
+		[showSettings],
+	);
+
+	// The toolbar is an alternate trigger for the one in-flow search object.
+	// Bring that object back into view before focusing it instead of mounting a
+	// second palette with a second query/result state.
+	const handleOpenSearch = useCallback(() => {
+		const input = document.querySelector<HTMLElement>(
+			"[data-unified-search-input]",
+		);
+		input?.scrollIntoView({ behavior: "smooth", block: "center" });
+		requestAnimationFrame(() => {
+			unifiedSearchRef.current?.focus();
+		});
+	}, []);
 
 	// Drop one bookmark onto another: fold both into a fresh subfolder and
 	// immediately offer it for naming. Atomic — nothing is lost on failure.
@@ -393,11 +471,65 @@ export default function App() {
 		function handleKey(e: KeyboardEvent) {
 			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
 				e.preventDefault();
-				setShowSearch((prev) => !prev);
+				handleOpenSearch();
 			}
 		}
 		document.addEventListener("keydown", handleKey);
 		return () => document.removeEventListener("keydown", handleKey);
+	}, [handleOpenSearch]);
+
+	// Scroll Craft-style ambient transition without per-frame React renders.
+	// The scroll signal is written to CSS once per animation frame, where the
+	// hero and fixed top fade can consume it with compositor-friendly transforms.
+	const speedDialScrollRef = useRef<HTMLDivElement>(null);
+	const speedDialFrameRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const scrollContainer = speedDialScrollRef.current;
+		if (!scrollContainer) return;
+		scrollContainer.addEventListener(
+			"pointerdown",
+			handleSpeedDialBackgroundPointer,
+		);
+		return () =>
+			scrollContainer.removeEventListener(
+				"pointerdown",
+				handleSpeedDialBackgroundPointer,
+			);
+	}, [handleSpeedDialBackgroundPointer]);
+
+	useEffect(() => {
+		const scrollContainer = speedDialScrollRef.current;
+		if (!scrollContainer) return;
+		let frame = 0;
+		const syncScrollProgress = () => {
+			frame = 0;
+			const progress = Math.min(1, scrollContainer.scrollTop / 240);
+			scrollContainer.style.setProperty("--ambient-progress", String(progress));
+			const scrolled = progress > 0.08 ? "true" : "false";
+			scrollContainer.dataset.scrolled = scrolled;
+			if (speedDialFrameRef.current) {
+				speedDialFrameRef.current.dataset.scrolled = scrolled;
+			}
+		};
+		const onScroll = () => {
+			// Dataset state is cheap enough to update synchronously so the sticky
+			// top fade responds on the same input event. The continuous
+			// transform signal remains rAF-coalesced below.
+			const progress = Math.min(1, scrollContainer.scrollTop / 240);
+			const scrolled = progress > 0.08 ? "true" : "false";
+			scrollContainer.dataset.scrolled = scrolled;
+			if (speedDialFrameRef.current) {
+				speedDialFrameRef.current.dataset.scrolled = scrolled;
+			}
+			if (frame !== 0) return;
+			frame = requestAnimationFrame(syncScrollProgress);
+		};
+		syncScrollProgress();
+		scrollContainer.addEventListener("scroll", onScroll, { passive: true });
+		return () => {
+			scrollContainer.removeEventListener("scroll", onScroll);
+			if (frame !== 0) cancelAnimationFrame(frame);
+		};
 	}, []);
 
 	// Select every bookmark and subfolder in the current view. Keep native
@@ -489,18 +621,50 @@ export default function App() {
 									"squircle relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 									wakeActive && "klice-wake",
 								)}
+								ref={speedDialFrameRef}
 								data-rest-mode={restMode ? "true" : undefined}
 								data-settings-open={showSettings ? "true" : "false"}
 								data-speed-dial-frame="true"
 							>
 								<BackgroundLayer contained />
+								<SpeedDialTopFade />
+								{!restMode && (
+									<div
+										className="speed-dial-app-toolbar pointer-events-none absolute inset-x-0 top-0 z-[60] flex h-14 items-center justify-end"
+										data-speed-dial-app-toolbar="true"
+									>
+										<div className="pointer-events-auto flex items-center">
+											{!showSettings && (
+												<ToolbarActions onSettings={handleToggleSettings} />
+											)}
+										</div>
+									</div>
+								)}
 								{restMode && <RestMode onExit={exitRestMode} />}
 
 								<div
-									className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+									ref={speedDialScrollRef}
+									className="scrollbar-hidden relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
 									data-speed-dial-scroll="true"
 								>
 									<div className={cn(restMode && "rest-mode-hidden")}>
+										{/* Ambient content comes first; only this layer recedes during
+										    scroll so the Search anchor can remain above the Tabbar. */}
+										<main className="speed-dial-hero hero">
+											<div
+												className="klice-ambient-hero"
+												data-ambient-hero="true"
+											>
+												<ClockWidget />
+											</div>
+											<div className="speed-dial-search-anchor">
+												<UnifiedSearch
+													ref={unifiedSearchRef}
+													onNavigateFolder={handleSelectFolder}
+												/>
+											</div>
+										</main>
+
 										<NavigationToolbar
 											rootFolders={rootFolders}
 											activeRootId={activeRootId}
@@ -512,9 +676,6 @@ export default function App() {
 											onAddFolder={(name) => addFolder(name, null)}
 											onNewRootFolder={() => handleNewSubfolder(null)}
 											onNewSubfolder={handleNewSubfolder}
-											onOpenSettings={() => handleOpenSettings()}
-											settingsOpen={showSettings}
-											onOpenSearch={() => setShowSearch(true)}
 											onDeleteFolder={deleteFolder}
 											onReorderFolders={(fromId, toId, position) =>
 												reorderFolders(fromId, toId, position)
@@ -526,14 +687,8 @@ export default function App() {
 											canNestFolder={canNestFolder}
 										/>
 
-										{/* Hero: Clock + Web Search */}
-										<div className="pb-20">
-											<main className="hero flex w-full flex-col items-center gap-6 px-6 pt-12 pb-16">
-												<ClockWidget />
-												<SearchBar />
-											</main>
-
-											{/* In-flow subfolder navigation between Search and grid. */}
+										<div className="speed-dial-grid-region">
+											{/* In-flow subfolder navigation between the tabbar and grid. */}
 											{isSubfolder && currentFolder && parentFolder && (
 												<div
 													ref={sentinelRef}
@@ -582,16 +737,6 @@ export default function App() {
 												}
 											/>
 										</div>
-
-										{/* Global Search overlay (Spotlight-style favorites/folders search) */}
-										<GlobalSearch
-											open={showSearch}
-											onClose={() => setShowSearch(false)}
-											onNavigateFolder={(id) => {
-												handleSelectFolder(id);
-												setShowSearch(false);
-											}}
-										/>
 
 										{/* Lightweight Move-to destination picker */}
 										<MoveToDialog />

@@ -1,5 +1,6 @@
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useClock } from "../../hooks/use-clock";
+import { wallpaperText } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 
 interface RestModeProps {
@@ -20,30 +21,39 @@ export function RestMode({ onExit }: RestModeProps) {
 			className="rest-mode fixed inset-0 z-50 flex min-h-screen items-center justify-center px-6 text-center"
 		>
 			<div className="rest-mode-content flex max-w-md flex-col items-center">
-				<p className="rest-mode-eyebrow font-medium text-white/55 text-xs uppercase tracking-[0.24em]">
+				<p
+					className={`${wallpaperText("muted")} rest-mode-eyebrow font-medium text-xs uppercase tracking-[0.24em]`}
+				>
 					Klice Start
 				</p>
 				<time
 					className={cn(
-						"mt-4 font-semibold text-white leading-none tracking-[-0.06em]",
+						"mt-4 font-semibold leading-none tracking-[-0.06em]",
+						wallpaperText("primary"),
 						time ? "text-[clamp(4.5rem,13vw,8rem)]" : "text-4xl",
 					)}
 				>
 					{time || "Resting"}
 				</time>
-				{date && <p className="mt-4 text-sm text-white/65">{date}</p>}
+				{date && (
+					<p className={`${wallpaperText("secondary")} mt-4 text-sm`}>{date}</p>
+				)}
 				{greeting && (
-					<p className="mt-2 font-medium text-base text-white/80">{greeting}</p>
+					<p
+						className={`${wallpaperText("secondary")} mt-2 font-medium text-base`}
+					>
+						{greeting}
+					</p>
 				)}
 				<button
 					type="button"
 					onClick={onExit}
-					className="rest-mode-cta mt-10 inline-flex h-10 items-center gap-2 rounded-full px-5 font-medium text-sm text-white"
+					className={`${wallpaperText("primary")} rest-mode-cta mt-10 inline-flex h-10 items-center gap-2 rounded-full px-5 font-medium text-sm`}
 				>
 					Enter Klice
 					<Icon name="chevron-right" size={15} />
 				</button>
-				<p className="mt-5 text-[11px] text-white/40">
+				<p className={`${wallpaperText("muted")} mt-5 text-[11px]`}>
 					Press Enter, Space, or Escape to return
 				</p>
 			</div>

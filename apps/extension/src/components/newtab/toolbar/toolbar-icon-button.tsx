@@ -14,6 +14,10 @@ interface ToolbarIconButtonProps {
 	/** Active/pressed visual state (e.g. an open menu). */
 	active?: boolean;
 	iconSize?: number;
+	id?: string;
+	expanded?: boolean;
+	controls?: string;
+	dataSettingsUi?: boolean;
 }
 
 /**
@@ -35,6 +39,10 @@ export function ToolbarIconButton({
 	onClick,
 	active = false,
 	iconSize = TOOLBAR.iconSize,
+	id,
+	expanded,
+	controls,
+	dataSettingsUi = false,
 }: ToolbarIconButtonProps) {
 	const { isLiquid } = useAppearance();
 
@@ -45,6 +53,10 @@ export function ToolbarIconButton({
 				onClick={onClick}
 				aria-label={label}
 				aria-pressed={active}
+				aria-expanded={expanded}
+				aria-controls={controls}
+				id={id}
+				data-settings-ui={dataSettingsUi ? "true" : undefined}
 				className={cn(
 					"aspect-square size-[42px] shrink-0 text-white/70 transition-colors hover:text-white",
 					glassFocusRing(isLiquid),
@@ -62,13 +74,15 @@ export function ToolbarIconButton({
 			onClick={onClick}
 			aria-label={label}
 			aria-pressed={active}
+			aria-expanded={expanded}
+			aria-controls={controls}
+			id={id}
+			data-settings-ui={dataSettingsUi ? "true" : undefined}
 			className={cn(
 				"flex aspect-square size-[42px] shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform,box-shadow] duration-150 active:scale-95",
 				flatControl(),
 				flatFocusRing(),
-				active
-					? "text-flat-ink"
-					: "text-flat-ink-muted hover:text-flat-ink",
+				active ? "text-flat-ink" : "text-flat-ink-muted hover:text-flat-ink",
 			)}
 		>
 			<Icon name={icon} size={iconSize} />

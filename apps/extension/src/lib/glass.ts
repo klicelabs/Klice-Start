@@ -127,10 +127,8 @@ export function glassCardFooter(isLiquid: boolean): string {
 	if (isLiquid) {
 		return cn(
 			"bg-black/[0.06] text-white/90",
-			"dark:bg-black/[0.14]",
 			"backdrop-blur-[4px] backdrop-saturate-[1.15]",
 			"shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]",
-			"dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
 		);
 	}
 	return "bg-flat-sunken-raised text-flat-ink";
@@ -189,5 +187,23 @@ export function glassText(
 			return "text-foreground/80";
 		case "muted":
 			return "text-muted-foreground";
+	}
+}
+
+/**
+ * Semantic ink for content painted directly over the wallpaper. This role is
+ * independent from both theme and material: unlike Settings or a card/menu
+ * surface, the wallpaper underneath can change at any time.
+ */
+export function wallpaperText(
+	variant: "primary" | "secondary" | "muted" = "primary",
+): string {
+	switch (variant) {
+		case "primary":
+			return "text-[var(--foreground-on-wallpaper)]";
+		case "secondary":
+			return "text-[var(--foreground-on-wallpaper-muted)]";
+		case "muted":
+			return "text-[var(--foreground-on-wallpaper-subtle)]";
 	}
 }

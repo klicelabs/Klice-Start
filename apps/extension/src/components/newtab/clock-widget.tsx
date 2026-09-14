@@ -1,5 +1,6 @@
 import { useClock } from "../../hooks/use-clock";
-import { HERO_TEXT_SHADOW } from "../../lib/glass";
+import { HERO_TEXT_SHADOW, wallpaperText } from "../../lib/glass";
+import { cn } from "../../lib/utils";
 import { useSetupStore } from "../../stores/setup-store";
 
 export function ClockWidget() {
@@ -13,30 +14,39 @@ export function ClockWidget() {
 	const timeFontSize = `${Math.round((56 * (size || 100)) / 100)}px`;
 
 	return (
-		<div className="clock-widget flex flex-col items-center gap-1">
-			{greetingVisible && greeting ? (
-				<span
-					className="clock-greeting font-bold text-[15px] opacity-90"
-					style={{ textShadow: HERO_TEXT_SHADOW }}
-				>
-					{greeting}
-				</span>
-			) : null}
+		<div className="clock-widget flex flex-col items-center gap-2">
 			{clockVisible ? (
 				<>
 					<span
-						className="clock-time font-bold leading-none tracking-tight"
-						style={{ fontSize: timeFontSize, textShadow: HERO_TEXT_SHADOW }}
-					>
-						{time}
-					</span>
-					<span
-						className="clock-date font-bold text-[13px] opacity-80"
+						className={cn(
+							wallpaperText("secondary"),
+							"clock-date font-semibold text-[20px] leading-[1.15] tracking-[-0.015em]",
+						)}
 						style={{ textShadow: HERO_TEXT_SHADOW }}
 					>
 						{date}
 					</span>
+					<span
+						className={cn(
+							wallpaperText("primary"),
+							"clock-time font-semibold leading-[0.88] tracking-[-0.055em]",
+						)}
+						style={{ fontSize: timeFontSize, textShadow: HERO_TEXT_SHADOW }}
+					>
+						{time}
+					</span>
 				</>
+			) : null}
+			{greetingVisible ? (
+				<span
+					className={cn(
+						wallpaperText("primary"),
+						"clock-greeting mt-4 font-semibold text-[34px] leading-[1.06] tracking-[-0.04em]",
+					)}
+					style={{ textShadow: HERO_TEXT_SHADOW }}
+				>
+					{greeting}
+				</span>
 			) : null}
 		</div>
 	);

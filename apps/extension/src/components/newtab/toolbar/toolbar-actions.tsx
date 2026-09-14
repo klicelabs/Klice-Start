@@ -1,68 +1,24 @@
-import { Icon } from "@klice-start/ui/icons/icon";
-import { glassFocusRing } from "../../../lib/glass";
-import {
-	TOOLBAR,
-	toolbarControlClassic,
-	toolbarControlLiquid,
-} from "../../../lib/toolbar-tokens";
-import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
-import { GlassSurface } from "./glass-surface";
+import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface ToolbarActionsProps {
-	onSearch: () => void;
 	onSettings: () => void;
-	settingsOpen?: boolean;
 }
 
 /**
- * Trailing actions on the homepage toolbar: Search + Settings.
- * Minimal, balanced, Apple HIG toolbar layout.
+ * The one persistent app action. Search intentionally does not live here:
+ * the in-flow UnifiedSearch is the only search surface and Ctrl/Cmd+K focuses
+ * that same object.
  */
-export function ToolbarActions({
-	onSearch,
-	onSettings,
-	settingsOpen = false,
-}: ToolbarActionsProps) {
-	const { isLiquid } = useAppearance();
-
-	function iconButton(active = false): string {
-		return cn(
-			TOOLBAR.controlHeight,
-			TOOLBAR.controlWidth,
-			TOOLBAR.radius,
-			"flex items-center justify-center",
-			glassFocusRing(isLiquid),
-			isLiquid ? toolbarControlLiquid(active) : toolbarControlClassic(active),
-		);
-	}
-
+export function ToolbarActions({ onSettings }: ToolbarActionsProps) {
 	return (
-		<GlassSurface className={cn(TOOLBAR.groupPadding, "gap-1")}>
-			<button
-				type="button"
-				className={iconButton(false)}
-				onClick={onSearch}
-				aria-label="Search favorites (Ctrl+K)"
-				title="Search favorites (Ctrl+K)"
-			>
-				<Icon name="search" size={TOOLBAR.iconSize} />
-			</button>
-			{!settingsOpen && (
-				<button
-					type="button"
-					onClick={onSettings}
-					className={iconButton(false)}
-					aria-label="Settings"
-					aria-expanded={settingsOpen}
-					title="Settings"
-					id="settings-trigger"
-					aria-controls="settings-sidebar"
-					data-settings-ui="true"
-				>
-					<Icon name="settings" size={TOOLBAR.iconSize} />
-				</button>
-			)}
-		</GlassSurface>
+		<ToolbarIconButton
+			icon="settings"
+			label="Settings"
+			onClick={onSettings}
+			id="settings-trigger"
+			expanded={false}
+			controls="settings-sidebar"
+			dataSettingsUi
+		/>
 	);
 }

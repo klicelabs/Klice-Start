@@ -323,7 +323,7 @@ export function DialGrid({
 
 	return (
 		<section
-			className="dial-grid-wrap mx-auto w-full px-6"
+			className="dial-grid-wrap mx-auto w-full px-[var(--speed-dial-content-gutter)]"
 			style={{ maxWidth: gridMaxWidth }}
 			{...dnd.backgroundProps}
 		>

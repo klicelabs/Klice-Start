@@ -45,14 +45,13 @@ function formatDate(date: Date, timezone: string): string {
 		timezone !== "auto" ? { timeZone: timezone } : {};
 	return date.toLocaleDateString("en-US", {
 		...opts,
-		weekday: "long",
+		weekday: "short",
 		day: "numeric",
-		month: "long",
+		month: "short",
 	});
 }
 
 function computeGreeting(date: Date, name: string, timezone: string): string {
-	if (!name) return "";
 	const opts: Intl.DateTimeFormatOptions =
 		timezone !== "auto" ? { timeZone: timezone } : {};
 	const h = Number.parseInt(
@@ -61,7 +60,7 @@ function computeGreeting(date: Date, name: string, timezone: string): string {
 	);
 	const period =
 		h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-	return `${period}, ${name}`;
+	return name ? `${period}, ${name}` : period;
 }
 
 export function useClock(): ClockState {

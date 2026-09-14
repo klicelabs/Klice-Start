@@ -8,7 +8,6 @@ import type { Folder } from "../../../types";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
 import { FolderTabsOverflow } from "./folder-tabs-overflow";
-import { ToolbarActions } from "./toolbar-actions";
 import { ToolbarBack } from "./toolbar-back";
 
 interface NavigationToolbarProps {
@@ -30,9 +29,6 @@ interface NavigationToolbarProps {
 	onNewRootFolder: () => void;
 	/** Direct subfolder creation ("New Folder" + inline rename). */
 	onNewSubfolder: (parentId: string | null) => void;
-	onOpenSettings: () => void;
-	settingsOpen?: boolean;
-	onOpenSearch: () => void;
 	onDeleteFolder?: (id: string) => void;
 	onReorderFolders?: (
 		draggedId: string,
@@ -55,7 +51,7 @@ interface NavigationToolbarProps {
  *
  *   Left    [‹] Current folder (back button + page title, subfolders only)
  *   Center  [ Home | AI | Design | + | ⋯ ] (root tabs + inline add + overflow)
- *   Right   [ 🔍 ⚙ ] (Search + Settings)
+ *   Right   [ reserved inset ] (the fixed app Settings action lives above it)
  */
 export function NavigationToolbar({
 	rootFolders,
@@ -68,9 +64,6 @@ export function NavigationToolbar({
 	onAddFolder,
 	onNewRootFolder,
 	onNewSubfolder,
-	onOpenSettings,
-	settingsOpen = false,
-	onOpenSearch,
 	onDeleteFolder,
 	onReorderFolders,
 	onDropCards,
@@ -168,47 +161,12 @@ export function NavigationToolbar({
 	);
 	const hasOverflow = hiddenFolders.length > 0;
 
-	// Sticky header: detect scroll to fade in a subtle gradient mask
-	const headerRef = useRef<HTMLElement>(null);
-	const [scrolled, setScrolled] = useState(false);
-	useEffect(() => {
-		const scrollContainer = headerRef.current?.closest<HTMLElement>(
-			"[data-speed-dial-scroll]",
-		);
-		if (scrollContainer) {
-			const handleScroll = () => setScrolled(scrollContainer.scrollTop > 20);
-			handleScroll();
-			scrollContainer.addEventListener("scroll", handleScroll, {
-				passive: true,
-			});
-			return () => scrollContainer.removeEventListener("scroll", handleScroll);
-		}
-
-		const handleWindowScroll = () => setScrolled(window.scrollY > 20);
-		handleWindowScroll();
-		window.addEventListener("scroll", handleWindowScroll, { passive: true });
-		return () => window.removeEventListener("scroll", handleWindowScroll);
-	}, []);
-
 	return (
 		<>
-			{/* Top edge gradient mask — only visible when page is scrolled */}
-			<div
-				className={cn(
-					"pointer-events-none absolute top-0 right-0 left-0 z-40 transition-opacity duration-300",
-					"h-[calc(2.5rem+max(env(safe-area-inset-top),0.75rem))]",
-					isLiquid
-						? "bg-gradient-to-b from-black/75 via-black/40 to-transparent"
-						: "bg-gradient-to-b from-background/80 via-background/45 to-transparent",
-					scrolled ? "opacity-100" : "opacity-0",
-				)}
-				aria-hidden="true"
-			/>
-
-			{/* Sticky toolbar — three areas on one centerline */}
+			{/* Sticky toolbar — centered Tabbar with balanced side insets */}
 			<header
-				ref={headerRef}
-				className="sticky top-0 right-0 left-0 z-50 mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center px-5"
+				className="speed-dial-navigation-toolbar relative sticky top-0 right-0 left-0 isolate z-[2] mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center"
+				data-speed-dial-navigation="true"
 			>
 				{/* Left: back button + current page title (no breadcrumb).
 				    Appears only once the in-flow control scrolls out of view
@@ -293,14 +251,10 @@ export function NavigationToolbar({
 					</div>
 				</div>
 
-				{/* Right: Search + Settings */}
-				<div className="flex w-44 shrink-0 items-center justify-end">
-					<ToolbarActions
-						onSearch={onOpenSearch}
-						onSettings={onOpenSettings}
-						settingsOpen={settingsOpen}
-					/>
-				</div>
+				{/* Right: balanced inset for the stationary app Settings control.
+				    Keeping this lane symmetrical lets the one Tabbar travel into
+				    the sticky toolbar without colliding with that control. */}
+				<div className="w-44 shrink-0" aria-hidden="true" />
 			</header>
 		</>
 	);

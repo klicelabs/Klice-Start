@@ -1,8 +1,12 @@
-import { Fragment } from "react";
 import { Button as MotionButton } from "@klice-start/ui/components/motion/button/base";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { flatControl } from "@klice-start/ui/lib/surface";
-import { glassFocusRing, glassText, HERO_TEXT_SHADOW } from "../../lib/glass";
+import { Fragment } from "react";
+import {
+	glassFocusRing,
+	HERO_TEXT_SHADOW,
+	wallpaperText,
+} from "../../lib/glass";
 import { RECOMMENDED_SITES } from "../../lib/recommended-sites";
 import { faviconUrl } from "../../lib/url";
 import { cn } from "../../lib/utils";
@@ -86,14 +90,17 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 				<h2
 					className={cn(
 						"font-semibold text-[17px] tracking-tight",
-						glassText(isLiquid, "primary"),
+						wallpaperText("primary"),
 					)}
 					style={{ textShadow: HERO_TEXT_SHADOW }}
 				>
 					This folder is empty
 				</h2>
 				<p
-					className={cn("mt-2 text-xs leading-relaxed", glassText(isLiquid, "secondary"))}
+					className={cn(
+						"mt-2 text-xs leading-relaxed",
+						wallpaperText("secondary"),
+					)}
 					style={{ textShadow: HERO_TEXT_SHADOW }}
 				>
 					Save a page here or add your first link.
@@ -124,7 +131,7 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 				<div
 					className={cn(
 						"mt-8 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-[11px]",
-						glassText(isLiquid, "muted"),
+						wallpaperText("muted"),
 					)}
 					style={{ textShadow: HERO_TEXT_SHADOW }}
 				>
@@ -142,9 +149,7 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 								className={cn(
 									"rounded-sm px-0.5 transition-colors duration-150 hover:underline hover:underline-offset-2",
 									glassFocusRing(isLiquid),
-									isLiquid
-										? "text-white/90 hover:text-white"
-										: "text-foreground/90 hover:text-foreground",
+									wallpaperText("secondary"),
 								)}
 							>
 								{site.name}
