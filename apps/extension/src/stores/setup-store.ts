@@ -99,15 +99,9 @@ interface SetupActions {
 	updateThumbnailCapture: (
 		changes: Partial<Settings["thumbnailCapture"]>,
 	) => void;
-	beginSettingsDraft: () => void;
-	updateSettingsDraft: (changes: Partial<Settings>) => void;
-	saveSettingsDraft: () => Promise<void>;
-	discardSettingsDraft: () => void;
 	/**
-	 * Persist a confirmed upload into the wallpaper library immediately —
-	 * independent from Save. The library (bytes in IndexedDB + metadata) is
-	 * retained even if Settings closes without Save; only the *active*
-	 * selection stays in the draft until Save applies it.
+	 * Persist a confirmed upload into the wallpaper library immediately. The
+	 * upload confirmation and active wallpaper selection are separate actions.
 	 */
 	commitCustomWallpaper: (entry: { id: string; name: string }) => void;
 	/** Remove library metadata immediately (bytes are deleted by the caller). */
@@ -116,36 +110,13 @@ interface SetupActions {
 	resetAll: () => Promise<void>;
 }
 
-export type SetupStore = Setup &
-	SetupActions & {
-		/** Effective in-memory settings while the Settings panel is being edited. */
-		settingsDraft: Settings | null;
-		/** Persisted snapshot used to discard an uncommitted Settings session. */
-		settingsDraftBaseline: Settings | null;
-		isSettingsDirty: boolean;
-	};
-
-function cloneSettings(settings: Settings): Settings {
-	return structuredClone(settings);
-}
-
-function settingsMatch(left: Settings, right: Settings): boolean {
-	return JSON.stringify(left) === JSON.stringify(right);
-}
-
-let settingsDraftPersistSnapshot: Settings | null = null;
+export type SetupStore = Setup & SetupActions;
 
 function applySettingsUpdate(
 	state: SetupStore,
 	changes: Partial<Settings>,
-): Pick<SetupStore, "settings" | "settingsDraft" | "isSettingsDirty"> {
-	const settings = { ...state.settings, ...changes };
-	const baseline = state.settingsDraftBaseline;
-	return {
-		settings,
-		settingsDraft: baseline ? settings : state.settingsDraft,
-		isSettingsDirty: baseline ? !settingsMatch(settings, baseline) : false,
-	};
+): Pick<SetupStore, "settings"> {
+	return { settings: { ...state.settings, ...changes } };
 }
 
 type NestedSettingsKey =
@@ -159,16 +130,12 @@ function applyNestedSettingsUpdate<K extends NestedSettingsKey>(
 	state: SetupStore,
 	key: K,
 	changes: Partial<Settings[K]>,
-): Pick<SetupStore, "settings" | "settingsDraft" | "isSettingsDirty"> {
-	const settings = {
-		...state.settings,
-		[key]: { ...state.settings[key], ...changes },
-	};
-	const baseline = state.settingsDraftBaseline;
+): Pick<SetupStore, "settings"> {
 	return {
-		settings,
-		settingsDraft: baseline ? settings : state.settingsDraft,
-		isSettingsDirty: baseline ? !settingsMatch(settings, baseline) : false,
+		settings: {
+			...state.settings,
+			[key]: { ...state.settings[key], ...changes },
+		},
 	};
 }
 
@@ -182,9 +149,6 @@ export const useSetupStore = create<SetupStore>()(
 	persist(
 		(set, get) => ({
 			...normalizeState(null),
-			settingsDraft: null,
-			settingsDraftBaseline: null,
-			isSettingsDirty: false,
 
 			addFolder: (name, parentId = null) => {
 				const id = generateId();
@@ -688,75 +652,6 @@ export const useSetupStore = create<SetupStore>()(
 			updateThumbnailCapture: (changes) =>
 				set((s) => applyNestedSettingsUpdate(s, "thumbnailCapture", changes)),
 
-			beginSettingsDraft: () =>
-				set((s) => {
-					if (s.settingsDraftBaseline) return {};
-					const baseline = cloneSettings(s.settings);
-					return {
-						settingsDraft: cloneSettings(s.settings),
-						settingsDraftBaseline: baseline,
-						isSettingsDirty: false,
-					};
-				}),
-
-			updateSettingsDraft: (changes) =>
-				set((s) => applySettingsUpdate(s, changes)),
-
-			saveSettingsDraft: async () => {
-				const state = get();
-				if (!state.settingsDraftBaseline || !state.settingsDraft) return;
-				const draft = cloneSettings(state.settingsDraft);
-				const baseline = cloneSettings(state.settingsDraftBaseline);
-				const wasDirty = state.isSettingsDirty;
-				settingsDraftPersistSnapshot = draft;
-				set({ settingsDraft: draft });
-				try {
-					await flushPersist();
-				} catch (error) {
-					settingsDraftPersistSnapshot = null;
-					const current = get();
-					if (
-						current.settingsDraft &&
-						current.settingsDraftBaseline &&
-						settingsMatch(current.settingsDraft, draft) &&
-						settingsMatch(current.settingsDraftBaseline, baseline)
-					) {
-						set({
-							settingsDraft: draft,
-							settingsDraftBaseline: baseline,
-							isSettingsDirty: wasDirty,
-						});
-					}
-					throw error;
-				}
-				settingsDraftPersistSnapshot = null;
-				const current = get();
-				if (
-					!current.settingsDraft ||
-					!current.settingsDraftBaseline ||
-					!settingsMatch(current.settingsDraft, draft) ||
-					!settingsMatch(current.settingsDraftBaseline, baseline)
-				) {
-					return;
-				}
-				const persistedSettings = cloneSettings(draft);
-				set({
-					settingsDraft: persistedSettings,
-					settingsDraftBaseline: cloneSettings(persistedSettings),
-					isSettingsDirty: false,
-				});
-			},
-
-			discardSettingsDraft: () =>
-				set((s) => ({
-					settings: s.settingsDraftBaseline
-						? cloneSettings(s.settingsDraftBaseline)
-						: s.settings,
-					settingsDraft: null,
-					settingsDraftBaseline: null,
-					isSettingsDirty: false,
-				})),
-
 			commitCustomWallpaper: (entry) =>
 				set((s) => {
 					const current = s.settings.background.customWallpapers ?? [];
@@ -767,21 +662,7 @@ export const useSetupStore = create<SetupStore>()(
 						...s.settings,
 						background: { ...s.settings.background, customWallpapers },
 					};
-					const baseline = s.settingsDraftBaseline;
-					if (!baseline) return { settings };
-					// The library is retained regardless of Save, so the baseline
-					// moves with it — only a changed *selection* keeps the
-					// panel dirty.
-					const nextBaseline: Settings = {
-						...baseline,
-						background: { ...baseline.background, customWallpapers },
-					};
-					return {
-						settings,
-						settingsDraft: settings,
-						settingsDraftBaseline: nextBaseline,
-						isSettingsDirty: !settingsMatch(settings, nextBaseline),
-					};
+					return { settings };
 				}),
 
 			removeCustomWallpaper: (id) =>
@@ -807,27 +688,10 @@ export const useSetupStore = create<SetupStore>()(
 						...s.settings,
 						background: strip(s.settings.background),
 					};
-					const baseline = s.settingsDraftBaseline;
-					if (!baseline) return { settings };
-					const nextBaseline: Settings = {
-						...baseline,
-						background: strip(baseline.background),
-					};
-					return {
-						settings,
-						settingsDraft: settings,
-						settingsDraftBaseline: nextBaseline,
-						isSettingsDirty: !settingsMatch(settings, nextBaseline),
-					};
+					return { settings };
 				}),
 
-			replaceSetup: (setup) =>
-				set({
-					...normalizeState(setup),
-					settingsDraft: null,
-					settingsDraftBaseline: null,
-					isSettingsDirty: false,
-				}),
+			replaceSetup: (setup) => set(normalizeState(setup)),
 
 			resetAll: async () => {
 				const previous = get();
@@ -839,9 +703,6 @@ export const useSetupStore = create<SetupStore>()(
 					await useImageStore.getState().clearAll();
 					set({
 						...normalizeState(null),
-						settingsDraft: null,
-						settingsDraftBaseline: null,
-						isSettingsDirty: false,
 					});
 					await flushPersist();
 				} catch (error) {
@@ -864,10 +725,7 @@ export const useSetupStore = create<SetupStore>()(
 				folders: s.folders,
 				cards: s.cards,
 				activeFolderId: s.activeFolderId,
-				// Draft values stay in memory for live previews. While editing,
-				// persist the baseline; Save supplies its snapshot for the confirmed write.
-				settings:
-					settingsDraftPersistSnapshot ?? s.settingsDraftBaseline ?? s.settings,
+				settings: s.settings,
 				itemOrder: s.itemOrder,
 			}),
 		},

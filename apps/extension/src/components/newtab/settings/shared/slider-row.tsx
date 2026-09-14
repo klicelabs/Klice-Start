@@ -36,9 +36,9 @@ interface SliderRowProps {
  * length and the same value column, and none of them has to fight the label
  * for horizontal space. The label is never repeated inside the control.
  *
- * The value is mirrored locally while dragging so the track stays smooth even
- * though the store round-trips every change; persistence is coalesced into one
- * flush after the gesture settles.
+ * The value is mirrored locally while dragging so the track stays smooth. Store
+ * updates remain live for preview, while the storage adapter coalesces writes
+ * and the final pointer/key interaction flushes the latest value.
  */
 export function SliderRow({
 	label,
@@ -65,10 +65,26 @@ export function SliderRow({
 	useEffect(
 		() => () => {
 			if (flushTimer.current) clearTimeout(flushTimer.current);
-			flushPersist();
+			void flushPersist().catch(() => undefined);
 		},
 		[],
 	);
+
+	function flushInteraction() {
+		if (flushTimer.current) clearTimeout(flushTimer.current);
+		flushTimer.current = null;
+		interacting.current = false;
+		void flushPersist().catch(() => undefined);
+	}
+
+	function scheduleInteractionFlush() {
+		if (flushTimer.current) clearTimeout(flushTimer.current);
+		flushTimer.current = setTimeout(() => {
+			flushTimer.current = null;
+			interacting.current = false;
+			void flushPersist().catch(() => undefined);
+		}, 400);
+	}
 
 	return (
 		<div className={cn("flex min-w-0 flex-col gap-2 px-1.5 py-2.5", className)}>
@@ -103,13 +119,23 @@ export function SliderRow({
 			    focusable node is the 4px thumb. The wrapper's first child is the
 			    track's fill clip, which the component rounds independently — it
 			    has to follow or the tint's corner would not match the track's. */}
-			<div
+			<fieldset
+				aria-label={`${label} slider`}
 				className={cn(
+					"m-0 min-w-0 border-0 p-0",
 					"squircle",
 					SETTINGS_RADIUS.surface,
 					"[&>div:first-child]:rounded-[16px]",
 					SETTINGS_FOCUS_RING_WITHIN,
 				)}
+				onPointerDown={() => {
+					interacting.current = true;
+				}}
+				onPointerUp={flushInteraction}
+				onPointerCancel={flushInteraction}
+				onLostPointerCapture={flushInteraction}
+				onKeyUp={flushInteraction}
+				onBlur={flushInteraction}
 			>
 				<RangeSlider
 					value={local}
@@ -127,14 +153,10 @@ export function SliderRow({
 						interacting.current = true;
 						setLocal(next);
 						onChange(next);
-						if (flushTimer.current) clearTimeout(flushTimer.current);
-						flushTimer.current = setTimeout(() => {
-							flushTimer.current = null;
-							flushPersist();
-						}, 400);
+						scheduleInteractionFlush();
 					}}
 				/>
-			</div>
+			</fieldset>
 		</div>
 	);
 }

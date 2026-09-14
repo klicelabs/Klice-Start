@@ -12,7 +12,6 @@ import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "../../../lib/utils";
-import { useSetupStore } from "../../../stores/setup-store";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
@@ -31,7 +30,6 @@ import {
 	SETTINGS_FOCUS_RING,
 	SETTINGS_HEADER_CONTROL,
 	SETTINGS_HEADER_INSET,
-	SETTINGS_HEADER_SAVE,
 	SETTINGS_HOVER_WASH,
 	SETTINGS_PAGE_INSET,
 	SETTINGS_PANEL_SURFACE,
@@ -112,22 +110,11 @@ export function SettingsDialog({
 	const [paneDirection, setPaneDirection] = useState<1 | -1>(1);
 	const reduceMotion = useReducedMotion() ?? false;
 	const contentRef = useRef<HTMLElement>(null);
-	const isSettingsDirty = useSetupStore((state) => state.isSettingsDirty);
-	const beginSettingsDraft = useSetupStore((state) => state.beginSettingsDraft);
-	const saveSettingsDraft = useSetupStore((state) => state.saveSettingsDraft);
-	const discardSettingsDraft = useSetupStore(
-		(state) => state.discardSettingsDraft,
-	);
-	const [isSaving, setIsSaving] = useState(false);
 
 	useEffect(() => {
-		if (!open) {
-			discardSettingsDraft();
-			return;
-		}
-		beginSettingsDraft();
+		if (!open) return;
 		setNavigation(createSettingsNavigation(initialPane));
-	}, [beginSettingsDraft, discardSettingsDraft, initialPane, open]);
+	}, [initialPane, open]);
 
 	const activePane: SettingsPaneId =
 		navigation.entries[navigation.index] ?? initialPane ?? "general";
@@ -146,18 +133,8 @@ export function SettingsDialog({
 	}, []);
 
 	const handleClose = useCallback(() => {
-		discardSettingsDraft();
 		onClose();
-	}, [discardSettingsDraft, onClose]);
-
-	const handleSave = useCallback(async () => {
-		setIsSaving(true);
-		try {
-			await saveSettingsDraft();
-		} finally {
-			setIsSaving(false);
-		}
-	}, [saveSettingsDraft]);
+	}, [onClose]);
 
 	useEffect(() => {
 		if (!showRoot && activePane) {
@@ -212,7 +189,7 @@ export function SettingsDialog({
 						>
 							<header
 								className={cn(
-									"grid h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3",
+									"grid h-14 shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3",
 									SETTINGS_HEADER_INSET,
 								)}
 							>
@@ -258,38 +235,6 @@ export function SettingsDialog({
 									<PopoverDescription className="sr-only">
 										Klice Start preferences
 									</PopoverDescription>
-								</div>
-								<div className="flex h-9 shrink-0 items-center">
-									<AnimatePresence initial={false} mode="wait">
-										{isSettingsDirty && (
-											<motion.div
-												initial={
-													reduceMotion ? { opacity: 0 } : { opacity: 0, x: 6 }
-												}
-												animate={{ opacity: 1, x: 0 }}
-												exit={
-													reduceMotion ? { opacity: 0 } : { opacity: 0, x: 6 }
-												}
-												transition={{
-													duration: reduceMotion ? DURATION.instant : 0.15,
-													ease: EASE.out,
-												}}
-											>
-												<Button
-													type="button"
-													variant="ghost"
-													disabled={isSaving}
-													onClick={handleSave}
-													className={cn(
-														SETTINGS_HEADER_SAVE,
-														SETTINGS_FOCUS_RING,
-													)}
-												>
-													{isSaving ? "Saving…" : "Save"}
-												</Button>
-											</motion.div>
-										)}
-									</AnimatePresence>
 								</div>
 							</header>
 

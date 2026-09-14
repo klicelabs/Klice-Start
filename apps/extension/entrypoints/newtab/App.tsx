@@ -24,6 +24,7 @@ import {
 import { NavigationToolbar } from "../../src/components/newtab/toolbar/navigation-toolbar";
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
+import { usePersistenceErrorToast } from "../../src/hooks/use-persistence-error-toast";
 import {
 	getBreadcrumb,
 	getChildren,
@@ -60,6 +61,7 @@ function ThemedToaster() {
 
 export default function App() {
 	useCrossTabSync();
+	usePersistenceErrorToast();
 
 	const folders = useSetupStore((s) => s.folders);
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);

@@ -319,11 +319,43 @@ interface PendingSetItem {
 	generation: number;
 }
 
+interface PendingResolver {
+	resolve: () => void;
+	reject: (reason?: unknown) => void;
+}
+
 let _pendingSetItem: PendingSetItem | null = null;
-let _pendingResolvers: Array<() => void> = [];
+let _pendingResolvers: PendingResolver[] = [];
 let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
 let _inFlightWrite: Promise<void> | null = null;
 let _lastWrittenJSON: string | null = null;
+type PersistenceErrorListener = (error: unknown) => void;
+const _persistenceErrorListeners = new Set<PersistenceErrorListener>();
+
+/**
+ * Subscribe to persistence failures without coupling the storage layer to a
+ * particular UI. The app uses this for one restrained temporary toast.
+ */
+export function subscribeToPersistenceErrors(
+	listener: PersistenceErrorListener,
+): () => void {
+	_persistenceErrorListeners.add(listener);
+	return () => _persistenceErrorListeners.delete(listener);
+}
+
+function reportPersistenceError(error: unknown): void {
+	console.warn("[klice-start] persistence failed", error);
+	for (const listener of _persistenceErrorListeners) {
+		try {
+			listener(error);
+		} catch (listenerError) {
+			console.error(
+				"[klice-start] persistence error listener failed",
+				listenerError,
+			);
+		}
+	}
+}
 
 function _doWrite(
 	name: string,
@@ -340,6 +372,10 @@ function _doWrite(
 		.then(() => chrome.storage.local.set({ [name]: json }))
 		.then(() => {
 			_lastWrittenJSON = json;
+		})
+		.catch((error: unknown) => {
+			reportPersistenceError(error);
+			throw error;
 		});
 	const tracked = write.finally(() => {
 		if (_inFlightWrite === tracked) _inFlightWrite = null;
@@ -366,13 +402,13 @@ export function flushPersist(): Promise<void> {
 	const write = _doWrite(snap.name, snap.value, snap.generation);
 	write.then(
 		() => {
-			resolvers.forEach((resolve) => {
+			resolvers.forEach(({ resolve }) => {
 				resolve();
 			});
 		},
-		() => {
-			resolvers.forEach((resolve) => {
-				resolve();
+		(error) => {
+			resolvers.forEach(({ reject }) => {
+				reject(error);
 			});
 		},
 	);
@@ -389,7 +425,7 @@ export async function cancelPendingPersist(): Promise<void> {
 	_pendingSetItem = null;
 	const resolvers = _pendingResolvers;
 	_pendingResolvers = [];
-	resolvers.forEach((resolve) => {
+	resolvers.forEach(({ resolve }) => {
 		resolve();
 	});
 	while (_inFlightWrite) {
@@ -421,11 +457,13 @@ export function getLastWrittenJSON(): string | null {
 // Flush pending writes before the tab closes or hides.
 if (typeof window !== "undefined") {
 	const onFlush = () => {
-		flushPersist();
+		void flushPersist().catch(() => undefined);
 	};
 	window.addEventListener("beforeunload", onFlush);
 	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState === "hidden") flushPersist();
+		if (document.visibilityState === "hidden") {
+			void flushPersist().catch(() => undefined);
+		}
 	});
 }
 
@@ -470,15 +508,24 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
 		if (typeof chrome === "undefined" || !chrome.storage?.local) {
 			if (typeof localStorage !== "undefined") {
-				localStorage.setItem(name, JSON.stringify(value));
+				try {
+					localStorage.setItem(name, JSON.stringify(value));
+				} catch (error) {
+					reportPersistenceError(error);
+				}
 			}
 			return;
 		}
-		await _resetGenerationReady;
+		if (!_resetGenerationLoaded) await _resetGenerationReady;
 		_pendingSetItem = { name, value, generation: _resetGeneration };
 		if (_setItemTimer) clearTimeout(_setItemTimer);
-		const { promise, resolve } = Promise.withResolvers<void>();
-		_pendingResolvers.push(resolve);
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
+		// Zustand intentionally does not await storage writes. Keep the rejection
+		// observable to explicit callers such as flushPersist, while marking this
+		// background promise handled so a failed preference does not become an
+		// unhandled-rejection console error.
+		void promise.catch(() => undefined);
+		_pendingResolvers.push({ resolve, reject });
 		_setItemTimer = setTimeout(() => {
 			const snap = _pendingSetItem;
 			_pendingSetItem = null;
@@ -486,21 +533,20 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 			const resolvers = _pendingResolvers;
 			_pendingResolvers = [];
 			if (!snap) {
-				resolvers.forEach((pendingResolve) => {
-					pendingResolve();
+				resolvers.forEach(({ resolve }) => {
+					resolve();
 				});
 				return;
 			}
 			_doWrite(snap.name, snap.value, snap.generation).then(
 				() => {
-					resolvers.forEach((pendingResolve) => {
-						pendingResolve();
+					resolvers.forEach(({ resolve }) => {
+						resolve();
 					});
 				},
-				() => {
-					console.warn("[klice-start] chrome.storage.local.set failed");
-					resolvers.forEach((pendingResolve) => {
-						pendingResolve();
+				(error) => {
+					resolvers.forEach(({ reject }) => {
+						reject(error);
 					});
 				},
 			);

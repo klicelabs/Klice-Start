@@ -52,13 +52,8 @@ export const SETTINGS_ROW = "min-h-12 gap-x-3 px-1.5 py-2.5";
 export const SETTINGS_PAGE_INSET = "px-4 pt-1 pb-5";
 
 /**
- * Header padding = the panel gutter (16px), on both sides.
- *
- * That puts the leading close/back control on the same left edge as every
- * card, and the Save button on the same right edge as every card. Cards must
- * therefore keep the full padding box — which is why `.settings-content-scroll`
- * hides its scrollbar instead of reserving a gutter, or the cards would sit
- * ~10px inside the header and Save would float past them.
+ * Header padding = the panel gutter (16px), on both sides. That keeps the
+ * leading close/back control on the same left edge as every card.
  */
 export const SETTINGS_HEADER_INSET = "px-4";
 
@@ -71,7 +66,6 @@ export const SETTINGS_LABEL =
 	"block text-[13px] font-medium leading-[1.35] text-neutral-900 dark:text-neutral-100";
 export const SETTINGS_DESCRIPTION =
 	"mt-1 block text-[12px] leading-[1.4] text-neutral-500 dark:text-neutral-400";
-
 
 /** Control column width — the widest a select, picker or input may grow. */
 export const SETTINGS_CONTROL_WIDTH = "w-[min(11rem,100%)]";
@@ -95,10 +89,6 @@ export const SETTINGS_FOCUS_RING_WITHIN =
 /** Header close/back control — a quiet circular hit target. */
 export const SETTINGS_HEADER_CONTROL =
 	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
-
-/** Header save affordance — appears only while there are unsaved changes. */
-export const SETTINGS_HEADER_SAVE =
-	"inline-flex h-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] px-3.5 font-medium text-[13px] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.98] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
 
 export const SETTINGS_SELECT_TRIGGER =
 	"squircle min-w-0 max-w-full rounded-[14px] [--squircle-r:9px] !bg-none bg-neutral-900/[0.05] text-neutral-900 shadow-none hover:!bg-none hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
@@ -146,7 +136,8 @@ export const SETTINGS_PANEL_SURFACE =
 /** Card surface — groups rows without adding visual weight. */
 export const SETTINGS_CARD_SURFACE =
 	"bg-neutral-900/[0.035] dark:bg-white/[0.04]";
-export const SETTINGS_CARD_SURFACE_DANGER = "bg-red-500/[0.07] dark:bg-destructive/[0.06]";
+export const SETTINGS_CARD_SURFACE_DANGER =
+	"bg-red-500/[0.07] dark:bg-destructive/[0.06]";
 
 /** Quiet hover wash for rows and nav items. */
 export const SETTINGS_HOVER_WASH =

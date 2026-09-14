@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y/noNoninteractiveTabindex: The wallpaper carousel viewport is intentionally focusable for arrow-key paging.
 import { Input } from "@klice-start/ui/components/input";
 import {
 	FileUpload,
@@ -20,9 +21,9 @@ import { useSetupStore } from "../../../../stores/setup-store";
 import type { Settings, WallpaperFrequency } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
 import { SelectRow } from "../shared/select-row";
-import { SettingsExpandable } from "../shared/settings-expandable";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsAction } from "../shared/settings-action";
+import { SettingsExpandable } from "../shared/settings-expandable";
 import {
 	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_FOCUS_RING,
@@ -35,7 +36,7 @@ import { SliderRow } from "../shared/slider-row";
 
 /** Shared selection language for every background tile. */
 const TILE_BASE = cn(
-	"group squircle relative flex aspect-square w-full min-w-0 overflow-hidden border border-neutral-900/10 bg-neutral-900/[0.04] transition-[filter] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-neutral-400/60 dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-white/40",
+	"group squircle relative flex aspect-square w-full min-w-0 overflow-hidden border border-neutral-900/10 bg-neutral-900/[0.04] transition-[filter] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 focus-visible:ring-inset dark:border-white/10 dark:bg-white/[0.04] dark:focus-visible:ring-white/40",
 	SETTINGS_RADIUS.thumbnail,
 );
 /** One carousel page holds a 4×3 grid of tiles. */
@@ -220,6 +221,7 @@ export function AppearancePane() {
 		Record<string, string | null>
 	>({});
 	const customWallpapers = bg.customWallpapers ?? [];
+	const lastAppliedPexelsQuery = useRef(bg.pexelsQuery);
 
 	// Load previews for custom wallpapers
 	useEffect(() => {
@@ -270,7 +272,12 @@ export function AppearancePane() {
 				}),
 			),
 			...GRADIENTS.map(
-				(g): CarouselItem => ({ kind: "gradient", id: g.id, label: g.label, css: g.css }),
+				(g): CarouselItem => ({
+					kind: "gradient",
+					id: g.id,
+					label: g.label,
+					css: g.css,
+				}),
 			),
 			...customWallpapers.map(
 				(cw): CarouselItem => ({ kind: "image", id: cw.id, label: cw.name }),
@@ -313,7 +320,7 @@ export function AppearancePane() {
 	}
 
 	/* ---------- carousel paging (one 4×3 grid per page) ---------- */
-	const viewportRef = useRef<HTMLDivElement>(null);
+	const viewportRef = useRef<HTMLElement>(null);
 	const [activePage, setActivePage] = useState(0);
 
 	const carouselPages = useMemo(() => {
@@ -384,8 +391,7 @@ export function AppearancePane() {
 			name,
 			size: file.size,
 			mime: file.type || "unknown",
-			previewUrl:
-				typeof URL !== "undefined" ? URL.createObjectURL(file) : "",
+			previewUrl: typeof URL !== "undefined" ? URL.createObjectURL(file) : "",
 			status: "validating",
 			progress: 12,
 		};
@@ -427,11 +433,11 @@ export function AppearancePane() {
 
 	/**
 	 * Confirm persists the image to the wallpaper library (bytes + metadata)
-	 * WITHOUT applying it — the active Speed Dial wallpaper only changes via
-	 * an explicit carousel selection + Save.
+	 * WITHOUT applying it — selecting a tile is the separate action that applies
+	 * the active Speed Dial wallpaper immediately.
 	 */
 	async function handleConfirmUpload() {
-		if (!pending || pending.status !== "ready" || !pending.dataUrl) return;
+		if (pending?.status !== "ready" || !pending.dataUrl) return;
 		const snapshot = pending;
 		const dataUrl = snapshot.dataUrl;
 		if (!dataUrl) return;
@@ -610,9 +616,8 @@ export function AppearancePane() {
 					</div>
 				</div>
 				<div className="px-1.5 pt-1">
-					<div
+					<section
 						ref={viewportRef}
-						role="region"
 						aria-roledescription="carousel"
 						aria-label={`Wallpaper collection, page ${activePage + 1} of ${pageCount}`}
 						tabIndex={0}
@@ -625,115 +630,122 @@ export function AppearancePane() {
 							SETTINGS_RADIUS.thumbnail,
 						)}
 					>
-						{carouselPages.map((page, pageIndex) => (
-							<div
-								key={pageIndex}
-								role="group"
-								aria-roledescription="slide"
-								aria-label={`Wallpapers, page ${pageIndex + 1} of ${pageCount}`}
-								className="grid w-full shrink-0 snap-start grid-cols-4 content-start gap-2"
-							>
-								{page.map((item) => {
-									const selected = isItemSelected(item);
-									const tileLabel =
-										item.kind === "image"
-											? `Use ${item.label} wallpaper`
-											: item.kind === "gradient"
-												? `Use ${item.label} gradient`
-												: `Use ${item.label} wallpaper`;
-									return (
-										<div
-											key={`${item.kind}-${item.id}`}
-											className={cn(
-												TILE_BASE,
-												"flex-col justify-end",
-												selected ? TILE_SELECTED : "hover:brightness-105",
-											)}
-										>
-											<button
-												type="button"
-												onClick={() => handleSelectItem(item)}
-												aria-label={tileLabel}
-												aria-pressed={selected}
-												className="absolute inset-0 flex flex-col justify-end p-1.5 text-left focus-visible:outline-none"
+						{carouselPages.map((page, pageIndex) => {
+							const pageKey =
+								page.map((item) => `${item.kind}-${item.id}`).join("|") ||
+								"wallpaper-page-empty";
+							return (
+								<section
+									key={pageKey}
+									aria-roledescription="slide"
+									aria-label={`Wallpapers, page ${pageIndex + 1} of ${pageCount}`}
+									className="grid w-full shrink-0 snap-start grid-cols-4 content-start gap-2"
+								>
+									{page.map((item) => {
+										const selected = isItemSelected(item);
+										const tileLabel =
+											item.kind === "image"
+												? `Use ${item.label} wallpaper`
+												: item.kind === "gradient"
+													? `Use ${item.label} gradient`
+													: `Use ${item.label} wallpaper`;
+										return (
+											<div
+												key={`${item.kind}-${item.id}`}
+												className={cn(
+													TILE_BASE,
+													"flex-col justify-end",
+													selected ? TILE_SELECTED : "hover:brightness-105",
+												)}
 											>
-												{item.kind === "wallpaper" ? (
-													<img
-														src={item.thumb}
-														alt=""
-														className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
-														loading="lazy"
-													/>
-												) : item.kind === "image" && customPreviews[item.id] ? (
-													<img
-														src={customPreviews[item.id] ?? ""}
-														alt=""
-														className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
-														loading="lazy"
-													/>
-												) : item.kind === "gradient" ? (
-													<span
-														aria-hidden="true"
-														className="absolute inset-0 size-full"
-														style={{
-															background: (item as { css: string }).css,
-														}}
-													/>
-												) : null}
-												<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-												<span className="relative z-10 truncate font-medium text-[11px] text-white/90 drop-shadow-xs">
-													{item.label}
-												</span>
-											</button>
-											{selected ? (
-												<span className="absolute top-1.5 right-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-white text-black">
-													<Icon
-														name="check"
-														size={10}
-														strokeWidth={3.5}
-														aria-hidden="true"
-													/>
-												</span>
-											) : null}
-											{item.kind === "image" ? (
 												<button
 													type="button"
-													onClick={(e) => handleDeleteCustomImage(e, item.id)}
-											aria-label={`Delete ${item.label} wallpaper`}
-											className={cn(
-														"absolute top-1.5 right-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-black/50 text-white/80 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-black/70 hover:text-white focus-visible:opacity-100 group-hover:opacity-100",
-														SETTINGS_FOCUS_RING,
-														selected && "hidden",
-													)}
+													onClick={() => handleSelectItem(item)}
+													aria-label={tileLabel}
+													aria-pressed={selected}
+													className="absolute inset-0 flex flex-col justify-end p-1.5 text-left focus-visible:outline-none"
 												>
-													<Icon
-														name="x"
-														size={11}
-														strokeWidth={2.5}
-														aria-hidden="true"
-													/>
+													{item.kind === "wallpaper" ? (
+														<img
+															src={item.thumb}
+															alt=""
+															className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+															loading="lazy"
+														/>
+													) : item.kind === "image" &&
+														customPreviews[item.id] ? (
+														<img
+															src={customPreviews[item.id] ?? ""}
+															alt=""
+															className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+															loading="lazy"
+														/>
+													) : item.kind === "gradient" ? (
+														<span
+															aria-hidden="true"
+															className="absolute inset-0 size-full"
+															style={{
+																background: (item as { css: string }).css,
+															}}
+														/>
+													) : null}
+													<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+													<span className="relative z-10 truncate font-medium text-[11px] text-white/90 drop-shadow-xs">
+														{item.label}
+													</span>
 												</button>
-											) : null}
-										</div>
-									);
-								})}
-							</div>
-						))}
-					</div>
+												{selected ? (
+													<span className="absolute top-1.5 right-1.5 z-10 flex size-4 items-center justify-center rounded-full bg-white text-black">
+														<Icon
+															name="check"
+															size={10}
+															strokeWidth={3.5}
+															aria-hidden="true"
+														/>
+													</span>
+												) : null}
+												{item.kind === "image" ? (
+													<button
+														type="button"
+														onClick={(e) => handleDeleteCustomImage(e, item.id)}
+														aria-label={`Delete ${item.label} wallpaper`}
+														className={cn(
+															"absolute top-1.5 right-1.5 z-20 flex size-5 items-center justify-center rounded-full bg-black/50 text-white/80 opacity-0 shadow-none transition-[background-color,color,opacity] hover:bg-black/70 hover:text-white focus-visible:opacity-100 group-hover:opacity-100",
+															SETTINGS_FOCUS_RING,
+															selected && "hidden",
+														)}
+													>
+														<Icon
+															name="x"
+															size={11}
+															strokeWidth={2.5}
+															aria-hidden="true"
+														/>
+													</button>
+												) : null}
+											</div>
+										);
+									})}
+								</section>
+							);
+						})}
+					</section>
 				</div>
 
 				{/* Pager: one compact pill of dots, centred in its own row */}
 				<div className="flex items-center justify-center px-1.5 py-1.5">
-					<div
-						role="group"
+					<nav
 						aria-label="Wallpaper pages"
 						className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900/[0.05] px-2.5 py-[7px] dark:bg-white/[0.06]"
 					>
-						{Array.from({ length: pageCount }, (_, index) => {
+						{Array.from({ length: pageCount }, (_, pageIndex) => ({
+							index: pageIndex,
+							key: `wallpaper-page-${pageIndex + 1}`,
+						})).map(({ index, key }) => {
 							const active = index === activePage;
 							return (
 								<button
-									key={index}
+									key={key}
 									type="button"
 									onClick={() => scrollToPage(index)}
 									aria-label={`Go to wallpaper page ${index + 1}`}
@@ -748,7 +760,7 @@ export function AppearancePane() {
 								/>
 							);
 						})}
-					</div>
+					</nav>
 				</div>
 
 				{/* Quiet secondary action, bottom-right of the same card */}
@@ -899,7 +911,10 @@ export function AppearancePane() {
 													)}
 													initial={false}
 													animate={{
-														scaleX: Math.max(0, Math.min(1, pending.progress / 100)),
+														scaleX: Math.max(
+															0,
+															Math.min(1, pending.progress / 100),
+														),
 													}}
 													style={{ transformOrigin: "left" }}
 													transition={
@@ -983,40 +998,42 @@ export function AppearancePane() {
 					label="Pexels photography options"
 				>
 					<SettingRow label="Photo theme" icon="search">
-							<Input
-								id="pexels-query-input"
-								aria-label="Photo theme keywords"
-								placeholder="minimalist landscape"
-								defaultValue={bg.pexelsQuery}
-								onBlur={(e) => {
-									if (e.target.value !== bg.pexelsQuery) {
-										updateBackground({ pexelsQuery: e.target.value });
-										refreshWallpaper(true).catch(() => undefined);
-									}
-								}}
-								className={cn(
-									cn(
-										SETTINGS_CONTROL_WIDTH,
-										SETTINGS_RADIUS.control,
-										"h-9 px-3 text-sm",
-									),
-									SETTINGS_INPUT,
-								)}
-							/>
-						</SettingRow>
-
-						<SelectRow
-							label="Refresh"
-							icon="timer"
-							value={bg.pexelsFrequency}
-							options={PEXELS_FREQUENCY_OPTIONS}
-							onChange={(val) => {
-								const next = val as WallpaperFrequency;
-								updateBackground({ pexelsFrequency: next });
-								if (next !== "locked")
-									refreshWallpaper(true).catch(() => undefined);
+						<Input
+							id="pexels-query-input"
+							aria-label="Photo theme keywords"
+							placeholder="minimalist landscape"
+							value={bg.pexelsQuery}
+							onChange={(e) =>
+								updateBackground({ pexelsQuery: e.target.value })
+							}
+							onBlur={(e) => {
+								if (e.target.value === lastAppliedPexelsQuery.current) return;
+								lastAppliedPexelsQuery.current = e.target.value;
+								refreshWallpaper(true).catch(() => undefined);
 							}}
+							className={cn(
+								cn(
+									SETTINGS_CONTROL_WIDTH,
+									SETTINGS_RADIUS.control,
+									"h-9 px-3 text-sm",
+								),
+								SETTINGS_INPUT,
+							)}
 						/>
+					</SettingRow>
+
+					<SelectRow
+						label="Refresh"
+						icon="timer"
+						value={bg.pexelsFrequency}
+						options={PEXELS_FREQUENCY_OPTIONS}
+						onChange={(val) => {
+							const next = val as WallpaperFrequency;
+							updateBackground({ pexelsFrequency: next });
+							if (next !== "locked")
+								refreshWallpaper(true).catch(() => undefined);
+						}}
+					/>
 				</SettingsExpandable>
 			</SectionCard>
 
