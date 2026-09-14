@@ -88,6 +88,9 @@ export type AppearanceMode = "liquid" | "classic";
 /** System appearance mode: follow system or explicit light/dark. */
 export type ColorScheme = "auto" | "light" | "dark";
 
+/** Curated semantic accent palette used for interactive emphasis. */
+export type AccentColor = "blue" | "yellow" | "green" | "purple" | "pink";
+
 /** Speed Dial display mode: full cards vs app-launcher icons. */
 export type DialLayout = "card" | "icon";
 
@@ -117,6 +120,7 @@ export interface Settings {
 	search: SearchSettings;
 	appearanceMode: AppearanceMode;
 	colorScheme: ColorScheme;
+	accentColor: AccentColor;
 }
 
 export interface Setup {

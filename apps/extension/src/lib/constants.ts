@@ -273,6 +273,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	search: { ...DEFAULT_SEARCH },
 	appearanceMode: "liquid",
 	colorScheme: "auto",
+	accentColor: "blue",
 };
 
 export const DEFAULT_SETUP: Setup = {

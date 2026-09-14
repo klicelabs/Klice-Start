@@ -195,7 +195,7 @@ export function FolderPreviewCard({
 							{isSelected && (
 								<div
 									aria-hidden="true"
-									className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--apple-blue)] text-white shadow-md"
+									className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
 								>
 									<Icon name="check" size={11} strokeWidth={3} />
 								</div>

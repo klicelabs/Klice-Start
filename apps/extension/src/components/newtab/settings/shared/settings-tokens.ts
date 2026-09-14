@@ -25,16 +25,16 @@
  * same roundness — always change the pair together.
  */
 export const SETTINGS_RADIUS = {
-	/** The panel shell. */
+	/** The sidebar content frame and every top-level settings group. */
 	panel: "rounded-[28px] [--squircle-r:17px]",
-	/** A section card, and floating surfaces at the same level (menus). */
+	/** A secondary section surface and floating surfaces at the same level. */
 	section: "rounded-[22px] [--squircle-r:13px]",
 	/** A row-level surface: nav rows, media tiles, the drop zone. */
-	surface: "rounded-[16px] [--squircle-r:10px]",
+	surface: "rounded-[18px] [--squircle-r:11px]",
 	/** A control: buttons, inputs, selects, folder pickers. */
-	control: "rounded-[14px] [--squircle-r:9px]",
+	control: "rounded-[16px] [--squircle-r:10px]",
 	/** A thumbnail: upload previews, small media thumbs inside cards. */
-	thumbnail: "rounded-[10px] [--squircle-r:6px]",
+	thumbnail: "rounded-[12px] [--squircle-r:7px]",
 	/** Fully round: switches, segmented track, colour swatch, badges. */
 	pill: "rounded-full",
 } as const;
@@ -79,31 +79,13 @@ export const SETTINGS_CONTROL_WIDTH = "w-[min(11rem,100%)]";
  * the surface. Light-first, dark override — always change the pair together.
  */
 export const SETTINGS_FOCUS_RING =
-	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-white/40 dark:focus-visible:ring-offset-[#252525]";
-
-/**
- * Same ring, applied to a *container* when a nested control takes focus.
- * Used where the focusable node is smaller than the thing the user perceives
- * as the control — a slider's thumb is 4px wide, so the ring belongs on the
- * track wrapper instead.
- */
-export const SETTINGS_FOCUS_RING_WITHIN =
-	"focus-within:ring-2 focus-within:ring-neutral-400/60 focus-within:ring-offset-1 focus-within:ring-offset-white dark:focus-within:ring-white/40 dark:focus-within:ring-offset-[#252525] [&_[role=slider]]:focus-visible:ring-0";
+	"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--klice-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#252525]";
 
 /** Header close/back control — a quiet circular hit target. */
 export const SETTINGS_HEADER_CONTROL =
 	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,transform,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
 
-/**
- * Header close control variant for Motion shared-layout transport. Its
- * transform is intentionally excluded so layout projection remains the only
- * owner of position during the workspace transition.
- */
-export const SETTINGS_HEADER_TRANSPORT_CONTROL =
-	"inline-flex size-9 shrink-0 items-center justify-center rounded-full border-0 bg-neutral-900/[0.06] text-neutral-900 shadow-none transition-[background-color,color,opacity] duration-150 ease-out hover:bg-neutral-900/[0.1] hover:text-black active:scale-[0.96] motion-reduce:transition-colors dark:bg-white/[0.12] dark:text-neutral-100 dark:hover:bg-white/[0.16] dark:hover:text-white";
-
-export const SETTINGS_SELECT_TRIGGER =
-	"squircle min-w-0 max-w-full rounded-[14px] [--squircle-r:9px] !bg-none bg-neutral-900/[0.05] text-neutral-900 shadow-none hover:!bg-none hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
+export const SETTINGS_SELECT_TRIGGER = `squircle min-w-0 max-w-full ${SETTINGS_RADIUS.control} !bg-none bg-neutral-900/[0.05] text-neutral-900 shadow-none hover:!bg-none hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]`;
 
 /**
  * Picker trigger surface — the folder picker's button, and any equivalent
@@ -111,14 +93,12 @@ export const SETTINGS_SELECT_TRIGGER =
  * size, radius, theme pair, no border, no elevation), without
  * select-specific resets, so pickers never drift from selects.
  */
-export const SETTINGS_TRIGGER =
-	"squircle bg-neutral-900/[0.05] text-neutral-900 text-xs shadow-none transition-[background-color,box-shadow] duration-150 hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]";
+export const SETTINGS_TRIGGER = `squircle ${SETTINGS_RADIUS.control} bg-neutral-900/[0.05] text-neutral-900 text-xs shadow-none transition-[background-color,box-shadow] duration-150 hover:bg-neutral-900/[0.08] active:scale-100 dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.09]`;
 
 export const SETTINGS_SWITCH =
 	"shadow-none [&_[data-slot=switch-thumb]]:shadow-none";
 
-export const SETTINGS_INPUT =
-	"squircle border-neutral-900/[0.08] bg-neutral-900/[0.04] text-neutral-900 shadow-none placeholder:text-neutral-400 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-neutral-100 dark:placeholder:text-neutral-500";
+export const SETTINGS_INPUT = `squircle ${SETTINGS_RADIUS.control} border-neutral-900/[0.08] bg-neutral-900/[0.04] text-neutral-900 shadow-none placeholder:text-neutral-400 dark:border-white/[0.08] dark:bg-white/[0.05] dark:text-neutral-100 dark:placeholder:text-neutral-500`;
 
 /**
  * In-row actions. One quiet default, one clear primary, one destructive —
@@ -132,7 +112,7 @@ export const SETTINGS_ACTION =
 	"h-8 gap-1.5 border-0 bg-neutral-900/[0.05] px-2.5 text-neutral-800 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-neutral-900/[0.09] active:scale-[0.98] dark:bg-white/[0.06] dark:text-neutral-100 dark:hover:bg-white/[0.1]";
 
 export const SETTINGS_ACTION_PRIMARY =
-	"h-8 gap-1.5 border-0 bg-neutral-900/[0.1] px-3 font-medium text-neutral-900 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-neutral-900/[0.15] active:scale-[0.98] dark:bg-white/[0.14] dark:text-neutral-50 dark:hover:bg-white/[0.2]";
+	"h-8 gap-1.5 border-0 bg-[var(--klice-accent)] px-3 font-medium text-[var(--klice-accent-foreground)] text-xs shadow-none transition-[filter,transform] duration-150 hover:brightness-95 active:scale-[0.98]";
 
 export const SETTINGS_ACTION_DANGER =
 	"h-8 gap-1.5 border-0 bg-transparent px-2.5 text-red-600 text-xs shadow-none transition-[background-color,color,transform] duration-150 hover:bg-red-500/10 hover:text-red-500 active:scale-[0.98] dark:text-red-400 dark:hover:text-red-300";

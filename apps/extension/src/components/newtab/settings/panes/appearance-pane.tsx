@@ -1,7 +1,9 @@
 import { Input } from "@klice-start/ui/components/input";
 import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { ACCENT_OPTIONS } from "../../../../lib/accent";
 import { GRADIENTS, WALLPAPERS } from "../../../../lib/constants";
 import { cn } from "../../../../lib/utils";
 import { refreshWallpaper } from "../../../../services/wallpaper";
@@ -12,6 +14,7 @@ import { SectionCard } from "../shared/section-card";
 import { SelectRow } from "../shared/select-row";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsExpandable } from "../shared/settings-expandable";
+import { SettingsLabel } from "../shared/settings-label";
 import {
 	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_FOCUS_RING,
@@ -33,42 +36,40 @@ const PEXELS_FREQUENCY_OPTIONS: readonly {
 	{ value: "locked", label: "Keep current" },
 ];
 
-/** The three appearance modes, described once instead of three times. */
+/** The three appearance modes, ordered by the user's most direct choices. */
 const MODE_OPTIONS: readonly {
 	value: "auto" | "light" | "dark";
 	label: string;
 	ariaLabel: string;
-	/** Preview shell — the window body. */
+	/** Preview shell — an abstract surface, not a miniature browser window. */
 	shell: string;
-	/** Preview title bar background + rule. */
-	bar: string;
-	/** The little page glyph inside the preview. */
-	glyph: string;
+	/** Preview panel and content tones. */
+	panel: string;
+	content: string;
 }[] = [
-	{
-		value: "auto",
-		label: "Auto",
-		ariaLabel: "Use automatic appearance",
-		shell:
-			"border-border/60 bg-gradient-to-r from-neutral-200 via-neutral-200 to-neutral-900",
-		bar: "border-border/40 bg-background/50",
-		glyph: "bg-foreground/20",
-	},
 	{
 		value: "light",
 		label: "Light",
 		ariaLabel: "Use light appearance",
-		shell: "border-neutral-300 bg-neutral-100",
-		bar: "border-neutral-300 bg-white",
-		glyph: "bg-neutral-300",
+		shell: "border-neutral-300 bg-neutral-200",
+		panel: "bg-white",
+		content: "bg-neutral-200",
 	},
 	{
 		value: "dark",
 		label: "Dark",
 		ariaLabel: "Use dark appearance",
-		shell: "border-neutral-700 bg-neutral-900",
-		bar: "border-neutral-800 bg-neutral-950",
-		glyph: "bg-neutral-700",
+		shell: "border-neutral-700 bg-neutral-950",
+		panel: "bg-neutral-900",
+		content: "bg-neutral-700",
+	},
+	{
+		value: "auto",
+		label: "System",
+		ariaLabel: "Use system appearance",
+		shell: "border-neutral-300 bg-neutral-800",
+		panel: "bg-neutral-100",
+		content: "bg-neutral-600",
 	},
 ];
 
@@ -86,7 +87,10 @@ interface CurrentWallpaperPreviewProps {
 	background: Settings["background"];
 }
 
-function CurrentWallpaperPreview({ background }: CurrentWallpaperPreviewProps) {
+function CurrentWallpaperPreview({
+	background,
+	className,
+}: CurrentWallpaperPreviewProps & { className?: string }) {
 	const getBackgroundImage = useImageStore((state) => state.getBackgroundImage);
 	const [imageUrl, setImageUrl] = useState<string | null>(null);
 	const activeImageId =
@@ -128,7 +132,7 @@ function CurrentWallpaperPreview({ background }: CurrentWallpaperPreviewProps) {
 			<img
 				src={imageUrl}
 				alt=""
-				className={cn("size-full object-cover", SETTINGS_RADIUS.thumbnail)}
+				className={cn("size-full object-cover", className)}
 			/>
 		);
 	}
@@ -137,14 +141,14 @@ function CurrentWallpaperPreview({ background }: CurrentWallpaperPreviewProps) {
 			<img
 				src={wallpaper.thumb}
 				alt=""
-				className={cn("size-full object-cover", SETTINGS_RADIUS.thumbnail)}
+				className={cn("size-full object-cover", className)}
 			/>
 		);
 	}
 	return (
 		<span
 			aria-hidden="true"
-			className={cn("block size-full", SETTINGS_RADIUS.thumbnail)}
+			className={cn("block size-full", className)}
 			style={{
 				background:
 					gradient?.css ??
@@ -180,79 +184,156 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 	const appearanceMode = useSetupStore((s) => s.settings.appearanceMode);
 	const isLiquidGlass = appearanceMode === "liquid";
 	const colorScheme = useSetupStore((s) => s.settings.colorScheme ?? "auto");
+	const accentColor = useSetupStore((s) => s.settings.accentColor ?? "blue");
 	const bg = useSetupStore((s) => s.settings.background);
 
 	const updateSettings = useSetupStore((s) => s.updateSettings);
 	const updateBackground = useSetupStore((s) => s.updateBackground);
 	const lastAppliedPexelsQuery = useRef(bg.pexelsQuery);
+	const reduceMotion = useReducedMotion() ?? false;
 
 	return (
 		<div className={SETTINGS_PAGE}>
 			{/* Theme */}
 			<SectionCard>
-				<SettingRow label="Theme" icon="sun-moon" align="start">
-					<div className="grid w-[min(12.5rem,100%)] grid-cols-3 gap-2">
+				<fieldset className="m-0 border-0 px-1.5 py-2.5" aria-label="Theme">
+					<div className="flex items-center gap-2.5">
+						<Icon
+							name="sun-moon"
+							size={16}
+							strokeWidth={1.75}
+							className="shrink-0 text-neutral-400"
+							aria-hidden="true"
+						/>
+						<SettingsLabel>Theme</SettingsLabel>
+					</div>
+					<div className="mt-3 grid grid-cols-3 gap-2.5">
 						{MODE_OPTIONS.map((mode) => {
 							const selected = colorScheme === mode.value;
 							return (
 								<div
 									key={mode.value}
-									className="flex min-w-0 flex-col items-center gap-1.5"
+									className="flex min-w-0 flex-col items-center gap-2"
 								>
 									<button
 										type="button"
 										onClick={() => updateSettings({ colorScheme: mode.value })}
 										aria-label={mode.ariaLabel}
 										aria-pressed={selected}
-										className={cn(
-											cn(
-												"group w-full p-0 transition-[filter] duration-150 motion-reduce:transition-none",
-												SETTINGS_RADIUS.surface,
-											),
-											SETTINGS_FOCUS_RING,
-										)}
+										className={cn("group w-full", SETTINGS_FOCUS_RING)}
 									>
 										<div
 											className={cn(
-												cn(
-													"squircle relative aspect-[16/10] w-full overflow-hidden border p-1 shadow-none transition-[filter,box-shadow] duration-150 group-hover:brightness-105 motion-reduce:transition-none",
-													SETTINGS_RADIUS.surface,
-												),
+												"squircle relative aspect-[1.35] w-full overflow-hidden border p-1.5 shadow-none transition-[filter,box-shadow] duration-150 group-hover:brightness-105 motion-reduce:transition-none dark:border-white/10",
+												SETTINGS_RADIUS.surface,
 												mode.shell,
 												selected &&
-													"ring-2 ring-neutral-900/70 ring-offset-2 ring-offset-white dark:ring-white/80 dark:ring-offset-[#252525]",
+													"ring-2 ring-[var(--klice-accent)] ring-offset-2 ring-offset-white dark:ring-offset-[#252525]",
 											)}
 										>
-											<div
-												className={cn(
-													"flex h-3 w-full items-center border-b px-1",
-													mode.bar,
-												)}
-											>
-												<div className="flex gap-1">
-													<div className="size-1.5 rounded-full bg-red-400" />
-													<div className="size-1.5 rounded-full bg-amber-400" />
-													<div className="size-1.5 rounded-full bg-emerald-400" />
-												</div>
-											</div>
-											<div className="mt-1.5 flex justify-center">
+											{mode.value === "auto" ? (
 												<div
-													className={cn("h-2 w-8 rounded-full", mode.glyph)}
-												/>
-											</div>
+													className={cn(
+														"squircle grid h-full grid-cols-2 gap-1.5 overflow-hidden bg-neutral-100",
+														SETTINGS_RADIUS.thumbnail,
+													)}
+												>
+													<div className="bg-neutral-100 p-1.5">
+														<div className="h-2.5 w-4/5 rounded-full bg-white" />
+														<div className="mt-2 h-1.5 w-full rounded-full bg-neutral-300" />
+														<div className="mt-1.5 h-1.5 w-3/4 rounded-full bg-neutral-300" />
+													</div>
+													<div className="bg-neutral-900 p-1.5">
+														<div className="h-2.5 w-4/5 rounded-full bg-neutral-800" />
+														<div className="mt-2 h-1.5 w-full rounded-full bg-neutral-700" />
+														<div className="mt-1.5 h-1.5 w-3/4 rounded-full bg-neutral-700" />
+													</div>
+												</div>
+											) : (
+												<div
+													className={cn(
+														"squircle h-full p-1.5",
+														SETTINGS_RADIUS.thumbnail,
+														mode.panel,
+													)}
+												>
+													<div
+														className={cn(
+															"h-2.5 w-4/5 rounded-full",
+															mode.content,
+														)}
+													/>
+													<div
+														className={cn(
+															"mt-2 h-1.5 w-full rounded-full",
+															mode.content,
+														)}
+													/>
+													<div
+														className={cn(
+															"mt-1.5 h-1.5 w-3/4 rounded-full",
+															mode.content,
+														)}
+													/>
+												</div>
+											)}
 										</div>
 									</button>
-									<span
-										className={cn(
-											"font-medium text-[12px]",
-											selected
-												? "text-neutral-900 dark:text-neutral-100"
-												: "text-neutral-500 dark:text-neutral-400",
-										)}
-									>
-										{mode.label}
-									</span>
+									{selected ? (
+										<motion.span
+											layoutId="settings-theme-label"
+											transition={
+												reduceMotion
+													? { duration: 0 }
+													: { duration: 0.18, ease: "easeOut" }
+											}
+											className={cn(
+												SETTINGS_RADIUS.pill,
+												"bg-[var(--klice-accent)] px-2.5 py-1 font-medium text-[11px] text-[var(--klice-accent-foreground)] leading-none",
+											)}
+										>
+											{mode.label}
+										</motion.span>
+									) : (
+										<span
+											className={cn(
+												SETTINGS_RADIUS.pill,
+												"bg-neutral-900/[0.06] px-2.5 py-1 font-medium text-[11px] text-neutral-500 leading-none dark:bg-white/[0.08] dark:text-neutral-400",
+											)}
+										>
+											{mode.label}
+										</span>
+									)}
 								</div>
+							);
+						})}
+					</div>
+				</fieldset>
+
+				<SettingRow label="Accent color" icon="palette">
+					<div className="flex items-center gap-2">
+						{ACCENT_OPTIONS.map((accent) => {
+							const selected = accentColor === accent.id;
+							return (
+								<button
+									key={accent.id}
+									type="button"
+									onClick={() => updateSettings({ accentColor: accent.id })}
+									aria-label={`${accent.label} accent color`}
+									aria-pressed={selected}
+									title={accent.label}
+									className={cn(
+										"size-6 rounded-full p-0.5 transition-[box-shadow,transform] duration-150 hover:scale-105 active:scale-95 motion-reduce:transition-none",
+										SETTINGS_FOCUS_RING,
+										selected &&
+											"ring-2 ring-[var(--klice-accent)] ring-offset-1 ring-offset-white dark:ring-offset-[#252525]",
+									)}
+								>
+									<span
+										className="block size-full rounded-full"
+										style={{ backgroundColor: accent.light }}
+									/>
+								</button>
 							);
 						})}
 					</div>
@@ -276,39 +357,58 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 				</SettingRow>
 			</SectionCard>
 
-			{/* Wallpaper library: a single row keeps Appearance quick to scan. */}
+			{/* Wallpaper library: a visual preview keeps Appearance quick to scan. */}
 			<SectionCard>
-				<SettingRow
-					label="Wallpaper"
-					icon="image"
-					description={getCurrentWallpaperLabel(bg)}
-				>
+				<div className="px-1.5 py-2.5">
+					<div className="flex items-center gap-2.5">
+						<Icon
+							name="image"
+							size={16}
+							strokeWidth={1.75}
+							className="shrink-0 text-neutral-400"
+							aria-hidden="true"
+						/>
+						<SettingsLabel>Wallpaper</SettingsLabel>
+					</div>
 					<button
 						type="button"
 						onClick={onOpenWallpaper}
-						aria-label="Open Wallpaper settings"
-						title="Open Wallpaper settings"
+						aria-label={`Change wallpaper. Current wallpaper: ${getCurrentWallpaperLabel(bg)}`}
+						title="Change wallpaper"
 						className={cn(
-							"group inline-flex items-center gap-2",
+							"group mt-3 block w-full text-center",
 							SETTINGS_FOCUS_RING,
 						)}
 					>
 						<span
 							className={cn(
-								"block h-9 w-14 overflow-hidden shadow-none transition-[filter] duration-150 group-hover:brightness-105",
-								SETTINGS_RADIUS.thumbnail,
+								"squircle block w-full bg-neutral-900/[0.055] p-2.5 shadow-none transition-colors duration-150 group-hover:bg-neutral-900/[0.075] dark:bg-white/[0.055] dark:group-hover:bg-white/[0.08]",
+								SETTINGS_RADIUS.surface,
 							)}
 						>
-							<CurrentWallpaperPreview background={bg} />
+							<span
+								className={cn(
+									"squircle relative block aspect-[16/9] w-full overflow-hidden bg-neutral-900/[0.08] transition-[filter] duration-200 group-hover:brightness-[1.03] motion-reduce:transition-none",
+									SETTINGS_RADIUS.thumbnail,
+								)}
+							>
+								<CurrentWallpaperPreview background={bg} />
+							</span>
 						</span>
-						<Icon
-							name="chevron-right"
-							size={15}
-							className="text-neutral-400 transition-transform duration-150 group-hover:translate-x-0.5 dark:text-neutral-500"
-							aria-hidden="true"
-						/>
+						<span className="mt-3 block truncate font-medium text-[13px] text-neutral-900 dark:text-neutral-100">
+							{getCurrentWallpaperLabel(bg)}
+						</span>
+						<span
+							className={cn(
+								"squircle mt-3 flex h-9 w-full items-center justify-center gap-1.5 bg-[var(--klice-accent)] px-3 font-medium text-[12px] text-[var(--klice-accent-foreground)] shadow-none transition-[filter,transform] duration-150 group-hover:brightness-95 group-active:scale-[0.99] motion-reduce:transition-none",
+								SETTINGS_RADIUS.control,
+							)}
+						>
+							Change wallpaper
+							<Icon name="chevron-right" size={14} aria-hidden="true" />
+						</span>
 					</button>
-				</SettingRow>
+				</div>
 			</SectionCard>
 
 			{/* Colour and dynamic photography */}

@@ -1,5 +1,6 @@
 import type { PersistStorage, StorageValue } from "zustand/middleware";
 import type {
+	AccentColor,
 	AppearanceMode,
 	BackgroundSettings,
 	Card,
@@ -48,6 +49,13 @@ function normalizeFolders(rawFolders: Folder[]): Folder[] {
 const VALID_WALLPAPER_IDS = new Set(
 	WALLPAPERS.map((wallpaper) => wallpaper.id),
 );
+const VALID_ACCENT_COLORS: readonly AccentColor[] = [
+	"blue",
+	"yellow",
+	"green",
+	"purple",
+	"pink",
+];
 const VALID_FREQUENCIES: readonly WallpaperFrequency[] = [
 	"per-tab",
 	"hourly",
@@ -90,6 +98,16 @@ function normalizeAppearanceMode(
 	if (value === "liquid") return "liquid";
 	if (value === "classic" || value === "flat") return "classic";
 	return fallback;
+}
+
+function normalizeAccentColor(
+	value: unknown,
+	fallback: AccentColor,
+): AccentColor {
+	return typeof value === "string" &&
+		(VALID_ACCENT_COLORS as readonly string[]).includes(value)
+		? (value as AccentColor)
+		: fallback;
 }
 
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
@@ -218,6 +236,10 @@ export function normalizeState(
 			appearanceMode: normalizeAppearanceMode(
 				sourceSettings?.appearanceMode,
 				defaults.settings.appearanceMode,
+			),
+			accentColor: normalizeAccentColor(
+				sourceSettings?.accentColor,
+				defaults.settings.accentColor,
 			),
 			thumbnailCapture: {
 				...defaults.settings.thumbnailCapture,

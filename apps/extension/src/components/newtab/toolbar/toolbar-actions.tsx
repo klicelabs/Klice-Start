@@ -7,7 +7,6 @@ import {
 } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import { useAppearance } from "../appearance-provider";
-import { SettingsTransportControl } from "../settings/shared/settings-transport-control";
 import { GlassSurface } from "./glass-surface";
 
 interface ToolbarActionsProps {
@@ -27,16 +26,14 @@ export function ToolbarActions({
 }: ToolbarActionsProps) {
 	const { isLiquid } = useAppearance();
 
-	function iconButton(active = false, sharedLayout = false): string {
+	function iconButton(active = false): string {
 		return cn(
 			TOOLBAR.controlHeight,
 			TOOLBAR.controlWidth,
 			TOOLBAR.radius,
 			"flex items-center justify-center",
 			glassFocusRing(isLiquid),
-			isLiquid
-				? toolbarControlLiquid(active, sharedLayout)
-				: toolbarControlClassic(active, sharedLayout),
+			isLiquid ? toolbarControlLiquid(active) : toolbarControlClassic(active),
 		);
 	}
 
@@ -52,14 +49,19 @@ export function ToolbarActions({
 				<Icon name="search" size={TOOLBAR.iconSize} />
 			</button>
 			{!settingsOpen && (
-				<SettingsTransportControl
-					open={false}
+				<button
+					type="button"
 					onClick={onSettings}
-					className={iconButton(false, true)}
+					className={iconButton(false)}
+					aria-label="Settings"
+					aria-expanded={settingsOpen}
+					title="Settings"
 					id="settings-trigger"
 					aria-controls="settings-sidebar"
 					data-settings-ui="true"
-				/>
+				>
+					<Icon name="settings" size={TOOLBAR.iconSize} />
+				</button>
 			)}
 		</GlassSurface>
 	);

@@ -408,7 +408,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 														scale: { duration: 0.2, ease: [0.23, 1, 0.32, 1] },
 													}
 										}
-										className="inline-flex h-9 w-full shrink-0 items-center justify-center rounded-[12px] bg-[var(--apple-blue)] px-3.5 font-semibold text-[12px] text-white shadow-[0_6px_14px_rgba(10,132,255,0.24)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										className="accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center rounded-[12px] bg-[var(--klice-accent)] px-3.5 font-semibold text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 									>
 										Move here
 									</motion.button>
@@ -517,7 +517,7 @@ function TrayMini({
 					name="folder"
 					size={52}
 					fill="currentColor"
-					className="text-[var(--apple-blue)]"
+					className="text-[var(--klice-accent)]"
 					aria-hidden="true"
 				/>
 			) : null}

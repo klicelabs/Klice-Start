@@ -8,17 +8,20 @@ html.dark body {
 	color: #f2f2f2;
 }
 
-/* System-blue accent (Apple HIG). Dark variant declared after :root so it
-   wins the cascade under .dark. */
+/* Semantic interaction accent. The provider swaps the selected light/dark
+   value at runtime; the legacy alias remains for older semantic surfaces. */
 :root {
-	--apple-blue: #007aff;
+	--klice-accent: #007aff;
+	--klice-accent-foreground: #ffffff;
+	--klice-accent-rgb: 0 122 255;
+	--apple-blue: var(--klice-accent);
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 .dark {
-	--apple-blue: #0a84ff;
+	--apple-blue: var(--klice-accent);
 }
 
 /* The new-tab workspace owns its scroll regions. Keep the browser viewport
@@ -32,8 +35,8 @@ body,
 
 /* Switch — system blue when active, white thumb always */
 html [data-slot="switch"][data-checked] {
-	background-color: var(--apple-blue);
-	border-color: var(--apple-blue);
+	background-color: var(--klice-accent);
+	border-color: var(--klice-accent);
 }
 html [data-slot="switch"] [data-slot="switch-thumb"] {
 	background-color: #ffffff;
@@ -90,7 +93,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	position: absolute;
 	inset: 0;
 	z-index: 20;
-	border: 2px solid var(--apple-blue);
+	border: 2px solid var(--klice-accent);
 	border-radius: inherit;
 	corner-shape: inherit;
 	content: "";
@@ -327,7 +330,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	/* One authored moment for the complete push transition. */
 	--workspace-motion-duration: 220ms;
 	--workspace-motion-ease: var(--ease-drawer);
-	transition: padding var(--workspace-motion-duration) var(--workspace-motion-ease);
+	transition: padding var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
 }
 
 /* The slot owns the only structural width transition. It includes the
@@ -336,7 +340,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    without reflowing the Settings content on every frame. */
 [data-settings-sidebar-slot] {
 	width: 0;
-	transition: width var(--workspace-motion-duration) var(--workspace-motion-ease);
+	transition: width var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
 }
 [data-settings-sidebar-slot][data-settings-open="true"] {
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
@@ -346,7 +351,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    radius while Chromium uses the larger radius with corner-shape:squircle. */
 [data-speed-dial-frame] {
 	border-radius: 0;
-	transition: border-radius var(--workspace-motion-duration) var(--workspace-motion-ease);
+	transition: border-radius var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: 24px;
@@ -389,6 +395,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 .settings-content-scroll::-webkit-scrollbar-track {
 	background: transparent;
+}
+
+/* Accent-derived elevation for semantic primary actions. */
+.accent-action-shadow {
+	box-shadow: 0 6px 14px rgb(var(--klice-accent-rgb) / 0.24);
 }
 
 /* =========================================================

@@ -16,9 +16,9 @@ interface SectionCardProps {
 }
 
 /**
- * One group of related preferences. Rows provide their own inset, so the card
- * only owns the surface, the radius and a thin edge — enough to group without
- * adding visual weight. Never nest a card inside a card.
+ * One top-level group of related preferences. Its radius intentionally matches
+ * the sidebar content frame; controls and thumbnails inside it use smaller
+ * radius tokens, keeping the nesting legible without per-page tuning.
  */
 export function SectionCard({
 	children,
@@ -29,9 +29,11 @@ export function SectionCard({
 		<div
 			className={cn(
 				"squircle relative overflow-visible shadow-none",
-				SETTINGS_RADIUS.section,
+				SETTINGS_RADIUS.panel,
 				SETTINGS_CARD,
-				tone === "danger" ? SETTINGS_CARD_SURFACE_DANGER : SETTINGS_CARD_SURFACE,
+				tone === "danger"
+					? SETTINGS_CARD_SURFACE_DANGER
+					: SETTINGS_CARD_SURFACE,
 				className,
 			)}
 		>

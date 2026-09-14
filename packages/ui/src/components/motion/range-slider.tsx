@@ -16,6 +16,7 @@ import {
 	useSpring,
 	useTransform,
 } from "motion/react";
+import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useState } from "react";
 
 // Bouncy grab feedback for the thumb scale only.
@@ -29,11 +30,14 @@ const SPRING_BOUNCY = {
 export interface RangeSliderProps extends SliderOptions {
 	/** Render a tick dot at each step. */
 	showTicks?: boolean;
+	/** Optional readout painted inside the leading edge of the track. */
+	valueLabel?: ReactNode;
 	className?: string;
 }
 
 export function RangeSlider({
 	showTicks = true,
+	valueLabel,
 	className,
 	...options
 }: RangeSliderProps) {
@@ -105,6 +109,12 @@ export function RangeSlider({
 					style={{ x: fillX }}
 				/>
 			</div>
+
+			{valueLabel ? (
+				<span className="pointer-events-none absolute inset-y-0 left-3 z-10 flex items-center font-medium text-[11px] text-foreground tabular-nums leading-none tracking-tight">
+					{valueLabel}
+				</span>
+			) : null}
 
 			{/* Tick centres follow the same inset path as the handle centre. */}
 			<div className="pointer-events-none absolute inset-x-[10px] inset-y-0">

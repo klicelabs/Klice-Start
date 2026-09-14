@@ -21,7 +21,14 @@ import {
 	X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useId, useRef, useState } from "react";
+import {
+	forwardRef,
+	useCallback,
+	useId,
+	useImperativeHandle,
+	useRef,
+	useState,
+} from "react";
 
 export type FileUploadStatus = "queued" | "uploading" | "success" | "error";
 export type FileUploadVariant = "default" | "centered";
@@ -67,6 +74,11 @@ export interface FileUploadProps {
 	browseLabel?: string;
 	className?: string;
 	classNames?: FileUploadClassNames;
+}
+
+export interface FileUploadHandle {
+	/** Open the native picker while preserving the caller's user activation. */
+	open: () => void;
 }
 
 const ROW_TRANSITION = { duration: 0.22, ease: EASE_OUT } as const;
@@ -383,225 +395,242 @@ function FileUploadRow({
 	);
 }
 
-export function FileUpload({
-	value,
-	defaultValue,
-	onValueChange,
-	onFilesAdded,
-	onRemove,
-	onRetry,
-	accept,
-	multiple = true,
-	maxFiles,
-	disabled = false,
-	variant = "default",
-	title = "Drop files here",
-	description,
-	browseLabel = "Browse",
-	className,
-	classNames,
-}: FileUploadProps) {
-	const inputId = useId();
-	const inputRef = useRef<HTMLInputElement>(null);
-	const dragDepthRef = useRef(0);
-	const reduce = useReducedMotion() ?? false;
-	const [items, setItems] = useControllableUpload({
-		value,
-		defaultValue,
-		onValueChange,
-	});
-	const [dragging, setDragging] = useState(false);
+export const FileUpload = forwardRef<FileUploadHandle, FileUploadProps>(
+	function FileUpload(
+		{
+			value,
+			defaultValue,
+			onValueChange,
+			onFilesAdded,
+			onRemove,
+			onRetry,
+			accept,
+			multiple = true,
+			maxFiles,
+			disabled = false,
+			variant = "default",
+			title = "Drop files here",
+			description,
+			browseLabel = "Browse",
+			className,
+			classNames,
+		}: FileUploadProps,
+		ref,
+	) {
+		const inputId = useId();
+		const inputRef = useRef<HTMLInputElement>(null);
+		const dragDepthRef = useRef(0);
+		const reduce = useReducedMotion() ?? false;
+		const [items, setItems] = useControllableUpload({
+			value,
+			defaultValue,
+			onValueChange,
+		});
+		const [dragging, setDragging] = useState(false);
 
-	const commit = useCallback(
-		(next: FileUploadItem[]) => {
-			setItems(next);
-		},
-		[setItems],
-	);
+		useImperativeHandle(
+			ref,
+			() => ({
+				open: () => inputRef.current?.click(),
+			}),
+			[],
+		);
 
-	const addFiles = useCallback(
-		(incomingFiles: File[]) => {
-			if (disabled || incomingFiles.length === 0) return;
+		const commit = useCallback(
+			(next: FileUploadItem[]) => {
+				setItems(next);
+			},
+			[setItems],
+		);
 
-			const remainingSlots =
-				maxFiles === undefined ? incomingFiles.length : maxFiles - items.length;
-			if (remainingSlots <= 0) return;
+		const addFiles = useCallback(
+			(incomingFiles: File[]) => {
+				if (disabled || incomingFiles.length === 0) return;
 
-			const files = incomingFiles.slice(
-				0,
-				multiple ? remainingSlots : Math.min(1, remainingSlots),
-			);
-			const added = files.map((file, index) =>
-				createFileUploadItem(file, index),
-			);
+				const remainingSlots =
+					maxFiles === undefined
+						? incomingFiles.length
+						: maxFiles - items.length;
+				if (remainingSlots <= 0) return;
 
-			if (added.length === 0) return;
+				const files = incomingFiles.slice(
+					0,
+					multiple ? remainingSlots : Math.min(1, remainingSlots),
+				);
+				const added = files.map((file, index) =>
+					createFileUploadItem(file, index),
+				);
 
-			commit([...items, ...added]);
-			onFilesAdded?.(added, files);
-		},
-		[commit, disabled, items, maxFiles, multiple, onFilesAdded],
-	);
+				if (added.length === 0) return;
 
-	const removeItem = useCallback(
-		(item: FileUploadItem) => {
-			commit(items.filter((entry) => entry.id !== item.id));
-			onRemove?.(item);
-		},
-		[commit, items, onRemove],
-	);
+				commit([...items, ...added]);
+				onFilesAdded?.(added, files);
+			},
+			[commit, disabled, items, maxFiles, multiple, onFilesAdded],
+		);
 
-	const retryItem = useCallback(
-		(item: FileUploadItem) => {
-			const retryingItem = {
-				...item,
-				error: undefined,
-				progress: 0,
-				status: "uploading" as const,
-			};
+		const removeItem = useCallback(
+			(item: FileUploadItem) => {
+				commit(items.filter((entry) => entry.id !== item.id));
+				onRemove?.(item);
+			},
+			[commit, items, onRemove],
+		);
 
-			commit(
-				items.map((entry) => (entry.id === item.id ? retryingItem : entry)),
-			);
-			onRetry?.(retryingItem);
-		},
-		[commit, items, onRetry],
-	);
+		const retryItem = useCallback(
+			(item: FileUploadItem) => {
+				const retryingItem = {
+					...item,
+					error: undefined,
+					progress: 0,
+					status: "uploading" as const,
+				};
 
-	const resetDrag = useCallback(() => {
-		dragDepthRef.current = 0;
-		setDragging(false);
-	}, []);
+				commit(
+					items.map((entry) => (entry.id === item.id ? retryingItem : entry)),
+				);
+				onRetry?.(retryingItem);
+			},
+			[commit, items, onRetry],
+		);
 
-	const maxReached = maxFiles !== undefined && items.length >= maxFiles;
-	const descriptionText = maxReached
-		? `${items.length} of ${maxFiles} files added`
-		: description?.trim();
-	const centered = variant === "centered";
+		const resetDrag = useCallback(() => {
+			dragDepthRef.current = 0;
+			setDragging(false);
+		}, []);
 
-	return (
-		<div className={cn("w-full space-y-3", className, classNames?.root)}>
-			<input
-				ref={inputRef}
-				id={inputId}
-				type="file"
-				aria-label="Upload files"
-				accept={accept}
-				multiple={multiple}
-				disabled={disabled || maxReached}
-				tabIndex={-1}
-				className="sr-only"
-				onChange={(event) => {
-					addFiles(Array.from(event.currentTarget.files ?? []));
-					event.currentTarget.value = "";
-				}}
-			/>
+		const maxReached = maxFiles !== undefined && items.length >= maxFiles;
+		const descriptionText = maxReached
+			? `${items.length} of ${maxFiles} files added`
+			: description?.trim();
+		const centered = variant === "centered";
 
-			<button
-				type="button"
-				disabled={disabled || maxReached}
-				data-dragging={dragging}
-				onClick={() => inputRef.current?.click()}
-				onDragEnter={(event) => {
-					if (disabled || maxReached) return;
-					event.preventDefault();
-					dragDepthRef.current += 1;
-					setDragging(true);
-				}}
-				onDragOver={(event) => {
-					if (disabled || maxReached) return;
-					event.preventDefault();
-					event.dataTransfer.dropEffect = "copy";
-					setDragging(true);
-				}}
-				onDragLeave={(event) => {
-					if (disabled || maxReached) return;
-					event.preventDefault();
-					dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-					if (dragDepthRef.current === 0) setDragging(false);
-				}}
-				onDrop={(event) => {
-					if (disabled || maxReached) return;
-					event.preventDefault();
-					resetDrag();
-					addFiles(Array.from(event.dataTransfer.files));
-				}}
-				className={cn(
-					"group squircle relative flex w-full overflow-hidden rounded-xl border border-border border-dashed bg-background outline-none [--squircle-r:8px]",
-					"transition-[border-color,transform] duration-200 active:scale-[0.99]",
-					"hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-					"data-[dragging=true]:border-foreground",
-					"disabled:pointer-events-none disabled:opacity-55",
-					centered
-						? "min-h-56 flex-col items-center justify-center gap-3 p-7 text-center"
-						: "items-center gap-4 p-5 text-left",
-					classNames?.dropzone,
-				)}
-			>
-				<motion.span
-					aria-hidden="true"
+		return (
+			<div className={cn("w-full space-y-3", className, classNames?.root)}>
+				<input
+					ref={inputRef}
+					id={inputId}
+					type="file"
+					aria-label="Upload files"
+					accept={accept}
+					multiple={multiple}
+					disabled={disabled || maxReached}
+					tabIndex={-1}
+					className="sr-only"
+					onChange={(event) => {
+						addFiles(Array.from(event.currentTarget.files ?? []));
+						event.currentTarget.value = "";
+					}}
+				/>
+
+				<button
+					type="button"
+					disabled={disabled || maxReached}
+					data-dragging={dragging}
+					onClick={() => inputRef.current?.click()}
+					onDragEnter={(event) => {
+						if (disabled || maxReached) return;
+						event.preventDefault();
+						dragDepthRef.current += 1;
+						setDragging(true);
+					}}
+					onDragOver={(event) => {
+						if (disabled || maxReached) return;
+						event.preventDefault();
+						event.dataTransfer.dropEffect = "copy";
+						setDragging(true);
+					}}
+					onDragLeave={(event) => {
+						if (disabled || maxReached) return;
+						event.preventDefault();
+						dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+						if (dragDepthRef.current === 0) setDragging(false);
+					}}
+					onDrop={(event) => {
+						if (disabled || maxReached) return;
+						event.preventDefault();
+						resetDrag();
+						addFiles(Array.from(event.dataTransfer.files));
+					}}
 					className={cn(
-						"grid shrink-0 place-items-center bg-muted text-foreground",
+						"group squircle relative flex w-full overflow-hidden rounded-xl border border-border border-dashed bg-background outline-none [--squircle-r:8px]",
+						"transition-[border-color,transform] duration-200 active:scale-[0.99]",
+						"hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+						"data-[dragging=true]:border-foreground",
+						"disabled:pointer-events-none disabled:opacity-55",
 						centered
-							? "squircle h-16 w-16 rounded-lg border border-border [--squircle-r:7px]"
-							: "squircle h-14 w-14 rounded-lg [--squircle-r:7px]",
+							? "min-h-56 flex-col items-center justify-center gap-3 p-7 text-center"
+							: "items-center gap-4 p-5 text-left",
+						classNames?.dropzone,
 					)}
-					animate={
-						reduce
-							? undefined
-							: {
-									transform: dragging ? "translateY(-2px)" : "translateY(0px)",
-								}
-					}
-					transition={FAST_TRANSITION}
 				>
-					<UploadCloud className={centered ? "h-7 w-7" : "h-6 w-6"} />
-				</motion.span>
-
-				<span className={cn("min-w-0", centered ? "max-w-xs" : "flex-1")}>
-					<span
+					<motion.span
+						aria-hidden="true"
 						className={cn(
-							"block font-semibold text-foreground",
-							centered ? "text-base" : "text-sm",
+							"grid shrink-0 place-items-center bg-muted text-foreground",
+							centered
+								? "squircle h-16 w-16 rounded-lg border border-border [--squircle-r:7px]"
+								: "squircle h-14 w-14 rounded-lg [--squircle-r:7px]",
 						)}
+						animate={
+							reduce
+								? undefined
+								: {
+										transform: dragging
+											? "translateY(-2px)"
+											: "translateY(0px)",
+									}
+						}
+						transition={FAST_TRANSITION}
 					>
-						{maxReached ? "Upload limit reached" : title}
-					</span>
-					{descriptionText ? (
+						<UploadCloud className={centered ? "h-7 w-7" : "h-6 w-6"} />
+					</motion.span>
+
+					<span className={cn("min-w-0", centered ? "max-w-xs" : "flex-1")}>
 						<span
 							className={cn(
-								"block text-muted-foreground text-xs",
-								centered ? "mt-1 leading-5" : "mt-0.5",
+								"block font-semibold text-foreground",
+								centered ? "text-base" : "text-sm",
 							)}
 						>
-							{descriptionText}
+							{maxReached ? "Upload limit reached" : title}
 						</span>
-					) : null}
-				</span>
+						{descriptionText ? (
+							<span
+								className={cn(
+									"block text-muted-foreground text-xs",
+									centered ? "mt-1 leading-5" : "mt-0.5",
+								)}
+							>
+								{descriptionText}
+							</span>
+						) : null}
+					</span>
 
-				<span
-					className={cn(
-						"squircle shrink-0 rounded-md border border-border font-medium text-foreground text-xs transition-colors duration-150 [--squircle-r:6px] group-hover:bg-muted",
-						centered ? "mt-1 px-4 py-2" : "px-3.5 py-2",
-					)}
-				>
-					{browseLabel}
-				</span>
-			</button>
+					<span
+						className={cn(
+							"squircle shrink-0 rounded-md border border-border font-medium text-foreground text-xs transition-colors duration-150 [--squircle-r:6px] group-hover:bg-muted",
+							centered ? "mt-1 px-4 py-2" : "px-3.5 py-2",
+						)}
+					>
+						{browseLabel}
+					</span>
+				</button>
 
-			<ul className={cn("space-y-2", classNames?.queue)}>
-				<AnimatePresence initial={false}>
-					{items.map((item) => (
-						<FileUploadRow
-							key={item.id}
-							item={item}
-							onRemove={removeItem}
-							onRetry={retryItem}
-							classNames={classNames}
-						/>
-					))}
-				</AnimatePresence>
-			</ul>
-		</div>
-	);
-}
+				<ul className={cn("space-y-2", classNames?.queue)}>
+					<AnimatePresence initial={false}>
+						{items.map((item) => (
+							<FileUploadRow
+								key={item.id}
+								item={item}
+								onRemove={removeItem}
+								onRetry={retryItem}
+								classNames={classNames}
+							/>
+						))}
+					</AnimatePresence>
+				</ul>
+			</div>
+		);
+	},
+);

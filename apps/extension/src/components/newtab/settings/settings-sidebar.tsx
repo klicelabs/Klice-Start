@@ -30,11 +30,9 @@ import {
 	SETTINGS_FOCUS_RING,
 	SETTINGS_HEADER_CONTROL,
 	SETTINGS_HEADER_INSET,
-	SETTINGS_HEADER_TRANSPORT_CONTROL,
 	SETTINGS_RADIUS,
 	SETTINGS_SIDEBAR_SHELL,
 } from "./shared/settings-tokens";
-import { SettingsTransportControl } from "./shared/settings-transport-control";
 
 /**
  * Settings lives in the app's shared layout, not in a portal. The motion slot
@@ -192,17 +190,18 @@ export function SettingsSidebar({
 							<p className="sr-only">Klice Start preferences</p>
 						</div>
 						{open && (
-							<SettingsTransportControl
+							<button
 								ref={closeControlRef}
-								open
+								type="button"
 								onClick={handleClose}
-								className={cn(
-									SETTINGS_HEADER_TRANSPORT_CONTROL,
-									SETTINGS_FOCUS_RING,
-								)}
+								className={cn(SETTINGS_HEADER_CONTROL, SETTINGS_FOCUS_RING)}
+								aria-label="Close preferences"
 								aria-controls="settings-sidebar"
+								title="Close preferences"
 								data-settings-ui="true"
-							/>
+							>
+								<Icon name="x" size={18} aria-hidden="true" />
+							</button>
 						)}
 					</header>
 				</SidebarHeader>

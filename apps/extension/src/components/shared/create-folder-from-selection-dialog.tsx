@@ -170,7 +170,7 @@ export function CreateFolderFromSelectionDialog({
 								SETTINGS_RADIUS.control,
 								SETTINGS_ACTION_PRIMARY,
 								SETTINGS_FOCUS_RING,
-								"bg-[var(--apple-blue)] text-white hover:bg-[var(--apple-blue)]/90 disabled:pointer-events-none disabled:opacity-40",
+								"bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] hover:brightness-95 disabled:pointer-events-none disabled:opacity-40",
 							)}
 						>
 							<Icon name="folder-plus" size={14} aria-hidden="true" />

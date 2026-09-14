@@ -353,7 +353,9 @@ function FolderTab({
 				? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
 				: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
 		isSelected &&
-			(isLiquid ? "ring-1 ring-inset ring-white/50" : "ring-1 ring-inset ring-flat-edge-strong"),
+			(isLiquid
+				? "ring-1 ring-inset ring-white/50"
+				: "ring-1 ring-inset ring-flat-edge-strong"),
 	);
 
 	const dropClass = dropActive
