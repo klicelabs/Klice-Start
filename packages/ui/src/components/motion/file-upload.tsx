@@ -21,6 +21,7 @@ import {
 	X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import type { ReactNode } from "react";
 import {
 	forwardRef,
 	useCallback,
@@ -72,6 +73,10 @@ export interface FileUploadProps {
 	title?: string;
 	description?: string;
 	browseLabel?: string;
+	/** Optional beUI dropzone content for a composed upload surface. */
+	dropzoneContent?: ReactNode;
+	/** Override the native dropzone button's accessible name when composed. */
+	dropzoneAriaLabel?: string;
 	className?: string;
 	classNames?: FileUploadClassNames;
 }
@@ -412,6 +417,8 @@ export const FileUpload = forwardRef<FileUploadHandle, FileUploadProps>(
 			title = "Drop files here",
 			description,
 			browseLabel = "Browse",
+			dropzoneContent,
+			dropzoneAriaLabel,
 			className,
 			classNames,
 		}: FileUploadProps,
@@ -525,6 +532,8 @@ export const FileUpload = forwardRef<FileUploadHandle, FileUploadProps>(
 
 				<button
 					type="button"
+					aria-label={dropzoneAriaLabel}
+					title={title}
 					disabled={disabled || maxReached}
 					data-dragging={dragging}
 					onClick={() => inputRef.current?.click()}
@@ -564,57 +573,61 @@ export const FileUpload = forwardRef<FileUploadHandle, FileUploadProps>(
 						classNames?.dropzone,
 					)}
 				>
-					<motion.span
-						aria-hidden="true"
-						className={cn(
-							"grid shrink-0 place-items-center bg-muted text-foreground",
-							centered
-								? "squircle h-16 w-16 rounded-lg border border-border [--squircle-r:7px]"
-								: "squircle h-14 w-14 rounded-lg [--squircle-r:7px]",
-						)}
-						animate={
-							reduce
-								? undefined
-								: {
-										transform: dragging
-											? "translateY(-2px)"
-											: "translateY(0px)",
-									}
-						}
-						transition={FAST_TRANSITION}
-					>
-						<UploadCloud className={centered ? "h-7 w-7" : "h-6 w-6"} />
-					</motion.span>
+					{dropzoneContent ?? (
+						<>
+							<motion.span
+								aria-hidden="true"
+								className={cn(
+									"grid shrink-0 place-items-center bg-muted text-foreground",
+									centered
+										? "squircle h-16 w-16 rounded-lg border border-border [--squircle-r:7px]"
+										: "squircle h-14 w-14 rounded-lg [--squircle-r:7px]",
+								)}
+								animate={
+									reduce
+										? undefined
+										: {
+												transform: dragging
+													? "translateY(-2px)"
+													: "translateY(0px)",
+											}
+								}
+								transition={FAST_TRANSITION}
+							>
+								<UploadCloud className={centered ? "h-7 w-7" : "h-6 w-6"} />
+							</motion.span>
 
-					<span className={cn("min-w-0", centered ? "max-w-xs" : "flex-1")}>
-						<span
-							className={cn(
-								"block font-semibold text-foreground",
-								centered ? "text-base" : "text-sm",
-							)}
-						>
-							{maxReached ? "Upload limit reached" : title}
-						</span>
-						{descriptionText ? (
+							<span className={cn("min-w-0", centered ? "max-w-xs" : "flex-1")}>
+								<span
+									className={cn(
+										"block font-semibold text-foreground",
+										centered ? "text-base" : "text-sm",
+									)}
+								>
+									{maxReached ? "Upload limit reached" : title}
+								</span>
+								{descriptionText ? (
+									<span
+										className={cn(
+											"block text-muted-foreground text-xs",
+											centered ? "mt-1 leading-5" : "mt-0.5",
+										)}
+									>
+										{descriptionText}
+									</span>
+								) : null}
+							</span>
+
 							<span
 								className={cn(
-									"block text-muted-foreground text-xs",
-									centered ? "mt-1 leading-5" : "mt-0.5",
+									"squircle shrink-0 rounded-md border border-border font-medium text-foreground text-xs transition-colors duration-150 [--squircle-r:6px] group-hover:bg-muted",
+									centered ? "mt-1 px-4 py-2" : "px-3.5 py-2",
 								)}
 							>
-								{descriptionText}
+								{browseLabel}
 							</span>
-						) : null}
-					</span>
-
-					<span
-						className={cn(
-							"squircle shrink-0 rounded-md border border-border font-medium text-foreground text-xs transition-colors duration-150 [--squircle-r:6px] group-hover:bg-muted",
-							centered ? "mt-1 px-4 py-2" : "px-3.5 py-2",
-						)}
-					>
-						{browseLabel}
-					</span>
+						</>
+					)}
 				</button>
 
 				<ul className={cn("space-y-2", classNames?.queue)}>

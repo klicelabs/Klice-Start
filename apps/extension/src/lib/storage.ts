@@ -11,6 +11,7 @@ import type {
 } from "../types";
 import { DEFAULT_SETUP, WALLPAPERS } from "./constants";
 import { getDescendantIds } from "./folder-tree";
+import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
 
@@ -115,14 +116,96 @@ function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
 	const seen = new Set<string>();
 	const normalized: CustomWallpaper[] = [];
 	for (const entry of raw) {
-		if (!isRecord(entry)) continue;
-		const id = normalizeId(entry.id);
-		const name = normalizeId(entry.name);
-		if (!id || !name || seen.has(id)) continue;
-		seen.add(id);
-		normalized.push({ id, name });
+		const wallpaper = normalizeCustomWallpaperEntry(entry);
+		if (!wallpaper || seen.has(wallpaper.id)) continue;
+		seen.add(wallpaper.id);
+		normalized.push(wallpaper);
 	}
 	return normalized;
+}
+
+function normalizeCustomWallpaperEntry(raw: unknown): CustomWallpaper | null {
+	if (!isRecord(raw)) return null;
+	const id = normalizeId(raw.id);
+	const name = normalizeId(raw.name);
+	return id && name ? { id, name } : null;
+}
+
+/**
+ * Read the new single-slot shape while keeping older array-based installs
+ * usable. The active legacy image wins when possible; otherwise the newest
+ * valid array entry becomes the slot.
+ */
+function normalizeCustomWallpaper(
+	raw: Record<string, unknown>,
+	activeImageId: string | null,
+): CustomWallpaper | null {
+	const hasSingleSlot = Object.hasOwn(raw, "customWallpaper");
+	const single = normalizeCustomWallpaperEntry(raw.customWallpaper);
+	if (single) return single;
+	if (hasSingleSlot && raw.customWallpaper === null) return null;
+
+	const legacy = normalizeCustomWallpapers(raw.customWallpapers);
+	return (
+		legacy.find((wallpaper) => wallpaper.id === activeImageId) ??
+		legacy.at(-1) ??
+		null
+	);
+}
+
+export interface CustomWallpaperMigration {
+	legacyIds: string[];
+	retainedId: string | null;
+}
+
+function getRawBackground(rawState: unknown): Record<string, unknown> | null {
+	if (!isRecord(rawState) || !isRecord(rawState.settings)) return null;
+	const background = rawState.settings.background;
+	return isRecord(background) ? background : null;
+}
+
+/** Describe legacy custom image keys so hydration/import can remove leftovers. */
+export function getCustomWallpaperMigration(
+	rawState: unknown,
+): CustomWallpaperMigration {
+	const raw = getRawBackground(rawState);
+	if (!raw) return { legacyIds: [], retainedId: null };
+
+	const legacy = normalizeCustomWallpapers(raw.customWallpapers);
+	const single = normalizeCustomWallpaperEntry(raw.customWallpaper);
+	const activeImageId = normalizeId(raw.imageId);
+	const retained = Object.hasOwn(raw, "customWallpaper")
+		? single
+		: (legacy.find((wallpaper) => wallpaper.id === activeImageId) ??
+			legacy.at(-1) ??
+			null);
+
+	return {
+		legacyIds: legacy.map((wallpaper) => wallpaper.id),
+		retainedId: retained?.id ?? null,
+	};
+}
+
+/**
+ * Remove image blobs that belonged to the old custom-wallpaper array. The
+ * retained slot is never touched, and cleanup is best-effort so a storage
+ * hiccup cannot prevent the user's settings from hydrating or importing.
+ */
+export async function cleanupLegacyCustomWallpaperImages(
+	rawState: unknown,
+): Promise<void> {
+	const { legacyIds, retainedId } = getCustomWallpaperMigration(rawState);
+	await Promise.all(
+		legacyIds
+			.filter((id) => id !== retainedId)
+			.map(async (id) => {
+				try {
+					await idbDelete(STORE_BG, id);
+				} catch {
+					// Cleanup is intentionally non-blocking; the normalized state is safe.
+				}
+			}),
+	);
 }
 
 function normalizeBackground(
@@ -150,6 +233,12 @@ function normalizeBackground(
 			: type;
 	const incompleteImage = normalizedType === "image" && !imageId;
 	const effectiveType = incompleteImage ? defaults.type : normalizedType;
+	const customWallpaper = normalizeCustomWallpaper(raw, imageId);
+	const effectiveCustomWallpaper =
+		customWallpaper ??
+		(effectiveType === "image" && imageId
+			? { id: imageId, name: "Uploaded wallpaper" }
+			: null);
 	const normalizedWallpaperId =
 		rawType === "wallpaper" &&
 		effectiveType === "wallpaper" &&
@@ -185,9 +274,12 @@ function normalizeBackground(
 		type: effectiveType,
 		color: typeof raw.color === "string" ? raw.color : defaults.color,
 		gradientId: normalizeId(raw.gradientId),
-		imageId: effectiveType === "image" ? imageId : null,
+		imageId:
+			effectiveType === "image"
+				? (effectiveCustomWallpaper?.id ?? imageId)
+				: null,
 		wallpaperId: normalizedWallpaperId,
-		customWallpapers: normalizeCustomWallpapers(raw.customWallpapers),
+		customWallpaper: effectiveCustomWallpaper,
 		blur: finiteOrDefault(raw.blur, defaults.blur, 0, 20),
 		brightness: finiteOrDefault(raw.brightness, defaults.brightness, 40, 140),
 		opacity: finiteOrDefault(raw.opacity, defaults.opacity, 20, 100),
@@ -476,6 +568,36 @@ export function getLastWrittenJSON(): string | null {
 	return _lastWrittenJSON;
 }
 
+function hasCustomWallpaperMigration(rawState: unknown): boolean {
+	const raw = getRawBackground(rawState);
+	return Boolean(
+		raw &&
+			(Array.isArray(raw.customWallpapers) ||
+				!Object.hasOwn(raw, "customWallpaper")),
+	);
+}
+
+/** Persist the normalized shape once so the legacy array does not linger. */
+async function persistCustomWallpaperMigration(
+	name: string,
+	parsed: StorageValue<Setup>,
+	normalized: Setup,
+): Promise<void> {
+	const migrated = { ...parsed, state: normalized };
+	if (typeof chrome === "undefined" || !chrome.storage?.local) {
+		if (typeof localStorage !== "undefined") {
+			try {
+				localStorage.setItem(name, JSON.stringify(migrated));
+			} catch (error) {
+				reportPersistenceError(error);
+			}
+		}
+		return;
+	}
+	if (!_resetGenerationLoaded) await _resetGenerationReady;
+	await _doWrite(name, migrated, _resetGeneration);
+}
+
 // Flush pending writes before the tab closes or hides.
 if (typeof window !== "undefined") {
 	const onFlush = () => {
@@ -505,7 +627,14 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 			if (!raw) return null;
 			try {
 				const parsed = JSON.parse(raw) as StorageValue<Setup>;
-				parsed.state = normalizeState(parsed.state as Partial<Setup>);
+				const rawState = parsed.state;
+				const shouldMigrate = hasCustomWallpaperMigration(rawState);
+				const normalized = normalizeState(rawState as Partial<Setup>);
+				parsed.state = normalized;
+				await cleanupLegacyCustomWallpaperImages(rawState);
+				if (shouldMigrate) {
+					await persistCustomWallpaperMigration(name, parsed, normalized);
+				}
 				return parsed;
 			} catch {
 				return null;
@@ -524,7 +653,18 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		);
 		if (persistedGeneration < resetGeneration) return null;
 		delete parsed[PERSIST_GENERATION_KEY];
-		parsed.state = normalizeState(parsed.state as Partial<Setup>);
+		const rawState = parsed.state;
+		const shouldMigrate = hasCustomWallpaperMigration(rawState);
+		const normalized = normalizeState(rawState as Partial<Setup>);
+		parsed.state = normalized;
+		await cleanupLegacyCustomWallpaperImages(rawState);
+		if (shouldMigrate) {
+			try {
+				await persistCustomWallpaperMigration(name, parsed, normalized);
+			} catch (error) {
+				reportPersistenceError(error);
+			}
+		}
 		return parsed;
 	},
 	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {

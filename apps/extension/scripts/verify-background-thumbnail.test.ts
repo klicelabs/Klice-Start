@@ -2,6 +2,7 @@ import { expect, mock, test } from "bun:test";
 import type { Card, Setup } from "../src/types";
 
 mock.module("../src/lib/idb", () => ({
+	STORE_BG: "backgrounds",
 	STORE_THUMBS: "thumbnails",
 	idbDelete: async () => undefined,
 	saveThumbnail: async () => "thumb-captured",
@@ -53,7 +54,7 @@ function createSetup(): Setup {
 				gradientId: null,
 				imageId: null,
 				wallpaperId: null,
-				customWallpapers: [],
+				customWallpaper: null,
 				blur: 0,
 				brightness: 100,
 				opacity: 100,

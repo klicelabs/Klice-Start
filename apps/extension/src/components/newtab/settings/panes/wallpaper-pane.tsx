@@ -1,11 +1,9 @@
 import {
 	FileUpload,
-	type FileUploadHandle,
 	type FileUploadItem,
 } from "@klice-start/ui/components/motion/file-upload";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { motion, useReducedMotion } from "motion/react";
-import type { MouseEvent } from "react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -13,10 +11,11 @@ import {
 	MAX_BACKGROUND_IMAGE_BYTES,
 	WALLPAPERS,
 } from "../../../../lib/constants";
+import { flushPersist } from "../../../../lib/storage";
 import { cn } from "../../../../lib/utils";
 import { useImageStore } from "../../../../stores/image-store";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type { Settings } from "../../../../types";
+import type { CustomWallpaper, Settings } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
 import { SettingsAction } from "../shared/settings-action";
 import {
@@ -28,16 +27,12 @@ import {
 type WallpaperLibraryItem =
 	| { kind: "wallpaper"; id: string; label: string; thumb: string }
 	| { kind: "gradient"; id: string; label: string; css: string }
-	| { kind: "solid"; id: "solid"; label: string; css: string }
-	| { kind: "image"; id: string; label: string };
+	| { kind: "solid"; id: "solid"; label: string; css: string };
 
 type PendingUpload = {
 	name: string;
-	size: number;
-	mime: string;
 	previewUrl: string;
 	status: "validating" | "ready" | "confirming" | "error";
-	progress: number;
 	error?: string;
 	dataUrl?: string;
 };
@@ -105,32 +100,112 @@ function validateImageFile(file: File): string | null {
 	return null;
 }
 
-function formatBytes(bytes: number): string {
-	if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-	const units = ["B", "KB", "MB", "GB"];
-	const exponent = Math.min(
-		Math.floor(Math.log(bytes) / Math.log(1024)),
-		units.length - 1,
+interface CustomWallpaperSlotContentProps {
+	customWallpaper: CustomWallpaper | null;
+	customPreview: string | null;
+	pending: PendingUpload | null;
+	interactionHint?: string;
+}
+
+function CustomWallpaperSlotContent({
+	customWallpaper,
+	customPreview,
+	pending,
+	interactionHint,
+}: CustomWallpaperSlotContentProps): ReactNode {
+	const candidatePreview =
+		pending?.status === "error"
+			? null
+			: pending?.previewUrl || pending?.dataUrl;
+	const previewUrl = candidatePreview || customPreview;
+	const statusLabel = pending
+		? pending.status === "validating"
+			? "Checking image…"
+			: pending.status === "confirming"
+				? "Saving…"
+				: pending.status === "error"
+					? (pending.error ?? "Choose another image")
+					: "Ready to apply"
+		: null;
+
+	return (
+		<>
+			{previewUrl ? (
+				<img
+					src={previewUrl}
+					alt=""
+					className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+				/>
+			) : (
+				<span className="relative z-10 flex size-10 items-center justify-center rounded-full bg-neutral-900/[0.08] text-neutral-500 dark:bg-white/[0.1] dark:text-neutral-300">
+					<Icon
+						name={
+							customWallpaper || pending?.status === "error"
+								? "image"
+								: "upload"
+						}
+						size={19}
+						aria-hidden="true"
+					/>
+				</span>
+			)}
+
+			{previewUrl ? (
+				<span
+					aria-hidden="true"
+					className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-black/5"
+				/>
+			) : null}
+
+			<span
+				className={cn(
+					"absolute inset-x-2 z-10 flex min-w-0 flex-col gap-1",
+					interactionHint
+						? "items-start text-left"
+						: "items-center text-center",
+					pending?.status === "ready" ? "bottom-10" : "bottom-2",
+				)}
+			>
+				<span
+					className={cn(
+						"max-w-full truncate font-medium text-[12px] leading-tight",
+						previewUrl
+							? "text-white drop-shadow-xs"
+							: "text-neutral-700 dark:text-neutral-100",
+					)}
+				>
+					{pending?.name ?? (customWallpaper ? "Custom image" : "Add image")}
+				</span>
+				{statusLabel ? (
+					<span
+						aria-atomic="true"
+						aria-live="polite"
+						className={cn(
+							"max-w-full truncate text-[10px] leading-tight",
+							pending?.status === "error" ? "text-red-100" : "text-white/75",
+						)}
+					>
+						{statusLabel}
+					</span>
+				) : null}
+			</span>
+
+			{interactionHint ? (
+				<span className="pointer-events-none absolute inset-0 z-10 grid place-items-center px-3 text-center font-medium text-[11px] text-white opacity-0 drop-shadow-xs transition-opacity duration-150 group-hover/custom:opacity-100 group-focus-visible/custom:opacity-100 motion-reduce:transition-none">
+					{interactionHint}
+				</span>
+			) : null}
+		</>
 	);
-	const value = bytes / 1024 ** exponent;
-	return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
 interface WallpaperTileProps {
-	customPreviews: Record<string, string | null>;
 	item: WallpaperLibraryItem;
 	selected: boolean;
-	onDelete: (event: MouseEvent, id: string) => void;
 	onSelect: (item: WallpaperLibraryItem) => void;
 }
 
-function WallpaperTile({
-	customPreviews,
-	item,
-	selected,
-	onDelete,
-	onSelect,
-}: WallpaperTileProps) {
+function WallpaperTile({ item, selected, onSelect }: WallpaperTileProps) {
 	const tileLabel =
 		item.kind === "gradient"
 			? `Use ${item.label} gradient`
@@ -163,23 +238,11 @@ function WallpaperTile({
 						className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
 						loading="lazy"
 					/>
-				) : item.kind === "image" && customPreviews[item.id] ? (
-					<img
-						src={customPreviews[item.id] ?? ""}
-						alt=""
-						className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
-						loading="lazy"
-					/>
 				) : (
 					<span
 						aria-hidden="true"
 						className="absolute inset-0 size-full"
-						style={{
-							background:
-								item.kind === "gradient" || item.kind === "solid"
-									? item.css
-									: "linear-gradient(135deg, #27272a, #09090b)",
-						}}
+						style={{ background: item.css }}
 					/>
 				)}
 				<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
@@ -192,22 +255,6 @@ function WallpaperTile({
 				<span className="absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
 					<Icon name="check" size={12} strokeWidth={3} aria-hidden="true" />
 				</span>
-			) : null}
-
-			{item.kind === "image" ? (
-				<button
-					type="button"
-					onClick={(event) => onDelete(event, item.id)}
-					aria-label={`Delete ${item.label} wallpaper`}
-					title={`Delete ${item.label}`}
-					className={cn(
-						"absolute top-2 right-2 z-20 flex size-7 items-center justify-center rounded-full bg-black/50 text-white/85 opacity-0 shadow-sm transition-[background-color,color,opacity] hover:bg-black/75 hover:text-white focus-visible:opacity-100 group-hover:opacity-100",
-						SETTINGS_FOCUS_RING,
-						selected && "hidden",
-					)}
-				>
-					<Icon name="trash" size={13} strokeWidth={2} aria-hidden="true" />
-				</button>
 			) : null}
 		</div>
 	);
@@ -229,48 +276,44 @@ export function WallpaperPane() {
 		(state) => state.deleteBackgroundImage,
 	);
 	const getBackgroundImage = useImageStore((state) => state.getBackgroundImage);
-	const reduceMotion = useReducedMotion() ?? false;
-	const customWallpapers = bg.customWallpapers ?? [];
-	const [uploaderOpen, setUploaderOpen] = useState(false);
+	const setBackgroundPreview = useImageStore(
+		(state) => state.setBackgroundPreview,
+	);
+	const clearBackgroundPreview = useImageStore(
+		(state) => state.clearBackgroundPreview,
+	);
+	const customWallpaper = bg.customWallpaper;
 	const [pending, setPending] = useState<PendingUpload | null>(null);
-	const fileUploadRef = useRef<FileUploadHandle>(null);
-	const [customPreviews, setCustomPreviews] = useState<
-		Record<string, string | null>
-	>({});
+	const [customPreview, setCustomPreview] = useState<string | null>(null);
+	const uploadGenerationRef = useRef(0);
 
 	useEffect(() => {
 		let active = true;
-		if (customWallpapers.length === 0) {
-			setCustomPreviews({});
+		setCustomPreview(null);
+		if (!customWallpaper) {
 			return;
 		}
 
-		Promise.all(
-			customWallpapers.map(async (wallpaper) => {
-				try {
-					const dataUrl = await getBackgroundImage(wallpaper.id);
-					return [wallpaper.id, dataUrl] as const;
-				} catch {
-					return [wallpaper.id, null] as const;
-				}
-			}),
-		).then((entries) => {
-			if (!active) return;
-			const next: Record<string, string | null> = {};
-			for (const [id, url] of entries) next[id] = url;
-			setCustomPreviews(next);
-		});
+		getBackgroundImage(customWallpaper.id)
+			.then((dataUrl) => {
+				if (active) setCustomPreview(dataUrl);
+			})
+			.catch(() => {
+				if (active) setCustomPreview(null);
+			});
 
 		return () => {
 			active = false;
 		};
-	}, [customWallpapers, getBackgroundImage]);
+	}, [customWallpaper, getBackgroundImage]);
 
 	useEffect(
 		() => () => {
+			uploadGenerationRef.current += 1;
+			clearBackgroundPreview();
 			if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
 		},
-		[pending?.previewUrl],
+		[pending?.previewUrl, clearBackgroundPreview],
 	);
 
 	const libraryItems = useMemo<WallpaperLibraryItem[]>(
@@ -288,13 +331,8 @@ export function WallpaperPane() {
 				label: gradient.label,
 				css: gradient.css,
 			})),
-			...customWallpapers.map((wallpaper) => ({
-				kind: "image" as const,
-				id: wallpaper.id,
-				label: wallpaper.name,
-			})),
 		],
-		[bg.color, customWallpapers],
+		[bg.color],
 	);
 
 	function isSelected(item: WallpaperLibraryItem) {
@@ -303,10 +341,11 @@ export function WallpaperPane() {
 		if (item.kind === "gradient")
 			return bg.type === "gradient" && bg.gradientId === item.id;
 		if (item.kind === "solid") return bg.type === "solid";
-		return bg.type === "image" && bg.imageId === item.id;
+		return false;
 	}
 
 	function handleSelect(item: WallpaperLibraryItem) {
+		if (pending) clearPending();
 		if (item.kind === "wallpaper") {
 			updateBackground({
 				type: "wallpaper",
@@ -335,15 +374,21 @@ export function WallpaperPane() {
 			} as Partial<Settings["background"]>);
 			return;
 		}
+	}
+
+	function handleSelectCustom() {
+		if (!customWallpaper || pending) return;
 		updateBackground({
 			type: "image",
-			imageId: item.id,
+			imageId: customWallpaper.id,
 			wallpaperId: null,
 			gradientId: null,
 		} as Partial<Settings["background"]>);
 	}
 
 	function clearPending() {
+		uploadGenerationRef.current += 1;
+		clearBackgroundPreview();
 		setPending((previous) => {
 			if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
 			return null;
@@ -351,22 +396,21 @@ export function WallpaperPane() {
 	}
 
 	async function stageUpload(file: File) {
+		const uploadGeneration = ++uploadGenerationRef.current;
+		clearBackgroundPreview();
 		if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
 		const name =
 			file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
 		const next: PendingUpload = {
 			name,
-			size: file.size,
-			mime: file.type || "unknown",
 			previewUrl: typeof URL !== "undefined" ? URL.createObjectURL(file) : "",
 			status: "validating",
-			progress: 12,
 		};
 		setPending(next);
 
 		const rejection = validateImageFile(file);
 		if (rejection) {
-			setPending({ ...next, status: "error", error: rejection, progress: 0 });
+			setPending({ ...next, status: "error", error: rejection });
 			return;
 		}
 		if (typeof createImageBitmap === "undefined") {
@@ -374,21 +418,21 @@ export function WallpaperPane() {
 				...next,
 				status: "error",
 				error: "This browser can't read images here.",
-				progress: 0,
 			});
 			return;
 		}
 
 		try {
-			setPending({ ...next, progress: 35 });
 			const dataUrl = await downscaleImageFile(file);
-			setPending({ ...next, status: "ready", progress: 100, dataUrl });
+			if (uploadGenerationRef.current !== uploadGeneration) return;
+			setPending({ ...next, status: "ready", dataUrl });
+			setBackgroundPreview(dataUrl);
 		} catch {
+			if (uploadGenerationRef.current !== uploadGeneration) return;
 			setPending({
 				...next,
 				status: "error",
 				error: "Couldn't read that image. It may be corrupted.",
-				progress: 0,
 			});
 		}
 	}
@@ -403,24 +447,35 @@ export function WallpaperPane() {
 		const snapshot = pending;
 		const dataUrl = snapshot.dataUrl;
 		if (!dataUrl) return;
-		setPending({ ...snapshot, status: "confirming", progress: 100 });
+		const previousCustomId = customWallpaper?.id ?? null;
+		setPending({ ...snapshot, status: "confirming" });
+		let savedId: string | null = null;
 
 		try {
-			const savedId = await saveBackgroundImage(dataUrl);
-			const existing = customWallpapers.some(
-				(wallpaper) => wallpaper.id === savedId,
-			);
+			savedId = await saveBackgroundImage(dataUrl);
 			commitCustomWallpaper({ id: savedId, name: snapshot.name });
-			setCustomPreviews((previous) => ({ ...previous, [savedId]: dataUrl }));
-			if (snapshot.previewUrl) URL.revokeObjectURL(snapshot.previewUrl);
-			setPending(null);
-			setUploaderOpen(false);
-			toast.success("Wallpaper added", {
-				description: existing
-					? `“${snapshot.name}” is already in your collection.`
-					: `“${snapshot.name}” joined your collection.`,
-			});
+			// Keep the previous blob until the new slot is durably referenced by
+			// settings, so a close during replacement cannot strand the state.
+			await flushPersist();
+			setCustomPreview(dataUrl);
+			clearPending();
+			if (previousCustomId && previousCustomId !== savedId) {
+				try {
+					await deleteBackgroundImage(previousCustomId);
+				} catch {
+					console.warn("[wallpaper] Previous custom image cleanup failed");
+				}
+			}
+			toast.success(
+				previousCustomId
+					? "Custom wallpaper updated"
+					: "Custom wallpaper added",
+			);
 		} catch {
+			clearBackgroundPreview();
+			if (savedId) {
+				await deleteBackgroundImage(savedId).catch(() => undefined);
+			}
 			setPending({
 				...snapshot,
 				status: "error",
@@ -429,215 +484,197 @@ export function WallpaperPane() {
 		}
 	}
 
-	async function handleDeleteCustomImage(event: MouseEvent, id: string) {
-		event.stopPropagation();
-		await deleteBackgroundImage(id);
-		removeCustomWallpaper(id);
-		setCustomPreviews((previous) => {
-			const next = { ...previous };
-			delete next[id];
-			return next;
-		});
+	async function handleDeleteCustomImage() {
+		const id = customWallpaper?.id;
+		if (!id) return;
+		try {
+			await deleteBackgroundImage(id);
+			removeCustomWallpaper(id);
+			setCustomPreview(null);
+			toast.success("Custom wallpaper removed");
+		} catch {
+			toast.error("Couldn't remove custom wallpaper");
+		}
 	}
+
+	const customSelected =
+		!pending &&
+		customWallpaper !== null &&
+		bg.type === "image" &&
+		bg.imageId === customWallpaper.id;
+	const customTileHasPencil = customWallpaper !== null && !pending;
 
 	return (
 		<div className={SETTINGS_PAGE} data-settings-wallpaper-page="true">
 			<SectionCard>
 				<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7.5rem),1fr))] gap-2.5">
-					<button
-						type="button"
-						onClick={() => {
-							setUploaderOpen(true);
-							fileUploadRef.current?.open();
-						}}
-						aria-expanded={uploaderOpen}
+					<div
 						className={cn(
 							WALLPAPER_TILE,
-							"items-center justify-center gap-2 border-neutral-900/20 border-dashed bg-neutral-900/[0.025] text-neutral-500 hover:bg-neutral-900/[0.06] hover:text-neutral-900 dark:border-white/20 dark:bg-white/[0.025] dark:text-neutral-400 dark:hover:bg-white/[0.07] dark:hover:text-neutral-100",
-							SETTINGS_FOCUS_RING,
-							uploaderOpen && "ring-2 ring-[var(--klice-accent)] ring-inset",
+							customSelected || pending
+								? TILE_SELECTED
+								: "hover:brightness-105",
 						)}
+						data-wallpaper-tile="custom-image"
 						data-wallpaper-upload="true"
 					>
-						<span className="flex size-9 items-center justify-center rounded-full bg-neutral-900/[0.06] dark:bg-white/[0.08]">
-							<Icon name="upload" size={17} aria-hidden="true" />
-						</span>
-						<span className="font-medium text-[12px]">Add image</span>
-					</button>
+						{customWallpaper && !pending ? (
+							<>
+								<button
+									type="button"
+									onClick={handleSelectCustom}
+									aria-label={
+										customSelected
+											? "Use custom wallpaper (currently active)"
+											: "Use custom wallpaper"
+									}
+									aria-pressed={customSelected}
+									className={cn(
+										"group/custom absolute inset-0 z-0 flex flex-col justify-end text-left focus-visible:outline-none",
+										SETTINGS_FOCUS_RING,
+									)}
+								>
+									<CustomWallpaperSlotContent
+										customWallpaper={customWallpaper}
+										customPreview={customPreview}
+										pending={null}
+										interactionHint="Use custom wallpaper"
+									/>
+								</button>
+
+								<FileUpload
+									value={[]}
+									onValueChange={() => undefined}
+									accept={UPLOAD_ACCEPT}
+									multiple={false}
+									maxFiles={1}
+									title="Replace custom wallpaper"
+									dropzoneAriaLabel="Replace custom wallpaper"
+									browseLabel=""
+									onFilesAdded={handleFilesAdded}
+									dropzoneContent={
+										<span className="grid size-full place-items-center">
+											<Icon name="pencil" size={12} aria-hidden="true" />
+										</span>
+									}
+									className="absolute top-2 right-2 z-30 size-5 space-y-0"
+									classNames={{
+										root: "absolute top-2 right-2 size-5 space-y-0",
+										dropzone:
+											"absolute inset-0 size-5 min-h-0 !rounded-full ![corner-shape:round] border border-white/20 bg-black/50 p-0 text-white shadow-sm hover:border-white/30 hover:bg-black/65 active:scale-95 dark:border-white/20 dark:bg-black/50 [--squircle-r:999px]",
+										queue: "hidden",
+									}}
+								/>
+							</>
+						) : (
+							<FileUpload
+								value={[]}
+								onValueChange={() => undefined}
+								accept={UPLOAD_ACCEPT}
+								multiple={false}
+								maxFiles={1}
+								disabled={pending?.status === "confirming"}
+								title={
+									customWallpaper
+										? "Replace custom wallpaper"
+										: "Add a custom wallpaper"
+								}
+								dropzoneAriaLabel={
+									customWallpaper
+										? "Replace custom wallpaper"
+										: "Add a custom wallpaper"
+								}
+								browseLabel=""
+								onFilesAdded={handleFilesAdded}
+								dropzoneContent={
+									<CustomWallpaperSlotContent
+										customWallpaper={customWallpaper}
+										customPreview={customPreview}
+										pending={pending}
+									/>
+								}
+								className="absolute inset-0 z-0 h-full w-full space-y-0"
+								classNames={{
+									root: "absolute inset-0 h-full w-full space-y-0",
+									dropzone:
+										"absolute inset-0 h-full min-h-0 w-full flex-col items-center justify-center gap-0 rounded-none border-0 bg-transparent p-0 text-center shadow-none hover:border-transparent hover:bg-black/[0.04] active:scale-100 data-[dragging=true]:border-transparent data-[dragging=true]:bg-black/[0.08] dark:hover:bg-white/[0.05] dark:data-[dragging=true]:bg-white/[0.1]",
+									queue: "hidden",
+								}}
+							/>
+						)}
+
+						{customSelected ? (
+							<span
+								className={cn(
+									"pointer-events-none absolute top-2 z-20 flex items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm",
+									customTileHasPencil ? "right-9 size-5" : "right-2 size-5",
+								)}
+							>
+								<Icon
+									name="check"
+									size={12}
+									strokeWidth={3}
+									aria-hidden="true"
+								/>
+							</span>
+						) : null}
+
+						{pending && pending.status !== "confirming" ? (
+							<button
+								type="button"
+								onClick={clearPending}
+								aria-label={`Cancel ${pending.name} upload`}
+								className={cn(
+									"absolute top-2 right-2 z-30 inline-flex size-7 items-center justify-center rounded-full bg-black/50 text-white/85 shadow-sm transition-colors hover:bg-black/75 hover:text-white",
+									SETTINGS_FOCUS_RING,
+								)}
+							>
+								<Icon name="x" size={13} aria-hidden="true" />
+							</button>
+						) : null}
+
+						{pending?.status === "ready" ? (
+							<div className="absolute inset-x-2 bottom-2 z-30">
+								<SettingsAction
+									tone="primary"
+									onClick={handleConfirmUpload}
+									className="h-7 w-full px-2 text-[11px]"
+								>
+									Confirm
+								</SettingsAction>
+							</div>
+						) : null}
+
+						{customWallpaper && !customSelected && !pending ? (
+							<button
+								type="button"
+								onClick={handleDeleteCustomImage}
+								aria-label="Delete custom wallpaper"
+								title="Delete custom wallpaper"
+								className={cn(
+									"absolute top-2 right-11 z-20 inline-flex size-7 items-center justify-center rounded-full bg-black/50 text-white/85 opacity-0 shadow-sm transition-[background-color,color,opacity] hover:bg-black/75 hover:text-white focus-visible:opacity-100 group-hover:opacity-100",
+									SETTINGS_FOCUS_RING,
+								)}
+							>
+								<Icon
+									name="trash"
+									size={13}
+									strokeWidth={2}
+									aria-hidden="true"
+								/>
+							</button>
+						) : null}
+					</div>
 
 					{libraryItems.map((item) => (
 						<WallpaperTile
 							key={`${item.kind}-${item.id}`}
-							customPreviews={customPreviews}
 							item={item}
 							selected={isSelected(item)}
-							onDelete={handleDeleteCustomImage}
 							onSelect={handleSelect}
 						/>
 					))}
 				</div>
-
-				<motion.div
-					initial={false}
-					animate={{
-						height: uploaderOpen ? "auto" : 0,
-						opacity: uploaderOpen ? 1 : 0,
-					}}
-					transition={
-						reduceMotion
-							? { duration: 0 }
-							: { duration: 0.22, ease: [0.23, 1, 0.32, 1] }
-					}
-					className="overflow-hidden"
-					aria-hidden={!uploaderOpen}
-				>
-					<div className="flex flex-col gap-2.5 pt-3">
-						<FileUpload
-							ref={fileUploadRef}
-							value={[]}
-							onValueChange={() => undefined}
-							accept={UPLOAD_ACCEPT}
-							multiple={false}
-							maxFiles={1}
-							title="Drop an image here"
-							description={`${SUPPORTED_LABEL} · up to 10 MB`}
-							browseLabel="Browse"
-							onFilesAdded={handleFilesAdded}
-							className="w-full space-y-0"
-							classNames={{
-								dropzone: cn(
-									"squircle border-neutral-900/[0.1] bg-transparent px-3 py-2.5 shadow-none hover:border-neutral-900/[0.2] active:scale-100 dark:border-white/[0.12] dark:hover:border-white/[0.2] [&>span:first-child>svg]:size-4 [&>span:first-child]:size-9 [&>span:first-child]:bg-neutral-900/[0.05] [&>span:first-child]:text-neutral-500 dark:[&>span:first-child]:bg-white/[0.06] dark:[&>span:first-child]:text-neutral-300 [&>span:last-child]:border-neutral-900/[0.1] [&>span:last-child]:text-neutral-700 dark:[&>span:last-child]:border-white/[0.12] dark:[&>span:last-child]:text-neutral-200 [&>span:nth-child(2)>span:first-child]:font-medium [&>span:nth-child(2)>span:first-child]:text-[13px]",
-									SETTINGS_RADIUS.surface,
-								),
-								action:
-									"bg-transparent shadow-none active:scale-100 hover:bg-neutral-900/[0.05] hover:text-neutral-900 dark:hover:bg-white/[0.08] dark:hover:text-white",
-								queue: "hidden",
-							}}
-						/>
-
-						{pending ? (
-							<div
-								role="status"
-								className={cn(
-									"squircle relative overflow-hidden border border-neutral-900/[0.08] bg-neutral-900/[0.03] p-2.5 dark:border-white/[0.08] dark:bg-white/[0.04]",
-									SETTINGS_RADIUS.surface,
-								)}
-							>
-								<div className="flex items-center gap-2.5">
-									<span
-										className={cn(
-											"squircle relative grid size-11 shrink-0 place-items-center overflow-hidden bg-neutral-900/[0.06] dark:bg-white/[0.07]",
-											SETTINGS_RADIUS.thumbnail,
-										)}
-									>
-										{pending.previewUrl ? (
-											<img
-												src={pending.previewUrl}
-												alt=""
-												className="absolute inset-0 size-full object-cover"
-											/>
-										) : (
-											<Icon
-												name="image"
-												size={16}
-												className="text-neutral-400"
-												aria-hidden="true"
-											/>
-										)}
-									</span>
-									<span className="min-w-0 flex-1">
-										<span className="block truncate font-medium text-[13px] text-neutral-900 dark:text-neutral-100">
-											{pending.name}
-										</span>
-										<span className="mt-0.5 block text-[11px] text-neutral-500 dark:text-neutral-400">
-											{pending.mime === "unknown"
-												? formatBytes(pending.size)
-												: `${pending.mime.replace("image/", "").toUpperCase()} · ${formatBytes(pending.size)}`}
-											{pending.status === "error" && pending.error
-												? ` · ${pending.error}`
-												: null}
-										</span>
-									</span>
-									<span className="flex shrink-0 items-center gap-1">
-										{pending.status === "validating" ||
-										pending.status === "confirming" ? (
-											<Icon
-												name="loader"
-												size={15}
-												className="animate-spin text-neutral-500 dark:text-neutral-400"
-												aria-hidden="true"
-											/>
-										) : pending.status === "ready" ? (
-											<Icon
-												name="check"
-												size={15}
-												className="text-emerald-600 dark:text-emerald-400"
-												aria-hidden="true"
-											/>
-										) : null}
-										<button
-											type="button"
-											onClick={clearPending}
-											aria-label={`Remove ${pending.name}`}
-											className={cn(
-												"inline-flex size-7 items-center justify-center rounded-full text-neutral-500 transition-colors hover:bg-neutral-900/[0.06] hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-white/[0.08] dark:hover:text-neutral-100",
-												SETTINGS_FOCUS_RING,
-											)}
-										>
-											<Icon name="x" size={13} aria-hidden="true" />
-										</button>
-									</span>
-								</div>
-
-								{(pending.status === "validating" ||
-									pending.status === "ready" ||
-									pending.status === "confirming") && (
-									<div
-										role="progressbar"
-										aria-valuemin={0}
-										aria-valuemax={100}
-										aria-valuenow={Math.round(pending.progress)}
-										aria-label={`${pending.name} progress`}
-										className="mt-2 h-1 overflow-hidden rounded-full bg-neutral-900/[0.08] dark:bg-white/[0.1]"
-									>
-										<motion.div
-											className={cn(
-												"h-full rounded-full",
-												pending.status === "ready"
-													? "bg-emerald-500"
-													: "bg-[var(--klice-accent)]",
-											)}
-											initial={false}
-											animate={{
-												scaleX: Math.max(
-													0,
-													Math.min(1, pending.progress / 100),
-												),
-											}}
-											style={{ transformOrigin: "left" }}
-											transition={
-												reduceMotion
-													? { duration: 0 }
-													: { duration: 0.25, ease: [0.23, 1, 0.32, 1] }
-											}
-										/>
-									</div>
-								)}
-
-								{pending.status === "ready" && (
-									<div className="mt-2 flex items-center justify-end">
-										<SettingsAction
-											tone="primary"
-											onClick={handleConfirmUpload}
-										>
-											Confirm
-										</SettingsAction>
-									</div>
-								)}
-							</div>
-						) : null}
-					</div>
-				</motion.div>
 			</SectionCard>
 		</div>
 	);

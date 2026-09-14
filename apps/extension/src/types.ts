@@ -44,7 +44,8 @@ export interface BackgroundSettings {
 	gradientId: string | null;
 	imageId: string | null;
 	wallpaperId: string | null;
-	customWallpapers?: CustomWallpaper[];
+	/** The one user-owned wallpaper slot, or null when it is empty. */
+	customWallpaper: CustomWallpaper | null;
 	blur: number;
 	brightness: number;
 	opacity: number;

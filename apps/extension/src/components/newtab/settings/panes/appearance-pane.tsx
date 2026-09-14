@@ -167,11 +167,9 @@ function getCurrentWallpaperLabel(background: Settings["background"]): string {
 		);
 	}
 	if (background.type === "image") {
-		return (
-			background.customWallpapers?.find(
-				(item) => item.id === background.imageId,
-			)?.name ?? "Uploaded wallpaper"
-		);
+		return background.customWallpaper?.id === background.imageId
+			? background.customWallpaper.name
+			: "Uploaded wallpaper";
 	}
 	if (background.type === "pexels") return "Dynamic photography";
 	return (

@@ -10,6 +10,10 @@ import {
 } from "../lib/idb";
 
 interface ImageStoreState {
+	/** Temporary, non-persisted wallpaper preview used before upload confirmation. */
+	previewBackgroundImage: string | null;
+	setBackgroundPreview: (dataUrl: string) => void;
+	clearBackgroundPreview: () => void;
 	getThumbnail: (id: string) => Promise<string | null>;
 	saveThumbnail: (dataUrl: string) => Promise<string>;
 	deleteThumbnail: (id: string) => Promise<void>;
@@ -19,7 +23,10 @@ interface ImageStoreState {
 	clearAll: () => Promise<void>;
 }
 
-export const useImageStore = create<ImageStoreState>()(() => ({
+export const useImageStore = create<ImageStoreState>()((set) => ({
+	previewBackgroundImage: null,
+	setBackgroundPreview: (dataUrl) => set({ previewBackgroundImage: dataUrl }),
+	clearBackgroundPreview: () => set({ previewBackgroundImage: null }),
 	getThumbnail: async (id: string) => idbGet(STORE_THUMBS, id),
 	saveThumbnail: async (dataUrl: string) => saveThumbnail(dataUrl),
 	deleteThumbnail: async (id: string) => {
@@ -32,5 +39,8 @@ export const useImageStore = create<ImageStoreState>()(() => ({
 		if (!id) return;
 		await idbDelete(STORE_BG, id);
 	},
-	clearAll: async () => idbClearStores([STORE_THUMBS, STORE_BG]),
+	clearAll: async () => {
+		await idbClearStores([STORE_THUMBS, STORE_BG]);
+		set({ previewBackgroundImage: null });
+	},
 }));

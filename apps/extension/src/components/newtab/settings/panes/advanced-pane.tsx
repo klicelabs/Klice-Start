@@ -36,8 +36,8 @@ interface Stat {
 export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards as Card[]);
-	const customWallpapers = useSetupStore(
-		(s) => s.settings.background.customWallpapers ?? [],
+	const hasCustomWallpaper = useSetupStore(
+		(s) => s.settings.background.customWallpaper !== null,
 	);
 	const resetAll = useSetupStore((s) => s.resetAll);
 
@@ -47,7 +47,11 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 	const stats: Stat[] = [
 		{ icon: "folder", label: "Folders", value: folders.length },
 		{ icon: "bookmark", label: "Bookmarks", value: cards.length },
-		{ icon: "image", label: "Wallpapers", value: customWallpapers.length },
+		{
+			icon: "image",
+			label: "Custom wallpaper",
+			value: hasCustomWallpaper ? 1 : 0,
+		},
 	];
 
 	async function handlePerformReset() {
@@ -102,7 +106,9 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 								} catch (err) {
 									toast.error("Seed failed", {
 										description:
-											err instanceof Error ? err.message : "Could not load seed.",
+											err instanceof Error
+												? err.message
+												: "Could not load seed.",
 									});
 								}
 							}}
@@ -118,7 +124,9 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 								} catch (err) {
 									toast.error("Clear failed", {
 										description:
-											err instanceof Error ? err.message : "Could not clear seed.",
+											err instanceof Error
+												? err.message
+												: "Could not clear seed.",
 									});
 								}
 							}}
@@ -162,7 +170,7 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 						<DialogDescription>
 							This deletes {cards.length} bookmark
 							{cards.length === 1 ? "" : "s"} across {folders.length} folder
-							{folders.length === 1 ? "" : "s"}, your uploaded wallpapers, and
+							{folders.length === 1 ? "" : "s"}, your custom wallpaper, and
 							every cached preview. This can&rsquo;t be undone.
 						</DialogDescription>
 					</DialogHeader>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_BACKGROUND, GRADIENTS, WALLPAPERS } from "../../lib/constants";
 import { cn, cssUrl } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
@@ -39,7 +39,11 @@ async function preDecodeImage(src: string): Promise<boolean> {
 	}
 }
 
-export function BackgroundLayer({ contained = false }: { contained?: boolean }) {
+export function BackgroundLayer({
+	contained = false,
+}: {
+	contained?: boolean;
+}) {
 	const type = useSetupStore((s) => s.settings.background.type);
 	const imageId = useSetupStore((s) => s.settings.background.imageId);
 	const wallpaperId = useSetupStore((s) => s.settings.background.wallpaperId);
@@ -52,6 +56,7 @@ export function BackgroundLayer({ contained = false }: { contained?: boolean }) 
 	const pexelsFrequency = useSetupStore(
 		(s) => s.settings.background.pexelsFrequency,
 	);
+	const previewBackgroundImage = useImageStore((s) => s.previewBackgroundImage);
 
 	const blur = useSetupStore((s) => s.settings.background.blur);
 	const brightness = useSetupStore((s) => s.settings.background.brightness);
@@ -63,35 +68,52 @@ export function BackgroundLayer({ contained = false }: { contained?: boolean }) 
 	const lastFetchedKeyRef = useRef<string>("");
 	const generationRef = useRef(0);
 
-	async function resolveImage(imgId: string): Promise<string | null> {
-		try {
-			const dataUrl = await getBackgroundImage(imgId);
-			if (dataUrl) {
-				await preDecodeImage(dataUrl);
-				return `${cssUrl(dataUrl)} center / cover no-repeat`;
+	const resolveImage = useCallback(
+		async (imgId: string): Promise<string | null> => {
+			try {
+				const dataUrl = await getBackgroundImage(imgId);
+				if (dataUrl) {
+					await preDecodeImage(dataUrl);
+					return `${cssUrl(dataUrl)} center / cover no-repeat`;
+				}
+			} catch {
+				// fall through
 			}
-		} catch {
-			// fall through
-		}
-		return null;
-	}
+			return null;
+		},
+		[getBackgroundImage],
+	);
 
-	function resolvePackagedWallpaper(wpId: string): string | null {
-		const wallpaper = WALLPAPERS.find((item) => item.id === wpId);
-		return wallpaper
-			? `${cssUrl(wallpaper.src)} center / cover no-repeat`
-			: null;
-	}
+	const resolvePackagedWallpaper = useCallback(
+		(wpId: string): string | null => {
+			const wallpaper = WALLPAPERS.find((item) => item.id === wpId);
+			return wallpaper
+				? `${cssUrl(wallpaper.src)} center / cover no-repeat`
+				: null;
+		},
+		[],
+	);
 
-	async function applyImage(
-		imgId: string,
-		isCurrent: () => boolean,
-		fallback: string,
-	) {
-		const css = await resolveImage(imgId);
-		if (!isCurrent()) return;
-		setBgCss(css || fallback);
-	}
+	const applyImage = useCallback(
+		async (imgId: string, isCurrent: () => boolean, fallback: string) => {
+			const css = await resolveImage(imgId);
+			if (!isCurrent()) return;
+			setBgCss(css || fallback);
+		},
+		[resolveImage],
+	);
+
+	const resolvePreview = useCallback(
+		async (dataUrl: string): Promise<string | null> => {
+			try {
+				if (!(await preDecodeImage(dataUrl))) return null;
+				return `${cssUrl(dataUrl)} center / cover no-repeat`;
+			} catch {
+				return null;
+			}
+		},
+		[],
+	);
 
 	useEffect(() => {
 		const generation = ++generationRef.current;
@@ -100,6 +122,14 @@ export function BackgroundLayer({ contained = false }: { contained?: boolean }) 
 		const fallback = color || DEFAULT_BACKGROUND.color;
 
 		(async () => {
+			if (previewBackgroundImage) {
+				lastFetchedKeyRef.current = "";
+				const css = await resolvePreview(previewBackgroundImage);
+				if (!isCurrent()) return;
+				setBgCss(css || fallback);
+				return;
+			}
+
 			if (type === "pexels") {
 				let loadedFromCache = false;
 				if (pexelsImageId) {
@@ -174,6 +204,11 @@ export function BackgroundLayer({ contained = false }: { contained?: boolean }) 
 		wallpaperId,
 		gradientId,
 		color,
+		previewBackgroundImage,
+		applyImage,
+		resolveImage,
+		resolvePackagedWallpaper,
+		resolvePreview,
 	]);
 
 	return (

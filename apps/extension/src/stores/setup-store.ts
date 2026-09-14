@@ -100,11 +100,11 @@ interface SetupActions {
 		changes: Partial<Settings["thumbnailCapture"]>,
 	) => void;
 	/**
-	 * Persist a confirmed upload into the wallpaper library immediately. The
-	 * upload confirmation and active wallpaper selection are separate actions.
+	 * Replace the single confirmed custom wallpaper slot and make it active.
+	 * The caller saves the new image bytes before invoking this action.
 	 */
 	commitCustomWallpaper: (entry: { id: string; name: string }) => void;
-	/** Remove library metadata immediately (bytes are deleted by the caller). */
+	/** Remove the custom wallpaper slot (bytes are deleted by the caller). */
 	removeCustomWallpaper: (id: string) => void;
 	replaceSetup: (setup: Setup) => void;
 	resetAll: () => Promise<void>;
@@ -654,39 +654,41 @@ export const useSetupStore = create<SetupStore>()(
 
 			commitCustomWallpaper: (entry) =>
 				set((s) => {
-					const current = s.settings.background.customWallpapers ?? [];
-					const customWallpapers = current.some((w) => w.id === entry.id)
-						? current
-						: [...current, entry];
+					const background = s.settings.background;
 					const settings: Settings = {
 						...s.settings,
-						background: { ...s.settings.background, customWallpapers },
+						background: {
+							...background,
+							customWallpaper: entry,
+							type: "image",
+							imageId: entry.id,
+							wallpaperId: null,
+							gradientId: null,
+						},
 					};
 					return { settings };
 				}),
 
 			removeCustomWallpaper: (id) =>
 				set((s) => {
-					const strip = (bg: Settings["background"]) => {
-						const customWallpapers = (bg.customWallpapers ?? []).filter(
-							(w) => w.id !== id,
-						);
-						const isActive = bg.type === "image" && bg.imageId === id;
-						return {
-							...bg,
-							customWallpapers,
-							...(isActive
-								? {
-										type: "wallpaper" as const,
-										wallpaperId: "tokyo-skyline",
-										imageId: null,
-									}
-								: {}),
-						};
+					const background = s.settings.background;
+					if (background.customWallpaper?.id !== id) return {};
+					const isActive =
+						background.type === "image" && background.imageId === id;
+					const nextBackground = {
+						...background,
+						customWallpaper: null,
+						...(isActive
+							? {
+									type: "wallpaper" as const,
+									wallpaperId: "tokyo-skyline",
+									imageId: null,
+								}
+							: {}),
 					};
 					const settings: Settings = {
 						...s.settings,
-						background: strip(s.settings.background),
+						background: nextBackground,
 					};
 					return { settings };
 				}),

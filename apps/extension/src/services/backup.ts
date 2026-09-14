@@ -1,5 +1,5 @@
-import { idbGet, openIDB, putImages, STORE_BG, STORE_THUMBS } from "../lib/idb";
-import { canonicalUrl, isAbsoluteHttpUrl } from "../lib/url";
+import { putImages, STORE_BG, STORE_THUMBS } from "../lib/idb";
+import { cleanupLegacyCustomWallpaperImages } from "../lib/storage";
 import { useImageStore } from "../stores/image-store";
 import { useSetupStore } from "../stores/setup-store";
 import type { Card, Folder, Setup } from "../types";
@@ -112,10 +112,7 @@ export async function buildBackup(): Promise<BackupPayload> {
 	if (bg.type === "image" && bg.imageId) backgroundIds.add(bg.imageId);
 	if (bg.type === "pexels" && bg.pexelsImageId)
 		backgroundIds.add(bg.pexelsImageId);
-	const custom = bg.customWallpapers ?? [];
-	for (const wallpaper of custom) {
-		if (wallpaper.id) backgroundIds.add(wallpaper.id);
-	}
+	if (bg.customWallpaper?.id) backgroundIds.add(bg.customWallpaper.id);
 	for (const id of backgroundIds) {
 		const dataUrl = await images.getBackgroundImage(id);
 		if (dataUrl) backgrounds[id] = dataUrl;
@@ -189,5 +186,6 @@ export async function importBackup(fileText: string): Promise<void> {
 		})),
 	]);
 
+	await cleanupLegacyCustomWallpaperImages(setup);
 	useSetupStore.getState().replaceSetup(setup);
 }

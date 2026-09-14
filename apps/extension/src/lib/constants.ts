@@ -183,7 +183,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 	gradientId: null,
 	imageId: null,
 	wallpaperId: "tokyo-skyline",
-	customWallpapers: [],
+	customWallpaper: null,
 	blur: 0,
 	brightness: 100,
 	opacity: 100,
