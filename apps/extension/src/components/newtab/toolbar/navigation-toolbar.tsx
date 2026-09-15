@@ -401,13 +401,13 @@ function HistoryButton({
 				TOOLBAR.controlWidth,
 				// Same wash tint as the tabbar items. The seam and the outer
 				// capsule ends stay native to the group.
-				// Flat mode states its ink explicitly: enabled segments use the
-				// strong flat ink (never muted, so they never read as
-				// disabled); the library's disabled treatment stays intact and
-				// the muted color marks it intentionally.
+				// Flat mode states its ink explicitly. Disabled segments keep
+				// the strong ink and dim through the library's disabled
+				// opacity only: dimming a muted tone on top of opacity washed
+				// the glyph out completely on light faces (thin 1.5 stroke).
 				isLiquid
 					? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-					: "text-flat-ink disabled:text-flat-ink-muted",
+					: "text-flat-ink",
 			)}
 			data-slot="button"
 		>
