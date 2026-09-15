@@ -37,7 +37,7 @@ export function PageContextMenu({
 	onEnterRestMode,
 	enabled = true,
 }: PageContextMenuProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const bgType = useSetupStore((s) => s.settings.background.type);
 	const pexelsImageId = useSetupStore(
 		(s) => s.settings.background.pexelsImageId,
@@ -105,7 +105,7 @@ export function PageContextMenu({
 		}
 	}
 
-	const itemClassName = cn("font-medium", glassDropdownItem(isLiquid));
+	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true });
 
 	if (!enabled) return children;
 
@@ -121,7 +121,7 @@ export function PageContextMenu({
 				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent className={cn(glassMenu(isLiquid), "min-w-48")}>
+			<ContextMenuContent className={cn(glassMenu(isLiquid, resolvedDark), "min-w-48")}>
 				{onAddFolder && (
 					<ContextMenuItem className={itemClassName} onSelect={onAddFolder}>
 						<Icon name="folder-plus" size={14} />
@@ -140,7 +140,7 @@ export function PageContextMenu({
 				)}
 
 				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
+					className={isLiquid ? "bg-foreground/10" : undefined}
 				/>
 
 				<ContextMenuItem
@@ -167,7 +167,7 @@ export function PageContextMenu({
 				{isPexels && (
 					<>
 						<ContextMenuSeparator
-							className={isLiquid ? "bg-white/10" : undefined}
+							className={isLiquid ? "bg-foreground/10" : undefined}
 						/>
 						<ContextMenuItem
 							className={itemClassName}

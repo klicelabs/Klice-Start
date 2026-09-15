@@ -15,6 +15,7 @@ import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { wouldCreateCycle } from "../../lib/folder-tree";
 import {
 	glassDropdownItem,
+	glassForeground,
 	glassMaterial,
 	glassMenu,
 	glassShape,
@@ -63,7 +64,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 		(s) => s.createFolderFromSelection,
 	);
 	const openMoveDialog = useMoveDialogStore((s) => s.open);
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const reduceMotion = useReducedMotion() ?? false;
 	const [createRequest, setCreateRequest] = useState<CreateRequest | null>(
 		null,
@@ -240,8 +241,12 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 							className={cn(
 								"pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden px-3 py-3",
 								glassShape("panel"),
-								glassMaterial(isLiquid),
-								isLiquid ? "text-white" : "text-flat-ink",
+								// Dense readable veil (shared menu tier), never the faint
+								// hero veil: the tray carries status text + actions.
+								glassMaterial(isLiquid, "menu", "dense"),
+								isLiquid
+									? glassForeground()
+									: "text-flat-ink",
 							)}
 						>
 							<div className="flex h-8 items-center justify-between">
@@ -250,15 +255,15 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 									onClick={clearSelection}
 									aria-label="Clear selection"
 									title="Clear selection"
-									className={cn(
-										"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-										isLiquid
-											? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-white/[0.18] hover:text-white"
-											: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink",
-									)}
-								>
-									<Icon name="x" size={15} aria-hidden="true" />
-								</button>
+								className={cn(
+									"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+									isLiquid
+										? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground(), "hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)]")
+										: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink",
+								)}
+							>
+								<Icon name="x" size={15} aria-hidden="true" />
+							</button>
 
 								<DropdownMenu>
 									<DropdownMenuTrigger
@@ -267,12 +272,12 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 												type="button"
 												aria-label="Selection actions"
 												title="Selection actions"
-												className={cn(
-													"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-													isLiquid
-														? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-white/[0.18] hover:text-white aria-expanded:bg-white/[0.18]"
-														: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
-												)}
+											className={cn(
+												"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+												isLiquid
+										? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground(), "hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)] aria-expanded:bg-foreground/15")
+													: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
+											)}
 											>
 												<Icon name="ellipsis" size={16} aria-hidden="true" />
 											</button>
@@ -282,33 +287,35 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										side="top"
 										align="end"
 										sideOffset={10}
-										className={cn(glassMenu(isLiquid), "min-w-56")}
+										className={cn(glassMenu(isLiquid, resolvedDark), "min-w-56")}
 									>
 										<DropdownMenuGroup>
-											<DropdownMenuLabel
-												className={cn(
-													"px-3 py-1.5 font-medium text-[11px]",
-													isLiquid ? "text-white/55" : "text-flat-ink-muted",
-												)}
-											>
+										<DropdownMenuLabel
+											className={cn(
+												"px-3 py-1.5 text-[12px] font-normal",
+												isLiquid
+										? glassForeground("secondary")
+													: "text-flat-ink-muted",
+											)}
+										>
 												Selection actions
 											</DropdownMenuLabel>
 											<DropdownMenuItem
-												className={glassMenuItem(isLiquid)}
+												className={glassMenuItem(isLiquid, resolvedDark)}
 												onClick={() => openMoveDialog(selectedIds)}
 											>
 												<Icon name="folder-move" size={14} aria-hidden="true" />
 												Move to…
 											</DropdownMenuItem>
 											<DropdownMenuItem
-												className={glassMenuItem(isLiquid)}
+												className={glassMenuItem(isLiquid, resolvedDark)}
 												onClick={() => startCreate("folder")}
 											>
 												<Icon name="folder-plus" size={14} aria-hidden="true" />
 												Create new folder
 											</DropdownMenuItem>
 											<DropdownMenuItem
-												className={glassMenuItem(isLiquid)}
+												className={glassMenuItem(isLiquid, resolvedDark)}
 												disabled={Boolean(invalidFolder)}
 												title={
 													invalidFolder
@@ -352,6 +359,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 												card={item.card}
 												folder={item.folder}
 												isLiquid={isLiquid}
+												resolvedDark={resolvedDark}
 												reduceMotion={reduceMotion}
 											/>
 										))}
@@ -362,12 +370,12 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 							<div
 								role="status"
 								aria-live="polite"
-								className={cn(
-									"mx-auto inline-flex max-w-[92%] items-center justify-center rounded-full px-3 py-1.5 text-[12px] font-medium leading-none tracking-[-0.01em] tabular-nums",
-									isLiquid
-										? "bg-white/[0.12] text-white/85 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-										: "bg-flat-sunken-raised text-flat-ink-muted shadow-control",
-								)}
+							className={cn(
+								"mx-auto inline-flex max-w-[92%] items-center justify-center rounded-full px-3 py-1.5 text-[12px] font-medium leading-none tracking-[-0.01em] tabular-nums",
+								isLiquid
+									? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground())
+									: "bg-flat-sunken-raised text-flat-ink-muted shadow-control",
+							)}
 							>
 								<span className="truncate">{pillLabel}</span>
 							</div>
@@ -413,7 +421,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 													}
 										}
 										className={cn(
-											"accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center bg-[var(--klice-accent)] px-3.5 font-semibold text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+											"accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center bg-[var(--klice-accent)] px-3.5 font-medium text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 											glassShape("control"),
 										)}
 									>
@@ -446,8 +454,8 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 	);
 }
 
-function glassMenuItem(isLiquid: boolean) {
-	return cn("gap-2.5", glassDropdownItem(isLiquid));
+function glassMenuItem(isLiquid: boolean, resolvedDark: boolean) {
+	return cn("gap-2.5", glassDropdownItem(isLiquid, resolvedDark));
 }
 
 function selectionPillLabel(cardCount: number, folderCount: number) {
@@ -474,12 +482,14 @@ function TrayMini({
 	card,
 	folder,
 	isLiquid,
+	resolvedDark,
 	reduceMotion,
 }: {
 	index: 0 | 1 | 2;
 	card: Card | null;
 	folder: Folder | null;
 	isLiquid: boolean;
+	resolvedDark: boolean;
 	reduceMotion: boolean;
 }) {
 	return (
@@ -504,7 +514,11 @@ function TrayMini({
 					<Icon
 						name="globe"
 						size={52}
-						className={isLiquid ? "text-white/55" : "text-flat-ink-muted/70"}
+						className={
+									isLiquid
+										? glassForeground("secondary")
+								: "text-flat-ink-muted/70"
+						}
 						aria-hidden="true"
 					/>
 					{card.favicon ? (

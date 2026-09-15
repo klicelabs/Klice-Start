@@ -13,6 +13,7 @@ import {
 	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
+	glassForeground,
 	glassFocusRing,
 	glassMenu,
 } from "../../../lib/glass";
@@ -74,7 +75,7 @@ export function FolderPreviewCard({
 	dropActive = false,
 	className,
 }: FolderPreviewCardProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 
 	const editing = useRenameStore((s) => s.isEditing("folder", id));
 	const beginRename = useRenameStore((s) => s.begin);
@@ -174,8 +175,8 @@ export function FolderPreviewCard({
 										name="folder"
 										size={32}
 										className={cn(
-											"transition-opacity",
-											dropActive ? "opacity-100" : "opacity-60",
+											"transition-colors",
+											isLiquid ? glassForeground() : "text-flat-ink",
 										)}
 									/>
 								</div>
@@ -214,7 +215,11 @@ export function FolderPreviewCard({
 							)}
 							style={{ height: "var(--card-footer-h, 30px)" }}
 						>
-							<Icon name="folder" size={14} className="shrink-0 opacity-70" />
+							<Icon
+								name="folder"
+								size={14}
+								className={cn("shrink-0", isLiquid && glassForeground())}
+							/>
 							{editing ? (
 								<InlineRenameInput
 									value={name}
@@ -237,7 +242,11 @@ export function FolderPreviewCard({
 							aria-label={`Open folder ${name}`}
 							title={`Open ${name}`}
 							onClick={() => onOpen(id)}
-							className="absolute right-1 bottom-[3px] z-30 inline-flex size-6 items-center justify-center rounded-full opacity-55 transition-[opacity,background-color] duration-150 hover:bg-black/15 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 dark:hover:bg-white/15"
+							className={cn(
+								"absolute right-1 bottom-[3px] z-30 inline-flex size-6 items-center justify-center rounded-full transition-[background-color,color] duration-150 hover:bg-black/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--klice-accent)]",
+								isLiquid ? glassForeground() : "text-flat-ink",
+								"dark:hover:bg-white/15",
+							)}
 						>
 							<Icon name="chevron-right" size={14} aria-hidden="true" />
 						</button>
@@ -245,30 +254,30 @@ export function FolderPreviewCard({
 				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent className={glassMenu(isLiquid)}>
+			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => onOpen(id)}
 				>
 					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => onNewSubfolder(id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => beginRename({ kind: "folder", id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => {
 						const folder = useSetupStore
 							.getState()
@@ -284,7 +293,7 @@ export function FolderPreviewCard({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(selected.includes(id) ? selected : [id]);
@@ -293,11 +302,9 @@ export function FolderPreviewCard({
 					<Icon name="folder" size={14} />
 					Move to…
 				</ContextMenuItem>
-				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
-				/>
+				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					tone="destructive"
 					onSelect={() => onDelete(id)}
 				>

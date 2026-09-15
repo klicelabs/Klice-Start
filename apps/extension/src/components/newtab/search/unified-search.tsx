@@ -17,7 +17,7 @@ import {
 import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
 import { getBreadcrumb } from "../../../lib/folder-tree";
-import { glassText } from "../../../lib/glass";
+import { glassForeground, glassText } from "../../../lib/glass";
 import { createSearchIndex } from "../../../lib/search-index";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
@@ -64,7 +64,7 @@ export const UnifiedSearch = forwardRef<
 	UnifiedSearchHandle,
 	UnifiedSearchProps
 >(function UnifiedSearch({ onNavigateFolder }, ref) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const enabled = useSetupStore((s) => s.settings.search.enabled);
 	const engineId = useSetupStore((s) => s.settings.search.engine);
 	const customPlaceholder = useSetupStore((s) => s.settings.search.placeholder);
@@ -393,16 +393,17 @@ export const UnifiedSearch = forwardRef<
 			<Icon
 				name="search"
 				size={19}
-				className={cn("shrink-0", glassText(isLiquid, "muted"))}
+				className={cn("shrink-0", glassForeground())}
 			/>
 		);
 
 	const groupLabel = (label: string, key: string) => (
 		<div
 			key={key}
+			data-shared-bg-skip
 			className={cn(
-				"px-3 pt-2 pb-1 font-medium text-[11px]",
-				glassText(isLiquid, "muted"),
+				"px-3 pt-2.5 pb-1 text-[12px] font-normal",
+				glassText(isLiquid, "muted", resolvedDark),
 			)}
 		>
 			{label}
@@ -410,6 +411,8 @@ export const UnifiedSearch = forwardRef<
 	);
 
 	let flatIndex = 0;
+	// The SharedLayoutBg pill owns the ONLY background: rows paint
+	// foreground (and keep selection semantics) but never a competing bg.
 	const option = (item: SearchItem, content: React.ReactNode) => {
 		const index = flatIndex++;
 		const selected = index === selectedIndex;
@@ -426,14 +429,12 @@ export const UnifiedSearch = forwardRef<
 				onFocus={() => setSelectedIndex(index)}
 				onClick={() => selectItem(item)}
 				className={cn(
-					"relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-[background-color,color] duration-100",
-					selected
-						? isLiquid
-							? "bg-white/[0.13] text-white"
-							: "bg-flat-sunken-raised text-flat-ink"
+					"relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors duration-100",
+						selected
+						? "text-[var(--klice-accent-foreground)]"
 						: isLiquid
-							? "text-white/85 hover:bg-white/[0.08] hover:text-white"
-							: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink",
+							? glassForeground()
+							: "text-flat-ink-muted",
 					"focus-visible:ring-2 focus-visible:ring-[var(--klice-accent)] focus-visible:ring-inset",
 				)}
 			>
@@ -453,10 +454,10 @@ export const UnifiedSearch = forwardRef<
 				}}
 			/>
 			<span className="min-w-0 truncate">
-				<span className="block truncate font-medium text-[14px]">
+				<span className="block truncate font-normal text-[14px]">
 					{card.title || card.url}
 				</span>
-				<span className="block truncate text-[11px] opacity-60">
+				<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
 					{folderPathById.get(card.folderId) ?? ""}
 				</span>
 			</span>
@@ -482,7 +483,7 @@ export const UnifiedSearch = forwardRef<
 							source: suggestions.length > 0 ? "web" : "local",
 						},
 						<>
-							<Icon name="search" size={16} className="shrink-0 opacity-65" />
+							<Icon name="search" size={16} className={cn("shrink-0", glassForeground())} />
 							<span className="truncate text-[14px]">{value}</span>
 						</>,
 					),
@@ -506,9 +507,10 @@ export const UnifiedSearch = forwardRef<
 			resultNodes.push(
 				<p
 					key="empty-results"
+					data-shared-bg-skip
 					className={cn(
 						"px-3 py-8 text-center text-[13px]",
-						glassText(isLiquid, "muted"),
+						glassText(isLiquid, "muted", resolvedDark),
 					)}
 				>
 					Type to search Klice or the web
@@ -528,7 +530,7 @@ export const UnifiedSearch = forwardRef<
 							source: "web",
 						},
 						<>
-							<Icon name="search" size={16} className="shrink-0 opacity-65" />
+							<Icon name="search" size={16} className={cn("shrink-0", glassForeground())} />
 							<span className="truncate text-[14px]">{value}</span>
 						</>,
 					),
@@ -543,12 +545,12 @@ export const UnifiedSearch = forwardRef<
 					option(
 						{ type: "folder", id: `folder:${folder.id}`, data: folder },
 						<>
-							<Icon name="folder" size={17} className="shrink-0 opacity-70" />
+							<Icon name="folder" size={17} className={cn("shrink-0", glassForeground())} />
 							<span className="min-w-0 truncate">
-								<span className="block truncate font-medium text-[14px]">
+								<span className="block truncate font-normal text-[14px]">
 									{folder.name}
 								</span>
-								<span className="block truncate text-[11px] opacity-60">
+								<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
 									{folderPathById.get(folder.id) ?? ""}
 								</span>
 							</span>
@@ -571,12 +573,12 @@ export const UnifiedSearch = forwardRef<
 			option(
 				{ type: "web", id: "web-search", query: trimmedQuery },
 				<>
-					<Icon name="globe" size={16} className="shrink-0 opacity-70" />
+					<Icon name="globe" size={16} className={cn("shrink-0", glassForeground())} />
 					<span className="min-w-0 truncate">
-						<span className="block truncate font-medium text-[14px]">
+						<span className="block truncate font-normal text-[14px]">
 							Search {engine.label} for “{trimmedQuery}”
 						</span>
-						<span className="block truncate text-[11px] opacity-60">
+						<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
 							Open web search
 						</span>
 					</span>
@@ -593,7 +595,8 @@ export const UnifiedSearch = forwardRef<
 			data-search-open={open ? "true" : "false"}
 		>
 			<GlassSurface
-				variant={open ? "surface" : "hero"}
+				variant={open ? "search" : "hero"}
+				shape={open ? "searchExpanded" : "searchCollapsed"}
 				className={cn(
 					"relative w-full flex-col items-stretch overflow-hidden",
 					!open && "hover:brightness-[1.04]",
@@ -601,12 +604,13 @@ export const UnifiedSearch = forwardRef<
 				style={{
 					// Keep input and results in one mounted material surface. The
 					// max-height transition clips the natural result list without a
-					// ResizeObserver/state feedback loop.
+					// ResizeObserver/state feedback loop. Corner geometry comes
+					// from the shape role (concentric with the toolbar system),
+					// never an inline radius.
 					height: open ? "auto" : 56,
 					maxHeight: open
 						? "min(504px, calc(100vh - 10rem))"
 						: 56,
-					borderRadius: open ? 22 : 28,
 					transition: reduceMotion ? "none" : SEARCH_GEOMETRY_CSS,
 				}}
 			>
@@ -646,7 +650,10 @@ export const UnifiedSearch = forwardRef<
 						className={cn(
 							"min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:font-normal",
 							isLiquid
-								? "text-white placeholder:text-white/55"
+								? // Expanded search is a dense frosted surface and the
+									// collapsed hero floats on the wallpaper: both pair
+									// dark ink with Light, white ink with Dark.
+								cn(glassForeground(), "placeholder:text-[var(--klice-glass-foreground-secondary)]")
 								: "text-foreground placeholder:text-muted-foreground",
 						)}
 						autoComplete="off"
@@ -663,7 +670,7 @@ export const UnifiedSearch = forwardRef<
 							className={cn(
 								"flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
 								isLiquid
-									? "text-white/55 hover:bg-white/10 hover:text-white"
+									? `${glassForeground()} hover:bg-foreground/10 hover:text-[var(--klice-glass-foreground-primary)]`
 									: "text-muted-foreground hover:bg-flat-sunken-raised hover:text-foreground",
 							)}
 						>
@@ -675,7 +682,7 @@ export const UnifiedSearch = forwardRef<
 							className={cn(
 								"hidden rounded-md px-2 py-1 font-medium text-[10px] sm:block",
 								isLiquid
-									? "border border-white/10 bg-white/[0.08] text-white/65"
+									? "border border-foreground/10 bg-foreground/[0.06] text-[var(--klice-glass-foreground-secondary)]"
 									: "border border-flat-edge bg-flat-sunken text-flat-ink-muted",
 							)}
 						>
@@ -692,8 +699,10 @@ export const UnifiedSearch = forwardRef<
 					aria-hidden={!open}
 					inert={!open}
 					className={cn(
-						"min-h-0 max-h-[min(28rem,calc(100vh-10rem-3.5rem))] overflow-y-auto px-2 pb-2",
-						isLiquid ? "border-white/10" : "border-separator-groove",
+						"min-h-0 max-h-[min(28rem,calc(100vh-10rem-3.5rem))] overflow-y-auto border-t px-2 pt-1 pb-2",
+						isLiquid
+							? "border-foreground/10"
+							: "border-separator-groove",
 					)}
 					style={{
 						pointerEvents: open ? "auto" : "none",
@@ -706,9 +715,11 @@ export const UnifiedSearch = forwardRef<
 				>
 					<SharedLayoutBg
 						inset={8}
-						pillClassName={
-							isLiquid ? "bg-white/[0.08]" : "bg-flat-sunken-raised"
-						}
+						// The pill IS the selection surface (accent, both modes):
+						// rows own foreground only, so keyboard selection and
+						// pointer hover resolve to the same single highlight.
+						activeKey={items[selectedIndex]?.id ?? null}
+						pillClassName="rounded-xl bg-[var(--klice-accent)]"
 						className="gap-0.5"
 					>
 						{resultNodes}

@@ -53,7 +53,7 @@ export function DialCard({
 	dragging = false,
 	className,
 }: DialCardProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const getThumbnail = useImageStore((s) => s.getThumbnail);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
@@ -250,23 +250,23 @@ export function DialCard({
 				</a>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent className={glassMenu(isLiquid)}>
+			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={handleOpenNewTab}
 				>
 					<Icon name="globe" size={14} />
 					Open in new tab
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => beginRename({ kind: "card", id: card.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() =>
 						useSelectionStore
 							.getState()
@@ -277,7 +277,7 @@ export function DialCard({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(selected.includes(card.id) ? selected : [card.id]);
@@ -286,11 +286,9 @@ export function DialCard({
 					<Icon name="folder" size={14} />
 					Move to…
 				</ContextMenuItem>
-				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
-				/>
+				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					tone="destructive"
 					onSelect={() => onDelete(card.id)}
 				>

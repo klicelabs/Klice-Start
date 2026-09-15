@@ -14,7 +14,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { buildTree, type FolderTreeNode } from "../../lib/folder-tree";
-import { glassMaterial, glassShape } from "../../lib/glass";
+import { glassForeground, glassMaterial, glassShape } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import type { Folder } from "../../types";
 import {
@@ -150,21 +150,24 @@ export function FolderTreePicker({
 							SETTINGS_TRIGGER,
 							SETTINGS_FOCUS_RING,
 							isLiquid &&
-								cn(glassMaterial(true), "text-white hover:bg-white/[0.16]"),
+								cn(glassForeground(), "hover:bg-foreground/[0.08]"),
 							className,
 						)}
 					>
 						<Icon
 							name="folder"
 							size={14}
-							className={cn("shrink-0 opacity-70", isLiquid && "text-white/80")}
+							className={cn(
+								"shrink-0",
+								isLiquid && glassForeground(),
+							)}
 							aria-hidden="true"
 						/>
 						<span className="min-w-0 flex-1 truncate">{selectedLabel}</span>
 						<Icon
 							name="chevron-down"
 							size={14}
-							className="shrink-0 opacity-60"
+							className={cn("shrink-0", isLiquid && glassForeground())}
 							aria-hidden="true"
 						/>
 					</button>
@@ -178,7 +181,9 @@ export function FolderTreePicker({
 							SETTINGS_SCOPE_CLASS,
 							glassShape("panel"),
 							glassMaterial(isLiquid, "menu", "dense"),
-							isLiquid ? "text-white" : "text-flat-ink",
+							isLiquid
+								? glassForeground()
+								: "text-flat-ink",
 						)}
 					>
 						<FileTree
@@ -192,10 +197,12 @@ export function FolderTreePicker({
 								item: cn(
 									glassShape("control"),
 									isLiquid
-										? "text-white/70 hover:bg-white/[0.12] hover:text-white"
+										? `${glassForeground()} hover:bg-foreground/[0.08] hover:text-[var(--klice-glass-foreground-primary)] focus-visible:bg-[var(--klice-accent)] focus-visible:text-[var(--klice-accent-foreground)]`
 										: "text-flat-ink-muted hover:bg-flat-face-hover hover:text-flat-ink",
 								),
-								icon: isLiquid ? "text-white/70" : "text-flat-ink-muted",
+								icon: isLiquid
+									? glassForeground("secondary")
+									: "text-flat-ink-muted",
 							}}
 						>
 							{allowRoot && (
@@ -209,7 +216,12 @@ export function FolderTreePicker({
 						</FileTree>
 						<div className="flex items-center gap-2 border-border/50 border-t px-1.5 pt-1.5 pb-0.5">
 							<span
-								className="min-w-0 flex-1 truncate text-muted-foreground text-xs"
+								className={cn(
+									"min-w-0 flex-1 truncate text-xs",
+									isLiquid
+										? glassForeground("secondary")
+										: "text-muted-foreground",
+								)}
 								aria-live="polite"
 							>
 								{pendingLabel}
@@ -218,7 +230,9 @@ export function FolderTreePicker({
 								type="button"
 								onClick={() => setOpen(false)}
 								className={cn(
-									"inline-flex h-8 shrink-0 items-center justify-center px-2.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+									"inline-flex h-8 shrink-0 items-center justify-center px-2.5 font-medium text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+									isLiquid ? glassForeground("secondary") : "text-muted-foreground",
+									isLiquid && "hover:text-[var(--klice-glass-foreground-primary)]",
 									glassShape("control"),
 								)}
 							>
