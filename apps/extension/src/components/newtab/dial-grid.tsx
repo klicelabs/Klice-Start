@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
+import { computeIconGridMaxWidth, iconGridConfig } from "../../lib/icon-layout";
 import {
 	getOrderedRefs,
 	type ItemOrder,
@@ -173,7 +174,11 @@ export function DialGrid({
 	const maxColumns = useSetupStore((s) => s.settings.maxColumns);
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
-	const gridMaxWidth = computeGridMaxWidth(tileSize, maxColumns);
+	const iconGrid = iconGridConfig(tileSize);
+	const gridMaxWidth =
+		dialLayout === "icon"
+			? computeIconGridMaxWidth(tileSize, maxColumns)
+			: computeGridMaxWidth(tileSize, maxColumns);
 	const reduceMotion = useReducedMotion() ?? false;
 	const stageRef = useRef<HTMLDivElement>(null);
 	const [stageWidth, setStageWidth] = useState(0);
@@ -468,11 +473,31 @@ export function DialGrid({
 							gridTemplateColumns:
 								orderedRefs.length === 0
 									? undefined
-									: "repeat(auto-fill, var(--tile-w, 148px))",
+									: dialLayout === "icon"
+										? "repeat(auto-fill, var(--icon-cell-w, 104px))"
+										: "repeat(auto-fill, var(--tile-w, 148px))",
 							gap:
-								orderedRefs.length === 0 ? undefined : "var(--grid-gap, 22px)",
+								orderedRefs.length === 0
+									? undefined
+									: dialLayout === "icon"
+										? "var(--icon-row-gap) var(--icon-column-gap)"
+										: "var(--grid-gap, 22px)",
 							justifyContent: orderedRefs.length === 0 ? undefined : "center",
 							gridArea: "1 / 1",
+							...(dialLayout === "icon"
+								? {
+										["--icon-cell-w" as string]: `${iconGrid.cellWidth}px`,
+										["--icon-cell-h" as string]: `${iconGrid.cellHeight}px`,
+										["--icon-size" as string]: `${iconGrid.iconSize}px`,
+										["--icon-favicon-size" as string]: `${iconGrid.faviconSize}px`,
+										["--icon-column-gap" as string]: `${iconGrid.columnGap}px`,
+										["--icon-row-gap" as string]: `${iconGrid.rowGap}px`,
+										["--icon-label-gap" as string]: `${iconGrid.labelGap}px`,
+										["--icon-folder-span" as string]: iconGrid.folderSpan,
+										["--icon-radius" as string]: `${iconGrid.radius}px`,
+										["--icon-mini-radius" as string]: `${iconGrid.miniRadius}px`,
+									}
+								: {}),
 							...cellAspectStyle,
 						}}
 					>

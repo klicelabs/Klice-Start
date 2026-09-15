@@ -13,8 +13,8 @@ import {
 	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
-	glassForeground,
 	glassFocusRing,
+	glassForeground,
 	glassMenu,
 } from "../../../lib/glass";
 import { cn, softGradientFromString } from "../../../lib/utils";
@@ -25,6 +25,7 @@ import { useSelectionStore } from "../../../stores/selection-store";
 import { useSetupStore } from "../../../stores/setup-store";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
+import { IconAppTile } from "../icon-app-tile";
 
 /** A single card's preview data for the folder mosaic. */
 export interface FolderPreviewItem {
@@ -76,6 +77,7 @@ export function FolderPreviewCard({
 	className,
 }: FolderPreviewCardProps) {
 	const { isLiquid, resolvedDark } = useAppearance();
+	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 
 	const editing = useRenameStore((s) => s.isEditing("folder", id));
 	const beginRename = useRenameStore((s) => s.begin);
@@ -100,7 +102,9 @@ export function FolderPreviewCard({
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
 					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col overflow-hidden rounded-2xl transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-					glassCardMaterial(isLiquid),
+					dialLayout === "icon" &&
+						"dial-icon-folder-cell overflow-visible rounded-none",
+					dialLayout === "card" && glassCardMaterial(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
 					dropActive && cn("scale-[1.02]", glassDropRing(isLiquid)),
@@ -113,7 +117,9 @@ export function FolderPreviewCard({
 						data-local-context-menu
 						type="button"
 						className={cn(
-							"flex h-full w-full min-w-0 flex-col text-left active:scale-[0.97]",
+							dialLayout === "icon"
+								? "icon-folder-layout flex h-full w-full min-w-0 flex-col items-center text-left"
+								: "flex h-full w-full min-w-0 flex-col text-left active:scale-[0.97]",
 							glassFocusRing(isLiquid),
 						)}
 						aria-label={
@@ -151,88 +157,135 @@ export function FolderPreviewCard({
 						onDragLeave={dragProps?.onDragLeave}
 						onDrop={dragProps?.onDrop}
 					>
-						<div className="relative min-h-0 flex-1 overflow-hidden p-1.5">
-							{hasPreviews ? (
-								<div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
-									{previewCards.slice(0, 4).map((card) => (
-										<FolderMiniTile key={card.id} card={card} />
-									))}
-									{Array.from({
-										length: Math.max(0, 4 - previewCards.length),
-									}).map((_, i) => (
+						{dialLayout === "icon" ? (
+							<>
+								<div className="icon-folder-tile">
+									{hasPreviews ? (
 										<div
-											key={`empty-${String(i)}`}
+											className="icon-folder-preview"
+											data-count={Math.min(previewCards.length, 4)}
+										>
+											{previewCards.slice(0, 4).map((card) => (
+												<IconAppTile
+													key={card.id}
+													url={card.url}
+													favicon={card.favicon}
+													mini
+												/>
+											))}
+										</div>
+									) : (
+										<div className="icon-folder-empty">
+											<Icon name="folder" size={42} strokeWidth={1.5} />
+										</div>
+									)}
+									{isSelected && (
+										<div
+											aria-hidden="true"
+											className="absolute top-3 left-3 z-30 flex size-6 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
+										>
+											<Icon name="check" size={12} strokeWidth={3} />
+										</div>
+									)}
+								</div>
+								{editing ? (
+									<InlineRenameInput
+										value={name}
+										ariaLabel={`Rename folder ${name}`}
+										onCommit={handleCommitRename}
+										onCancel={cancelRename}
+										className="icon-label"
+									/>
+								) : (
+									<span className="icon-label">{name}</span>
+								)}
+							</>
+						) : (
+							<div className="relative min-h-0 flex-1 overflow-hidden p-1.5">
+								{hasPreviews ? (
+									<div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
+										{previewCards.slice(0, 4).map((card) => (
+											<FolderMiniTile key={card.id} card={card} />
+										))}
+										{Array.from({
+											length: Math.max(0, 4 - previewCards.length),
+										}).map((_, i) => (
+											<div
+												key={`empty-${String(i)}`}
+												className={cn(
+													"rounded-[7px]",
+													isLiquid ? "bg-white/[0.05]" : "bg-muted",
+												)}
+											/>
+										))}
+									</div>
+								) : (
+									<div className="flex h-full w-full items-center justify-center">
+										<Icon
+											name="folder"
+											size={32}
 											className={cn(
-												"rounded-[7px]",
-												isLiquid ? "bg-white/[0.05]" : "bg-muted",
+												"transition-colors",
+												isLiquid ? glassForeground() : "text-flat-ink",
 											)}
 										/>
-									))}
-								</div>
-							) : (
-								<div className="flex h-full w-full items-center justify-center">
-									<Icon
-										name="folder"
-										size={32}
-										className={cn(
-											"transition-colors",
-											isLiquid ? glassForeground() : "text-flat-ink",
-										)}
-									/>
-								</div>
-							)}
-
-							<span
-								className={cn(
-									"absolute top-2 right-2 rounded-full px-1.5 text-[10px]",
-									isLiquid
-										? "bg-black/45 text-white/80"
-										: "bg-muted text-muted-foreground",
+									</div>
 								)}
-							>
-								{itemCount}
-							</span>
 
-							{isSelected && (
-								<div
-									aria-hidden="true"
-									className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
+								<span
+									className={cn(
+										"absolute top-2 right-2 rounded-full px-1.5 text-[10px]",
+										isLiquid
+											? "bg-black/45 text-white/80"
+											: "bg-muted text-muted-foreground",
+									)}
 								>
-									<Icon name="check" size={11} strokeWidth={3} />
-								</div>
-							)}
-						</div>
-
-						<div
-							className={cn(
-								// Same squircle system as the outer card so the
-								// footer follows the card geometry instead of
-								// reading as an independent capsule. Same material
-								// recipe as the bookmark footer via glassCardFooter.
-								"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
-								glassCardFooter(isLiquid),
-								showOpenAction && !editing && "pr-8",
-							)}
-							style={{ height: "var(--card-footer-h, 30px)" }}
-						>
-							<Icon
-								name="folder"
-								size={14}
-								className={cn("shrink-0", isLiquid && glassForeground())}
-							/>
-							{editing ? (
-								<InlineRenameInput
-									value={name}
-									ariaLabel={`Rename folder ${name}`}
-									onCommit={handleCommitRename}
-									onCancel={cancelRename}
-								/>
-							) : (
-								<span className="min-w-0 flex-1 truncate text-left font-medium text-[11px]">
-									{name}
+									{itemCount}
 								</span>
-							)}
-						</div>
+
+								{isSelected && (
+									<div
+										aria-hidden="true"
+										className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
+									>
+										<Icon name="check" size={11} strokeWidth={3} />
+									</div>
+								)}
+							</div>
+						)}
+
+						{dialLayout === "card" && (
+							<div
+								className={cn(
+									// Same squircle system as the outer card so the
+									// footer follows the card geometry instead of
+									// reading as an independent capsule. Same material
+									// recipe as the bookmark footer via glassCardFooter.
+									"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
+									glassCardFooter(isLiquid),
+									showOpenAction && !editing && "pr-8",
+								)}
+								style={{ height: "var(--card-footer-h, 30px)" }}
+							>
+								<Icon
+									name="folder"
+									size={14}
+									className={cn("shrink-0", isLiquid && glassForeground())}
+								/>
+								{editing ? (
+									<InlineRenameInput
+										value={name}
+										ariaLabel={`Rename folder ${name}`}
+										onCommit={handleCommitRename}
+										onCancel={cancelRename}
+									/>
+								) : (
+									<span className="min-w-0 flex-1 truncate text-left font-medium text-[11px]">
+										{name}
+									</span>
+								)}
+							</div>
+						)}
 					</button>
 					{/* Sibling overlay (never nested inside the body button):
 				    opens the folder without selecting/deselecting it. */}
@@ -256,28 +309,36 @@ export function FolderPreviewCard({
 
 			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => onOpen(id)}
 				>
 					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => onNewSubfolder(id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => beginRename({ kind: "folder", id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => {
 						const folder = useSetupStore
 							.getState()
@@ -293,7 +354,9 @@ export function FolderPreviewCard({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(selected.includes(id) ? selected : [id]);
@@ -304,7 +367,9 @@ export function FolderPreviewCard({
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					tone="destructive"
 					onSelect={() => onDelete(id)}
 				>

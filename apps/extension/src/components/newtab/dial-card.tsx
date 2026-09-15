@@ -16,7 +16,7 @@ import {
 	glassFocusRing,
 	glassMenu,
 } from "../../lib/glass";
-import { faviconUrl } from "../../lib/url";
+import { deriveIconLabel, faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -26,6 +26,7 @@ import { useSetupStore } from "../../stores/setup-store";
 import type { Card } from "../../types";
 import { InlineRenameInput } from "../shared/inline-rename-input";
 import { useAppearance } from "./appearance-provider";
+import { IconAppTile } from "./icon-app-tile";
 
 interface DialCardProps {
 	card: Card;
@@ -83,6 +84,8 @@ export function DialCard({
 	const fallbackColor = softGradientFromString(card.url);
 	const faviconSrc = card.favicon || faviconUrl(card.url);
 	const label = card.title || card.url;
+	const iconLabel = deriveIconLabel(card.url) || label;
+	const accessibleLabel = dialLayout === "icon" ? iconLabel : label;
 
 	function handleOpenNewTab() {
 		window.open(card.url, "_blank");
@@ -104,11 +107,13 @@ export function DialCard({
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
+					dialLayout === "icon" &&
+						"dial-icon-item overflow-visible rounded-none",
 					// Screenshot/gradient content is already the bookmark body surface.
 					// Keep classic elevation, but avoid a second Liquid Glass backdrop
 					// layer behind that visual content. The footer remains materialized
 					// independently below.
-					!isLiquid && glassCardMaterial(false),
+					dialLayout === "card" && !isLiquid && glassCardMaterial(false),
 					glassFocusRing(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",
@@ -122,8 +127,10 @@ export function DialCard({
 					href={card.url}
 					target={openInNewTab ? "_blank" : "_self"}
 					rel={openInNewTab ? "noopener noreferrer" : undefined}
-					aria-label={isSelected ? `${label}, selected` : label}
-					title={label}
+					aria-label={
+						isSelected ? `${accessibleLabel}, selected` : accessibleLabel
+					}
+					title={dialLayout === "icon" ? `${iconLabel} · ${card.url}` : label}
 					onClick={onClick}
 					onKeyDown={(e) => {
 						// Space toggles selection while selection mode is
@@ -145,30 +152,19 @@ export function DialCard({
 					onDrop={dragProps?.onDrop}
 				>
 					{dialLayout === "icon" ? (
-						<div className="flex flex-col items-center gap-1 p-2.5">
-							<img
-								src={faviconSrc}
-								alt=""
-								draggable={false}
-								className="h-9 w-9 shrink-0 rounded-full object-cover"
-								onError={(e) => {
-									(e.target as HTMLImageElement).onerror = null;
-									(e.target as HTMLImageElement).src = faviconUrl(card.url);
-								}}
-							/>
+						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center justify-center">
+							<IconAppTile url={card.url} favicon={faviconSrc} />
 							{iconShowLabel &&
 								(editing ? (
 									<InlineRenameInput
 										value={card.title || card.url}
-										ariaLabel={`Rename ${label}`}
+										ariaLabel={`Rename ${iconLabel}`}
 										onCommit={handleCommitRename}
 										onCancel={cancelRename}
 										className="text-center"
 									/>
 								) : (
-									<span className="max-w-full truncate text-center font-medium text-[11px] leading-tight">
-										{label}
-									</span>
+									<span className="icon-label">{iconLabel}</span>
 								))}
 						</div>
 					) : (
@@ -252,21 +248,27 @@ export function DialCard({
 
 			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={handleOpenNewTab}
 				>
 					<Icon name="globe" size={14} />
 					Open in new tab
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => beginRename({ kind: "card", id: card.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() =>
 						useSelectionStore
 							.getState()
@@ -277,7 +279,9 @@ export function DialCard({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(selected.includes(card.id) ? selected : [card.id]);
@@ -288,7 +292,9 @@ export function DialCard({
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					tone="destructive"
 					onSelect={() => onDelete(card.id)}
 				>
