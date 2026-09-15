@@ -23,11 +23,11 @@ function Input({
 	const inputClassName = cn(
 		INPUT_BASE,
 		glassVariant === "liquid-refract"
-			? "border-0 bg-transparent text-foreground shadow-none"
+			? "border-0 bg-transparent text-[var(--klice-glass-foreground-primary)] shadow-none"
 			: isGlass
 				? cn(
 						glassVariantStyles[glassVariant],
-						"border-white/[0.25] text-white placeholder-white/75",
+						"border-black/[0.12] text-[var(--klice-glass-foreground-primary)] placeholder:text-[var(--klice-glass-foreground-secondary)] dark:border-white/[0.16]",
 					)
 				: "border-transparent bg-input/50 file:text-foreground",
 		className,
@@ -35,7 +35,7 @@ function Input({
 
 	if (glassVariant === "liquid-refract") {
 		return (
-			<LiquidGlass className="w-full rounded-lg" blur={8}>
+			<LiquidGlass className="w-full rounded-lg" blur={3}>
 				<InputPrimitive
 					type={type}
 					data-slot="input"

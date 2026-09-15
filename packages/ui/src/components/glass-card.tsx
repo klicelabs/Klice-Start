@@ -57,7 +57,7 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
           data-slot="glass-card"
           data-glass-variant={variant}
           className={cn(
-            "relative overflow-hidden border-0 bg-transparent shadow-none",
+				"relative overflow-hidden border-0 bg-transparent text-[var(--klice-glass-foreground-primary)] shadow-none",
             kliceShape("surface"),
             className,
           )}
@@ -74,7 +74,7 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
       ref={ref}
       data-slot="glass-card"
       data-glass-variant={variant}
-      className={cn("relative overflow-hidden", material, className)}
+		className={cn("relative overflow-hidden text-[var(--klice-glass-foreground-primary)]", material, className)}
       {...props}
     />
   );

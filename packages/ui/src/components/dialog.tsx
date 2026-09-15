@@ -51,16 +51,23 @@ function DialogContent({
 	children,
 	showCloseButton = true,
 	glassVariant,
+	closeGlass = false,
 	...props
 }: DialogPrimitive.Popup.Props & {
 	showCloseButton?: boolean;
 	glassVariant?: FrostGlassVariant | "classic";
+	/**
+	 * Glass hero close chip while the dialog body stays flat. Extension
+	 * dialogs pass the material mode here so the X follows Glass/Flat
+	 * without glassing the content surface.
+	 */
+	closeGlass?: boolean;
 }) {
 	const isGlass = glassVariant && glassVariant !== "classic";
 	const surfaceClasses = isGlass
 		? cn(
 				glassVariantStyles[glassVariant],
-				"text-white",
+				"text-[var(--klice-glass-foreground-primary)]",
 				glassVariant === "liquid-refract" && "bg-transparent shadow-none ring-0",
 			)
 		: "bg-popover text-popover-foreground shadow-xl ring-1 ring-foreground/5 dark:ring-foreground/10";
@@ -71,7 +78,7 @@ function DialogContent({
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"
 				render={
-					glassVariant === "liquid-refract" ? <LiquidGlass blur={8} /> : undefined
+					glassVariant === "liquid-refract" ? <LiquidGlass blur={3} /> : undefined
 				}
 				className={cn(
 					"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-4xl p-6 text-sm outline-none duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md",
@@ -85,7 +92,7 @@ function DialogContent({
 					<DialogPrimitive.Close
 						data-slot="dialog-close"
 						render={
-							isGlass ? (
+							isGlass || closeGlass ? (
 								<GlassButton
 									glassVariant={glassVariant === "liquid-refract" ? "liquid-refract" : "subtle"}
 									className="absolute top-4 right-4"

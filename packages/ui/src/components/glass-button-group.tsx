@@ -8,7 +8,7 @@ import { kliceShape, type KliceShapeName } from "@klice-start/ui/lib/shapes";
 import { cn } from "@klice-start/ui/lib/utils";
 
 import { ButtonGroup } from "./button-group";
-import { LiquidGlass } from "./liquid-glass";
+import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
 
 type GlassButtonGroupProps = React.ComponentProps<typeof ButtonGroup> &
 	FrostGlassVariantProp & {
@@ -21,6 +21,8 @@ type GlassButtonGroupProps = React.ComponentProps<typeof ButtonGroup> &
 		shape?: KliceShapeName;
 		/** Extra classes applied to the outer LiquidGlass surface only. */
 		surfaceClassName?: string;
+		/** Optical recipe forwarded to the refractive surface (e.g. global Glass intensity). */
+		liquidProps?: Omit<LiquidGlassProps, "children" | "shape">;
 	};
 
 /**
@@ -39,6 +41,7 @@ function GlassButtonGroup({
 	glassVariant = "liquid-refract",
 	shape = "toolbarGroup",
 	surfaceClassName,
+	liquidProps,
 	children,
 	...props
 }: GlassButtonGroupProps) {
@@ -47,13 +50,14 @@ function GlassButtonGroup({
 	if (glassVariant === "liquid-refract") {
 		return (
 			<LiquidGlass
+				{...liquidProps}
 				shape={shape}
-				className={cn("w-fit", surfaceClassName)}
+				className={cn("w-fit", surfaceClassName, liquidProps?.className)}
 			>
 				<ButtonGroup
 					data-slot="glass-button-group"
 					data-glass-variant={glassVariant}
-					className={cn(groupShape, "bg-transparent", className)}
+					className={cn(groupShape, "bg-transparent text-[var(--klice-glass-foreground-primary)]", className)}
 					{...props}
 				>
 					{children}
@@ -69,6 +73,7 @@ function GlassButtonGroup({
 			className={cn(
 				groupShape,
 				glassVariantStyles[glassVariant],
+				"text-[var(--klice-glass-foreground-primary)]",
 				className,
 			)}
 			{...props}

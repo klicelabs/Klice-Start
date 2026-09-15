@@ -15,7 +15,7 @@ import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
  */
 const glassIconVariants = cva(
   cn(
-    "inline-flex shrink-0 items-center justify-center text-foreground select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    "inline-flex shrink-0 items-center justify-center text-[var(--klice-glass-foreground-primary)] select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     kliceShape("toolbarIcon"),
   ),
   {
