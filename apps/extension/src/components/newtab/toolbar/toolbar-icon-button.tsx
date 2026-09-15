@@ -31,9 +31,9 @@ interface ToolbarIconButtonProps {
  * (iOS Control Center style) so hover/press paint the whole circle, not an
  * inner element inside a visible container.
  *
- * Diameter is fixed at 42px to match the total height of the grouped pills
- * (p-1 padding + 34px control), so standalone and grouped controls sit on the
- * same visual baseline.
+ * Diameter is fixed at the shared toolbar surface height (34px) to match the
+ * total height of the grouped pills (3px padding + 28px control), so
+ * standalone and grouped controls sit on the same visual baseline.
  *
  * Grouped controls (tabs and history) stay inside one GlassSurface; the lone
  * GlassIcon controls (compact search and settings) use this.
@@ -100,8 +100,7 @@ export function ToolbarIconButton({
 				insideSurface
 					? cn(
 							"flex shrink-0 items-center justify-center",
-							TOOLBAR.controlHeight,
-							TOOLBAR.controlWidth,
+							TOOLBAR.innerSize,
 							TOOLBAR.radius,
 							TOOLBAR.transition,
 						)
@@ -121,13 +120,11 @@ export function ToolbarIconButton({
 							: "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
 						: active
 							? `${flatControl()} text-flat-ink`
-							: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken"
+							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken"
 					: cn(
 							flatControl(),
 							flatFocusRing(),
-							active
-								? "text-flat-ink"
-								: "text-flat-ink-muted hover:text-flat-ink",
+							"text-flat-ink",
 						),
 			)}
 		>

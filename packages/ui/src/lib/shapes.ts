@@ -14,17 +14,17 @@ export const KliceShape = {
 	/** Small badges and segmented controls. */
 	pill: "klice-squircle rounded-[14px] [--squircle-r:9px]",
 	/**
-	 * Shared 42px toolbar surface. Always a true pill/capsule
+	 * Shared 34px toolbar surface. Always a true pill/capsule
 	 * (`.klice-toolbar-pill`), never squircle.
 	 */
 	toolbar: "klice-toolbar-pill rounded-full",
 	/**
-	 * Shared 34px toolbar segment. Always a true pill/capsule
+	 * Shared toolbar segment. Always a true pill/capsule
 	 * (`.klice-toolbar-pill`), never squircle.
 	 */
 	toolbarControl: "klice-toolbar-pill rounded-full",
 	/**
-	 * Shared 42px icon control. Always a true pill/capsule
+	 * Shared 34px icon control. Always a true pill/capsule
 	 * (`.klice-toolbar-pill`), never squircle.
 	 */
 	toolbarIcon: "klice-toolbar-pill rounded-full",

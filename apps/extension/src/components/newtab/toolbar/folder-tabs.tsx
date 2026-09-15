@@ -171,12 +171,12 @@ export function FolderTabs({
 					aria-label="New folder"
 					title="New folder"
 					className={cn(
-						TOOLBAR.controlHeight,
-						"flex w-[34px] shrink-0 items-center justify-center rounded-full transition-colors duration-150",
+						TOOLBAR.innerSize,
+						"flex shrink-0 items-center justify-center rounded-full transition-colors duration-150",
 						glassFocusRing(isLiquid),
 						isLiquid
 							? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-							: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
+							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 					)}
 				>
 					<Icon name="plus" size={15} />
@@ -367,7 +367,7 @@ function FolderTab({
 				: "text-flat-ink"
 			: isLiquid
 				? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-				: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
+				: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 		isSelected &&
 			(isLiquid
 				? "ring-1 ring-white/50 ring-inset"

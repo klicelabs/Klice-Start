@@ -75,7 +75,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--speed-dial-content-gutter: 24px;
 		--speed-dial-toolbar-gutter: 20px;
 		--speed-dial-toolbar-compact-gap: 8px;
-		--speed-dial-toolbar-compact-size: 42px;
+		/* THE shared toolbar control height: the single outer height every
+		   toolbar cluster resolves to (Back/Forward group, Tabbar shell,
+		   Settings, compact Search). The TS mirror is TOOLBAR_HEIGHT.surface
+		   in toolbar-tokens.ts — the two must stay in sync because Tailwind
+		   needs literal classes and cannot consume this var for sizing. */
+		--toolbar-control-height: 34px;
+		--speed-dial-toolbar-compact-size: var(--toolbar-control-height);
 		/* Vertical rhythm scale: tight inside an information unit, then clear
 		   steps between ambient content and functional controls. */
 		--speed-dial-space-tight: 8px;

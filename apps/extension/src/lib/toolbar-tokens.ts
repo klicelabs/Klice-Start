@@ -14,13 +14,17 @@ import { flatControl } from "@klice-start/ui/lib/surface";
 /**
  * THE toolbar height system — one scale, two numbers.
  *
- *   surface  42  the material height of every toolbar cluster: the Tabbar
- *                shell and the Back/Forward group. This is the silhouette
- *                that sits on the toolbar's centreline.
- *   control  34  the height of a control *inside* a cluster that wraps its
+ *   surface  34  the material height of every toolbar cluster: the Tabbar
+ *                shell, the Back/Forward group, and the standalone Settings /
+ *                compact-Search controls. This is the silhouette that sits on
+ *                the toolbar's centreline — compact macOS-like density, tuned
+ *                down from the earlier 42px pass. Conceptually this is
+ *                --toolbar-control-height (see tokens.css); the TS const must
+ *                stay in sync with it because Tailwind needs literal classes.
+ *   control  28  the height of a control *inside* a cluster that wraps its
  *                controls in extra material — i.e. a Tabbar tab inside the
  *                shell. surface === control + 2 * inset.
- *   inset     4  (surface - control) / 2 — the Tabbar shell's inner padding.
+ *   inset     3  (surface - control) / 2 — the Tabbar shell's inner padding.
  *
  * The Back/Forward group is deliberately full-bleed: its segments ARE its
  * material, so they span the surface height rather than sitting inset inside
@@ -28,36 +32,44 @@ import { flatControl } from "@klice-start/ui/lib/surface";
  * was tried and rejected — the hover wash read as a floating block with a
  * square cut in the middle instead of reaching the capsule edge.
  *
+ * Glyphs are intentionally NOT shrunk by this pass: the single glyph token
+ * below already targets ~18px optical ink, which sits inside the 16–18px
+ * macOS-like range. Only heights and vertical padding move.
+ *
  * The class strings below are literals, not derived from these numbers,
  * because Tailwind only generates utilities it can find as literal text in
  * source.
  */
 export const TOOLBAR_HEIGHT = {
 	/** Material height of every toolbar cluster. */
-	surface: 42,
+	surface: 34,
 	/** Height of a control inset inside a cluster that pads. */
-	control: 34,
+	control: 28,
 	/** Surface-to-control inset: (surface - control) / 2. */
-	inset: 4,
+	inset: 3,
 } as const;
 
 export const TOOLBAR = {
 	/** Toolbar container height. */
 	height: "h-14",
-	/** All interactive controls (buttons, tabs). 34px reads closer to iOS. */
-	controlHeight: "h-[34px]",
-	/** Square icon-button width — matches controlHeight for a perfect circle. */
+	/** Height of a control inset inside a cluster (tabs, ellipsis, +). */
+	controlHeight: "h-[28px]",
+	/** Segment width of the Back/Forward group — deliberately unchanged by
+	 * the proportion pass (only the group's outer height moves). */
 	controlWidth: "w-[34px]",
-	/** Shared pill geometry for a 34px toolbar segment. Always full rounded. */
+	/** Square footprint for a control inset inside a cluster (ellipsis, +):
+	 * matches controlHeight so inset controls stay circular, never oval. */
+	innerSize: "size-[28px]",
+	/** Shared pill geometry for a toolbar segment. Always full rounded. */
 	radius: kliceShape("toolbarControl"),
-	/** Shared pill geometry for a standalone 42px icon control. Always full rounded. */
+	/** Shared pill geometry for a standalone 34px icon control. Always full rounded. */
 	standaloneShape: kliceShape("toolbarIcon"),
 	/** Inner padding of the Tabbar shell — the only cluster that wraps its controls. */
-	groupPadding: "p-1",
+	groupPadding: "p-[3px]",
 	/** Material height of a toolbar group surface (Tabbar shell, history group). */
-	groupHeight: "h-[42px] max-h-[42px]",
+	groupHeight: "h-[34px] max-h-[34px]",
 	/** Diameter shared by standalone GlassIcon controls. */
-	standaloneSize: "size-[42px]",
+	standaloneSize: "size-[34px]",
 	/** Transition for all interactive states — explicit properties, never transition-all. */
 	transition:
 		"transition-[background-color,color,transform,opacity] duration-150 ease-out active:scale-[0.97]",
@@ -137,11 +149,15 @@ export function toolbarControlLiquid(active: boolean): string {
 
 /**
  * Shared control styles — classic mode.
+ *
+ * Normal controls use the strong flat ink, never the muted variant: muted is
+ * reserved for secondary states and disabled controls, so a normal inactive
+ * tab must not read as disabled. Active-state hierarchy is carried by the
+ * control face background, not by dimming the label.
  */
-
 export function toolbarControlClassic(active: boolean): string {
 	if (active) {
 		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} ${flatControl()} text-flat-ink`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-flat-ink-muted hover:text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
 }
