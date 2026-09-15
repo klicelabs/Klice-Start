@@ -10,7 +10,6 @@ import {
 	useCallback,
 	useEffect,
 	useImperativeHandle,
-	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -32,7 +31,7 @@ import { getSearchSuggestions } from "./search-suggestions";
 
 const SEARCH_MOTION_DURATION = 160;
 const SEARCH_MOTION_EASING = "var(--ease-out)";
-const SEARCH_GEOMETRY_CSS = `height ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}, border-radius ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}`;
+const SEARCH_GEOMETRY_CSS = `max-height ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}, border-radius ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}`;
 const SEARCH_CONTENT_CSS = `opacity ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}, transform ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}`;
 
 export interface UnifiedSearchHandle {
@@ -77,12 +76,12 @@ export const UnifiedSearch = forwardRef<
 	const [open, setOpen] = useState(false);
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const [suggestions, setSuggestions] = useState<string[]>([]);
-	const [resultsHeight, setResultsHeight] = useState(0);
 	const [logoFailedFor, setLogoFailedFor] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const shellRef = useRef<HTMLDivElement>(null);
 	const resultsRef = useRef<HTMLDivElement>(null);
 	const closeCleanupRef = useRef<number | null>(null);
+	const compactTriggerRef = useRef<HTMLElement | null>(null);
 	const reduceMotion = useReducedMotion() ?? false;
 
 	const engine =
@@ -152,7 +151,7 @@ export const UnifiedSearch = forwardRef<
 		setSuggestions([]);
 		const controller = new AbortController();
 		const timer = window.setTimeout(() => {
-			void getSearchSuggestions(engine, query, controller.signal, {
+			getSearchSuggestions(engine, query, controller.signal, {
 				allowEmpty: query.trim().length === 0,
 			}).then((values) => {
 				if (!controller.signal.aborted) setSuggestions(values);
@@ -163,24 +162,6 @@ export const UnifiedSearch = forwardRef<
 			window.clearTimeout(timer);
 		};
 	}, [engine, open, query]);
-
-	// Keep the open surface's target height measurable while it is visually
-	// collapsed. This lets the shell animate one explicit height/radius timeline
-	// without Motion's layout projection inventing a transform for an absolute
-	// search anchor. ResizeObserver also keeps the target correct as provider
-	// suggestions or the viewport change.
-	useLayoutEffect(() => {
-		const results = resultsRef.current;
-		if (!results) return;
-		const updateHeight = () => {
-			const nextHeight = Math.ceil(results.getBoundingClientRect().height);
-			if (nextHeight > 0) setResultsHeight(nextHeight);
-		};
-		updateHeight();
-		const observer = new ResizeObserver(updateHeight);
-		observer.observe(results);
-		return () => observer.disconnect();
-	}, []);
 
 	const items = useMemo<SearchItem[]>(() => {
 		const externalSuggestions = suggestions.slice(0, 4);
@@ -247,6 +228,7 @@ export const UnifiedSearch = forwardRef<
 		clearCloseCleanup();
 		setOpen(false);
 		setSelectedIndex(0);
+		compactTriggerRef.current = null;
 
 		if (reduceMotion) {
 			setQuery("");
@@ -268,8 +250,20 @@ export const UnifiedSearch = forwardRef<
 		ref,
 		() => ({
 			focus: () => {
+				const activeElement = document.activeElement;
+				compactTriggerRef.current =
+					activeElement instanceof Element
+						? activeElement.closest<HTMLElement>(
+								"[data-compact-search-control]",
+							)
+						: null;
 				openSearch();
-				inputRef.current?.focus({ preventScroll: true });
+				// The compact toolbar trigger opens the mounted main Search. Wait one
+				// frame for the open state before focusing its input so the handoff
+				// remains reliable without moving the scroll position.
+				requestAnimationFrame(() => {
+					inputRef.current?.focus({ preventScroll: true });
+				});
 			},
 		}),
 		[openSearch],
@@ -277,7 +271,17 @@ export const UnifiedSearch = forwardRef<
 
 	useEffect(() => {
 		function closeOnOutsidePointer(event: PointerEvent) {
-			if (!shellRef.current?.contains(event.target as Node)) close();
+			const target = event.target;
+			if (!(target instanceof Node)) return;
+			if (
+				shellRef.current?.contains(target) ||
+				resultsRef.current?.contains(target) ||
+				(target instanceof Element &&
+					target.closest("[data-compact-search-control]"))
+			) {
+				return;
+			}
+			close();
 		}
 		document.addEventListener("pointerdown", closeOnOutsidePointer);
 		return () =>
@@ -415,6 +419,7 @@ export const UnifiedSearch = forwardRef<
 				type="button"
 				role="option"
 				aria-selected={selected}
+				tabIndex={-1}
 				id={`klice-search-option-${index}`}
 				data-search-index={index}
 				onMouseEnter={() => setSelectedIndex(index)}
@@ -588,12 +593,19 @@ export const UnifiedSearch = forwardRef<
 			data-search-open={open ? "true" : "false"}
 		>
 			<GlassSurface
+				variant={open ? "surface" : "hero"}
 				className={cn(
 					"relative w-full flex-col items-stretch overflow-hidden",
 					!open && "hover:brightness-[1.04]",
 				)}
 				style={{
-					height: open ? 56 + resultsHeight : 56,
+					// Keep input and results in one mounted material surface. The
+					// max-height transition clips the natural result list without a
+					// ResizeObserver/state feedback loop.
+					height: open ? "auto" : 56,
+					maxHeight: open
+						? "min(504px, calc(100vh - 10rem))"
+						: 56,
 					borderRadius: open ? 22 : 28,
 					transition: reduceMotion ? "none" : SEARCH_GEOMETRY_CSS,
 				}}
@@ -603,6 +615,7 @@ export const UnifiedSearch = forwardRef<
 					onKeyDown={handleKeyDown}
 					onPointerDown={(event) => {
 						if (event.button !== 0) return;
+						compactTriggerRef.current = null;
 						openSearch();
 						inputRef.current?.focus({ preventScroll: true });
 					}}
@@ -679,7 +692,7 @@ export const UnifiedSearch = forwardRef<
 					aria-hidden={!open}
 					inert={!open}
 					className={cn(
-						"absolute top-14 right-0 left-0 max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto px-2 pb-2",
+						"min-h-0 max-h-[min(28rem,calc(100vh-10rem-3.5rem))] overflow-y-auto px-2 pb-2",
 						isLiquid ? "border-white/10" : "border-separator-groove",
 					)}
 					style={{

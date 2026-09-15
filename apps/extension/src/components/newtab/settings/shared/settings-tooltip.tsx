@@ -1,6 +1,7 @@
 import { Tooltip } from "@klice-start/ui/components/motion/tooltip";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
+import { glassShape } from "../../../../lib/glass";
 import { cn } from "../../../../lib/utils";
 import { SETTINGS_FOCUS_RING, SETTINGS_TOOLTIP_DELAY } from "./settings-tokens";
 
@@ -32,6 +33,7 @@ export function SettingsTooltip({
 			delay={SETTINGS_TOOLTIP_DELAY}
 			className={cn(
 				"max-w-[240px] whitespace-normal border-neutral-900/10 bg-white text-neutral-700 text-xs shadow-xl dark:border-white/10 dark:bg-[#333333] dark:text-neutral-200",
+				glassShape("control"),
 				className,
 			)}
 		>

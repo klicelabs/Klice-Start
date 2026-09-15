@@ -7,6 +7,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { glassShape } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
@@ -30,7 +31,6 @@ import {
 	SETTINGS_FOCUS_RING,
 	SETTINGS_HEADER_CONTROL,
 	SETTINGS_HEADER_INSET,
-	SETTINGS_RADIUS,
 	SETTINGS_SIDEBAR_SHELL,
 } from "./shared/settings-tokens";
 
@@ -232,9 +232,9 @@ export function SettingsSidebar({
 				<SidebarContent className="min-h-0 overflow-hidden px-[var(--workspace-gutter)] pt-1 pb-0">
 					<div
 						className={cn(
-							"squircle flex min-h-0 flex-1 flex-col overflow-hidden",
+							"flex min-h-0 flex-1 flex-col overflow-hidden",
+							glassShape("panel"),
 							SETTINGS_CONTENT_FRAME,
-							SETTINGS_RADIUS.panel,
 						)}
 						data-settings-ui="true"
 					>

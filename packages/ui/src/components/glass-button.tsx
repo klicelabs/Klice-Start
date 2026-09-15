@@ -18,7 +18,7 @@ type GlassButtonProps = React.ComponentProps<typeof Button> & FrostGlassVariantP
 function GlassButton({ className, glassVariant = "liquid-refract", ...props }: GlassButtonProps) {
   if (glassVariant === "liquid-refract") {
     return (
-      <LiquidGlass>
+      <LiquidGlass blur={8}>
         <Button
           data-slot="glass-button"
           data-glass-variant={glassVariant}

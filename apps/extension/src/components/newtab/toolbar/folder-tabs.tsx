@@ -124,7 +124,9 @@ export function FolderTabs({
 	}
 
 	return (
-		<GlassSurface className={cn(TOOLBAR.groupPadding, "gap-0.5")}>
+		<GlassSurface
+			className={cn(TOOLBAR.groupPadding, "w-max min-w-0 max-w-full gap-0.5")}
+		>
 			<Tabs
 				value={activeRootId}
 				variant="pill"
@@ -374,12 +376,12 @@ function FolderTab({
 
 	const dropClass = dropActive
 		? isLiquid
-			? "bg-white/25 text-white ring-1 ring-white/40 shadow-xs"
+			? "bg-white/25 text-white ring-1 ring-white/40"
 			: "bg-flat-sunken-raised text-flat-ink ring-1 ring-flat-edge-strong"
 		: "";
 	const indicatorClass = cn(
 		"pointer-events-none",
-		isLiquid ? "bg-white/25 shadow-sm" : "face-control shadow-control",
+		isLiquid ? "bg-white/25" : "face-control shadow-control",
 		dropActive &&
 			(isLiquid ? "ring-1 ring-white/40" : "ring-1 ring-flat-edge-strong"),
 	);

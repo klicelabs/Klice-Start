@@ -19,6 +19,14 @@ html.dark body {
 	--foreground-on-wallpaper: #ffffff;
 	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
 	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
+	/* Liquid Glass toolbar ink. Active and normal controls stay near-white;
+	   secondary, muted and disabled roles step down without relying on
+	   scattered text-white opacity utilities. */
+	--liquid-glass-toolbar-foreground-active: rgb(255 255 255 / 0.98);
+	--liquid-glass-toolbar-foreground-normal: rgb(255 255 255 / 0.9);
+	--liquid-glass-toolbar-foreground-secondary: rgb(255 255 255 / 0.76);
+	--liquid-glass-toolbar-foreground-muted: rgb(255 255 255 / 0.62);
+	--liquid-glass-toolbar-foreground-disabled: rgb(255 255 255 / 0.36);
 	--apple-blue: var(--klice-accent);
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
@@ -67,20 +75,29 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--speed-dial-content-gutter: 24px;
 		--speed-dial-toolbar-gutter: 20px;
 		--speed-dial-toolbar-compact-gap: 8px;
-		/* Reserve balanced side lanes without starving the in-flow Back slot
-		   on narrow viewports. The 11rem cap preserves desktop geometry. */
-		--speed-dial-navigation-rail: clamp(2.5rem, 10vw, 11rem);
+		--speed-dial-toolbar-compact-size: 42px;
+		/* Vertical rhythm scale: tight inside an information unit, then clear
+		   steps between ambient content and functional controls. */
+		--speed-dial-space-tight: 8px;
+		--speed-dial-space-medium: clamp(28px, 3.5vh, 36px);
+		--speed-dial-space-large: clamp(42px, 5.5vh, 56px);
+		--speed-dial-space-xlarge: clamp(80px, 11vh, 112px);
+		/* Reserve balanced side lanes without starving the positioned Back slot
+		   or the compact Search anchor on narrow viewports. The 11rem cap
+		   preserves desktop geometry. */
+		--speed-dial-navigation-rail: clamp(7rem, 10vw, 11rem);
 		/* Semantic workspace layers. Keep the material surfaces stable and move
 		   whole interaction families between these boundaries. */
 		--speed-dial-layer-content: 0;
 		--speed-dial-layer-scroll-fade: 20;
 		--speed-dial-layer-navigation: 30;
 		--speed-dial-layer-app-toolbar: 60;
+		--speed-dial-layer-popover: 70;
 		--speed-dial-layer-search: 80;
-		--speed-dial-hero-top: 68px;
-		--speed-dial-hero-gap: 36px;
-		--speed-dial-hero-bottom: 40px;
-		--speed-dial-toolbar-grid-gap: 24px;
+		--speed-dial-hero-top: var(--speed-dial-space-xlarge);
+		--speed-dial-hero-gap: var(--speed-dial-space-large);
+		--speed-dial-hero-bottom: var(--speed-dial-space-medium);
+		--speed-dial-toolbar-grid-gap: var(--speed-dial-space-large);
 		--speed-dial-grid-bottom: 80px;
 	}
 }
@@ -133,21 +150,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid-stage {
 	display: grid;
 	min-width: 0;
-}
-
-@keyframes folderNavEnter {
-	from {
-		opacity: 0;
-		transform: translateX(-6px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
-}
-
-.folder-nav-enter {
-	animation: folderNavEnter 180ms var(--ease-out) both;
 }
 
 /* One wake language for the first new-tab paint and Rest Mode exit. The
@@ -274,10 +276,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	:root {
 		--grid-gap: 16px;
 		--speed-dial-content-gutter: 20px;
-		--speed-dial-hero-top: 56px;
-		--speed-dial-hero-gap: 30px;
-		--speed-dial-hero-bottom: 34px;
-		--speed-dial-toolbar-grid-gap: 20px;
+		--speed-dial-space-medium: clamp(24px, 3.5vh, 32px);
+		--speed-dial-space-large: clamp(36px, 5vh, 48px);
+		--speed-dial-space-xlarge: clamp(64px, 10vh, 88px);
 	}
 }
 
@@ -287,10 +288,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--tile-w: 132px;
 		--tile-h: 148px;
 		--speed-dial-content-gutter: 16px;
-		--speed-dial-hero-top: 32px;
-		--speed-dial-hero-gap: 22px;
-		--speed-dial-hero-bottom: 24px;
-		--speed-dial-toolbar-grid-gap: 16px;
+		--speed-dial-space-medium: clamp(20px, 4vh, 28px);
+		--speed-dial-space-large: clamp(30px, 5vh, 40px);
+		--speed-dial-space-xlarge: clamp(52px, 9vh, 72px);
 	}
 }
 
@@ -300,17 +300,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 	.clock-greeting {
 		font-size: 27px;
-	}
-}
-
-/* =========================================================
-   8.3b — Toolbar responsive (HIG toolbar)
-   ========================================================= */
-@media (max-width: 640px) {
-	header[style*="grid-template-columns"] {
-		grid-template-columns: auto 1fr auto !important;
-		padding-left: 8px !important;
-		padding-right: 8px !important;
 	}
 }
 
@@ -431,57 +420,166 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 /* Speed Dial composition primitives. Keeping the vertical zones authored in
    CSS makes the same rhythm survive a pushed/narrowed Settings workspace. */
 .speed-dial-app-toolbar {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	z-index: var(--speed-dial-layer-app-toolbar);
 	padding-inline: var(--speed-dial-toolbar-gutter);
 }
 
-.speed-dial-navigation-group {
+/* Three-region toolbar contract:
+	  - the side tracks are stable slots with minimum rails;
+	  - the center track is the sole Tabbar measurement lane, capped at 880px;
+	  - side controls never widen that lane. */
+[data-speed-dial-navigation] {
+	display: flex;
+	align-items: center;
+	pointer-events: none;
+}
+
+[data-speed-dial-navigation] > :first-child {
+	display: grid;
+	width: 100%;
+	min-width: 0;
+	grid-template-columns:
+		minmax(var(--speed-dial-navigation-rail), 1fr)
+		minmax(0, 880px)
+		minmax(var(--speed-dial-navigation-rail), 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	align-items: center;
+}
+
+[data-speed-dial-navigation] > :first-child > :first-child {
+	display: flex;
+	grid-column: 1;
+	min-width: 0;
+	width: 100%;
+	align-items: center;
 	gap: var(--speed-dial-toolbar-compact-gap);
+	overflow: hidden;
+	pointer-events: auto;
 }
 
-/* Keep the Back identity as one visual sibling of the fixed-width Tabbar.
-   Its absolute positioning means the Tabbar never measures this group. */
-.toolbar-back-identity {
-	position: absolute;
-	top: calc(50% - 21px);
-	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
-	z-index: 3;
+[data-speed-dial-navigation] > :first-child > :first-child > span {
+	min-width: 0;
+	flex: 1 1 auto;
 }
 
-.toolbar-back-identity[data-navigation-sticky="true"] {
-	left: var(--speed-dial-toolbar-gutter);
-	right: auto;
-	z-index: 3;
+[data-speed-dial-frame][data-compact-search="true"]
+	[data-speed-dial-navigation]
+	> :first-child
+	> :first-child
+	> span {
+	max-width: calc(
+		100% -
+		var(--speed-dial-toolbar-compact-size) -
+		var(--speed-dial-toolbar-compact-gap)
+	);
 }
 
+[data-speed-dial-navigation] > :first-child > :nth-child(2) {
+	grid-column: 2;
+	width: 100%;
+	max-width: 880px;
+	min-width: 0;
+	margin-inline: 0;
+	justify-self: center;
+	pointer-events: auto;
+}
+
+[data-speed-dial-navigation] > :first-child > :last-child {
+	display: flex;
+	grid-column: 3;
+	width: 100%;
+	min-width: 0;
+	align-items: center;
+	justify-content: flex-end;
+	pointer-events: auto;
+}
+
+/* Compact Search belongs to the Tabbar cluster. It is positioned from the
+   fixed-width Tabbar wrapper so it never consumes the center lane's width. */
 .toolbar-compact-search {
-	position: static;
-	flex: 0 0 auto;
-	transform: translate3d(0, 0, 0) scale(1);
-	opacity: 1;
-	visibility: visible;
-	transition:
-		transform var(--motion-toolbar-duration) var(--ease-out),
-		opacity var(--motion-toolbar-duration) var(--ease-out),
-		visibility 0s linear 0s;
-}
-
-[data-speed-dial-frame]:not([data-compact-search="true"])
-	.toolbar-compact-search {
 	position: absolute;
-	top: 0;
-	left: 0;
-	transform: translate3d(0, -6px, 0) scale(0.92);
+	top: 50%;
+	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
+	left: auto;
+	flex: 0 0 auto;
+	transform: translate3d(0, -50%, 0) scale(0.92);
 	opacity: 0;
 	visibility: hidden;
 	pointer-events: none;
-	transition-delay: 0s, 0s, var(--motion-toolbar-duration);
+	transition:
+		transform var(--motion-toolbar-duration) var(--ease-out),
+		opacity var(--motion-toolbar-duration) var(--ease-out);
 }
 
-.speed-dial-navigation-toolbar {
-	padding-inline: var(--speed-dial-toolbar-gutter);
+[data-speed-dial-frame][data-compact-search="true"] .toolbar-compact-search {
+	position: absolute;
+	top: 50%;
+	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
+	left: auto;
+	transform: translate3d(0, -50%, 0) scale(1);
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	transition-delay: 0s, 0s;
+}
+
+/* Semantic Liquid Glass toolbar foreground. Flat controls keep their
+   text-flat-* classes and therefore do not enter these selectors. */
+[data-speed-dial-navigation] [class~="text-white"],
+[data-speed-dial-app-toolbar] [class~="text-white"] {
+	color: var(--liquid-glass-toolbar-foreground-active);
+}
+
+[data-speed-dial-navigation] [class~="text-white/85"],
+[data-speed-dial-navigation] [class~="text-white/90"],
+[data-speed-dial-navigation] [class~="text-white/75"],
+[data-speed-dial-navigation] [class~="text-white/70"],
+[data-speed-dial-app-toolbar] [class~="text-white/85"],
+[data-speed-dial-app-toolbar] [class~="text-white/90"],
+[data-speed-dial-app-toolbar] [class~="text-white/75"],
+[data-speed-dial-app-toolbar] [class~="text-white/70"] {
+	color: var(--liquid-glass-toolbar-foreground-normal);
+}
+
+[data-speed-dial-navigation] [class~="text-white/65"],
+[data-speed-dial-navigation] [class~="text-white/60"],
+[data-speed-dial-app-toolbar] [class~="text-white/65"],
+[data-speed-dial-app-toolbar] [class~="text-white/60"] {
+	color: var(--liquid-glass-toolbar-foreground-secondary);
+}
+
+[data-speed-dial-navigation] [class~="text-white/55"],
+[data-speed-dial-app-toolbar] [class~="text-white/55"] {
+	color: var(--liquid-glass-toolbar-foreground-muted);
+}
+
+[data-speed-dial-navigation] [class~="hover:text-white"]:hover,
+[data-speed-dial-app-toolbar] [class~="hover:text-white"]:hover {
+	color: var(--liquid-glass-toolbar-foreground-active);
+}
+
+[data-speed-dial-navigation]
+	:is(button, [role="tab"]):is(:disabled, [aria-disabled="true"]),
+[data-speed-dial-app-toolbar]
+	:is(button, [role="button"]):is(:disabled, [aria-disabled="true"]) {
+	color: var(--liquid-glass-toolbar-foreground-disabled);
+}
+
+@media (max-width: 640px) {
+	[data-speed-dial-navigation] {
+		padding-inline: 8px;
+	}
+
+	[data-speed-dial-app-toolbar] {
+		padding-inline: 8px;
+	}
 }
 
 .speed-dial-hero {
+	position: relative;
 	display: flex;
 	width: 100%;
 	flex-direction: column;
@@ -490,10 +588,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding: var(--speed-dial-hero-top) var(--speed-dial-content-gutter)
 		var(--speed-dial-hero-bottom);
 }
-
-/* The search reserves only its collapsed field in the hero. Its expanded
-   surface is anchored to this box and can overlap the functional content
-   below without changing the document geometry. */
+/* The main Search reserves a stable slot in the hero. Its expanded surface is
+   anchored to this box and can overlap the functional content below without
+   changing the document geometry. */
 .speed-dial-search-anchor {
 	position: relative;
 	/* Closed search stays with content. Opening it promotes this whole
@@ -505,8 +602,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	height: 56px;
 	align-items: flex-start;
 	justify-content: center;
-	transform: translate3d(0, var(--ambient-search-y), 0);
-	opacity: var(--ambient-search-opacity);
 }
 .speed-dial-search-anchor:not(:has(> [data-unified-search])) {
 	display: none;
@@ -533,8 +628,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    toolbar, then the promoted Search surface. The scroll viewport must stay
    non-stacking so these frame-level boundaries remain predictable. */
 .speed-dial-top-fade {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	z-index: var(--speed-dial-layer-scroll-fade);
+	pointer-events: none;
 	height: calc(9rem + max(env(safe-area-inset-top), 0.75rem));
-	opacity: 0;
+	opacity: 1;
 	background-image:
 		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
 		linear-gradient(
@@ -544,40 +644,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 			rgb(0 0 0 / 0.16) 72%,
 			transparent 100%
 		);
-	transition: opacity var(--motion-toolbar-duration) var(--ease-out);
-}
-[data-speed-dial-frame][data-navigation-sticky="true"] .speed-dial-top-fade {
-	opacity: 1;
-}
-
-/* Scroll Craft-inspired ambient exit. The hero's layout box stays in flow so
-   the tabbar reaches its sticky position naturally; only the ambient content
-   itself recedes visually. Values are written by the scroll rAF in App. */
-[data-speed-dial-scroll] {
-	--ambient-progress: 0;
-	--ambient-hero-y: 0px;
-	--ambient-hero-opacity: 1;
-	--ambient-search-y: 0px;
-	--ambient-search-opacity: 1;
-}
-
-.klice-ambient-hero {
-	transform: translate3d(0, var(--ambient-hero-y), 0)
-		scale(calc(1 - var(--ambient-progress) * 0.018));
-	opacity: var(--ambient-hero-opacity);
-	transform-origin: center top;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.klice-ambient-hero,
-	[data-speed-dial-scroll] .speed-dial-search-anchor {
-		transform: none;
-		opacity: 1;
-	}
 	.toolbar-compact-search {
-		transition: none;
-	}
-	.speed-dial-top-fade {
 		transition: none;
 	}
 }

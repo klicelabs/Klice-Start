@@ -4,6 +4,8 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@klice-start/ui/components/button";
 import { GlassButton } from "@klice-start/ui/components/glass-button";
 
+import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
+
 import {
 	type FrostGlassVariant,
 	glassVariantStyles,
@@ -56,7 +58,11 @@ function DialogContent({
 }) {
 	const isGlass = glassVariant && glassVariant !== "classic";
 	const surfaceClasses = isGlass
-		? cn(glassVariantStyles[glassVariant], "text-white")
+		? cn(
+				glassVariantStyles[glassVariant],
+				"text-white",
+				glassVariant === "liquid-refract" && "bg-transparent shadow-none ring-0",
+			)
 		: "bg-popover text-popover-foreground shadow-xl ring-1 ring-foreground/5 dark:ring-foreground/10";
 
 	return (
@@ -64,6 +70,9 @@ function DialogContent({
 			<DialogOverlay />
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"
+				render={
+					glassVariant === "liquid-refract" ? <LiquidGlass blur={8} /> : undefined
+				}
 				className={cn(
 					"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-4xl p-6 text-sm outline-none duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md",
 					surfaceClasses,
@@ -78,7 +87,7 @@ function DialogContent({
 						render={
 							isGlass ? (
 								<GlassButton
-									glassVariant="liquid"
+									glassVariant={glassVariant === "liquid-refract" ? "liquid-refract" : "subtle"}
 									className="absolute top-4 right-4"
 									size="icon-sm"
 								/>

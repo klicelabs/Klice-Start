@@ -1,8 +1,8 @@
 import { RangeSlider } from "@klice-start/ui/components/motion/range-slider";
 import { useEffect, useRef, useState } from "react";
+import { glassShape } from "../../../../lib/glass";
 import { flushPersist } from "../../../../lib/storage";
 import { cn } from "../../../../lib/utils";
-import { SETTINGS_RADIUS } from "./settings-tokens";
 
 interface SettingsRangeSliderProps {
 	label: string;
@@ -65,11 +65,7 @@ export function SettingsRangeSlider({
 	return (
 		<fieldset
 			aria-label={`${label} slider`}
-			className={cn(
-				"m-0 min-w-0 border-0 p-0",
-				SETTINGS_RADIUS.control,
-				className,
-			)}
+			className={cn("m-0 min-w-0 border-0 p-0", className)}
 			onPointerDown={() => {
 				interacting.current = true;
 			}}
@@ -89,8 +85,8 @@ export function SettingsRangeSlider({
 				formatValueText={(next) => `${next}${suffix}`}
 				valueLabel={`${local}${suffix}`}
 				className={cn(
-					"squircle h-8 bg-neutral-900/[0.05] dark:bg-white/[0.06]",
-					SETTINGS_RADIUS.control,
+					"h-8 bg-neutral-900/[0.05] dark:bg-white/[0.06]",
+					glassShape("control"),
 				)}
 				onValueChange={(next) => {
 					interacting.current = true;

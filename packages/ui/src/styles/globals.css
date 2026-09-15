@@ -460,17 +460,78 @@
 	text-shadow: var(--flat-ink-shadow);
 }
 
+/* One radius for every toolbar surface AND for the outer ends of the segments
+   inside a grouped control. Sharing the token is what stops a group from
+   reading as "a capsule wrapped around a square-er inner end": the surface and
+   its first/last segment resolve to the same geometry instead of two shapes
+   that only nearly agree. */
+:root {
+	--klice-toolbar-radius: 9999px;
+}
+
+/* `corner-shape` is not an inherited property, so `rounded-[inherit]` alone
+   copies the radius without the shape. Any decorative layer that traces a
+   surface's outline (the LiquidGlass rim hairline) must opt in explicitly —
+   otherwise it draws a circular arc on top of a squircle surface and the
+   control appears to have two different outlines. */
+.klice-corner-inherit {
+	corner-shape: inherit;
+}
+
 /* Squircle corners. `corner-shape: squircle` only renders in engines that
-   support it; the @supports fallback swaps in a plain border-radius elsewhere
-   (Gecko). Each element sets --squircle-r calibrated to ~60–65% of its Chrome
-   rounded-* radius so both renderings read as the same visual roundness
-   (rounded-2xl 16px → 10px, rounded-3xl 24px → 15px, rounded-[3rem] 48px → 28px).
-   Unlayered on purpose: it must beat Tailwind's layered rounded-* utilities. */
+   support it; the @supports fallback swaps in a calibrated border-radius for
+   Gecko/Zen. Both names remain available while feature code migrates to the
+   semantic Klice name. Unlayered on purpose: it beats Tailwind rounded-*.
+ */
+.klice-squircle,
 .squircle {
 	corner-shape: squircle;
 }
 @supports not (corner-shape: squircle) {
+	.klice-squircle,
 	.squircle {
 		border-radius: var(--squircle-r, 12px);
 	}
+}
+
+/* Toolbar pill. Every toolbar, tab, and standalone toolbar control is a true
+   capsule (fully rounded), never squircle. Unlayered on purpose and declared
+   AFTER .klice-squircle so it wins ties: LiquidGlass defaults inject
+   .klice-squircle, and this resets the corner geometry back to round while
+   keeping the capsule radius in engines with and without corner-shape support.
+
+   .klice-toolbar-group resolves to exactly the same geometry — the outer shell
+   of a grouped control IS a toolbar pill. Declaring them together removes the
+   ordering hazard that existed while they disagreed (18px squircle vs 20px
+   squircle vs capsule on one element, decided only by stylesheet order).
+ */
+.klice-toolbar-pill,
+.klice-toolbar-group {
+	border-radius: var(--klice-toolbar-radius);
+	corner-shape: round;
+}
+
+/* Grouped-control segment contract.
+
+   ButtonGroup squares the seam, but it gave the LAST segment a fixed
+   `rounded-r-lg` while the shared Button base drives the FIRST segment from
+   `rounded-4xl`. On a 42px control those are nowhere near each other (10px vs
+   a half-circle), so the group's two ends had different curvature and the
+   right segment's hover read as a square block sitting inside a capsule.
+
+   The group's own radius is the single source of truth: the outer corners of
+   the first and last segment inherit it. Unlayered, and declared after
+   Tailwind's utilities, so it resolves the geometry ButtonGroup asks for in
+   every engine — Chromium and Gecko alike.
+ */
+.klice-button-group > [data-slot="button"] {
+	border-radius: 0;
+}
+.klice-button-group > [data-slot="button"]:first-child {
+	border-top-left-radius: inherit;
+	border-bottom-left-radius: inherit;
+}
+.klice-button-group > [data-slot="button"]:last-child {
+	border-top-right-radius: inherit;
+	border-bottom-right-radius: inherit;
 }

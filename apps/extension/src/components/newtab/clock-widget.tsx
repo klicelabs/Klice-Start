@@ -14,9 +14,9 @@ export function ClockWidget() {
 	const timeFontSize = `${Math.round((56 * (size || 100)) / 100)}px`;
 
 	return (
-		<div className="clock-widget flex flex-col items-center gap-2">
+		<div className="clock-widget flex flex-col items-center">
 			{clockVisible ? (
-				<>
+				<div className="clock-readout flex flex-col items-center gap-[var(--speed-dial-space-tight)]">
 					<span
 						className={cn(
 							wallpaperText("secondary"),
@@ -35,13 +35,14 @@ export function ClockWidget() {
 					>
 						{time}
 					</span>
-				</>
+				</div>
 			) : null}
 			{greetingVisible ? (
 				<span
 					className={cn(
 						wallpaperText("primary"),
-						"clock-greeting mt-4 font-semibold text-[34px] leading-[1.06] tracking-[-0.04em]",
+						"clock-greeting font-semibold text-[34px] leading-[1.06] tracking-[-0.04em]",
+						clockVisible && "mt-[var(--speed-dial-space-medium)]",
 					)}
 					style={{ textShadow: HERO_TEXT_SHADOW }}
 				>

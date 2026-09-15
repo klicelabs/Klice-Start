@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { glassShape } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 
 interface InlineRenameInputProps {
@@ -102,7 +103,8 @@ export function InlineRenameInput({
 			}}
 			draggable={false}
 			className={cn(
-				"min-w-0 flex-1 truncate rounded-sm border-0 bg-transparent p-0 font-medium text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-white/40",
+				"min-w-0 flex-1 truncate border-0 bg-transparent p-0 font-medium text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-white/40",
+				glassShape("control"),
 				className,
 			)}
 		/>

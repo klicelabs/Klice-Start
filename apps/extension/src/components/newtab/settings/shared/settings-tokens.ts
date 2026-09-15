@@ -1,3 +1,5 @@
+import { KliceShape } from "@klice-start/ui/lib/shapes";
+
 /**
  * Settings design tokens.
  *
@@ -24,20 +26,7 @@
  * The fallback is ~60% of the Chrome radius so both renderings read as the
  * same roundness — always change the pair together.
  */
-export const SETTINGS_RADIUS = {
-	/** The sidebar content frame and every top-level settings group. */
-	panel: "rounded-[28px] [--squircle-r:17px]",
-	/** A secondary section surface and floating surfaces at the same level. */
-	section: "rounded-[22px] [--squircle-r:13px]",
-	/** A row-level surface: nav rows, media tiles, the drop zone. */
-	surface: "rounded-[18px] [--squircle-r:11px]",
-	/** A control: buttons, inputs, selects, folder pickers. */
-	control: "rounded-[16px] [--squircle-r:10px]",
-	/** A thumbnail: upload previews, small media thumbs inside cards. */
-	thumbnail: "rounded-[12px] [--squircle-r:7px]",
-	/** Fully round: switches, segmented track, colour swatch, badges. */
-	pill: "rounded-full",
-} as const;
+export const SETTINGS_RADIUS = KliceShape;
 
 /** The scroll region: one vertical column, one card beat. */
 export const SETTINGS_PAGE = "flex flex-col gap-2.5";

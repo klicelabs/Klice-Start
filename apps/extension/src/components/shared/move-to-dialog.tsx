@@ -10,14 +10,14 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { getSubtreeIds } from "../../lib/folder-tree";
+import { glassShape } from "../../lib/glass";
+import { describeMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
-import { describeMoveGroup } from "../../lib/move-selection";
-import { FolderTreePicker } from "./folder-tree-picker";
 import { SettingsAction } from "../newtab/settings/shared/settings-action";
-import { SETTINGS_RADIUS } from "../newtab/settings/shared/settings-tokens";
+import { FolderTreePicker } from "./folder-tree-picker";
 
 /**
  * Lightweight "Move to…" destination picker for the current selection (or a
@@ -43,6 +43,9 @@ export function MoveToDialog() {
 	const open = ids !== null;
 
 	// Fresh session per opening: never inherit a previous destination.
+	// The selected payload can change while the dialog remains mounted/open;
+	// reset the explicit destination for that new move session.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: ids marks a new move payload.
 	useEffect(() => {
 		if (open) {
 			setDestinationId(undefined);
@@ -109,9 +112,8 @@ export function MoveToDialog() {
 		>
 			<DialogContent
 				className={cn(
-					"squircle",
+					glassShape("panel"),
 					SETTINGS_SCOPE_CLASS,
-					SETTINGS_RADIUS.panel,
 					"sm:max-w-[360px]",
 				)}
 			>

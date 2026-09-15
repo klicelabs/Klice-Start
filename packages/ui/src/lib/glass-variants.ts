@@ -21,16 +21,11 @@ const LIQUID_GLASS_BASE = [
 	"border-[0.5px] border-white/[0.08]",
 ].join(" ");
 
-// Multi-layer bevel kept on the card itself. It has no external blur, so
-// adjacent cards cannot merge into a dark band beneath the grid.
-const LIQUID_GLASS_CARD_SHADOW =
-	"shadow-[inset_0_1px_0_0_rgba(255,255,255,0.30),inset_0_-14px_28px_-10px_rgba(180,210,255,0.18),inset_0.5px_0_0_0_rgba(255,255,255,0.10),inset_-0.5px_0_0_0_rgba(255,255,255,0.08)]";
-
-// Floating surfaces retain their own contact shadow. This is deliberately
-// separate from the card recipe because a grid of cards must not cast one
-// shared-looking halo across its rows.
-const LIQUID_GLASS_FLOATING_SHADOW =
-	"shadow-[inset_0_1px_0_0_rgba(255,255,255,0.30),inset_0_-14px_28px_-10px_rgba(180,210,255,0.18),inset_0.5px_0_0_0_rgba(255,255,255,0.10),inset_-0.5px_0_0_0_rgba(255,255,255,0.08),0_28px_70px_-18px_rgba(0,0,0,0.55),0_10px_28px_-10px_rgba(0,0,0,0.40)]";
+// The CSS fallback retains only the material's inset bevel. External shadows
+// belong to Flat elevation; Liquid Glass must not create broad halos around
+// toolbar groups, menus, or adjacent cards.
+const LIQUID_GLASS_BEVEL =
+  "shadow-[inset_0_1px_0_0_rgba(255,255,255,0.30),inset_0_-14px_28px_-10px_rgba(180,210,255,0.18),inset_0.5px_0_0_0_rgba(255,255,255,0.10),inset_-0.5px_0_0_0_rgba(255,255,255,0.08)]";
 
 const liquidGlassDensityStyles: Record<LiquidGlassDensity, string> = {
 	regular: [
@@ -40,7 +35,7 @@ const liquidGlassDensityStyles: Record<LiquidGlassDensity, string> = {
 	dense: [
 		// Menus need a stronger veil for white ink, but remain translucent so
 		// wallpaper colour and motion still read through the surface.
-		"backdrop-blur-[18px] backdrop-saturate-[1.65] backdrop-brightness-[0.92]",
+		"backdrop-blur-[12px] backdrop-saturate-[1.65] backdrop-brightness-[0.92]",
 		"bg-black/[0.14]",
 	].join(" "),
 };
@@ -49,12 +44,12 @@ export const liquidGlassStyles: Record<LiquidGlassDensity, string> = {
 	regular: [
 		liquidGlassDensityStyles.regular,
 		LIQUID_GLASS_BASE,
-		LIQUID_GLASS_FLOATING_SHADOW,
+		LIQUID_GLASS_BEVEL,
 	].join(" "),
 	dense: [
 		liquidGlassDensityStyles.dense,
 		LIQUID_GLASS_BASE,
-		LIQUID_GLASS_FLOATING_SHADOW,
+		LIQUID_GLASS_BEVEL,
 	].join(" "),
 };
 
@@ -62,7 +57,7 @@ export const liquidGlassStyles: Record<LiquidGlassDensity, string> = {
 export const liquidGlassCardStyles = [
 	liquidGlassDensityStyles.regular,
 	LIQUID_GLASS_BASE,
-	LIQUID_GLASS_CARD_SHADOW,
+	LIQUID_GLASS_BEVEL,
 ].join(" ");
 
 export const glassVariantStyles: Record<FrostGlassVariant, string> = {
@@ -73,7 +68,7 @@ export const glassVariantStyles: Record<FrostGlassVariant, string> = {
 		"shadow-[0_1px_12px_rgba(0,0,0,0.2)]",
 	].join(" "),
 	frosted: [
-		"backdrop-blur-[16px] backdrop-saturate-[1.6]",
+		"backdrop-blur-[12px] backdrop-saturate-[1.6]",
 		"bg-black/[0.35]",
 		"border border-white/10",
 		"shadow-[0_2px_20px_rgba(0,0,0,0.3)]",

@@ -1,5 +1,6 @@
 import { Icon, type IconName } from "@klice-start/ui/icons/icon";
 import type { ComponentProps } from "react";
+import { glassShape } from "../../../../lib/glass";
 import { cn } from "../../../../lib/utils";
 import {
 	SETTINGS_ACTION,
@@ -8,7 +9,6 @@ import {
 	SETTINGS_ACTION_PRIMARY,
 	SETTINGS_FOCUS_RING,
 	SETTINGS_ICON_BUTTON,
-	SETTINGS_RADIUS,
 } from "./settings-tokens";
 
 const ACTION_TONE = {
@@ -40,8 +40,8 @@ export function SettingsAction({
 		<button
 			type={type}
 			className={cn(
-				"squircle inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap font-medium disabled:pointer-events-none disabled:opacity-40",
-				SETTINGS_RADIUS.control,
+				"inline-flex shrink-0 select-none items-center justify-center whitespace-nowrap font-medium disabled:pointer-events-none disabled:opacity-40",
+				glassShape("control"),
 				ACTION_TONE[tone],
 				SETTINGS_FOCUS_RING,
 				className,
@@ -54,6 +54,7 @@ export function SettingsAction({
 					size={14}
 					strokeWidth={1.75}
 					className={SETTINGS_ACTION_ICON}
+					data-icon="inline-start"
 					aria-hidden="true"
 				/>
 			) : null}
@@ -82,9 +83,9 @@ export function SettingsIconButton({
 			type="button"
 			aria-label={label}
 			className={cn(
-				"squircle",
+				"inline-flex size-8 shrink-0 items-center justify-center",
+				glassShape("control"),
 				SETTINGS_ICON_BUTTON,
-				SETTINGS_RADIUS.control,
 				tone === "danger" && "hover:bg-red-500/10 hover:text-red-400",
 				SETTINGS_FOCUS_RING,
 				className,

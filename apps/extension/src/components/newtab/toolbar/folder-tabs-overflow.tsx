@@ -14,8 +14,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveDragRef, setActiveDrag } from "../../../lib/dnd";
 import {
 	glassDropdown,
-	glassDropdownItem,
-	glassField,
+	glassDropdownItemPill,
+	glassFieldPill,
 	glassText,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
@@ -212,8 +212,8 @@ export function FolderTabsOverflow({
 					<div className="px-1.5 pt-1.5 pb-1">
 						<InputGroup
 							className={cn(
-								"h-8 w-full min-w-0 rounded-lg",
-								glassField(isLiquid),
+								"h-8 w-full min-w-0 rounded-full",
+								glassFieldPill(isLiquid),
 							)}
 						>
 							{/* Leading glyph. The shared InputGroup addon owns the inset, so
@@ -282,7 +282,7 @@ export function FolderTabsOverflow({
 										}
 									}}
 									className={cn(
-										"flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
+										"flex size-6 shrink-0 items-center justify-center rounded-full transition-colors",
 										creating && canConfirm
 											? isLiquid
 												? "bg-white/20 text-white hover:bg-white/30"
@@ -323,7 +323,7 @@ export function FolderTabsOverflow({
 										key={folder.id}
 										className={cn(
 											"flex w-full items-center gap-2",
-											glassDropdownItem(isLiquid),
+											glassDropdownItemPill(isLiquid),
 										)}
 									>
 										<Icon
@@ -355,7 +355,7 @@ export function FolderTabsOverflow({
 										onDrop={handleRowDrop(folder)}
 										className={cn(
 											"flex w-full items-center gap-2",
-											glassDropdownItem(isLiquid),
+											glassDropdownItemPill(isLiquid),
 											folder.id === activeRootId
 												? isLiquid
 													? "bg-white/[0.12]"

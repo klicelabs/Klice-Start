@@ -3,6 +3,7 @@
 // beui.dev/components/motion/tabs
 
 import { EASE_OUT, SPRING_SEGMENT } from "@klice-start/ui/lib/ease";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { cn } from "@klice-start/ui/lib/utils";
 import {
 	MotionConfig,
@@ -109,9 +110,9 @@ export function Tabs({
 }
 
 const listClasses: Record<Variant, string> = {
-	pill: "inline-flex items-center gap-1 rounded-full bg-card p-1",
+	pill: cn("inline-flex items-center gap-1 bg-card p-1", kliceShape("toolbar")),
 	underline: "inline-flex items-center gap-1 border-b border-border",
-	segment: "inline-flex items-center gap-0 rounded-lg bg-card p-0.5",
+	segment: cn("inline-flex items-center gap-0 bg-card p-0.5", kliceShape("control")),
 };
 
 export function TabsList({
@@ -214,7 +215,8 @@ export function TabsTrigger({
 		);
 	}
 
-	const radius = variant === "pill" ? "rounded-full" : "rounded-md";
+	const radius =
+		variant === "pill" ? kliceShape("toolbarControl") : kliceShape("control");
 	const trigger = render ? (
 		cloneElement(render as ReactElement<TriggerRenderProps>, {
 			role: "tab",

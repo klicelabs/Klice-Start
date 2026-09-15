@@ -43,7 +43,18 @@ import {
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
 import { getOrderedRefs, type ItemRef } from "../../src/lib/item-order";
-import type { NavigationState } from "../../src/lib/navigation";
+import type {
+	NavigationHistory,
+	NavigationState,
+} from "../../src/lib/navigation";
+import {
+	createNavigationHistory,
+	getNavigationState,
+	pruneNavigationHistory,
+	pushNavigation,
+	traverseBack,
+	traverseForward,
+} from "../../src/lib/navigation";
 import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useRenameStore } from "../../src/stores/rename-store";
@@ -132,45 +143,68 @@ export default function App() {
 		direction: "forward",
 		kind: "root",
 	});
+	const [navigationHistory, setNavigationHistory] = useState<NavigationHistory>(
+		createNavigationHistory,
+	);
+	const navigationHistoryRef = useRef<NavigationHistory>(
+		createNavigationHistory(),
+	);
+	const navigationReadyRef = useRef(false);
+	const navigationLocationRef = useRef<string | null>(null);
+
+	const commitNavigationHistory = useCallback((next: NavigationHistory) => {
+		navigationHistoryRef.current = next;
+		setNavigationHistory(next);
+	}, []);
+
+	// Persisted activeFolderId is the starting location only. Hydration marks
+	// the session boundary so restoring it never creates a Back entry.
+	useEffect(() => {
+		const initializeNavigation = () => {
+			navigationLocationRef.current = useSetupStore.getState().activeFolderId;
+			navigationReadyRef.current = true;
+		};
+
+		if (useSetupStore.persist.hasHydrated()) {
+			initializeNavigation();
+			return;
+		}
+
+		return useSetupStore.persist.onFinishHydration(initializeNavigation);
+	}, []);
 
 	// Navigation always settles any stray rename session first (an input
 	// unmounted by navigation never blurs, so without this a stale session
 	// could linger and pop open unexpectedly later).
 	const handleSelectFolder = useCallback(
 		(id: string) => {
-			// Read the store at interaction time so rapid A → B → C and
-			// spring-loaded changes never compare against a stale render. The
-			// complete ordered root list is the canonical tab order, including
-			// folders currently hidden behind overflow.
 			const state = useSetupStore.getState();
-			const currentPath = getBreadcrumb(state.folders, state.activeFolderId);
-			const nextPath = getBreadcrumb(state.folders, id);
-			const currentRootId = currentPath[0]?.id ?? state.activeFolderId;
-			const nextRootId = nextPath[0]?.id ?? id;
-			const orderedRoots = getChildren(state.folders, null);
-			const previousIndex = orderedRoots.findIndex(
-				(folder) => folder.id === currentRootId,
-			);
-			const nextIndex = orderedRoots.findIndex(
-				(folder) => folder.id === nextRootId,
-			);
-			const rootChanged = currentRootId !== nextRootId;
-			const direction = rootChanged
-				? previousIndex >= 0 && nextIndex >= 0 && nextIndex < previousIndex
-					? "back"
-					: "forward"
-				: nextPath.length < currentPath.length
-					? "back"
-					: "forward";
-
-			setNavigation({
-				direction,
-				kind: rootChanged ? "root" : "depth",
-			});
 			cancelRename();
+			if (
+				state.activeFolderId === id ||
+				!state.folders.some((folder) => folder.id === id)
+			)
+				return;
+
+			if (!navigationReadyRef.current) {
+				navigationLocationRef.current = id;
+				setActiveFolder(id);
+				return;
+			}
+
+			const nextHistory = pushNavigation(
+				navigationHistoryRef.current,
+				state.activeFolderId,
+				id,
+			);
+			commitNavigationHistory(nextHistory);
+			setNavigation(
+				getNavigationState(state.folders, state.activeFolderId, id),
+			);
+			navigationLocationRef.current = id;
 			setActiveFolder(id);
 		},
-		[cancelRename, setActiveFolder],
+		[cancelRename, commitNavigationHistory, setActiveFolder],
 	);
 
 	const canNestFolder = useCallback(
@@ -214,14 +248,82 @@ export default function App() {
 		() => getBreadcrumb(folders, activeFolderId),
 		[folders, activeFolderId],
 	);
-	const isSubfolder = breadcrumb.length > 1;
-	const parentFolder = breadcrumb[breadcrumb.length - 2];
 	const activeRootId = breadcrumb[0]?.id ?? activeFolderId;
 	const rootFolders = useMemo(() => getChildren(folders, null), [folders]);
 
 	const handleBack = useCallback(() => {
-		if (parentFolder) handleSelectFolder(parentFolder.id);
-	}, [parentFolder, handleSelectFolder]);
+		if (!navigationReadyRef.current) return;
+		const state = useSetupStore.getState();
+		const validFolderIds = new Set(state.folders.map((folder) => folder.id));
+		const traversal = traverseBack(
+			navigationHistoryRef.current,
+			state.activeFolderId,
+			validFolderIds,
+		);
+		commitNavigationHistory(traversal.history);
+		if (!traversal.targetId) return;
+
+		cancelRename();
+		setNavigation(
+			getNavigationState(
+				state.folders,
+				state.activeFolderId,
+				traversal.targetId,
+				"back",
+			),
+		);
+		navigationLocationRef.current = traversal.targetId;
+		setActiveFolder(traversal.targetId);
+	}, [cancelRename, commitNavigationHistory, setActiveFolder]);
+
+	const handleForward = useCallback(() => {
+		if (!navigationReadyRef.current) return;
+		const state = useSetupStore.getState();
+		const validFolderIds = new Set(state.folders.map((folder) => folder.id));
+		const traversal = traverseForward(
+			navigationHistoryRef.current,
+			state.activeFolderId,
+			validFolderIds,
+		);
+		commitNavigationHistory(traversal.history);
+		if (!traversal.targetId) return;
+
+		cancelRename();
+		setNavigation(
+			getNavigationState(
+				state.folders,
+				state.activeFolderId,
+				traversal.targetId,
+				"forward",
+			),
+		);
+		navigationLocationRef.current = traversal.targetId;
+		setActiveFolder(traversal.targetId);
+	}, [cancelRename, commitNavigationHistory, setActiveFolder]);
+
+	// Folder deletion, reset, and cross-tab repair can change the store's
+	// location without being navigation. Reconcile those changes without
+	// recording them, and prune deleted IDs from both session branches.
+	useEffect(() => {
+		if (!navigationReadyRef.current) return;
+		const validFolderIds = new Set(folders.map((folder) => folder.id));
+		const repairedHistory = pruneNavigationHistory(
+			navigationHistoryRef.current,
+			validFolderIds,
+		);
+		if (
+			navigationLocationRef.current !== null &&
+			navigationLocationRef.current !== activeFolderId
+		) {
+			// Store-side repairs (for example deleting the active subtree or a
+			// cross-tab location change) are not a user traversal. Reset the
+			// session branches so they cannot point at the repaired location.
+			navigationLocationRef.current = activeFolderId;
+			commitNavigationHistory(createNavigationHistory());
+			return;
+		}
+		commitNavigationHistory(repairedHistory);
+	}, [activeFolderId, commitNavigationHistory, folders]);
 
 	// Item count per folder (cards only).
 	const cardCounts = useMemo(() => {
@@ -268,7 +370,7 @@ export default function App() {
 	const unifiedSearchRef = useRef<UnifiedSearchHandle>(null);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
-	const [navigationSticky, setNavigationSticky] = useState(false);
+	const [compactSearch, setCompactSearch] = useState(false);
 
 	const triggerWake = useCallback(() => {
 		setWakeActive(true);
@@ -353,17 +455,11 @@ export default function App() {
 		[showSettings],
 	);
 
-	// The toolbar is an alternate trigger for the one in-flow search object.
-	// Bring that object back into view before focusing it instead of mounting a
-	// second palette with a second query/result state.
+	// The toolbar is an alternate trigger for the one mounted Search controller.
+	// Focus it in place: the compact affordance must not move native scrolling
+	// or create a second Search state/controller.
 	const handleOpenSearch = useCallback(() => {
-		const input = document.querySelector<HTMLElement>(
-			"[data-unified-search-input]",
-		);
-		input?.scrollIntoView({ behavior: "smooth", block: "center" });
-		requestAnimationFrame(() => {
-			unifiedSearchRef.current?.focus();
-		});
+		unifiedSearchRef.current?.focus();
 	}, []);
 
 	// Drop one bookmark onto another: fold both into a fresh subfolder and
@@ -422,8 +518,9 @@ export default function App() {
 
 	// Direct folder creation (no Settings modal): create "New Folder",
 	// navigate so the new item is visible, then immediately enter inline
-	// rename, Vivaldi-style. Navigation first (it settles stray sessions),
-	// rename second (it must survive).
+	// rename, Vivaldi-style. Move-only operations are history-neutral; creation
+	// records history only when this intentional reveal changes the destination.
+	// The same-location guard keeps creating inside the current folder neutral.
 	const handleNewSubfolder = useCallback(
 		(parentId: string | null) => {
 			const id = addFolder("New Folder", parentId);
@@ -459,15 +556,12 @@ export default function App() {
 		return () => document.removeEventListener("keydown", handleKey);
 	}, [handleOpenSearch]);
 
-	// Scroll Craft-style ambient transition without per-frame React renders.
-	// Geometry is sampled once per animation frame and written directly to CSS;
-	// the hero, search, compact search affordance, and top fade stay on the
-	// compositor-friendly transform/opacity path.
+	// Native scrolling owns all hero movement. React only observes the one
+	// discrete boundary that changes the compact Search affordance.
 	const speedDialScrollRef = useRef<HTMLDivElement>(null);
-	const speedDialFrameRef = useRef<HTMLDivElement>(null);
-	const navigationRef = useRef<HTMLElement>(null);
+	const appToolbarRef = useRef<HTMLDivElement>(null);
 	const searchAnchorRef = useRef<HTMLDivElement>(null);
-	const navigationStickyRef = useRef(false);
+	const compactSearchRef = useRef(false);
 	useEffect(() => {
 		const scrollContainer = speedDialScrollRef.current;
 		if (!scrollContainer) return;
@@ -483,69 +577,33 @@ export default function App() {
 	}, [handleSpeedDialBackgroundPointer]);
 
 	useEffect(() => {
+		if (restMode) return;
 		const scrollContainer = speedDialScrollRef.current;
-		if (!scrollContainer) return;
+		const toolbarElement = appToolbarRef.current;
+		if (!scrollContainer || !toolbarElement) return;
+
 		let frame = 0;
-		const clamp = (value: number) => Math.min(1, Math.max(0, value));
-		const syncScrollProgress = () => {
+		const syncScrollBoundaries = () => {
 			frame = 0;
-			const scrollTop = scrollContainer.scrollTop;
-			const ambientProgress = clamp(scrollTop / 240);
-			const frameElement = speedDialFrameRef.current;
-			const frameTop = frameElement?.getBoundingClientRect().top ?? 0;
-			const navigation = navigationRef.current;
 			const searchAnchor = searchAnchorRef.current;
-			const navigationRect = navigation?.getBoundingClientRect();
 			const searchRect = searchAnchor?.getBoundingClientRect();
-			const navigationMarginTop = navigation
-				? Number.parseFloat(getComputedStyle(navigation).marginTop) || 0
-				: 0;
-			const nextNavigationSticky = Boolean(
-				navigationRect &&
-					navigationRect.top <= frameTop + navigationMarginTop + 1,
-			);
-			const searchScrolledAway = Boolean(
-				searchRect && searchRect.bottom <= frameTop + navigationMarginTop,
+			const toolbarBottom = toolbarElement.getBoundingClientRect().bottom;
+			const nextCompactSearch = Boolean(
+				searchRect && searchRect.bottom <= toolbarBottom,
 			);
 
-			scrollContainer.style.setProperty(
-				"--ambient-progress",
-				String(ambientProgress),
-			);
-			scrollContainer.style.setProperty(
-				"--ambient-hero-y",
-				`${-18 * ambientProgress}px`,
-			);
-			scrollContainer.style.setProperty(
-				"--ambient-hero-opacity",
-				String(1 - ambientProgress * 0.38),
-			);
-			scrollContainer.style.setProperty(
-				"--ambient-search-y",
-				`${-12 * ambientProgress}px`,
-			);
-			scrollContainer.style.setProperty(
-				"--ambient-search-opacity",
-				String(1 - ambientProgress * 0.82),
-			);
-			if (frameElement) {
-				frameElement.dataset.navigationSticky = nextNavigationSticky
-					? "true"
-					: "false";
-				frameElement.dataset.compactSearch = searchScrolledAway
-					? "true"
-					: "false";
-			}
-			if (navigationStickyRef.current !== nextNavigationSticky) {
-				navigationStickyRef.current = nextNavigationSticky;
-				setNavigationSticky(nextNavigationSticky);
+			if (compactSearchRef.current !== nextCompactSearch) {
+				compactSearchRef.current = nextCompactSearch;
+				setCompactSearch(nextCompactSearch);
 			}
 		};
+
 		const onScroll = () => {
 			if (frame !== 0) return;
-			frame = requestAnimationFrame(syncScrollProgress);
+			frame = requestAnimationFrame(syncScrollBoundaries);
 		};
-		syncScrollProgress();
+
+		syncScrollBoundaries();
 		scrollContainer.addEventListener("scroll", onScroll, { passive: true });
 		window.addEventListener("resize", onScroll);
 		return () => {
@@ -553,7 +611,7 @@ export default function App() {
 			window.removeEventListener("resize", onScroll);
 			if (frame !== 0) cancelAnimationFrame(frame);
 		};
-	}, []);
+	}, [restMode]);
 
 	// Select every bookmark and subfolder in the current view. Keep native
 	// select-all available inside editable and settings-owned surfaces.
@@ -644,18 +702,46 @@ export default function App() {
 									"squircle relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 									wakeActive && "klice-wake",
 								)}
-								ref={speedDialFrameRef}
 								data-rest-mode={restMode ? "true" : undefined}
 								data-settings-open={settingsLayoutOpen ? "true" : "false"}
+								data-compact-search={compactSearch ? "true" : "false"}
+								data-active-folder-id={activeFolderId}
+								data-folder-depth={breadcrumb.length}
 								data-speed-dial-frame="true"
 							>
 								<BackgroundLayer contained />
 								<SpeedDialTopFade />
 								{!restMode && (
 									<div
+										ref={appToolbarRef}
 										className="speed-dial-app-toolbar pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-app-toolbar)] flex h-14 items-center justify-end"
 										data-speed-dial-app-toolbar="true"
 									>
+										<NavigationToolbar
+											rootFolders={rootFolders}
+											activeRootId={activeRootId}
+											navigationDirection={navigation.direction}
+											breadcrumb={breadcrumb}
+											canGoBack={navigationHistory.back.length > 0}
+											canGoForward={navigationHistory.forward.length > 0}
+											onBack={handleBack}
+											onForward={handleForward}
+											searchEnabled={searchEnabled}
+											onOpenSearch={handleOpenSearch}
+											onSelectFolder={handleSelectFolder}
+											onAddFolder={(name) => addFolder(name, null)}
+											onNewRootFolder={() => handleNewSubfolder(null)}
+											onNewSubfolder={handleNewSubfolder}
+											onDeleteFolder={deleteFolder}
+											onReorderFolders={(fromId, toId, position) =>
+												reorderFolders(fromId, toId, position)
+											}
+											onDropCards={handleTabDrop}
+											onMoveFolders={handleTabDrop}
+											onMoveFolderToRoot={handleMoveFolderToRoot}
+											isRootFolder={isRootFolder}
+											canNestFolder={canNestFolder}
+										/>
 										<div className="pointer-events-auto flex items-center">
 											{!showSettings && (
 												<ToolbarActions onSettings={handleToggleSettings} />
@@ -671,8 +757,7 @@ export default function App() {
 									data-speed-dial-scroll="true"
 								>
 									<div className={cn(restMode && "rest-mode-hidden")}>
-										{/* Ambient content comes first; only this layer recedes during
-										    scroll so the Search anchor can remain above the Tabbar. */}
+										{/* Ambient content remains in the normal page flow. */}
 										<main className="speed-dial-hero hero">
 											<div
 												className="klice-ambient-hero"
@@ -690,32 +775,6 @@ export default function App() {
 												/>
 											</div>
 										</main>
-
-										<NavigationToolbar
-											navigationRef={navigationRef}
-											rootFolders={rootFolders}
-											activeRootId={activeRootId}
-											navigationDirection={navigation.direction}
-											breadcrumb={breadcrumb}
-											onBack={handleBack}
-											showBackNav={isSubfolder}
-											navigationSticky={navigationSticky}
-											searchEnabled={searchEnabled}
-											onOpenSearch={handleOpenSearch}
-											onSelectFolder={handleSelectFolder}
-											onAddFolder={(name) => addFolder(name, null)}
-											onNewRootFolder={() => handleNewSubfolder(null)}
-											onNewSubfolder={handleNewSubfolder}
-											onDeleteFolder={deleteFolder}
-											onReorderFolders={(fromId, toId, position) =>
-												reorderFolders(fromId, toId, position)
-											}
-											onDropCards={handleTabDrop}
-											onMoveFolders={handleTabDrop}
-											onMoveFolderToRoot={handleMoveFolderToRoot}
-											isRootFolder={isRootFolder}
-											canNestFolder={canNestFolder}
-										/>
 
 										<div className="speed-dial-grid-region">
 											<DialGrid

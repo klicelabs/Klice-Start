@@ -282,8 +282,6 @@ export function MorphPopoverContent({
 			{ctx.open ? (
 				<motion.div
 					data-morph-popover-portal=""
-					// Wrapper carries the shadow as a drop-shadow filter, which hugs the
-					// clipped shape below (box-shadow would just get clipped away).
 					variants={wrap}
 					initial={reduce ? { opacity: 0 } : "hidden"}
 					animate={reduce ? { opacity: 1 } : "show"}
@@ -295,7 +293,7 @@ export function MorphPopoverContent({
 						visibility: layout ? "visible" : "hidden",
 						transformOrigin: originFor(side, align),
 					}}
-					className="fixed z-[9999] [filter:drop-shadow(0_10px_18px_rgba(0,0,0,0.14))]"
+					className="fixed z-[var(--speed-dial-layer-popover,70)]"
 				>
 					<motion.div
 						ref={ctx.contentRef}

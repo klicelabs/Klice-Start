@@ -13,7 +13,12 @@ import { toast } from "sonner";
 import { setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { wouldCreateCycle } from "../../lib/folder-tree";
-import { glassDropdownItem, glassMaterial, glassMenu } from "../../lib/glass";
+import {
+	glassDropdownItem,
+	glassMaterial,
+	glassMenu,
+	glassShape,
+} from "../../lib/glass";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -38,8 +43,8 @@ interface CreateRequest {
 /**
  * Floating Selection Tray — the transport surface for multi-select.
  *
- * Appears as soon as anything is selected and persists across navigation
- * (selection lives in the store, not in any mounted grid), so users can
+ * Appears as soon as a selection exists and persists across navigation
+ * (selection lives in the store, not tied to a mounted grid), so users can
  * carry items into another folder and commit with Move here — no dragging
  * required. Dragging the preview cluster also works as a group drag source.
  *
@@ -208,7 +213,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 						<motion.div
 							layout
 							role="region"
-							aria-label={"Selection tray, " + totalLabel}
+							aria-label={`Selection tray, ${totalLabel}`}
 							initial={
 								reduceMotion
 									? { opacity: 0 }
@@ -233,7 +238,8 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										}
 							}
 							className={cn(
-								"squircle pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden rounded-[24px] px-3 py-3 [--squircle-r:15px]",
+								"pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden px-3 py-3",
+								glassShape("panel"),
 								glassMaterial(isLiquid),
 								isLiquid ? "text-white" : "text-flat-ink",
 							)}
@@ -373,10 +379,8 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										layout
 										type="button"
 										onClick={handleMoveHere}
-										aria-label={
-											"Move here" + (destName ? ", to " + destName : "")
-										}
-										title={"Move here" + (destName ? ", to " + destName : "")}
+										aria-label={`Move here${destName ? `, to ${destName}` : ""}`}
+										title={`Move here${destName ? `, to ${destName}` : ""}`}
 										initial={
 											reduceMotion
 												? { opacity: 0 }
@@ -408,7 +412,10 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 														scale: { duration: 0.2, ease: [0.23, 1, 0.32, 1] },
 													}
 										}
-										className="accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center rounded-[12px] bg-[var(--klice-accent)] px-3.5 font-semibold text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										className={cn(
+											"accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center bg-[var(--klice-accent)] px-3.5 font-semibold text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+											glassShape("control"),
+										)}
 									>
 										Move here
 									</motion.button>
@@ -448,10 +455,10 @@ function selectionPillLabel(cardCount: number, folderCount: number) {
 		return describeMoveGroup(cardCount, folderCount);
 	}
 	if (cardCount > 0) {
-		return String(cardCount) + " bookmark" + (cardCount === 1 ? "" : "s");
+		return `${String(cardCount)} bookmark${cardCount === 1 ? "" : "s"}`;
 	}
 	if (folderCount > 0) {
-		return String(folderCount) + " folder" + (folderCount === 1 ? "" : "s");
+		return `${String(folderCount)} folder${folderCount === 1 ? "" : "s"}`;
 	}
 	return "Selected items";
 }
@@ -505,7 +512,10 @@ function TrayMini({
 							src={card.favicon}
 							alt=""
 							draggable={false}
-							className="squircle absolute size-14 rounded-[20px] object-contain [--squircle-r:12px]"
+							className={cn(
+								"absolute size-14 object-contain",
+								glassShape("thumbnail"),
+							)}
 							onError={(e) => {
 								e.currentTarget.style.display = "none";
 							}}

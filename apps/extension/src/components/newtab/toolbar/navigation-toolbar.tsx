@@ -1,22 +1,23 @@
-import { SPRING_LAYOUT } from "@klice-start/ui/lib/ease";
-import { motion, useReducedMotion } from "motion/react";
-import {
-	type RefObject,
-	useCallback,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { Button } from "@klice-start/ui/components/button";
+import { ButtonGroup } from "@klice-start/ui/components/button-group";
+import { GlassButtonGroup } from "@klice-start/ui/components/glass-button-group";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
+import { flatSurface } from "@klice-start/ui/lib/surface";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { glassText } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
-import { TOOLBAR } from "../../../lib/toolbar-tokens";
+import {
+	TOOLBAR,
+	TOOLBAR_HEIGHT,
+	toolbarIconClass,
+	toolbarIconSize,
+} from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import type { InsertPosition } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
-import { ToolbarBack } from "./toolbar-back";
 import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface NavigationToolbarProps {
@@ -25,17 +26,11 @@ interface NavigationToolbarProps {
 	navigationDirection: NavigationDirection;
 	/** Full breadcrumb to the active folder (length > 1 inside a subfolder). */
 	breadcrumb: Folder[];
-	/** Navigate to the parent folder. */
+	canGoBack: boolean;
+	canGoForward: boolean;
 	onBack: () => void;
-	/**
-	 * Keep the single back + current folder identity mounted for the whole
-	 * subfolder state, including the initial render.
-	 */
-	showBackNav: boolean;
-	/** Whether the sticky toolbar threshold has been crossed. */
-	navigationSticky: boolean;
+	onForward: () => void;
 	searchEnabled: boolean;
-	navigationRef?: RefObject<HTMLElement | null>;
 	onOpenSearch: () => void;
 	onSelectFolder: (id: string) => void;
 	onAddFolder: (name: string) => string;
@@ -61,20 +56,22 @@ interface NavigationToolbarProps {
 }
 
 /**
- * Floating toolbar with three independent zones on one centerline:
+ * The only navigation unit in the new-tab shell. It is mounted in the
+ * application toolbar, never in the scrolling content region.
  *
- *   Left    [‹] Current folder once the navigation becomes sticky
- *   Center  [ Search ] [ Home | AI | Design | + | ⋯ ]
- *   Right   [ reserved inset ] (the fixed app Settings action lives above it)
+ * The left and right grid lanes are equal and non-owning: they reserve room
+ * for controls while the center lane measures only the Tabbar's real budget.
+ * That keeps the Tabbar's center anchor fixed when history or Settings changes.
  */
 export function NavigationToolbar({
 	rootFolders,
 	activeRootId,
 	navigationDirection,
 	breadcrumb,
+	canGoBack,
+	canGoForward,
 	onBack,
-	showBackNav,
-	navigationSticky,
+	onForward,
 	searchEnabled,
 	onOpenSearch,
 	onSelectFolder,
@@ -88,20 +85,16 @@ export function NavigationToolbar({
 	onMoveFolderToRoot,
 	isRootFolder,
 	canNestFolder,
-	navigationRef,
 }: NavigationToolbarProps) {
 	const { isLiquid } = useAppearance();
-	const reduceMotion = useReducedMotion() ?? false;
-	const currentFolder = breadcrumb[breadcrumb.length - 1];
 
-	// Sorted root folders for tab display.
 	const sorted = useMemo(
 		() => [...rootFolders].sort((a, b) => a.order - b.order),
 		[rootFolders],
 	);
 
-	// Overflow detection: measures actual tab widths via a hidden row and fits
-	// as many full tabs as the container width allows.
+	// Measure the center lane, not the natural width of the Tabbar. Controls in
+	// the side lanes therefore never consume the Tabbar's overflow budget.
 	const containerRef = useRef<HTMLDivElement>(null);
 	const measureRef = useRef<HTMLDivElement>(null);
 	const [visibleCount, setVisibleCount] = useState<number>(sorted.length);
@@ -112,61 +105,52 @@ export function NavigationToolbar({
 		if (!container || !measure) return;
 
 		const available = container.clientWidth;
-		const tabNodes = Array.from(measure.children) as HTMLElement[];
+		const tabNodes = Array.from(measure.children).filter(
+			(node): node is HTMLElement => node instanceof HTMLElement,
+		);
 		if (tabNodes.length === 0) {
 			setVisibleCount(0);
 			return;
 		}
 
-		// Gap between tabs: 2px (gap-0.5) inside GlassSurface (p-1 padding: 8px total).
 		const tabGap = 2;
-		const surfacePadding = 8;
-		const overflowPillWidth = 34; // "…" control width inside the surface
-		const addButtonWidth = 34;
+		// Derived from the height system rather than duplicated as literals:
+		// the Tabbar shell pads by the group inset on both sides, and the
+		// overflow pill and the "+" affordance are both one control wide.
+		const surfacePadding = TOOLBAR_HEIGHT.inset * 2;
+		const overflowPillWidth = TOOLBAR_HEIGHT.control;
+		const addButtonWidth = TOOLBAR_HEIGHT.control;
+		const widths = tabNodes.map((node) => node.offsetWidth);
+		const totalNatural = widths.reduce(
+			(total, width, index) => total + width + (index > 0 ? tabGap : 0),
+			surfacePadding,
+		);
 
-		let totalNatural = surfacePadding;
-		const widths: number[] = [];
-		for (let i = 0; i < tabNodes.length; i++) {
-			const node = tabNodes[i];
-			if (!node) continue;
-			const w = node.offsetWidth;
-			widths.push(w);
-			totalNatural += w + (i > 0 ? tabGap : 0);
-		}
-
-		// The inline "+" only exists while everything (tabs + "+") fits at
-		// natural width. Once folders overflow, creation lives in the
-		// overflow dropdown instead — no viewport breakpoint, just layout.
 		if (totalNatural + tabGap + addButtonWidth <= available) {
 			setVisibleCount(sorted.length);
 			return;
 		}
 
-		// Otherwise, fit as many as possible while reserving space for "…".
 		const budget = available - overflowPillWidth - tabGap;
 		let fit = 0;
 		let used = surfacePadding;
-		for (let i = 0; i < widths.length; i++) {
-			const w = widths[i] ?? 0;
-			const next = used + w + (i > 0 ? tabGap : 0);
-			if (next <= budget) {
-				used = next;
-				fit++;
-			} else {
-				break;
-			}
+		for (const [index, width] of widths.entries()) {
+			const next = used + width + (index > 0 ? tabGap : 0);
+			if (next > budget) break;
+			used = next;
+			fit += 1;
 		}
 
 		setVisibleCount(Math.max(1, fit));
-	}, [sorted.length]);
+	}, [sorted]);
 
 	useEffect(() => {
 		updateOverflow();
 		const container = containerRef.current;
 		if (!container) return;
-		const ro = new ResizeObserver(updateOverflow);
-		ro.observe(container);
-		return () => ro.disconnect();
+		const resizeObserver = new ResizeObserver(updateOverflow);
+		resizeObserver.observe(container);
+		return () => resizeObserver.disconnect();
 	}, [updateOverflow]);
 
 	const visibleFolders = useMemo(
@@ -178,131 +162,228 @@ export function NavigationToolbar({
 		[sorted, visibleCount],
 	);
 	const hasOverflow = hiddenFolders.length > 0;
+	const activeRootVisible = visibleFolders.some(
+		(folder) => folder.id === activeRootId,
+	);
+	const currentFolder = breadcrumb[breadcrumb.length - 1];
+	const activeRoot = sorted.find((folder) => folder.id === activeRootId);
+	const contextualFolder = breadcrumb.length > 1 ? currentFolder : activeRoot;
+	const showContextualTitle = Boolean(
+		contextualFolder && (breadcrumb.length > 1 || !activeRootVisible),
+	);
 
 	return (
-		<>
-			{/* Sticky toolbar — centered Tabbar with balanced side insets */}
-			<header
-				ref={navigationRef}
-				className="speed-dial-navigation-toolbar relative sticky top-0 right-0 left-0 isolate z-[var(--speed-dial-layer-navigation)] mt-[max(env(safe-area-inset-top),0.75rem)] flex h-14 items-center"
-				data-navigation-sticky={navigationSticky ? "true" : "false"}
-				data-speed-dial-navigation="true"
-			>
-				{/* Balanced responsive rails keep the Tabbar centered while leaving
-				    enough room for the in-flow Back identity at narrow widths. */}
-				<div
-					className="w-[var(--speed-dial-navigation-rail)] shrink-0"
-					aria-hidden="true"
-				/>
-
-				{/* Center: one compact navigation group. The Tabbar anchor owns the
-				    fixed-width center; Back is positioned outside it until sticky. */}
-				<div className="pointer-events-auto mx-auto flex min-w-0 max-w-[880px] flex-1 items-center justify-center px-2">
-					{/* The measured lane is the stable Tabbar coordinate system. Its
-					    center track remains unchanged when Back appears or disappears. */}
-					<div
-						ref={containerRef}
-						className="speed-dial-navigation-group grid min-w-0 max-w-full flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center"
-					>
-						<div
+		<nav
+			aria-label="Folder navigation"
+			className="pointer-events-none absolute inset-0 flex items-center px-[var(--speed-dial-toolbar-gutter)]"
+			data-speed-dial-navigation="true"
+		>
+			<div className="grid w-full grid-cols-[minmax(5rem,1fr)_minmax(0,2fr)_minmax(5rem,1fr)] items-center">
+				<div className="pointer-events-auto flex min-w-0 items-center gap-2 overflow-hidden">
+					<HistoryControls
+						isLiquid={isLiquid}
+						canGoBack={canGoBack}
+						canGoForward={canGoForward}
+						onBack={onBack}
+						onForward={onForward}
+					/>
+					{showContextualTitle && contextualFolder && (
+						<span
 							className={cn(
-								"speed-dial-navigation-anchor col-start-2 flex min-w-0 items-center",
-								!navigationSticky && "relative",
+								"min-w-0 truncate font-medium text-[13px]",
+								glassText(isLiquid, "primary"),
 							)}
+							title={contextualFolder.name}
 						>
-							{showBackNav && currentFolder && (
-								<motion.div
-									layout={reduceMotion ? false : "position"}
-									transition={
-										reduceMotion ? { duration: 0 } : { layout: SPRING_LAYOUT }
-									}
-									className="toolbar-back-identity flex min-w-0 max-w-full shrink items-center gap-2"
-									data-navigation-back="true"
-									data-navigation-sticky={navigationSticky ? "true" : "false"}
-								>
-									<ToolbarBack onBack={onBack} />
-									<span
-										className={cn(
-											"min-w-0 truncate font-medium text-[13px]",
-											glassText(isLiquid, "primary"),
-										)}
-										title={currentFolder.name}
-									>
-										{currentFolder.name}
-									</span>
-								</motion.div>
-							)}
+							{contextualFolder.name}
+						</span>
+					)}
+				</div>
 
-							<div className="speed-dial-tabbar-cluster relative flex min-w-0 items-center">
-								<div className="flex min-w-0 items-center gap-[var(--speed-dial-toolbar-compact-gap)]">
-									{searchEnabled && (
-										<div
-											className="toolbar-compact-search"
-											data-compact-search-control="true"
-										>
-											<ToolbarIconButton
-												icon="search"
-												label="Search"
-												onClick={onOpenSearch}
-											/>
-										</div>
-									)}
-									<div className="min-w-0 shrink-0">
-										<FolderTabs
-											folders={visibleFolders}
-											hiddenFolders={hiddenFolders}
-											activeRootId={activeRootId}
-											navigationDirection={navigationDirection}
-											showAddButton={!hasOverflow}
-											onAddRoot={onNewRootFolder}
-											onAddFolder={onAddFolder}
-											onSelectFolder={onSelectFolder}
-											onNewRootFolder={onNewRootFolder}
-											onNewSubfolder={onNewSubfolder}
-											onDeleteFolder={onDeleteFolder}
-											onReorderFolders={onReorderFolders}
-											onDropCards={onDropCards}
-											onMoveFolders={onMoveFolders}
-											onMoveFolderToRoot={onMoveFolderToRoot}
-											isRootFolder={isRootFolder}
-											canNestFolder={canNestFolder}
-										/>
-									</div>
-								</div>
-
-								{/* Hidden measurer with max-w truncation */}
-								<div
-									ref={measureRef}
-									aria-hidden="true"
-									className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-0.5"
-									style={{ visibility: "hidden" }}
-								>
-									{sorted.map((folder) => (
-										<span
-											key={folder.id}
-											className={cn(
-												TOOLBAR.controlHeight,
-												TOOLBAR.radius,
-												"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
-											)}
-										>
-											{folder.name}
-										</span>
-									))}
-								</div>
+				<div
+					ref={containerRef}
+					className="pointer-events-auto relative col-start-2 mx-auto flex w-full min-w-0 max-w-[880px] items-center justify-center"
+				>
+					<div className="relative flex min-w-0 max-w-full items-center">
+						<FolderTabs
+							folders={visibleFolders}
+							hiddenFolders={hiddenFolders}
+							activeRootId={activeRootId}
+							navigationDirection={navigationDirection}
+							showAddButton={!hasOverflow}
+							onAddRoot={onNewRootFolder}
+							onAddFolder={onAddFolder}
+							onSelectFolder={onSelectFolder}
+							onNewRootFolder={onNewRootFolder}
+							onNewSubfolder={onNewSubfolder}
+							onDeleteFolder={onDeleteFolder}
+							onReorderFolders={onReorderFolders}
+							onDropCards={onDropCards}
+							onMoveFolders={onMoveFolders}
+							onMoveFolderToRoot={onMoveFolderToRoot}
+							isRootFolder={isRootFolder}
+							canNestFolder={canNestFolder}
+						/>
+						{searchEnabled && (
+							<div
+								className="toolbar-compact-search"
+								data-compact-search-control="true"
+							>
+								<ToolbarIconButton
+									icon="search"
+									label="Search"
+									onClick={onOpenSearch}
+								/>
 							</div>
-						</div>
+						)}
+					</div>
+
+					<div
+						ref={measureRef}
+						aria-hidden="true"
+						className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-0.5"
+						style={{ visibility: "hidden" }}
+					>
+						{sorted.map((folder) => (
+							<span
+								key={folder.id}
+								className={cn(
+									TOOLBAR.controlHeight,
+									TOOLBAR.radius,
+									"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
+								)}
+							>
+								{folder.name}
+							</span>
+						))}
 					</div>
 				</div>
 
-				{/* Right: balanced inset for the stationary app Settings control.
-				    Keeping this lane symmetrical lets the one Tabbar travel into
-				    the sticky toolbar without colliding with that control. */}
-				<div
-					className="w-[var(--speed-dial-navigation-rail)] shrink-0"
-					aria-hidden="true"
-				/>
-			</header>
+				<div aria-hidden="true" className="min-w-0" />
+			</div>
+		</nav>
+	);
+}
+
+interface HistoryControlsProps {
+	isLiquid: boolean;
+	canGoBack: boolean;
+	canGoForward: boolean;
+	onBack: () => void;
+	onForward: () => void;
+}
+
+function HistoryControls({
+	isLiquid,
+	canGoBack,
+	canGoForward,
+	onBack,
+	onForward,
+}: HistoryControlsProps) {
+	// Raw library primitives only.
+	//
+	// There is exactly ONE surface in each mode, and it owns the group's
+	// geometry: in Glass mode that is the GlassButtonGroup's refractive
+	// surface, in Flat mode the ButtonGroup itself. Neither mode wraps the
+	// group in a second visual container, because a wrapper can only ever
+	// approximate the segments inside it — which is how the control ended up
+	// with a rounded shell around a square-er inner end.
+	//
+	// The segments are full-bleed: the group carries no inner padding, so the
+	// hover/pressed wash reaches the capsule edge instead of floating as an
+	// inset block with a square cut in the middle. The segments are h-full and
+	// follow the group's surface height directly.
+	//
+	// Klice customizes only what it is allowed to: the group height, segment
+	// width, the glyph token, the liquid wash tint, and the group's corner
+	// role. Segment geometry, the seam and disabled state stay owned by the
+	// group implementation.
+	const groupClassName = cn(TOOLBAR.groupHeight, "shrink-0");
+	const groupButtons = (
+		<>
+			<HistoryButton
+				icon="chevron-left"
+				label="Back"
+				disabled={!canGoBack}
+				isLiquid={isLiquid}
+				onClick={onBack}
+			/>
+			<HistoryButton
+				icon="chevron-right"
+				label="Forward"
+				disabled={!canGoForward}
+				isLiquid={isLiquid}
+				onClick={onForward}
+			/>
 		</>
+	);
+
+	if (isLiquid) {
+		return (
+			<GlassButtonGroup
+				glassVariant="liquid-refract"
+				aria-label="Navigation history"
+				aria-orientation="horizontal"
+				className={groupClassName}
+			>
+				{groupButtons}
+			</GlassButtonGroup>
+		);
+	}
+
+	return (
+		<ButtonGroup
+			aria-label="Navigation history"
+			aria-orientation="horizontal"
+			className={cn(
+				kliceShape("toolbarGroup"),
+				flatSurface("floating"),
+				groupClassName,
+			)}
+		>
+			{groupButtons}
+		</ButtonGroup>
+	);
+}
+
+interface HistoryButtonProps {
+	icon: "chevron-left" | "chevron-right";
+	label: string;
+	disabled: boolean;
+	isLiquid: boolean;
+	onClick: () => void;
+}
+
+function HistoryButton({
+	icon,
+	label,
+	disabled,
+	isLiquid,
+	onClick,
+}: HistoryButtonProps) {
+	return (
+		<Button
+			variant="ghost"
+			size="icon"
+			aria-label={label}
+			disabled={disabled}
+			onClick={onClick}
+			className={cn(
+				"h-full",
+				TOOLBAR.controlWidth,
+				// Same wash tint as the tabbar items. The seam and the outer
+				// capsule ends stay native to the group.
+				isLiquid &&
+					"text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20",
+			)}
+			data-slot="button"
+		>
+			<Icon
+				name={icon}
+				size={toolbarIconSize(icon)}
+				className={toolbarIconClass(icon)}
+				aria-hidden="true"
+			/>
+		</Button>
 	);
 }

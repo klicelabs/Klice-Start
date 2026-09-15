@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
+import { glassShape } from "../../../../lib/glass";
 import { cn } from "../../../../lib/utils";
 import {
 	SETTINGS_CARD,
 	SETTINGS_CARD_SURFACE,
 	SETTINGS_CARD_SURFACE_DANGER,
-	SETTINGS_RADIUS,
 } from "./settings-tokens";
 
 interface SectionCardProps {
@@ -28,8 +28,8 @@ export function SectionCard({
 	return (
 		<div
 			className={cn(
-				"squircle relative overflow-visible shadow-none",
-				SETTINGS_RADIUS.panel,
+				glassShape("panel"),
+				"relative overflow-visible shadow-none",
 				SETTINGS_CARD,
 				tone === "danger"
 					? SETTINGS_CARD_SURFACE_DANGER

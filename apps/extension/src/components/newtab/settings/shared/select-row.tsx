@@ -1,19 +1,21 @@
 import {
 	Select,
 	SelectContent,
+	SelectGroup,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
 } from "@klice-start/ui/components/select";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
+import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
+import { glassShape } from "../../../../lib/glass";
 import { cn } from "../../../../lib/utils";
 import { SettingRow } from "./setting-row";
 import {
 	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_SELECT_TRIGGER,
 } from "./settings-tokens";
-import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 
 interface SelectOption<T extends string> {
 	value: T;
@@ -82,15 +84,19 @@ export function SelectRow<T extends string>({
 						}}
 					</SelectValue>
 				</SelectTrigger>
-				<SelectContent className={SETTINGS_SCOPE_CLASS}>
-					{options.map((opt) => (
-						<SelectItem key={opt.value} value={opt.value}>
-							<span className="flex items-center gap-2">
-								{opt.icon}
-								{opt.label}
-							</span>
-						</SelectItem>
-					))}
+				<SelectContent
+					className={cn(SETTINGS_SCOPE_CLASS, glassShape("section"))}
+				>
+					<SelectGroup>
+						{options.map((opt) => (
+							<SelectItem key={opt.value} value={opt.value}>
+								<span className="flex items-center gap-2">
+									{opt.icon}
+									{opt.label}
+								</span>
+							</SelectItem>
+						))}
+					</SelectGroup>
 				</SelectContent>
 			</Select>
 		</SettingRow>

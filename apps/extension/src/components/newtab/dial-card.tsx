@@ -104,7 +104,11 @@ export function DialCard({
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
-					glassCardMaterial(isLiquid),
+					// Screenshot/gradient content is already the bookmark body surface.
+					// Keep classic elevation, but avoid a second Liquid Glass backdrop
+					// layer behind that visual content. The footer remains materialized
+					// independently below.
+					!isLiquid && glassCardMaterial(false),
 					glassFocusRing(isLiquid),
 					insertion === "before" && "drop-insert-before",
 					insertion === "after" && "drop-insert-after",

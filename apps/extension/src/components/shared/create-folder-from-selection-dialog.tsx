@@ -10,13 +10,13 @@ import { Input } from "@klice-start/ui/components/input";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useEffect, useState } from "react";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
+import { glassShape } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import {
 	SETTINGS_ACTION,
 	SETTINGS_ACTION_PRIMARY,
 	SETTINGS_FOCUS_RING,
 	SETTINGS_INPUT,
-	SETTINGS_RADIUS,
 } from "../newtab/settings/shared/settings-tokens";
 
 export type SelectionCreateMode = "folder" | "subfolder";
@@ -77,9 +77,8 @@ export function CreateFolderFromSelectionDialog({
 			<DialogContent
 				glassVariant={isLiquid ? "liquid" : "classic"}
 				className={cn(
-					"squircle",
+					glassShape("panel"),
 					SETTINGS_SCOPE_CLASS,
-					SETTINGS_RADIUS.panel,
 					"sm:max-w-[380px]",
 				)}
 			>
@@ -119,6 +118,7 @@ export function CreateFolderFromSelectionDialog({
 							glassVariant={isLiquid ? "liquid" : "classic"}
 							className={cn(
 								"h-10 text-[13px]",
+								isLiquid && glassShape("control"),
 								isLiquid
 									? "border-white/[0.28] bg-white/[0.08] text-white placeholder:text-white/45"
 									: SETTINGS_INPUT,
@@ -137,7 +137,8 @@ export function CreateFolderFromSelectionDialog({
 
 					<div
 						className={cn(
-							"flex items-center gap-2 rounded-[12px] px-3 py-2.5 text-[12px]",
+							glassShape("control"),
+							"flex items-center gap-2 px-3 py-2.5 text-[12px]",
 							isLiquid
 								? "bg-white/[0.09] text-white/75"
 								: "bg-flat-sunken-raised text-flat-ink-muted",
@@ -152,8 +153,8 @@ export function CreateFolderFromSelectionDialog({
 							type="button"
 							onClick={() => onOpenChange(false)}
 							className={cn(
-								"squircle inline-flex h-9 items-center justify-center px-3 font-medium text-xs",
-								SETTINGS_RADIUS.control,
+								"inline-flex h-9 items-center justify-center px-3 font-medium text-xs",
+								glassShape("control"),
 								SETTINGS_ACTION,
 								SETTINGS_FOCUS_RING,
 								isLiquid &&
@@ -166,8 +167,8 @@ export function CreateFolderFromSelectionDialog({
 							type="submit"
 							disabled={!name.trim()}
 							className={cn(
-								"squircle inline-flex h-9 items-center justify-center gap-1.5 px-3 font-medium text-xs",
-								SETTINGS_RADIUS.control,
+								"inline-flex h-9 items-center justify-center gap-1.5 px-3 font-medium text-xs",
+								glassShape("control"),
 								SETTINGS_ACTION_PRIMARY,
 								SETTINGS_FOCUS_RING,
 								"bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] hover:brightness-95 disabled:pointer-events-none disabled:opacity-40",

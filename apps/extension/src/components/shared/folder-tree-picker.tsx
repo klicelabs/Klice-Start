@@ -14,12 +14,11 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { buildTree, type FolderTreeNode } from "../../lib/folder-tree";
-import { glassMaterial } from "../../lib/glass";
+import { glassMaterial, glassShape } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import type { Folder } from "../../types";
 import {
 	SETTINGS_FOCUS_RING,
-	SETTINGS_RADIUS,
 	SETTINGS_TRIGGER,
 } from "../newtab/settings/shared/settings-tokens";
 
@@ -149,7 +148,6 @@ export function FolderTreePicker({
 						className={cn(
 							"flex h-8 w-full items-center gap-1.5 px-2.5 text-left outline-none",
 							SETTINGS_TRIGGER,
-							SETTINGS_RADIUS.control,
 							SETTINGS_FOCUS_RING,
 							isLiquid &&
 								cn(glassMaterial(true), "text-white hover:bg-white/[0.16]"),
@@ -176,10 +174,11 @@ export function FolderTreePicker({
 				<PopoverPositioner side="bottom" align="start" sideOffset={6}>
 					<PopoverPopup
 						className={cn(
-							"squircle w-[min(320px,calc(100vw-32px))] border border-border/70 bg-popover p-1.5 text-popover-foreground shadow-lg outline-none",
+							"w-[min(320px,calc(100vw-32px))] p-1.5 outline-none",
 							SETTINGS_SCOPE_CLASS,
-							SETTINGS_RADIUS.section,
-							isLiquid && cn(glassMaterial(true, "menu"), "text-white"),
+							glassShape("panel"),
+							glassMaterial(isLiquid, "menu", "dense"),
+							isLiquid ? "text-white" : "text-flat-ink",
 						)}
 					>
 						<FileTree
@@ -190,9 +189,12 @@ export function FolderTreePicker({
 							ariaLabel={label}
 							className="max-h-64 overflow-y-auto"
 							classNames={{
-								item: isLiquid
-									? "text-white/70 hover:bg-white/[0.12] hover:text-white"
-									: "text-flat-ink-muted hover:bg-flat-face-hover hover:text-flat-ink",
+								item: cn(
+									glassShape("control"),
+									isLiquid
+										? "text-white/70 hover:bg-white/[0.12] hover:text-white"
+										: "text-flat-ink-muted hover:bg-flat-face-hover hover:text-flat-ink",
+								),
 								icon: isLiquid ? "text-white/70" : "text-flat-ink-muted",
 							}}
 						>
@@ -217,7 +219,7 @@ export function FolderTreePicker({
 								onClick={() => setOpen(false)}
 								className={cn(
 									"inline-flex h-8 shrink-0 items-center justify-center px-2.5 font-medium text-muted-foreground text-xs transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-									SETTINGS_RADIUS.control,
+									glassShape("control"),
 								)}
 							>
 								Cancel
@@ -229,7 +231,7 @@ export function FolderTreePicker({
 								onDoubleClick={() => pending !== null && commit(pending)}
 								className={cn(
 									"inline-flex h-8 shrink-0 items-center justify-center bg-primary px-3 font-medium text-primary-foreground text-xs transition-[background-color,opacity] hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40",
-									SETTINGS_RADIUS.control,
+									glassShape("control"),
 								)}
 							>
 								Select
