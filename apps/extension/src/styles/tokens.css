@@ -632,7 +632,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 /* Layer order is deliberate: wallpaper/content, this fade, navigation/app
    toolbar, then the promoted Search surface. The scroll viewport must stay
-   non-stacking so these frame-level boundaries remain predictable. */
+   non-stacking so these frame-level boundaries remain predictable.
+   NOTE: no `opacity` here on purpose. This file is unlayered, so any opacity
+   declared here would outrank Tailwind's `opacity-*` utilities (which live in
+   @layer utilities) and the scroll gate in App.tsx could never hide the fade.
+   Visibility is owned solely by those utilities. */
 .speed-dial-top-fade {
 	position: absolute;
 	inset-inline: 0;
@@ -640,7 +644,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	z-index: var(--speed-dial-layer-scroll-fade);
 	pointer-events: none;
 	height: calc(9rem + max(env(safe-area-inset-top), 0.75rem));
-	opacity: 1;
 	background-image:
 		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
 		linear-gradient(
