@@ -6,11 +6,11 @@ import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { flatSeparator, flatSurface } from "@klice-start/ui/lib/surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	HERO_TEXT_SHADOW,
 	glassForeground,
 	glassLensVeil,
 	glassLiquidProps,
 	glassText,
+	HERO_TEXT_SHADOW,
 } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import {
@@ -23,7 +23,7 @@ import {
 import { cn } from "../../../lib/utils";
 import type { InsertPosition } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
-import { useAppearance } from "../appearance-provider";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
 import { ToolbarIconButton } from "./toolbar-icon-button";
 
@@ -265,7 +265,7 @@ export function NavigationToolbar({
 								className={cn(
 									TOOLBAR.controlHeight,
 									TOOLBAR.radius,
-									"inline-flex max-w-[160px] items-center truncate px-3 text-[13px] font-normal",
+									"inline-flex max-w-[160px] items-center truncate px-3 font-normal text-[13px]",
 								)}
 							>
 								{folder.name}
@@ -314,7 +314,8 @@ function HistoryControls({
 	// role. Segment geometry, the seam and disabled state stay owned by the
 	// group implementation.
 	// Hooks below are unconditional so every render path shares one order.
-	const { glassParams, resolvedDark } = useAppearance();
+	const { resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	const groupClassName = cn(TOOLBAR.groupHeight, "shrink-0");
 	const groupButtons = (
 		<>
@@ -395,19 +396,13 @@ interface HistoryButtonProps {
  * Glass gets a faint white hairline; Flat gets the engraved tonal groove
  * from the shared surface system (never a hard border color).
  */
-function HistoryDivider({
-	isLiquid,
-}: {
-	isLiquid: boolean;
-}) {
+function HistoryDivider({ isLiquid }: { isLiquid: boolean }) {
 	return (
 		<span
 			aria-hidden="true"
 			className={cn(
 				"h-[18px] w-px shrink-0 self-center",
-				isLiquid
-					? "bg-foreground/15"
-					: flatSeparator("vertical"),
+				isLiquid ? "bg-foreground/15" : flatSeparator("vertical"),
 			)}
 		/>
 	);

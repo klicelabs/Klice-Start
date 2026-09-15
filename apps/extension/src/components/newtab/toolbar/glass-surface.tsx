@@ -1,17 +1,17 @@
-import type { CSSProperties, HTMLAttributes } from "react";
 import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { flatSurface } from "@klice-start/ui/lib/surface";
+import type { CSSProperties, HTMLAttributes } from "react";
 import {
 	type GlassShape,
 	type GlassTier,
-	glassLiquidProps,
 	glassLensVeil,
+	glassLiquidProps,
 	glassShape,
 	glassTierVariant,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 
 type GlassSurfaceProps = HTMLAttributes<HTMLDivElement> & {
 	/** Product intent mapped to a glasscn material tier. */
@@ -68,8 +68,8 @@ export function GlassSurface({
 	style,
 	...props
 }: GlassSurfaceProps) {
-	const { isLiquid, glassParams, prefersContrastMore, resolvedDark } =
-		useAppearance();
+	const { isLiquid, prefersContrastMore, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	// prefers-contrast: more upgrades broad `surface` panels to the dense
 	// `menu` tier so text survives any wallpaper. Hero keeps its lens.
 	const effectiveVariant: GlassTier =

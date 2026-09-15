@@ -2,9 +2,9 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { ACCENT_COLORS } from "../../lib/accent";
 import {
 	clampGlassIntensity,
+	type GlassIntensityParams,
 	glassCssVariables,
 	glassIntensityParams,
-	type GlassIntensityParams,
 } from "../../lib/glass";
 import { useSetupStore } from "../../stores/setup-store";
 import type {
@@ -23,12 +23,15 @@ export interface AppearanceContextValue {
 	colorScheme: ColorScheme;
 	accentColor: AccentColor;
 	resolvedDark: boolean;
+	/** prefers-contrast: more — forces dense veils + strong ink. */
+	prefersContrastMore: boolean;
+}
+
+export interface GlassAppearanceContextValue {
 	/** Liquid Glass intensity 0 (Ultra Clear) … 100 (Fully Tinted). */
 	glassIntensity: number;
 	/** Optical recipe derived from glassIntensity (blur ≤12, refraction…). */
 	glassParams: GlassIntensityParams;
-	/** prefers-contrast: more — forces dense veils + strong ink. */
-	prefersContrastMore: boolean;
 }
 
 const AppearanceContext = createContext<AppearanceContextValue>({
@@ -38,9 +41,12 @@ const AppearanceContext = createContext<AppearanceContextValue>({
 	colorScheme: "auto",
 	accentColor: "blue",
 	resolvedDark: true,
+	prefersContrastMore: false,
+});
+
+const GlassAppearanceContext = createContext<GlassAppearanceContextValue>({
 	glassIntensity: 60,
 	glassParams: glassIntensityParams(60),
-	prefersContrastMore: false,
 });
 
 export function AppearanceProvider({
@@ -137,7 +143,9 @@ export function AppearanceProvider({
 			"--klice-glass-intensity",
 			String(glassIntensity / 100),
 		);
-		for (const [name, value] of Object.entries(glassCssVariables(glassParams))) {
+		for (const [name, value] of Object.entries(
+			glassCssVariables(glassParams),
+		)) {
 			root.style.setProperty(name, value);
 		}
 	}, [glassParams, glassIntensity, material, prefersContrastMore]);
@@ -150,8 +158,6 @@ export function AppearanceProvider({
 			colorScheme,
 			accentColor,
 			resolvedDark,
-			glassIntensity,
-			glassParams,
 			prefersContrastMore,
 		}),
 		[
@@ -160,19 +166,27 @@ export function AppearanceProvider({
 			colorScheme,
 			accentColor,
 			resolvedDark,
-			glassIntensity,
-			glassParams,
 			prefersContrastMore,
 		],
+	);
+	const glassValue = useMemo(
+		() => ({ glassIntensity, glassParams }),
+		[glassIntensity, glassParams],
 	);
 
 	return (
 		<AppearanceContext.Provider value={value}>
-			{children}
+			<GlassAppearanceContext.Provider value={glassValue}>
+				{children}
+			</GlassAppearanceContext.Provider>
 		</AppearanceContext.Provider>
 	);
 }
 
 export function useAppearance(): AppearanceContextValue {
 	return useContext(AppearanceContext);
+}
+
+export function useGlassAppearance(): GlassAppearanceContextValue {
+	return useContext(GlassAppearanceContext);
 }

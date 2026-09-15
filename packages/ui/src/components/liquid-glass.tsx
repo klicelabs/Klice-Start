@@ -183,6 +183,7 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
 ) {
   const rawId = useId();
   const filterId = useMemo(() => `liquid-glass-${rawId.replace(/:/g, "")}`, [rawId]);
+  const canUseSvgRefraction = useMemo(() => supportsSvgBackdropFilter(), []);
 
   // -------------------------------------------------------------------------
   // Ref merge — we need the DOM node to measure geometry while still
@@ -206,7 +207,7 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
   const [geometry, setGeometry] = useState<MapGeometry | null>(null);
 
 	useEffect(() => {
-		if (!refract) return;
+		if (!refract || !canUseSvgRefraction) return;
 		const el = localRef.current;
     if (!el) return;
     const measure = () => {
@@ -226,7 +227,7 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-	}, [bezel, refract]);
+	}, [bezel, canUseSvgRefraction, refract]);
 
 	const mapUrl = useMemo(
 		() => (refract && geometry ? createDisplacementMap(geometry) : ""),
@@ -243,8 +244,9 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
-    setSupported(supportsSvgBackdropFilter());
-  }, []);
+    if (!refract || !canUseSvgRefraction) return;
+    setSupported(true);
+  }, [canUseSvgRefraction, refract]);
 
   // `blur` is public API, so clamp it at the material boundary rather than
   // relying on every consumer to remember the performance budget. The

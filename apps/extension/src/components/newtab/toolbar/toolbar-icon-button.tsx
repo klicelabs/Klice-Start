@@ -15,7 +15,7 @@ import {
 	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 
 interface ToolbarIconButtonProps {
 	icon: IconName;
@@ -58,7 +58,8 @@ export function ToolbarIconButton({
 	insideSurface = false,
 	size = "default",
 }: ToolbarIconButtonProps) {
-	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	const isLarge = size === "large";
 
 	// One glyph token drives every toolbar icon: the box size and the class
@@ -99,8 +100,7 @@ export function ToolbarIconButton({
 					"shrink-0 shadow-none transition-colors",
 					glassForeground(),
 					glassFocusRing(isLiquid),
-					active &&
-						cn("bg-foreground/10", glassForeground()),
+					active && cn("bg-foreground/10", glassForeground()),
 				)}
 			>
 				{glyph}
@@ -142,16 +142,11 @@ export function ToolbarIconButton({
 							: cn(
 									glassForeground("secondary"),
 									"hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15",
-							  )
+								)
 						: active
 							? `${flatControl()} text-flat-ink shadow-none`
 							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken"
-					: cn(
-							flatControl(),
-							flatFocusRing(),
-							"text-flat-ink",
-							"shadow-none",
-						),
+					: cn(flatControl(), flatFocusRing(), "text-flat-ink", "shadow-none"),
 			)}
 		>
 			{glyph}

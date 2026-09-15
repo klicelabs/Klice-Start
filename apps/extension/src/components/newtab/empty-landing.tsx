@@ -3,10 +3,10 @@ import { Button as MotionButton } from "@klice-start/ui/components/motion/button
 import { Icon } from "@klice-start/ui/icons/icon";
 import { Fragment } from "react";
 import {
-	glassForeground,
 	glassFocusRing,
-	glassLiquidProps,
+	glassForeground,
 	glassLensVeil,
+	glassLiquidProps,
 	glassMaterial,
 	HERO_TEXT_SHADOW,
 	wallpaperText,
@@ -15,7 +15,7 @@ import { RECOMMENDED_SITES } from "../../lib/recommended-sites";
 import { faviconUrl } from "../../lib/url";
 import { cn } from "../../lib/utils";
 import { useSetupStore } from "../../stores/setup-store";
-import { useAppearance } from "./appearance-provider";
+import { useAppearance, useGlassAppearance } from "./appearance-provider";
 
 interface EmptyLandingProps {
 	/** Target folder, used to name where a quick-add shortcut will land. */
@@ -46,7 +46,8 @@ const QUICK_ADD = RECOMMENDED_SITES.slice(0, 4);
  * for saving a page lives in Settings rather than in the main body.
  */
 export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
-	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const addCard = useSetupStore((s) => s.addCard);
 	const optics = glassLiquidProps(glassParams, "clear");
@@ -132,8 +133,8 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 						>
 							<Icon name="bookmark" size={26} />
 						</div>
-				)}
-			</div>
+					)}
+				</div>
 
 				{/* 2 + 3. Headline, then one short supporting sentence. Both sit
 				    directly on the wallpaper with no backing surface, so they

@@ -1,11 +1,11 @@
+import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
 import {
 	Sidebar,
 	SidebarContent,
 	SidebarHeader,
 } from "@klice-start/ui/components/sidebar";
-import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
-import { Icon } from "@klice-start/ui/icons/icon";
 import type { IconName } from "@klice-start/ui/icons/icon";
+import { Icon } from "@klice-start/ui/icons/icon";
 import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -16,7 +16,7 @@ import {
 	glassShape,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
@@ -65,7 +65,8 @@ function SettingsChromeButton({
 	onClick: () => void;
 	buttonRef?: React.Ref<HTMLButtonElement>;
 }) {
-	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	const glyph = (
 		<Icon name={icon} size={17} strokeWidth={1.5} aria-hidden="true" />
 	);
@@ -81,7 +82,10 @@ function SettingsChromeButton({
 				brightness={optics.brightness}
 				bezel={optics.bezel}
 				shape="toolbarIcon"
-				className={cn("size-[34px] shrink-0", glassLensVeil("hero", resolvedDark))}
+				className={cn(
+					"size-[34px] shrink-0",
+					glassLensVeil("hero", resolvedDark),
+				)}
 			>
 				<button
 					ref={buttonRef}

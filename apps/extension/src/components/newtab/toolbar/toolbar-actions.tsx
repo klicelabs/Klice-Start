@@ -13,7 +13,7 @@ import {
 	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface ToolbarActionsProps {
@@ -22,7 +22,8 @@ interface ToolbarActionsProps {
 
 /** Settings remains the persistent app-level action when the sidebar is closed. */
 export function ToolbarActions({ onSettings }: ToolbarActionsProps) {
-	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
 	const optics = glassLiquidProps(glassParams, "clear");
 
 	return (
