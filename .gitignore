@@ -65,3 +65,12 @@ ruvector.db
 
 # Local QA evidence (screenshots and probe output from manual verification)
 .qa
+
+# Local extension/agent tooling (build snapshots, browser state, locks)
+.output/
+.output*/
+.wxt/
+.wxt*/
+.agents/
+.playwright-mcp/
+skills-lock.json
