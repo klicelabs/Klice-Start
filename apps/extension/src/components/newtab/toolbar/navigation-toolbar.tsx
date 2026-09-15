@@ -340,6 +340,9 @@ function HistoryControls({
 			className={cn(
 				kliceShape("toolbarGroup"),
 				flatSurface("floating"),
+				// Toolbar controls carry no elevation: face wash only, so the
+				// group never reads as floating above the wallpaper.
+				"shadow-none",
 				groupClassName,
 			)}
 		>

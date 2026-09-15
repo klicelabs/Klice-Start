@@ -16,6 +16,13 @@ type GlassSurfaceProps = HTMLAttributes<HTMLDivElement> & {
 	variant?: GlassTier;
 	/** Shared corner role; toolbar is the default for this primitive. */
 	shape?: GlassShape;
+	/**
+	 * Drop the Flat elevation (outer shadow) and keep only the face wash.
+	 * Toolbar clusters (Tabbar shell) opt out — they sit on the wallpaper
+	 * like macOS controls, never floating above it. Floating panels such as
+	 * the Search overlay keep the default elevation.
+	 */
+	shadowless?: boolean;
 };
 
 /**
@@ -33,6 +40,7 @@ export function GlassSurface({
 	children,
 	variant = "hero",
 	shape = "toolbar",
+	shadowless = false,
 	...props
 }: GlassSurfaceProps) {
 	const { isLiquid } = useAppearance();
@@ -63,7 +71,11 @@ export function GlassSurface({
 	return (
 		<div
 			{...props}
-			className={cn(surfaceClassName, flatSurface("floating"))}
+			className={cn(
+				surfaceClassName,
+				flatSurface("floating"),
+				shadowless && "shadow-none",
+			)}
 		>
 			{children}
 		</div>

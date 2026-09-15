@@ -122,12 +122,13 @@ export function ToolbarIconButton({
 							? "bg-white/25 text-white"
 							: "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
 						: active
-							? `${flatControl()} text-flat-ink`
+							? `${flatControl()} text-flat-ink shadow-none`
 							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken"
 					: cn(
 							flatControl(),
 							flatFocusRing(),
 							"text-flat-ink",
+							"shadow-none",
 						),
 			)}
 		>

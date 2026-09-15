@@ -125,6 +125,7 @@ export function FolderTabs({
 
 	return (
 		<GlassSurface
+			shadowless
 			className={cn(TOOLBAR.groupPadding, "w-max min-w-0 max-w-full gap-0.5")}
 		>
 			<Tabs
@@ -381,7 +382,9 @@ function FolderTab({
 		: "";
 	const indicatorClass = cn(
 		"pointer-events-none",
-		isLiquid ? "bg-white/25" : "face-control shadow-control",
+		// Active tab keeps its face wash for hierarchy, but like every other
+		// toolbar control it carries no elevation shadow.
+		isLiquid ? "bg-white/25" : "face-control shadow-none",
 		dropActive &&
 			(isLiquid ? "ring-1 ring-white/40" : "ring-1 ring-flat-edge-strong"),
 	);

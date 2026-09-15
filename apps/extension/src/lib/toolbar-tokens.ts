@@ -1,6 +1,5 @@
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { kliceShape } from "@klice-start/ui/lib/shapes";
-import { flatControl } from "@klice-start/ui/lib/surface";
 
 /**
  * Shared toolbar design tokens. Every control in the toolbar must use these
@@ -161,10 +160,14 @@ export function toolbarControlLiquid(active: boolean): string {
  * reserved for secondary states and disabled controls, so a normal inactive
  * tab must not read as disabled. Active-state hierarchy is carried by the
  * control face background, not by dimming the label.
+ *
+ * Toolbar controls carry no elevation shadow anywhere (group shell, tabs,
+ * standalone buttons): face wash only. Imported face recipes that bundle a
+ * shadow (flatControl) are therefore never used here directly.
  */
 export function toolbarControlClassic(active: boolean): string {
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} ${flatControl()} text-flat-ink`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} face-control shadow-none text-flat-ink`;
 	}
 	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken`;
 }
