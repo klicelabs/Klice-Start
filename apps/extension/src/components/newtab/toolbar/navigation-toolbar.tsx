@@ -404,11 +404,11 @@ function HistoryButton({
 				// Flat mode states its ink explicitly. Disabled segments keep
 				// the strong ink and dim through opacity only (native-style:
 				// dim the normal tone, don't swap to a lighter gray, which
-				// washed the thin glyph out on light faces). 35% reads
+				// washed the thin glyph out on light faces). 25% reads
 				// clearly inactive without disappearing.
 				isLiquid
 					? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-					: "text-flat-ink disabled:opacity-35",
+					: "text-flat-ink disabled:opacity-25",
 			)}
 			data-slot="button"
 		>
