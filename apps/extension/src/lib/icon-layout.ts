@@ -11,8 +11,8 @@ export const ICON_GRID = {
 		rowGap: 18,
 		labelGap: 6,
 		folderSpan: 2,
-		radius: 20,
-		miniRadius: 10,
+		radius: 24,
+		miniRadius: 14,
 	},
 	medium: {
 		cellWidth: 104,
@@ -23,8 +23,8 @@ export const ICON_GRID = {
 		rowGap: 20,
 		labelGap: 7,
 		folderSpan: 2,
-		radius: 24,
-		miniRadius: 11,
+		radius: 28,
+		miniRadius: 16,
 	},
 	large: {
 		cellWidth: 128,
@@ -35,8 +35,8 @@ export const ICON_GRID = {
 		rowGap: 24,
 		labelGap: 8,
 		folderSpan: 2,
-		radius: 28,
-		miniRadius: 13,
+		radius: 32,
+		miniRadius: 18,
 	},
 } as const;
 

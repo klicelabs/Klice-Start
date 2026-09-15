@@ -249,6 +249,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	flex: 1 1 auto;
 	min-height: 0;
 	width: 100%;
+	--squircle-r: var(--icon-radius);
 	border-radius: var(--icon-radius);
 	background: linear-gradient(
 		145deg,

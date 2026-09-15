@@ -22,20 +22,27 @@ export function IconAppTile({
 		<div
 			aria-hidden="true"
 			className={cn(
-				"icon-app-tile relative flex shrink-0 items-center justify-center overflow-hidden",
+				"squircle icon-app-tile relative flex shrink-0 items-center justify-center overflow-hidden",
 				mini
 					? "size-full rounded-[var(--icon-mini-radius)]"
 					: "size-[var(--icon-size)] rounded-[var(--icon-radius)]",
 				className,
 			)}
-			style={{ "--icon-hue": iconHueFromString(url) } as CSSProperties}
+			style={
+				{
+					"--icon-hue": iconHueFromString(url),
+					"--squircle-r": mini
+						? "var(--icon-mini-radius)"
+						: "var(--icon-radius)",
+				} as CSSProperties
+			}
 		>
 			<img
 				src={favicon || fallback}
 				alt=""
 				draggable={false}
 				className={cn(
-					"relative z-10 object-contain drop-shadow-[0_1px_1px_rgb(0_0_0_/_0.12)]",
+					"relative z-10 rounded-full object-contain drop-shadow-[0_1px_1px_rgb(0_0_0_/_0.12)]",
 					mini ? "size-[62%]" : "size-[var(--icon-favicon-size)]",
 				)}
 				onError={(event) => {

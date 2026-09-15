@@ -159,7 +159,7 @@ export function FolderPreviewCard({
 					>
 						{dialLayout === "icon" ? (
 							<>
-								<div className="icon-folder-tile">
+								<div className="icon-folder-tile squircle">
 									{hasPreviews ? (
 										<div
 											className="icon-folder-preview"
