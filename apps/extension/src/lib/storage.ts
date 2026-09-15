@@ -122,6 +122,12 @@ function normalizeAccentColor(
 		: fallback;
 }
 
+/** Clamp the Glass intensity slider to its 0…100 contract. */
+function normalizeGlassIntensity(value: unknown, fallback: number): number {
+	if (!isFiniteNumber(value)) return fallback;
+	return Math.min(100, Math.max(0, Math.round(value)));
+}
+
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
 	if (!Array.isArray(raw)) return [];
 	const seen = new Set<string>();
@@ -347,6 +353,10 @@ export function normalizeState(
 			accentColor: normalizeAccentColor(
 				sourceSettings?.accentColor,
 				defaults.settings.accentColor,
+			),
+			glassIntensity: normalizeGlassIntensity(
+				sourceSettings?.glassIntensity,
+				defaults.settings.glassIntensity,
 			),
 			thumbnailCapture: {
 				...defaults.settings.thumbnailCapture,

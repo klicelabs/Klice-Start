@@ -274,6 +274,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	appearanceMode: "liquid",
 	colorScheme: "auto",
 	accentColor: "blue",
+	/** Calibrated middle default: survives arbitrary wallpapers (see glass.ts). */
+	glassIntensity: 60,
 };
 
 export const DEFAULT_SETUP: Setup = {

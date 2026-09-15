@@ -86,6 +86,17 @@ export interface SearchSettings {
 /** Top-level look: rich CSS glass material vs flat surfaces. */
 export type AppearanceMode = "liquid" | "classic";
 
+/** Product material concept: Glass chrome vs Flat chrome. Mirrors AppearanceMode. */
+export type MaterialMode = "glass" | "flat";
+
+/**
+ * Liquid Glass intensity: one continuous slider from Ultra Clear (0) to
+ * Fully Tinted (100). Drives the whole semantic Glass system (veil density,
+ * refraction strength, saturation, blur) — never a raw opacity override.
+ * Calibrated default is 60: legible on arbitrary wallpapers, not a demo value.
+ */
+export type GlassIntensity = number;
+
 /** System appearance mode: follow system or explicit light/dark. */
 export type ColorScheme = "auto" | "light" | "dark";
 
@@ -122,6 +133,8 @@ export interface Settings {
 	appearanceMode: AppearanceMode;
 	colorScheme: ColorScheme;
 	accentColor: AccentColor;
+	/** Liquid Glass intensity 0 (Ultra Clear) … 100 (Fully Tinted). */
+	glassIntensity: GlassIntensity;
 }
 
 export interface Setup {
