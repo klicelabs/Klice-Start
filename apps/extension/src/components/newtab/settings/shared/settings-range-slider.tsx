@@ -1,5 +1,5 @@
 import { RangeSlider } from "@klice-start/ui/components/motion/range-slider";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { glassShape } from "../../../../lib/glass";
 import { flushPersist } from "../../../../lib/storage";
 import { cn } from "../../../../lib/utils";
@@ -35,6 +35,34 @@ export function SettingsRangeSlider({
 	const [local, setLocal] = useState(value);
 	const interacting = useRef(false);
 	const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const pendingValue = useRef<number | null>(null);
+	const publishFrame = useRef<number | null>(null);
+	const onChangeRef = useRef(onChange);
+
+	useEffect(() => {
+		onChangeRef.current = onChange;
+	}, [onChange]);
+
+	const flushPendingChange = useCallback(() => {
+		if (publishFrame.current !== null) {
+			cancelAnimationFrame(publishFrame.current);
+			publishFrame.current = null;
+		}
+		const next = pendingValue.current;
+		pendingValue.current = null;
+		if (next !== null) onChangeRef.current(next);
+	}, []);
+
+	const scheduleChange = useCallback((next: number) => {
+		pendingValue.current = next;
+		if (publishFrame.current !== null) return;
+		publishFrame.current = requestAnimationFrame(() => {
+			publishFrame.current = null;
+			const valueToPublish = pendingValue.current;
+			pendingValue.current = null;
+			if (valueToPublish !== null) onChangeRef.current(valueToPublish);
+		});
+	}, []);
 
 	useEffect(() => {
 		if (!interacting.current) setLocal(value);
@@ -42,13 +70,15 @@ export function SettingsRangeSlider({
 
 	useEffect(
 		() => () => {
+			flushPendingChange();
 			if (flushTimer.current) clearTimeout(flushTimer.current);
 			void flushPersist().catch(() => undefined);
 		},
-		[],
+		[flushPendingChange],
 	);
 
 	function flushInteraction() {
+		flushPendingChange();
 		if (flushTimer.current) clearTimeout(flushTimer.current);
 		flushTimer.current = null;
 		interacting.current = false;
@@ -94,7 +124,7 @@ export function SettingsRangeSlider({
 				onValueChange={(next) => {
 					interacting.current = true;
 					setLocal(next);
-					onChange(next);
+					scheduleChange(next);
 					scheduleInteractionFlush();
 				}}
 			/>
