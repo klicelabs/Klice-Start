@@ -643,7 +643,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	top: 0;
 	z-index: var(--speed-dial-layer-scroll-fade);
 	pointer-events: none;
-	height: calc(9rem + max(env(safe-area-inset-top), 0.75rem));
+	height: calc(4.5rem + max(env(safe-area-inset-top), 0.75rem));
 	background-image:
 		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
 		linear-gradient(
