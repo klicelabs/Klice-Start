@@ -142,6 +142,7 @@ export default function App() {
 	);
 	const itemOrder = useSetupStore((s) => s.itemOrder ?? {});
 	const searchEnabled = useSetupStore((s) => s.settings.search.enabled);
+	const appearanceMode = useSetupStore((s) => s.settings.appearanceMode);
 
 	const beginRename = useRenameStore((s) => s.begin);
 	const cancelRename = useRenameStore((s) => s.cancel);
@@ -738,6 +739,9 @@ export default function App() {
 										ref={appToolbarRef}
 										className="speed-dial-app-toolbar pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-app-toolbar)] flex h-14 items-center justify-end"
 										data-speed-dial-app-toolbar="true"
+										data-material={
+											appearanceMode === "liquid" ? "liquid" : "flat"
+										}
 									>
 										<NavigationToolbar
 											rootFolders={rootFolders}

@@ -567,9 +567,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	color: var(--liquid-glass-toolbar-foreground-active);
 }
 
-[data-speed-dial-navigation]
+/* Disabled ink follows the active material. This rule must ONLY match the
+   Liquid Glass toolbar: without the [data-material="liquid"] gate it also
+   matched Flat buttons (its unlayered specificity outranks every text-flat-*
+   utility), painting disabled glyphs near-white and invisible on light faces.
+   Flat buttons keep the library's own disabled treatment — dimmed strong ink.
+   The marker lives on the app-toolbar root, which owns both the navigation
+   cluster and the Settings action. */
+[data-speed-dial-app-toolbar][data-material="liquid"]
+	[data-speed-dial-navigation]
 	:is(button, [role="tab"]):is(:disabled, [aria-disabled="true"]),
-[data-speed-dial-app-toolbar]
+[data-speed-dial-app-toolbar][data-material="liquid"]
 	:is(button, [role="button"]):is(:disabled, [aria-disabled="true"]) {
 	color: var(--liquid-glass-toolbar-foreground-disabled);
 }
