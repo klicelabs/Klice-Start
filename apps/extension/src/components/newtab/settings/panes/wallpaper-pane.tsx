@@ -286,6 +286,24 @@ export function WallpaperPane() {
 	const [pending, setPending] = useState<PendingUpload | null>(null);
 	const [customPreview, setCustomPreview] = useState<string | null>(null);
 	const uploadGenerationRef = useRef(0);
+	// The live staged blob URL, if any. Revoked exactly once on replace,
+	// cancel or unmount — never inside a state updater.
+	const pendingUrlRef = useRef<string | null>(null);
+
+	function trackPreviewUrl(url: string | undefined) {
+		const next = url || null;
+		if (pendingUrlRef.current && pendingUrlRef.current !== next) {
+			URL.revokeObjectURL(pendingUrlRef.current);
+		}
+		pendingUrlRef.current = next;
+	}
+
+	function untrackPreviewUrl() {
+		if (pendingUrlRef.current) {
+			URL.revokeObjectURL(pendingUrlRef.current);
+			pendingUrlRef.current = null;
+		}
+	}
 
 	useEffect(() => {
 		let active = true;
@@ -307,13 +325,18 @@ export function WallpaperPane() {
 		};
 	}, [customWallpaper, getBackgroundImage]);
 
+	// Invalidate in-flight uploads and drop the transient preview ONLY on
+	// unmount. This must NOT depend on pending.previewUrl: depending on it
+	// would run the cleanup for the very upload that just staged, bump the
+	// generation, and strand it in "validating" forever. Blob URL lifetime is
+	// owned by stageUpload/clearPending instead, which revoke explicitly.
 	useEffect(
 		() => () => {
 			uploadGenerationRef.current += 1;
 			clearBackgroundPreview();
-			if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
+			untrackPreviewUrl();
 		},
-		[pending?.previewUrl, clearBackgroundPreview],
+		[clearBackgroundPreview],
 	);
 
 	const libraryItems = useMemo<WallpaperLibraryItem[]>(
@@ -389,16 +412,13 @@ export function WallpaperPane() {
 	function clearPending() {
 		uploadGenerationRef.current += 1;
 		clearBackgroundPreview();
-		setPending((previous) => {
-			if (previous?.previewUrl) URL.revokeObjectURL(previous.previewUrl);
-			return null;
-		});
+		untrackPreviewUrl();
+		setPending(null);
 	}
 
 	async function stageUpload(file: File) {
 		const uploadGeneration = ++uploadGenerationRef.current;
 		clearBackgroundPreview();
-		if (pending?.previewUrl) URL.revokeObjectURL(pending.previewUrl);
 		const name =
 			file.name.replace(/\.[^/.]+$/, "").trim() || "Uploaded wallpaper";
 		const next: PendingUpload = {
@@ -406,6 +426,7 @@ export function WallpaperPane() {
 			previewUrl: typeof URL !== "undefined" ? URL.createObjectURL(file) : "",
 			status: "validating",
 		};
+		trackPreviewUrl(next.previewUrl);
 		setPending(next);
 
 		const rejection = validateImageFile(file);
