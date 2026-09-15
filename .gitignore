@@ -65,6 +65,9 @@ ruvector.db
 
 # Local QA evidence (screenshots and probe output from manual verification)
 .qa
+!/.qa/
+/.qa/*
+!/.qa/liquid-glass-benchmark.mjs
 
 # Local extension/agent tooling (build snapshots, browser state, locks)
 .output/
