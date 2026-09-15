@@ -79,12 +79,18 @@ function ThemedToaster() {
 	);
 }
 
-function SpeedDialTopFade() {
+function SpeedDialTopFade({ visible }: { visible: boolean }) {
 	// Keep this frame-level readability layer above scrolling cards but below
 	// the complete toolbar surface; controls inherit one shared layer boundary.
+	// The gradient recipe itself lives in tokens.css and is untouched — only
+	// the standard opacity gate moves here, so the fade rests invisible until
+	// content actually scrolls underneath the toolbar.
 	return (
 		<div
-			className="speed-dial-top-fade pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-scroll-fade)]"
+			className={cn(
+				"speed-dial-top-fade pointer-events-none absolute inset-x-0 top-0 z-[var(--speed-dial-layer-scroll-fade)] transition-opacity duration-200 motion-reduce:transition-none",
+				visible ? "opacity-100" : "opacity-0",
+			)}
 			aria-hidden="true"
 		/>
 	);
@@ -371,6 +377,9 @@ export default function App() {
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
 	const [compactSearch, setCompactSearch] = useState(false);
+	// The top fade only works while content sits underneath the toolbar: at
+	// scroll-top (or when nothing overflows) it rests invisible.
+	const [scrolled, setScrolled] = useState(false);
 
 	const triggerWake = useCallback(() => {
 		setWakeActive(true);
@@ -562,6 +571,7 @@ export default function App() {
 	const appToolbarRef = useRef<HTMLDivElement>(null);
 	const searchAnchorRef = useRef<HTMLDivElement>(null);
 	const compactSearchRef = useRef(false);
+	const scrolledRef = useRef(false);
 	useEffect(() => {
 		const scrollContainer = speedDialScrollRef.current;
 		if (!scrollContainer) return;
@@ -577,7 +587,13 @@ export default function App() {
 	}, [handleSpeedDialBackgroundPointer]);
 
 	useEffect(() => {
-		if (restMode) return;
+		if (restMode) {
+			if (scrolledRef.current) {
+				scrolledRef.current = false;
+				setScrolled(false);
+			}
+			return;
+		}
 		const scrollContainer = speedDialScrollRef.current;
 		const toolbarElement = appToolbarRef.current;
 		if (!scrollContainer || !toolbarElement) return;
@@ -595,6 +611,12 @@ export default function App() {
 			if (compactSearchRef.current !== nextCompactSearch) {
 				compactSearchRef.current = nextCompactSearch;
 				setCompactSearch(nextCompactSearch);
+			}
+
+			const nextScrolled = scrollContainer.scrollTop > 4;
+			if (scrolledRef.current !== nextScrolled) {
+				scrolledRef.current = nextScrolled;
+				setScrolled(nextScrolled);
 			}
 		};
 
@@ -710,7 +732,7 @@ export default function App() {
 								data-speed-dial-frame="true"
 							>
 								<BackgroundLayer contained />
-								<SpeedDialTopFade />
+								<SpeedDialTopFade visible={scrolled} />
 								{!restMode && (
 									<div
 										ref={appToolbarRef}
