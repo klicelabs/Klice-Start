@@ -14,19 +14,23 @@ html.dark body {
 	--klice-accent: #007aff;
 	--klice-accent-foreground: #ffffff;
 	--klice-accent-rgb: 0 122 255;
+	/* Liquid Glass intensity 0 (Ultra Clear) … 1 (Fully Tinted). The provider
+	   overwrites this at runtime; the default matches the calibrated middle
+	   (60) so first paint already uses the intended density. */
+	--klice-glass-intensity: 0.6;
 	/* Ambient copy sits directly on user artwork, so it never follows the
 	   Light/Dark surface palette. */
 	--foreground-on-wallpaper: #ffffff;
 	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
 	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
-	/* Liquid Glass toolbar ink. Active and normal controls stay near-white;
-	   secondary, muted and disabled roles step down without relying on
-	   scattered text-white opacity utilities. */
-	--liquid-glass-toolbar-foreground-active: rgb(255 255 255 / 0.98);
-	--liquid-glass-toolbar-foreground-normal: rgb(255 255 255 / 0.9);
-	--liquid-glass-toolbar-foreground-secondary: rgb(255 255 255 / 0.76);
-	--liquid-glass-toolbar-foreground-muted: rgb(255 255 255 / 0.62);
-	--liquid-glass-toolbar-foreground-disabled: rgb(255 255 255 / 0.36);
+	/* Liquid Glass toolbar ink. Light uses black primary ink; Dark overrides the
+	   same ladder to white primary ink below. The selectors at the bottom keep older
+	   utility-shaped consumers on this single theme-aware source. */
+	--liquid-glass-toolbar-foreground-active: var(--klice-glass-foreground-primary);
+	--liquid-glass-toolbar-foreground-normal: var(--klice-glass-foreground-primary);
+	--liquid-glass-toolbar-foreground-secondary: var(--klice-glass-foreground-secondary);
+	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
+	--liquid-glass-toolbar-foreground-disabled: var(--klice-glass-foreground-disabled);
 	--apple-blue: var(--klice-accent);
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
@@ -36,6 +40,11 @@ html.dark body {
 }
 .dark {
 	--apple-blue: var(--klice-accent);
+	--liquid-glass-toolbar-foreground-active: var(--klice-glass-foreground-primary);
+	--liquid-glass-toolbar-foreground-normal: var(--klice-glass-foreground-primary);
+	--liquid-glass-toolbar-foreground-secondary: var(--klice-glass-foreground-secondary);
+	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
+	--liquid-glass-toolbar-foreground-disabled: var(--klice-glass-foreground-disabled);
 }
 
 /* The new-tab workspace owns its scroll regions. Keep the browser viewport
@@ -652,6 +661,22 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	z-index: var(--speed-dial-layer-scroll-fade);
 	pointer-events: none;
 	height: calc(4.5rem + max(env(safe-area-inset-top), 0.75rem));
+	/* Light Glass family: soft white atmospheric diffusion, opaque at the
+	   top so dark toolbar ink stays readable, gone below the toolbar. No
+	   radial blob — the linear alone diffuses evenly without a visible
+	   ellipse edge on dark photography. */
+	background-image:
+		linear-gradient(
+			to bottom,
+			rgb(255 255 255 / 0.88),
+			rgb(255 255 255 / 0.55) 38%,
+			rgb(255 255 255 / 0.18) 72%,
+			transparent 100%
+		);
+}
+
+/* Dark Glass family: the same shape as soft dark atmospheric diffusion. */
+html.dark .speed-dial-top-fade {
 	background-image:
 		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
 		linear-gradient(
@@ -705,9 +730,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* =========================================================
-   Seleção
+   Seleção — follows the accent via --selection tokens set by
+   AppearanceProvider (accent fill + accent foreground ink).
    ========================================================= */
 ::selection {
-	background: rgba(10, 132, 255, 0.4);
-	color: #ffffff;
+	background: var(--selection, rgba(10, 132, 255, 0.4));
+	color: var(--selection-foreground, #ffffff);
 }

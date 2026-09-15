@@ -16,6 +16,7 @@ import {
 	glassDropdown,
 	glassDropdownItemPill,
 	glassFieldPill,
+	glassForeground,
 	glassText,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
@@ -53,7 +54,7 @@ export function FolderTabsOverflow({
 	onMoveFolders,
 	canNestFolder,
 }: FolderTabsOverflowProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [creating, setCreating] = useState(false);
@@ -204,7 +205,7 @@ export function FolderTabsOverflow({
 				align="end"
 				sideOffset={6}
 				className={cn(
-					glassDropdown(isLiquid),
+					glassDropdown(isLiquid, resolvedDark),
 					"flex max-h-[260px] w-52 min-w-0 max-w-[calc(100vw-1.5rem)] flex-col",
 				)}
 			>
@@ -228,7 +229,7 @@ export function FolderTabsOverflow({
 									name="search"
 									size={14}
 									aria-hidden="true"
-									className="size-3.5 shrink-0 opacity-60"
+									className={cn("size-3.5 shrink-0", glassForeground())}
 								/>
 							</InputGroupAddon>
 							<InputGroupInput
@@ -259,7 +260,7 @@ export function FolderTabsOverflow({
 									// and the trailing button inset stay symmetric.
 									"h-8 min-w-0 py-0 text-[13px]",
 									isLiquid
-										? "text-white/90 placeholder:text-white/60"
+									? cn(glassForeground(), "placeholder:text-[var(--klice-glass-foreground-secondary)]")
 										: "text-foreground placeholder:text-muted-foreground",
 								)}
 							/>
@@ -285,10 +286,10 @@ export function FolderTabsOverflow({
 										"flex size-6 shrink-0 items-center justify-center rounded-full transition-colors",
 										creating && canConfirm
 											? isLiquid
-												? "bg-white/20 text-white hover:bg-white/30"
+											? cn("bg-foreground/10 hover:bg-foreground/15", glassForeground())
 												: `${flatControl()} text-flat-ink`
 											: isLiquid
-												? "text-white/70 hover:bg-white/15 hover:text-white active:bg-white/20"
+											? cn(glassForeground(), "hover:bg-foreground/10 hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15")
 												: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink active:bg-flat-sunken",
 									)}
 								>
@@ -309,7 +310,7 @@ export function FolderTabsOverflow({
 							<div
 								className={cn(
 									"px-3 py-4 text-center text-[12px]",
-									glassText(isLiquid, "muted"),
+									glassText(isLiquid, "muted", resolvedDark),
 								)}
 							>
 								{creating
@@ -323,13 +324,13 @@ export function FolderTabsOverflow({
 										key={folder.id}
 										className={cn(
 											"flex w-full items-center gap-2",
-											glassDropdownItemPill(isLiquid),
+											glassDropdownItemPill(isLiquid, resolvedDark),
 										)}
 									>
 										<Icon
 											name="folder"
 											size={14}
-											className="shrink-0 opacity-60"
+											className={cn("shrink-0", isLiquid && glassForeground())}
 										/>
 										<InlineRenameInput
 											value={folder.name}
@@ -355,33 +356,33 @@ export function FolderTabsOverflow({
 										onDrop={handleRowDrop(folder)}
 										className={cn(
 											"flex w-full items-center gap-2",
-											glassDropdownItemPill(isLiquid),
+											glassDropdownItemPill(isLiquid, resolvedDark),
 											folder.id === activeRootId
 												? isLiquid
-													? "bg-white/[0.12]"
+											? "bg-foreground/10"
 													: "bg-muted"
 												: "",
 											dropId === folder.id &&
 												(isLiquid
-													? "bg-white/[0.18] text-white ring-1 ring-white/40"
+											? cn("bg-foreground/15 ring-1 ring-foreground/30", glassForeground())
 													: "bg-accent text-accent-foreground ring-1 ring-ring"),
 											justCreatedId === folder.id &&
 												(isLiquid
-													? "bg-white/[0.14] text-white ring-1 ring-white/30"
+											? cn("bg-foreground/10 ring-1 ring-foreground/25", glassForeground())
 													: "bg-accent/70 text-accent-foreground ring-1 ring-ring/40"),
 										)}
 									>
 										<Icon
 											name="folder"
 											size={14}
-											className="shrink-0 opacity-60"
+											className={cn("shrink-0", isLiquid && glassForeground())}
 										/>
 										<span className="truncate">{folder.name}</span>
 										{folder.id === activeRootId && (
 											<Icon
 												name="check"
 												size={13}
-												className="ml-auto shrink-0 opacity-60"
+											className={cn("ml-auto shrink-0", isLiquid && glassForeground())}
 											/>
 										)}
 									</button>

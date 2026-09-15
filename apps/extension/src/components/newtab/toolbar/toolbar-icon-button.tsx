@@ -2,7 +2,12 @@ import { GlassIcon } from "@klice-start/ui/components/glass-icon";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { flatControl, flatFocusRing } from "@klice-start/ui/lib/surface";
-import { glassFocusRing } from "../../../lib/glass";
+import {
+	glassFocusRing,
+	glassForeground,
+	glassLensVeil,
+	glassLiquidProps,
+} from "../../../lib/glass";
 import {
 	TOOLBAR,
 	TOOLBAR_ICON,
@@ -24,6 +29,8 @@ interface ToolbarIconButtonProps {
 	dataSettingsUi?: boolean;
 	/** Render as a transparent control inside an existing GlassSurface. */
 	insideSurface?: boolean;
+	/** Larger standalone control for visual previews and hero affordances. */
+	size?: "default" | "large";
 }
 
 /**
@@ -49,8 +56,10 @@ export function ToolbarIconButton({
 	controls,
 	dataSettingsUi = false,
 	insideSurface = false,
+	size = "default",
 }: ToolbarIconButtonProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const isLarge = size === "large";
 
 	// One glyph token drives every toolbar icon: the box size and the class
 	// both come from TOOLBAR_ICON, so a chevron and the Settings gear reach the
@@ -59,17 +68,25 @@ export function ToolbarIconButton({
 	const glyph = (
 		<Icon
 			name={icon}
-			size={toolbarIconSize(icon)}
+			size={isLarge ? 28 : toolbarIconSize(icon)}
 			strokeWidth={TOOLBAR_ICON.strokeWidth}
-			className={toolbarIconClass(icon)}
+			className={isLarge ? "size-7" : toolbarIconClass(icon)}
 		/>
 	);
 
 	if (isLiquid && !insideSurface) {
+		const optics = glassLiquidProps(glassParams, "clear");
 		return (
 			<GlassIcon
 				glassVariant="liquid-refract"
-				liquidProps={{ blur: 8 }}
+				liquidProps={{
+					blur: optics.blur,
+					refraction: optics.refraction,
+					saturation: optics.saturation,
+					brightness: optics.brightness,
+					bezel: optics.bezel,
+				}}
+				surfaceClassName={glassLensVeil("toolbar", resolvedDark)}
 				onClick={onClick}
 				aria-label={label}
 				aria-pressed={active}
@@ -78,10 +95,12 @@ export function ToolbarIconButton({
 				id={id}
 				data-settings-ui={dataSettingsUi ? "true" : undefined}
 				className={cn(
-					TOOLBAR.standaloneSize,
-					"shrink-0 text-white/70 shadow-none transition-colors hover:text-white",
+					isLarge ? "size-14" : TOOLBAR.standaloneSize,
+					"shrink-0 shadow-none transition-colors",
+					glassForeground(),
 					glassFocusRing(isLiquid),
-					active && "bg-white/25 text-white",
+					active &&
+						cn("bg-foreground/10", glassForeground()),
 				)}
 			>
 				{glyph}
@@ -109,7 +128,7 @@ export function ToolbarIconButton({
 						)
 					: cn(
 							"flex shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 active:scale-95",
-							TOOLBAR.standaloneSize,
+							isLarge ? "size-14" : TOOLBAR.standaloneSize,
 						),
 				insideSurface
 					? isLiquid
@@ -119,8 +138,11 @@ export function ToolbarIconButton({
 				insideSurface
 					? isLiquid
 						? active
-							? "bg-white/25 text-white"
-							: "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+							? cn("bg-foreground/10", glassForeground())
+							: cn(
+									glassForeground("secondary"),
+									"hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15",
+							  )
 						: active
 							? `${flatControl()} text-flat-ink shadow-none`
 							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken"

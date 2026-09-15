@@ -5,7 +5,13 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { flatSeparator, flatSurface } from "@klice-start/ui/lib/surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { glassText } from "../../../lib/glass";
+import {
+	HERO_TEXT_SHADOW,
+	glassForeground,
+	glassLensVeil,
+	glassLiquidProps,
+	glassText,
+} from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import {
 	TOOLBAR,
@@ -87,7 +93,7 @@ export function NavigationToolbar({
 	isRootFolder,
 	canNestFolder,
 }: NavigationToolbarProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 
 	const sorted = useMemo(
 		() => [...rootFolders].sort((a, b) => a.order - b.order),
@@ -192,8 +198,16 @@ export function NavigationToolbar({
 						<span
 							className={cn(
 								"min-w-0 truncate font-medium text-[13px]",
-								glassText(isLiquid, "primary"),
+								glassText(isLiquid, "secondary", resolvedDark),
 							)}
+							// Wallpaper-floated ink: dark in Light, white in Dark.
+							// The shadow stays a Dark-only aid — never a substitute
+							// for the Light material pairing (see glass.ts).
+							style={
+								isLiquid && resolvedDark
+									? { textShadow: HERO_TEXT_SHADOW }
+									: undefined
+							}
 							title={contextualFolder.name}
 						>
 							{contextualFolder.name}
@@ -299,6 +313,8 @@ function HistoryControls({
 	// width, the glyph token, the liquid wash tint, and the group's corner
 	// role. Segment geometry, the seam and disabled state stay owned by the
 	// group implementation.
+	// Hooks below are unconditional so every render path shares one order.
+	const { glassParams, resolvedDark } = useAppearance();
 	const groupClassName = cn(TOOLBAR.groupHeight, "shrink-0");
 	const groupButtons = (
 		<>
@@ -321,12 +337,21 @@ function HistoryControls({
 	);
 
 	if (isLiquid) {
+		const optics = glassLiquidProps(glassParams, "clear");
 		return (
 			<GlassButtonGroup
 				glassVariant="liquid-refract"
 				aria-label="Navigation history"
 				aria-orientation="horizontal"
 				className={groupClassName}
+				surfaceClassName={glassLensVeil("toolbar", resolvedDark)}
+				liquidProps={{
+					blur: optics.blur,
+					refraction: optics.refraction,
+					saturation: optics.saturation,
+					brightness: optics.brightness,
+					bezel: optics.bezel,
+				}}
 			>
 				{groupButtons}
 			</GlassButtonGroup>
@@ -370,13 +395,19 @@ interface HistoryButtonProps {
  * Glass gets a faint white hairline; Flat gets the engraved tonal groove
  * from the shared surface system (never a hard border color).
  */
-function HistoryDivider({ isLiquid }: { isLiquid: boolean }) {
+function HistoryDivider({
+	isLiquid,
+}: {
+	isLiquid: boolean;
+}) {
 	return (
 		<span
 			aria-hidden="true"
 			className={cn(
 				"h-[18px] w-px shrink-0 self-center",
-				isLiquid ? "bg-white/15" : flatSeparator("vertical"),
+				isLiquid
+					? "bg-foreground/15"
+					: flatSeparator("vertical"),
 			)}
 		/>
 	);
@@ -407,7 +438,7 @@ function HistoryButton({
 				// washed the thin glyph out on light faces). 25% reads
 				// clearly inactive without disappearing.
 				isLiquid
-					? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+					? `${glassForeground()} hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
 					: "text-flat-ink disabled:opacity-25",
 			)}
 			data-slot="button"

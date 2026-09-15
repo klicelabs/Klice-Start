@@ -21,6 +21,7 @@ import {
 } from "../../../lib/dnd";
 import {
 	glassDropdownItem,
+	glassForeground,
 	glassFocusRing,
 	glassMenu,
 } from "../../../lib/glass";
@@ -96,7 +97,7 @@ export function FolderTabs({
 	isRootFolder,
 	canNestFolder,
 }: FolderTabsProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const sorted = [...folders].sort((a, b) => a.order - b.order);
 	const [insertion, setInsertion] = useState<{
 		key: string;
@@ -126,6 +127,7 @@ export function FolderTabs({
 	return (
 		<GlassSurface
 			shadowless
+			variant="toolbar"
 			className={cn(TOOLBAR.groupPadding, "w-max min-w-0 max-w-full gap-0.5")}
 		>
 			<Tabs
@@ -145,6 +147,7 @@ export function FolderTabs({
 							folder={folder}
 							active={folder.id === activeRootId}
 							isLiquid={isLiquid}
+							resolvedDark={resolvedDark}
 							isSelected={selectedIds.includes(folder.id)}
 							onToggleSelect={handleToggleSelect}
 							insertion={
@@ -176,7 +179,7 @@ export function FolderTabs({
 						"flex shrink-0 items-center justify-center rounded-full transition-colors duration-150",
 						glassFocusRing(isLiquid),
 						isLiquid
-							? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+							? `${glassForeground()} hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
 							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 					)}
 				>
@@ -202,6 +205,7 @@ interface FolderTabProps {
 	folder: Folder;
 	active: boolean;
 	isLiquid: boolean;
+	resolvedDark: boolean;
 	isSelected?: boolean;
 	onToggleSelect?: (id: string) => void;
 	insertion: InsertPosition | null;
@@ -232,6 +236,7 @@ function FolderTab({
 	folder,
 	active,
 	isLiquid,
+	resolvedDark,
 	isSelected = false,
 	onToggleSelect,
 	insertion,
@@ -364,29 +369,37 @@ function FolderTab({
 		glassFocusRing(isLiquid),
 		active
 			? isLiquid
-				? "font-medium text-white"
+				? cn("font-medium", glassForeground())
 				: "font-medium text-flat-ink"
 			: isLiquid
-				? "font-normal text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+				? cn(
+						"font-normal",
+						glassForeground("secondary"),
+						"hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15",
+					)
 				: "font-normal text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 		isSelected &&
 			(isLiquid
-				? "ring-1 ring-white/50 ring-inset"
+				? "ring-1 ring-foreground/40 ring-inset"
 				: "ring-1 ring-flat-edge-strong ring-inset"),
 	);
 
 	const dropClass = dropActive
 		? isLiquid
-			? "bg-white/25 text-white ring-1 ring-white/40"
+			? cn("bg-foreground/10 ring-1 ring-foreground/30", glassForeground())
 			: "bg-flat-sunken-raised text-flat-ink ring-1 ring-flat-edge-strong"
 		: "";
 	const indicatorClass = cn(
 		"pointer-events-none",
 		// Active tab keeps its face wash for hierarchy, but like every other
 		// toolbar control it carries no elevation shadow.
-		isLiquid ? "bg-white/25" : "face-control shadow-none",
+		isLiquid
+			? "bg-foreground/10"
+			: "face-control shadow-none",
 		dropActive &&
-			(isLiquid ? "ring-1 ring-white/40" : "ring-1 ring-flat-edge-strong"),
+			(isLiquid
+				? "ring-1 ring-foreground/30"
+				: "ring-1 ring-flat-edge-strong"),
 	);
 
 	if (editing) {
@@ -460,37 +473,37 @@ function FolderTab({
 				}
 			/>
 
-			<ContextMenuContent className={glassMenu(isLiquid)}>
+			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => onSelectFolder(folder.id)}
 				>
 					<Icon name="folder" size={14} />
 					Open
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={onNewRootFolder}
 				>
 					<Icon name="folder-plus" size={14} />
 					New Folder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => onNewSubfolder?.(folder.id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => beginRename({ kind: "folder", id: folder.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() =>
 						useSelectionStore
 							.getState()
@@ -501,7 +514,7 @@ function FolderTab({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(
@@ -512,11 +525,9 @@ function FolderTab({
 					<Icon name="folder" size={14} />
 					Move to…
 				</ContextMenuItem>
-				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
-				/>
+				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
+					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					tone="destructive"
 					onSelect={() => onDeleteFolder?.(folder.id)}
 				>

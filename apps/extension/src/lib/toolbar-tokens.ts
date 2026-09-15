@@ -148,9 +148,9 @@ export function toolbarIconClass(name: IconName): string {
 
 export function toolbarControlLiquid(active: boolean): string {
 	if (active) {
-		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-white/25 text-white`;
+		return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} bg-foreground/10 text-[var(--klice-glass-foreground-primary)]`;
 	}
-	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-white/70 hover:text-white hover:bg-white/[0.12] active:bg-white/20`;
+	return `${TOOLBAR.controlHeight} ${TOOLBAR.radius} ${TOOLBAR.transition} text-[var(--klice-glass-foreground-secondary)] hover:text-[var(--klice-glass-foreground-primary)] hover:bg-foreground/[0.10] active:bg-foreground/15`;
 }
 
 /**
