@@ -163,9 +163,9 @@ export function FolderPreviewCard({
 									{hasPreviews ? (
 										<div
 											className="icon-folder-preview"
-											data-count={Math.min(previewCards.length, 4)}
+											data-count={Math.min(previewCards.length, 9)}
 										>
-											{previewCards.slice(0, 4).map((card) => (
+											{previewCards.slice(0, 9).map((card) => (
 												<IconAppTile
 													key={card.id}
 													url={card.url}
