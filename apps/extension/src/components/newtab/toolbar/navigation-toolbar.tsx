@@ -3,13 +3,14 @@ import { ButtonGroup } from "@klice-start/ui/components/button-group";
 import { GlassButtonGroup } from "@klice-start/ui/components/glass-button-group";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { kliceShape } from "@klice-start/ui/lib/shapes";
-import { flatSurface } from "@klice-start/ui/lib/surface";
+import { flatSeparator, flatSurface } from "@klice-start/ui/lib/surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { glassText } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import {
 	TOOLBAR,
 	TOOLBAR_HEIGHT,
+	TOOLBAR_ICON,
 	toolbarIconClass,
 	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
@@ -250,7 +251,7 @@ export function NavigationToolbar({
 								className={cn(
 									TOOLBAR.controlHeight,
 									TOOLBAR.radius,
-									"inline-flex max-w-[160px] items-center truncate px-3 font-medium text-[13px]",
+									"inline-flex max-w-[160px] items-center truncate px-3 text-[13px] font-normal",
 								)}
 							>
 								{folder.name}
@@ -308,6 +309,7 @@ function HistoryControls({
 				isLiquid={isLiquid}
 				onClick={onBack}
 			/>
+			<HistoryDivider isLiquid={isLiquid} />
 			<HistoryButton
 				icon="chevron-right"
 				label="Forward"
@@ -354,6 +356,29 @@ interface HistoryButtonProps {
 	onClick: () => void;
 }
 
+/**
+ * The native-style divider between the Back and Forward segments.
+ *
+ * Spotlight/Finder-like: a 1px hairline at roughly half the group height,
+ * vertically centered, never edge-to-edge. It carries no data-slot so the
+ * group's first/last-segment geometry selectors keep resolving exactly as
+ * before — the divider sits *between* segments without becoming one.
+ *
+ * Glass gets a faint white hairline; Flat gets the engraved tonal groove
+ * from the shared surface system (never a hard border color).
+ */
+function HistoryDivider({ isLiquid }: { isLiquid: boolean }) {
+	return (
+		<span
+			aria-hidden="true"
+			className={cn(
+				"h-[18px] w-px shrink-0 self-center",
+				isLiquid ? "bg-white/15" : flatSeparator("vertical"),
+			)}
+		/>
+	);
+}
+
 function HistoryButton({
 	icon,
 	label,
@@ -386,6 +411,7 @@ function HistoryButton({
 			<Icon
 				name={icon}
 				size={toolbarIconSize(icon)}
+				strokeWidth={TOOLBAR_ICON.strokeWidth}
 				className={toolbarIconClass(icon)}
 				aria-hidden="true"
 			/>

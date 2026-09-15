@@ -5,6 +5,7 @@ import { flatControl, flatFocusRing } from "@klice-start/ui/lib/surface";
 import { glassFocusRing } from "../../../lib/glass";
 import {
 	TOOLBAR,
+	TOOLBAR_ICON,
 	toolbarIconClass,
 	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
@@ -53,11 +54,13 @@ export function ToolbarIconButton({
 
 	// One glyph token drives every toolbar icon: the box size and the class
 	// both come from TOOLBAR_ICON, so a chevron and the Settings gear reach the
-	// same optical ink height instead of the same nominal box.
+	// same optical ink height instead of the same nominal box. The stroke is
+	// the shared lighter Apple-like weight, not Lucide's default 2.
 	const glyph = (
 		<Icon
 			name={icon}
 			size={toolbarIconSize(icon)}
+			strokeWidth={TOOLBAR_ICON.strokeWidth}
 			className={toolbarIconClass(icon)}
 		/>
 	);

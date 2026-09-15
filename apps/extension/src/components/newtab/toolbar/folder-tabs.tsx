@@ -25,7 +25,7 @@ import {
 	glassMenu,
 } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
-import { TOOLBAR } from "../../../lib/toolbar-tokens";
+import { TOOLBAR, TOOLBAR_ICON } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
 import { useMoveDialogStore } from "../../../stores/move-dialog-store";
 import { useRenameStore } from "../../../stores/rename-store";
@@ -179,7 +179,7 @@ export function FolderTabs({
 							: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 					)}
 				>
-					<Icon name="plus" size={15} />
+					<Icon name="plus" size={15} strokeWidth={TOOLBAR_ICON.strokeWidth} />
 				</button>
 			)}
 			{hiddenFolders.length > 0 && (
@@ -359,15 +359,15 @@ function FolderTab({
 		TOOLBAR.controlHeight,
 		TOOLBAR.radius,
 		TOOLBAR.transition,
-		"max-w-[160px] select-none truncate px-3 font-medium text-[13px] [-webkit-user-drag:element]",
+		"max-w-[160px] select-none truncate px-3 text-[13px] [-webkit-user-drag:element]",
 		glassFocusRing(isLiquid),
 		active
 			? isLiquid
-				? "text-white"
-				: "text-flat-ink"
+				? "font-medium text-white"
+				: "font-medium text-flat-ink"
 			: isLiquid
-				? "text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
-				: "text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
+				? "font-normal text-white/70 hover:bg-white/[0.12] hover:text-white active:bg-white/20"
+				: "font-normal text-flat-ink hover:bg-flat-sunken-raised active:bg-flat-sunken",
 		isSelected &&
 			(isLiquid
 				? "ring-1 ring-white/50 ring-inset"

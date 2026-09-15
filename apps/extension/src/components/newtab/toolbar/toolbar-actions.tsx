@@ -3,6 +3,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { glassFocusRing } from "../../../lib/glass";
 import {
 	TOOLBAR,
+	TOOLBAR_ICON,
 	toolbarIconClass,
 	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
@@ -40,6 +41,7 @@ export function ToolbarActions({ onSettings }: ToolbarActionsProps) {
 					<Icon
 						name="settings"
 						size={toolbarIconSize("settings")}
+						strokeWidth={TOOLBAR_ICON.strokeWidth}
 						className={toolbarIconClass("settings")}
 					/>
 				</GlassIcon>

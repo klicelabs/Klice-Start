@@ -98,6 +98,13 @@ export const TOOLBAR_ICON = {
 	size: 20,
 	/** Target ink height shared by every toolbar glyph, in CSS px. */
 	inkHeight: 18,
+	/**
+	 * ONE stroke weight for every toolbar glyph. Lucide defaults to 2, which
+	 * reads heavy next to SF Symbols; 1.5 keeps full legibility at 16–28px
+	 * boxes while matching the thinner Apple-like feel. Glyph *size* is
+	 * untouched — only the stroke lightens.
+	 */
+	strokeWidth: 1.5,
 } as const;
 
 /**
