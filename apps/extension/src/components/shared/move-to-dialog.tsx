@@ -17,6 +17,7 @@ import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import { SettingsAction } from "../newtab/settings/shared/settings-action";
+import { useAppearance } from "../newtab/appearance-provider";
 import { FolderTreePicker } from "./folder-tree-picker";
 
 /**
@@ -33,6 +34,7 @@ export function MoveToDialog() {
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
+	const { isLiquid } = useAppearance();
 
 	// undefined = nothing chosen yet; null = explicitly chosen Top level.
 	const [destinationId, setDestinationId] = useState<string | null | undefined>(
@@ -111,6 +113,7 @@ export function MoveToDialog() {
 			}}
 		>
 			<DialogContent
+				closeGlass={isLiquid}
 				className={cn(
 					glassShape("panel"),
 					SETTINGS_SCOPE_CLASS,
@@ -135,6 +138,7 @@ export function MoveToDialog() {
 						allowRoot={cardIds.length === 0}
 						rootLabel="Top level"
 						excludeIds={excludeIds}
+						isLiquid={isLiquid}
 						className="h-9 w-full text-xs"
 					/>
 					{error && (

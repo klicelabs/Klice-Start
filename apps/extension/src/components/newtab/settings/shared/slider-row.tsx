@@ -20,6 +20,7 @@ interface SliderRowProps {
 	description?: string;
 	tooltip?: ReactNode;
 	className?: string;
+	disabled?: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export function SliderRow({
 	description,
 	tooltip,
 	className,
+	disabled = false,
 }: SliderRowProps) {
 	return (
 		<SettingRow
@@ -58,6 +60,7 @@ export function SliderRow({
 				max={max}
 				step={step}
 				onChange={onChange}
+				disabled={disabled}
 				className="w-44 max-w-full"
 			/>
 		</SettingRow>

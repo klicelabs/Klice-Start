@@ -13,6 +13,7 @@ import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
 import type { Card } from "../../../../types";
+import { useAppearance } from "../../appearance-provider";
 import { SectionCard } from "../shared/section-card";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsAction } from "../shared/settings-action";
@@ -40,6 +41,7 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 		(s) => s.settings.background.customWallpaper !== null,
 	);
 	const resetAll = useSetupStore((s) => s.resetAll);
+	const { isLiquid } = useAppearance();
 
 	const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 	const [isResetting, setIsResetting] = useState(false);
@@ -158,6 +160,7 @@ export function AdvancedPane({ onCloseParent }: AdvancedPaneProps) {
 
 			<Dialog open={confirmResetOpen} onOpenChange={setConfirmResetOpen}>
 				<DialogContent
+					closeGlass={isLiquid}
 					className={cn(
 						"squircle",
 						SETTINGS_SCOPE_CLASS,

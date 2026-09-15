@@ -42,6 +42,7 @@ import {
 import { useSetupStore } from "../../../../stores/setup-store";
 import type { Card } from "../../../../types";
 import { FolderTreePicker } from "../../../shared/folder-tree-picker";
+import { useAppearance } from "../../appearance-provider";
 import { SectionCard } from "../shared/section-card";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsAction, SettingsIconButton } from "../shared/settings-action";
@@ -141,6 +142,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const updateFolder = useSetupStore((s) => s.updateFolder);
 	const moveFolder = useSetupStore((s) => s.moveFolder);
 	const deleteFolder = useSetupStore((s) => s.deleteFolder);
+	const { isLiquid } = useAppearance();
 
 	// Currently inspected folder in the settings pane
 	const [selectedFolderId, setSelectedFolderId] =
@@ -858,6 +860,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			{/* Folder edit modal */}
 			<Dialog open={folderModalOpen} onOpenChange={setFolderModalOpen}>
 				<DialogContent
+					closeGlass={isLiquid}
 					className={cn(
 						"squircle",
 						SETTINGS_SCOPE_CLASS,
@@ -942,6 +945,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				}}
 			>
 				<DialogContent
+					closeGlass={isLiquid}
 					className={cn(
 						"squircle",
 						SETTINGS_SCOPE_CLASS,

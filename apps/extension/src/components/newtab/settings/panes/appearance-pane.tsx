@@ -1,40 +1,25 @@
-import { Input } from "@klice-start/ui/components/input";
-import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ACCENT_OPTIONS } from "../../../../lib/accent";
 import { GRADIENTS, WALLPAPERS } from "../../../../lib/constants";
+import { clampGlassIntensity } from "../../../../lib/glass";
 import { cn } from "../../../../lib/utils";
-import { refreshWallpaper } from "../../../../services/wallpaper";
 import { useImageStore } from "../../../../stores/image-store";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type { Settings, WallpaperFrequency } from "../../../../types";
+import type { Settings } from "../../../../types";
+import { ToolbarIconButton } from "../../toolbar/toolbar-icon-button";
 import { SectionCard } from "../shared/section-card";
-import { SelectRow } from "../shared/select-row";
+import { SegmentedControl } from "../shared/segmented-control";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsExpandable } from "../shared/settings-expandable";
 import { SettingsLabel } from "../shared/settings-label";
 import {
-	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_FOCUS_RING,
-	SETTINGS_INPUT,
 	SETTINGS_PAGE,
 	SETTINGS_RADIUS,
-	SETTINGS_SWITCH,
 } from "../shared/settings-tokens";
 import { SliderRow } from "../shared/slider-row";
-
-const PEXELS_FREQUENCY_OPTIONS: readonly {
-	value: WallpaperFrequency;
-	label: string;
-}[] = [
-	{ value: "daily", label: "Daily" },
-	{ value: "hourly", label: "Hourly" },
-	{ value: "per-tab", label: "Every new tab" },
-	{ value: "daylight", label: "Follow daylight" },
-	{ value: "locked", label: "Keep current" },
-];
 
 /** The three appearance modes, ordered by the user's most direct choices. */
 const MODE_OPTIONS: readonly {
@@ -181,13 +166,15 @@ function getCurrentWallpaperLabel(background: Settings["background"]): string {
 export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 	const appearanceMode = useSetupStore((s) => s.settings.appearanceMode);
 	const isLiquidGlass = appearanceMode === "liquid";
+	const glassIntensity = useSetupStore((s) =>
+		clampGlassIntensity(s.settings.glassIntensity),
+	);
 	const colorScheme = useSetupStore((s) => s.settings.colorScheme ?? "auto");
 	const accentColor = useSetupStore((s) => s.settings.accentColor ?? "blue");
 	const bg = useSetupStore((s) => s.settings.background);
 
 	const updateSettings = useSetupStore((s) => s.updateSettings);
 	const updateBackground = useSetupStore((s) => s.updateBackground);
-	const lastAppliedPexelsQuery = useRef(bg.pexelsQuery);
 	const reduceMotion = useReducedMotion() ?? false;
 
 	return (
@@ -337,25 +324,30 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 					</div>
 				</SettingRow>
 
-				<SettingRow
-					label="Liquid Glass"
-					icon="glass-water"
-					tooltip="Frosted Speed Dial surfaces that pick up the wallpaper. Settings itself stays flat."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Liquid Glass"
-						checked={isLiquidGlass}
-						onCheckedChange={(checked: boolean) =>
-							updateSettings({
-								appearanceMode: checked ? "liquid" : "classic",
-							})
-						}
-					/>
-				</SettingRow>
+			<SettingRow
+				label="Material"
+				icon="glass-water"
+				tooltip="Glass picks up the wallpaper; Flat stays opaque. Settings itself stays flat."
+			>
+				<SegmentedControl
+					label="Material"
+					value={isLiquidGlass ? "glass" : "flat"}
+					options={[
+						{ value: "flat", label: "Flat" },
+						{ value: "glass", label: "Glass" },
+					]}
+					onChange={(next) =>
+						updateSettings({
+							appearanceMode: next === "glass" ? "liquid" : "classic",
+						})
+					}
+				/>
+			</SettingRow>
 			</SectionCard>
 
-			{/* Wallpaper library: a visual preview keeps Appearance quick to scan. */}
+			{/* Wallpaper: compact preview is the entry point (title lives
+			inside the image, pencil opens the library), and the background
+			effects that modify it live in the same card. */}
 			<SectionCard>
 				<div className="px-1.5 py-2.5">
 					<div className="flex items-center gap-2.5">
@@ -368,143 +360,82 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 						/>
 						<SettingsLabel>Wallpaper</SettingsLabel>
 					</div>
-					<button
-						type="button"
-						onClick={onOpenWallpaper}
-						aria-label={`Change wallpaper. Current wallpaper: ${getCurrentWallpaperLabel(bg)}`}
-						title="Change wallpaper"
-						className={cn(
-							"group mt-3 block w-full text-center",
-							SETTINGS_FOCUS_RING,
-						)}
-					>
-						<span
+					<div className="relative mt-3">
+						<button
+							type="button"
+							onClick={onOpenWallpaper}
+							aria-label={`Change wallpaper. Current wallpaper: ${getCurrentWallpaperLabel(bg)}`}
+							title="Change wallpaper"
 							className={cn(
-								"squircle block w-full bg-neutral-900/[0.055] p-2.5 shadow-none transition-colors duration-150 group-hover:bg-neutral-900/[0.075] dark:bg-white/[0.055] dark:group-hover:bg-white/[0.08]",
-								SETTINGS_RADIUS.surface,
+								"squircle group relative block aspect-[2/1] w-full overflow-hidden bg-neutral-900/[0.08] transition-[filter] duration-200 group-hover:brightness-[1.03] motion-reduce:transition-none",
+								SETTINGS_RADIUS.thumbnail,
+								SETTINGS_FOCUS_RING,
 							)}
 						>
+							{/* Truthful miniature of the real background layer:
+							opacity / brightness / blur mirror the active
+							settings (blur capped so the thumb stays legible),
+							so the glass overlays preview exactly what the
+							speed dial renders. */}
 							<span
-								className={cn(
-									"squircle relative block aspect-[16/9] w-full overflow-hidden bg-neutral-900/[0.08] transition-[filter] duration-200 group-hover:brightness-[1.03] motion-reduce:transition-none",
-									SETTINGS_RADIUS.thumbnail,
-								)}
+								aria-hidden="true"
+								className="absolute inset-0 block"
+								style={{
+									opacity: bg.opacity / 100,
+									filter: `brightness(${bg.brightness / 100}) blur(${Math.min(bg.blur, 8)}px)`,
+								}}
 							>
 								<CurrentWallpaperPreview background={bg} />
 							</span>
-						</span>
-						<span className="mt-3 block truncate font-medium text-[13px] text-neutral-900 dark:text-neutral-100">
-							{getCurrentWallpaperLabel(bg)}
-						</span>
-						<span
-							className={cn(
-								"squircle mt-3 flex h-9 w-full items-center justify-center gap-1.5 bg-[var(--klice-accent)] px-3 font-medium text-[12px] text-[var(--klice-accent-foreground)] shadow-none transition-[filter,transform] duration-150 group-hover:brightness-95 group-active:scale-[0.99] motion-reduce:transition-none",
-								SETTINGS_RADIUS.control,
-							)}
+							<span
+								aria-hidden="true"
+								className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/55 to-transparent"
+							/>
+							<span className="pointer-events-none absolute inset-x-0 top-1/2 mt-12 flex -translate-y-1/2 justify-center truncate px-3 text-center font-medium text-[12px] text-white drop-shadow-sm">
+								{getCurrentWallpaperLabel(bg)}
+							</span>
+						</button>
+						{/* A single, larger direct-background glass control keeps the
+						preview legible without turning it into a miniature browser. */}
+						<div
+							inert
+							aria-hidden="true"
+							className="pointer-events-none absolute inset-0"
 						>
-							Change wallpaper
-							<Icon name="chevron-right" size={14} aria-hidden="true" />
-						</span>
-					</button>
-				</div>
-			</SectionCard>
-
-			{/* Colour and dynamic photography */}
-			<SectionCard>
-				<SettingRow label="Solid colour" icon="droplet">
-					<div className="flex items-center gap-2">
-						<input
-							type="color"
-							value={bg.color}
-							onChange={(e) =>
-								updateBackground({
-									type: "solid",
-									color: e.target.value,
-									wallpaperId: null,
-									gradientId: null,
-									imageId: null,
-								} as Partial<Settings["background"]>)
-							}
-							className="size-7 rounded-full border border-neutral-900/20 bg-transparent p-0 dark:border-white/20"
-							aria-label="Solid background colour"
-						/>
-						<span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-							{bg.color}
-						</span>
+							<div className="absolute inset-0 flex items-center justify-center">
+								<ToolbarIconButton
+									size="large"
+									icon="image"
+									label="Gallery"
+									onClick={() => undefined}
+								/>
+							</div>
+						</div>
+						<div className="absolute top-2 right-2 z-10">
+							<ToolbarIconButton
+								icon="pencil"
+								label="Edit wallpaper"
+								onClick={onOpenWallpaper}
+							/>
+						</div>
 					</div>
-				</SettingRow>
+				</div>
 
-				<SettingRow
-					label="Pexels photography"
-					icon="camera"
-					tooltip="Fresh photos on a schedule, instead of a fixed wallpaper."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Use Pexels photography"
-						checked={bg.type === "pexels"}
-						onCheckedChange={(enabled: boolean) => {
-							if (enabled) {
-								updateBackground({ type: "pexels" } as Partial<
-									Settings["background"]
-								>);
-								refreshWallpaper(true).catch(() => undefined);
-							} else {
-								updateBackground({
-									type: "wallpaper",
-									wallpaperId: "tokyo-skyline",
-								} as Partial<Settings["background"]>);
-							}
-						}}
-					/>
-				</SettingRow>
-
-				<SettingsExpandable
-					expanded={bg.type === "pexels"}
-					label="Pexels photography options"
-				>
-					<SettingRow label="Photo theme" icon="search">
-						<Input
-							id="pexels-query-input"
-							aria-label="Photo theme keywords"
-							placeholder="minimalist landscape"
-							value={bg.pexelsQuery}
-							onChange={(e) =>
-								updateBackground({ pexelsQuery: e.target.value })
-							}
-							onBlur={(e) => {
-								if (e.target.value === lastAppliedPexelsQuery.current) return;
-								lastAppliedPexelsQuery.current = e.target.value;
-								refreshWallpaper(true).catch(() => undefined);
-							}}
-							className={cn(
-								cn(
-									SETTINGS_CONTROL_WIDTH,
-									SETTINGS_RADIUS.control,
-									"h-9 px-3 text-sm",
-								),
-								SETTINGS_INPUT,
-							)}
-						/>
-					</SettingRow>
-
-					<SelectRow
-						label="Refresh"
-						icon="timer"
-						value={bg.pexelsFrequency}
-						options={PEXELS_FREQUENCY_OPTIONS}
-						onChange={(val) => {
-							const next = val as WallpaperFrequency;
-							updateBackground({ pexelsFrequency: next });
-							if (next !== "locked")
-								refreshWallpaper(true).catch(() => undefined);
-						}}
+				{/* Glass intensity belongs directly after the preview so the
+				material control reads before the wallpaper image adjustments. */}
+				<SettingsExpandable expanded={isLiquidGlass} label="Glass intensity">
+					<SliderRow
+						label="Glass intensity"
+						icon="blend"
+						value={glassIntensity}
+						min={0}
+						max={100}
+						step={1}
+						tooltip="Controls how strongly the Liquid Glass material tints and diffuses the wallpaper."
+						onChange={(v) => updateSettings({ glassIntensity: v })}
 					/>
 				</SettingsExpandable>
-			</SectionCard>
 
-			{/* Effects layered over the background */}
-			<SectionCard>
 				<SliderRow
 					label="Opacity"
 					icon="eye"
@@ -545,6 +476,7 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 						>)
 					}
 				/>
+
 			</SectionCard>
 		</div>
 	);

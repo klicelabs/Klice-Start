@@ -75,7 +75,7 @@ export function CreateFolderFromSelectionDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				glassVariant={isLiquid ? "liquid" : "classic"}
+				closeGlass={isLiquid}
 				className={cn(
 					glassShape("panel"),
 					SETTINGS_SCOPE_CLASS,
@@ -85,19 +85,14 @@ export function CreateFolderFromSelectionDialog({
 				<form className="flex flex-col gap-5" onSubmit={handleSubmit}>
 					<DialogHeader>
 						<DialogTitle>{title}</DialogTitle>
-						<DialogDescription
-							className={isLiquid ? "text-white/70" : undefined}
-						>
+						<DialogDescription>
 							Move {selectionSummary || "the selected items"} into it.
 						</DialogDescription>
 					</DialogHeader>
 
 					<div className="flex flex-col gap-2">
 						<label
-							className={cn(
-								"font-medium text-[12px]",
-								isLiquid ? "text-white/85" : "text-flat-ink",
-							)}
+							className="font-medium text-flat-ink text-[12px]"
 							htmlFor="create-folder-from-selection-name"
 						>
 							Name
@@ -115,14 +110,8 @@ export function CreateFolderFromSelectionDialog({
 							aria-describedby={
 								error ? "create-folder-from-selection-error" : undefined
 							}
-							glassVariant={isLiquid ? "liquid" : "classic"}
-							className={cn(
-								"h-10 text-[13px]",
-								isLiquid && glassShape("control"),
-								isLiquid
-									? "border-white/[0.28] bg-white/[0.08] text-white placeholder:text-white/45"
-									: SETTINGS_INPUT,
-							)}
+							glassVariant="classic"
+							className={cn("h-10 text-[13px]", SETTINGS_INPUT)}
 						/>
 						{error && (
 							<p
@@ -138,10 +127,7 @@ export function CreateFolderFromSelectionDialog({
 					<div
 						className={cn(
 							glassShape("control"),
-							"flex items-center gap-2 px-3 py-2.5 text-[12px]",
-							isLiquid
-								? "bg-white/[0.09] text-white/75"
-								: "bg-flat-sunken-raised text-flat-ink-muted",
+							"flex items-center gap-2 bg-flat-sunken-raised px-3 py-2.5 text-flat-ink-muted text-[12px]",
 						)}
 					>
 						<Icon name="folder" size={14} className="shrink-0 opacity-70" />
@@ -157,8 +143,6 @@ export function CreateFolderFromSelectionDialog({
 								glassShape("control"),
 								SETTINGS_ACTION,
 								SETTINGS_FOCUS_RING,
-								isLiquid &&
-									"bg-white/[0.10] text-white/85 hover:bg-white/[0.16] hover:text-white",
 							)}
 						>
 							Cancel

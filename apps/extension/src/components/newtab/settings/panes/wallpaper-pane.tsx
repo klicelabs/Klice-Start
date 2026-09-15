@@ -2,6 +2,8 @@ import {
 	FileUpload,
 	type FileUploadItem,
 } from "@klice-start/ui/components/motion/file-upload";
+import { Input } from "@klice-start/ui/components/input";
+import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -13,15 +15,26 @@ import {
 } from "../../../../lib/constants";
 import { flushPersist } from "../../../../lib/storage";
 import { cn } from "../../../../lib/utils";
+import { refreshWallpaper } from "../../../../services/wallpaper";
 import { useImageStore } from "../../../../stores/image-store";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type { CustomWallpaper, Settings } from "../../../../types";
+import type {
+	CustomWallpaper,
+	Settings,
+	WallpaperFrequency,
+} from "../../../../types";
 import { SectionCard } from "../shared/section-card";
+import { SelectRow } from "../shared/select-row";
+import { SettingRow } from "../shared/setting-row";
 import { SettingsAction } from "../shared/settings-action";
+import { SettingsExpandable } from "../shared/settings-expandable";
 import {
+	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_FOCUS_RING,
+	SETTINGS_INPUT,
 	SETTINGS_PAGE,
 	SETTINGS_RADIUS,
+	SETTINGS_SWITCH,
 } from "../shared/settings-tokens";
 
 type WallpaperLibraryItem =
@@ -42,6 +55,17 @@ const WALLPAPER_TILE = cn(
 	SETTINGS_RADIUS.surface,
 );
 const TILE_SELECTED = "ring-2 ring-inset ring-[var(--klice-accent)]";
+
+const PEXELS_FREQUENCY_OPTIONS: readonly {
+	value: WallpaperFrequency;
+	label: string;
+}[] = [
+	{ value: "daily", label: "Daily" },
+	{ value: "hourly", label: "Hourly" },
+	{ value: "per-tab", label: "Every new tab" },
+	{ value: "daylight", label: "Follow daylight" },
+	{ value: "locked", label: "Keep current" },
+];
 
 const SUPPORTED_IMAGE_TYPES: Record<string, readonly string[]> = {
 	"image/jpeg": ["jpg", "jpeg"],
@@ -524,6 +548,7 @@ export function WallpaperPane() {
 		bg.type === "image" &&
 		bg.imageId === customWallpaper.id;
 	const customTileHasPencil = customWallpaper !== null && !pending;
+	const lastAppliedPexelsQuery = useRef(bg.pexelsQuery);
 
 	return (
 		<div className={SETTINGS_PAGE} data-settings-wallpaper-page="true">
@@ -687,15 +712,114 @@ export function WallpaperPane() {
 						) : null}
 					</div>
 
-					{libraryItems.map((item) => (
-						<WallpaperTile
-							key={`${item.kind}-${item.id}`}
-							item={item}
-							selected={isSelected(item)}
-							onSelect={handleSelect}
-						/>
-					))}
+				{libraryItems.map((item) => (
+					<WallpaperTile
+						key={`${item.kind}-${item.id}`}
+						item={item}
+						selected={isSelected(item)}
+						onSelect={handleSelect}
+					/>
+				))}
 				</div>
+			</SectionCard>
+
+			{/* Solid colour is another background source: pick the hue here,
+			which also activates it. */}
+			<SectionCard>
+				<SettingRow label="Solid colour" icon="droplet">
+					<div className="flex items-center gap-2">
+						<input
+							type="color"
+							value={bg.color}
+							onChange={(e) =>
+								updateBackground({
+									type: "solid",
+									color: e.target.value,
+									wallpaperId: null,
+									gradientId: null,
+									imageId: null,
+								} as Partial<Settings["background"]>)
+							}
+							className="size-7 rounded-full border border-neutral-900/20 bg-transparent p-0 dark:border-white/20"
+							aria-label="Solid background colour"
+						/>
+						<span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
+							{bg.color}
+						</span>
+					</div>
+				</SettingRow>
+			</SectionCard>
+
+			{/* Pexels is a wallpaper source: enable it here, tune the photo
+			theme and refresh cadence inside its sub-area. */}
+			<SectionCard>
+				<SettingRow
+					label="Pexels photography"
+					icon="camera"
+					tooltip="Fresh photos on a schedule, instead of a fixed wallpaper."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Use Pexels photography"
+						checked={bg.type === "pexels"}
+						onCheckedChange={(enabled: boolean) => {
+							if (enabled) {
+								updateBackground({ type: "pexels" } as Partial<
+									Settings["background"]
+								>);
+								refreshWallpaper(true).catch(() => undefined);
+							} else {
+								updateBackground({
+									type: "wallpaper",
+									wallpaperId: "tokyo-skyline",
+								} as Partial<Settings["background"]>);
+							}
+						}}
+					/>
+				</SettingRow>
+
+				<SettingsExpandable
+					expanded={bg.type === "pexels"}
+					label="Pexels photography options"
+				>
+					<SettingRow label="Photo theme" icon="search">
+						<Input
+							id="pexels-query-input"
+							aria-label="Photo theme keywords"
+							placeholder="minimalist landscape"
+							value={bg.pexelsQuery}
+							onChange={(e) =>
+								updateBackground({ pexelsQuery: e.target.value })
+							}
+							onBlur={(e) => {
+								if (e.target.value === lastAppliedPexelsQuery.current) return;
+								lastAppliedPexelsQuery.current = e.target.value;
+								refreshWallpaper(true).catch(() => undefined);
+							}}
+							className={cn(
+								cn(
+									SETTINGS_CONTROL_WIDTH,
+									SETTINGS_RADIUS.control,
+									"h-9 px-3 text-sm",
+								),
+								SETTINGS_INPUT,
+							)}
+						/>
+					</SettingRow>
+
+					<SelectRow
+						label="Refresh"
+						icon="timer"
+						value={bg.pexelsFrequency}
+						options={PEXELS_FREQUENCY_OPTIONS}
+						onChange={(val) => {
+							const next = val as WallpaperFrequency;
+							updateBackground({ pexelsFrequency: next });
+							if (next !== "locked")
+								refreshWallpaper(true).catch(() => undefined);
+						}}
+					/>
+				</SettingsExpandable>
 			</SectionCard>
 		</div>
 	);

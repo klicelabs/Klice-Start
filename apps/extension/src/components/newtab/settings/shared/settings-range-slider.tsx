@@ -13,6 +13,7 @@ interface SettingsRangeSliderProps {
 	step?: number;
 	onChange: (value: number) => void;
 	className?: string;
+	disabled?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export function SettingsRangeSlider({
 	step,
 	onChange,
 	className,
+	disabled = false,
 }: SettingsRangeSliderProps) {
 	const [local, setLocal] = useState(value);
 	const interacting = useRef(false);
@@ -81,6 +83,7 @@ export function SettingsRangeSlider({
 				max={max}
 				step={step}
 				showTicks={false}
+				disabled={disabled}
 				aria-label={label}
 				formatValueText={(next) => `${next}${suffix}`}
 				valueLabel={`${local}${suffix}`}

@@ -47,7 +47,7 @@ export function SegmentedControl<T extends string>({
 		<fieldset
 			aria-label={label}
 			className={cn(
-				"m-0 inline-flex min-w-0 items-center gap-0.5 border-0 bg-neutral-900/[0.05] p-0.5 dark:bg-white/[0.06]",
+				"m-0 inline-flex shrink-0 items-center gap-0.5 border-0 bg-neutral-900/[0.05] p-0.5 dark:bg-white/[0.06]",
 				SETTINGS_RADIUS.pill,
 				className,
 			)}
@@ -63,7 +63,7 @@ export function SegmentedControl<T extends string>({
 						aria-label={option.label}
 						title={iconOnly ? option.label : undefined}
 						className={cn(
-							"relative inline-flex h-7 min-w-0 flex-1 items-center justify-center gap-1.5 px-2 font-medium text-[11px] transition-colors duration-150 motion-reduce:transition-none",
+							"relative inline-flex h-7 flex-1 items-center justify-center gap-1.5 px-2 font-medium text-[11px] transition-colors duration-150 motion-reduce:transition-none",
 							SETTINGS_RADIUS.pill,
 							SETTINGS_FOCUS_RING,
 						selected
@@ -81,12 +81,12 @@ export function SegmentedControl<T extends string>({
 								transition={reduce ? { duration: 0 } : SPRING_SEGMENT}
 							/>
 						) : null}
-						<span className="relative z-10 inline-flex min-w-0 items-center gap-1.5">
+						<span className="relative z-10 inline-flex items-center gap-1.5">
 							{option.icon ? (
 								<Icon name={option.icon} size={15} aria-hidden="true" />
 							) : null}
 							{iconOnly ? null : (
-								<span className="truncate">{option.label}</span>
+								<span className="whitespace-nowrap">{option.label}</span>
 							)}
 						</span>
 					</button>

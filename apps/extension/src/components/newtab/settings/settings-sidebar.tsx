@@ -3,12 +3,20 @@ import {
 	SidebarContent,
 	SidebarHeader,
 } from "@klice-start/ui/components/sidebar";
+import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
 import { Icon } from "@klice-start/ui/icons/icon";
+import type { IconName } from "@klice-start/ui/icons/icon";
 import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { glassShape } from "../../../lib/glass";
+import {
+	glassForeground,
+	glassLensVeil,
+	glassLiquidProps,
+	glassShape,
+} from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
+import { useAppearance } from "../appearance-provider";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
@@ -39,6 +47,80 @@ import {
  * reserves space atomically while the already-mounted panel enters on its
  * compositor-friendly transform path.
  */
+
+/**
+ * Settings header chrome (Back / Close). The Settings BODY stays Flat, but
+ * the chrome follows the material mode at the shared 34px toolbar geometry:
+ * a Glass hero control in Glass mode, the quiet Flat control otherwise.
+ * One focus language (accent ring) in both — never a stacked ring + wash.
+ */
+function SettingsChromeButton({
+	icon,
+	label,
+	onClick,
+	buttonRef,
+}: {
+	icon: IconName;
+	label: string;
+	onClick: () => void;
+	buttonRef?: React.Ref<HTMLButtonElement>;
+}) {
+	const { isLiquid, glassParams, resolvedDark } = useAppearance();
+	const glyph = (
+		<Icon name={icon} size={17} strokeWidth={1.5} aria-hidden="true" />
+	);
+
+	if (isLiquid) {
+		const optics = glassLiquidProps(glassParams, "clear");
+		return (
+			<LiquidGlass
+				blur={optics.blur}
+				refract
+				refraction={optics.refraction}
+				saturation={optics.saturation}
+				brightness={optics.brightness}
+				bezel={optics.bezel}
+				shape="toolbarIcon"
+				className={cn("size-[34px] shrink-0", glassLensVeil("hero", resolvedDark))}
+			>
+				<button
+					ref={buttonRef}
+					type="button"
+					onClick={onClick}
+					aria-label={label}
+					title={label}
+					data-settings-ui="true"
+					className={cn(
+						"flex size-full items-center justify-center bg-transparent transition-[background-color,color,transform] duration-150 ease-out active:scale-[0.96]",
+						"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--klice-accent)]",
+						glassForeground(),
+						"hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15",
+					)}
+				>
+					{glyph}
+				</button>
+			</LiquidGlass>
+		);
+	}
+
+	return (
+		<button
+			ref={buttonRef}
+			type="button"
+			className={cn(
+				"size-[34px]",
+				SETTINGS_HEADER_CONTROL,
+				SETTINGS_FOCUS_RING,
+			)}
+			onClick={onClick}
+			aria-label={label}
+			title={label}
+			data-settings-ui="true"
+		>
+			{glyph}
+		</button>
+	);
+}
 export function SettingsSidebar({
 	open,
 	layoutOpen = open,
@@ -187,20 +269,11 @@ export function SettingsSidebar({
 						)}
 					>
 						{!showRoot && (
-							<button
-								type="button"
-								className={cn(
-									"size-9",
-									SETTINGS_HEADER_CONTROL,
-									SETTINGS_FOCUS_RING,
-								)}
+							<SettingsChromeButton
+								icon="chevron-left"
+								label="Back to Preferences"
 								onClick={goRoot}
-								aria-label="Back to Preferences"
-								title="Back to Preferences"
-								data-settings-ui="true"
-							>
-								<Icon name="chevron-left" size={17} aria-hidden="true" />
-							</button>
+							/>
 						)}
 						<div className="min-w-0 flex-1">
 							<h2
@@ -213,18 +286,12 @@ export function SettingsSidebar({
 							<p className="sr-only">Klice Start preferences</p>
 						</div>
 						{open && (
-							<button
-								ref={closeControlRef}
-								type="button"
+							<SettingsChromeButton
+								icon="x"
+								label="Close preferences"
+								buttonRef={closeControlRef}
 								onClick={handleClose}
-								className={cn(SETTINGS_HEADER_CONTROL, SETTINGS_FOCUS_RING)}
-								aria-label="Close preferences"
-								aria-controls="settings-sidebar"
-								title="Close preferences"
-								data-settings-ui="true"
-							>
-								<Icon name="x" size={18} aria-hidden="true" />
-							</button>
+							/>
 						)}
 					</header>
 				</SidebarHeader>
