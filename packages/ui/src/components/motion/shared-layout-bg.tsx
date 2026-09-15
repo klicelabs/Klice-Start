@@ -34,6 +34,14 @@ export interface SharedLayoutBgProps
 	inset?: number;
 	/** Optional positioning override for the pill wrapper inside each item. */
 	pillContainerClassName?: string;
+	/**
+	 * Controlled pill key. When defined (even as null), the moving pill
+	 * follows this key instead of pointer hover — unifying keyboard
+	 * selection and pointer hover into ONE visual surface. Children still
+	 * drive it by updating the key (e.g. onMouseEnter → selection), so no
+	 * interaction logic changes. Absent = legacy pointer-hover behavior.
+	 */
+	activeKey?: string | null;
 }
 
 const variants: Variants = {
@@ -58,13 +66,17 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
 			pillClassName,
 			pillContainerClassName,
 			inset = 20,
+			activeKey,
 			...props
 		},
 		forwardedRef,
 	) {
-		const [activeId, setActiveId] = useState<string | null>(null);
+		const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 		const uid = useId();
 		const reduce = useReducedMotion();
+		// Controlled mode (activeKey defined) unifies pointer + keyboard into
+		// one surface; uncontrolled keeps the legacy hover-only pill.
+		const effectiveActiveKey = activeKey !== undefined ? activeKey : hoveredKey;
 
 		const renderedChildren = Children.toArray(children)
 			.filter(isValidElement)
@@ -73,8 +85,13 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
 					className?: string;
 					onMouseEnter?: () => void;
 					children?: ReactNode;
+					["data-shared-bg-skip"]?: unknown;
 				}>;
 				const childKey = el.key ? String(el.key) : `item-${index}`;
+				// Non-interactive rows (section labels, empty states) opt out
+				// via data-shared-bg-skip: rendered untouched, never hosting
+				// the pill, never stealing it on hover.
+				if ("data-shared-bg-skip" in el.props) return el;
 				return cloneElement(
 					el,
 					{
@@ -82,25 +99,25 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
 						className: cn("relative", el.props.className),
 						onMouseEnter: () => {
 							el.props.onMouseEnter?.();
-							setActiveId(childKey);
+							setHoveredKey(childKey);
 						},
 					},
 					<>
-						<AnimatePresence custom={activeId !== null}>
-							{activeId !== null ? (
+						<AnimatePresence custom={effectiveActiveKey !== null}>
+							{effectiveActiveKey !== null ? (
 								<motion.div
 									variants={reduce ? reducedVariants : variants}
 									initial="initial"
 									animate="animate"
 									exit="exit"
-									custom={activeId !== null}
+									custom={effectiveActiveKey !== null}
 									className={cn(
 										"pointer-events-none absolute inset-y-0",
 										pillContainerClassName,
 									)}
 									style={{ left: -inset, right: -inset }}
 								>
-									{activeId === childKey ? (
+									{effectiveActiveKey === childKey ? (
 										<motion.div
 											layoutId={`shared-bg-${uid}`}
 											transition={reduce ? { duration: 0 } : SPRING_LAYOUT}
@@ -119,7 +136,7 @@ export const SharedLayoutBg = forwardRef<HTMLElement, SharedLayoutBgProps>(
 			});
 
 		const handleMouseLeave = (event: MouseEvent<HTMLElement>) => {
-			setActiveId(null);
+			setHoveredKey(null);
 			onMouseLeave?.(event);
 		};
 

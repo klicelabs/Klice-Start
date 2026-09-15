@@ -496,7 +496,7 @@ export function ContextMenuContent({
 
 	const visualOpen = context.open && morphReady;
 	const clipHidden = collapsedClip(origin, size);
-	const clipShown = "inset(0px 0px 0px 0px round 12px)";
+	const clipShown = "inset(0px 0px 0px 0px)";
 
 	return createPortal(
 		<div
@@ -505,7 +505,10 @@ export function ContextMenuContent({
 			inert={!context.open}
 			style={{ left: position.x, top: position.y }}
 			className={cn(
-				"fixed z-[100] [filter:drop-shadow(0_18px_28px_rgba(0,0,0,0.2))]",
+				// Keep the portal wrapper free of `filter`: an ancestor filter
+				// establishes a separate backdrop root and weakens the dense Glass
+				// blur on the content below. The menu owns the shadow instead.
+				"fixed z-[100]",
 				context.open ? "pointer-events-auto" : "pointer-events-none",
 			)}
 		>
@@ -543,7 +546,10 @@ export function ContextMenuContent({
 				onKeyDown={onKeyDown}
 				onContextMenu={(event) => event.preventDefault()}
 				className={cn(
-					"min-w-56 overflow-hidden rounded-xl border border-border bg-card p-1.5 text-foreground outline-none",
+					// The caller owns the surface material. App context menus pass the
+					// semantic dense Liquid Glass recipe; keeping a default card fill or
+					// border here would compete with that recipe and flatten the backdrop.
+					"min-w-56 overflow-hidden rounded-xl p-1.5 text-[var(--klice-glass-foreground-primary)] shadow-[0_18px_28px_rgba(0,0,0,0.2)] outline-none",
 					className,
 				)}
 			>
@@ -609,27 +615,36 @@ function ContextMenuItemBase({
 				onSelect?.();
 				if (closeOnSelect) context.setOpen(false);
 			}}
-			className={cn(
-				"relative isolate flex w-full select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] outline-none",
-				"focus-visible:ring-2 focus-visible:ring-foreground/15",
-				"disabled:pointer-events-none disabled:opacity-40",
-				inset && "pl-8",
-				tone === "destructive" ? "text-destructive" : "text-foreground",
-				className,
-			)}
-		>
-			{active ? (
-				<motion.span
-					layoutId={`${context.menuId}-active`}
-					className={cn(
-						"absolute inset-0 -z-10 rounded-lg",
-						tone === "destructive"
-							? "bg-destructive/10"
-							: "bg-foreground/[0.065]",
-					)}
-					transition={context.reduce ? { duration: 0 } : SPRING_LAYOUT}
-				/>
-			) : null}
+		className={cn(
+			"relative isolate flex w-full select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] font-normal outline-none",
+			// No focus ring: the active pill below IS the single focus/selection
+			// indicator (never ring + accent wash stacked). Keyboard focus
+			// always lands on the active item, so nothing is lost.
+			"disabled:pointer-events-none disabled:opacity-40",
+			inset && "pl-8",
+			tone === "destructive"
+				? "text-destructive"
+				: "text-[var(--klice-glass-foreground-primary)]",
+			className,
+			// Active (hover / keyboard) row: accent highlight, macOS-style.
+			// Placed after the caller's surface classes so the highlight wins.
+			active &&
+				tone !== "destructive" &&
+				"text-[var(--klice-accent-foreground)]",
+		)}
+	>
+		{active ? (
+			<motion.span
+				layoutId={`${context.menuId}-active`}
+				className={cn(
+					"absolute inset-0 -z-10 rounded-lg",
+					tone === "destructive"
+						? "bg-destructive/10"
+						: "bg-[var(--klice-accent)]",
+				)}
+				transition={context.reduce ? { duration: 0 } : SPRING_LAYOUT}
+			/>
+		) : null}
 			{children}
 		</button>
 	);
@@ -766,7 +781,9 @@ export function ContextMenuLabel({
 	return (
 		<div
 			className={cn(
-				"px-2.5 pt-1.5 pb-1 font-semibold text-[10px] text-muted-foreground uppercase tracking-[0.12em]",
+				// Section label, not a heading: regular 12px secondary type with
+				// breathing room — never uppercase, never bold.
+				"px-2.5 pt-2 pb-1 text-[12px] font-normal text-muted-foreground",
 				inset && "pl-8",
 				className,
 			)}
@@ -781,7 +798,17 @@ export interface ContextMenuSeparatorProps {
 }
 
 export function ContextMenuSeparator({ className }: ContextMenuSeparatorProps) {
-	return <hr className={cn("-mx-1 my-1 h-px border-0 bg-border", className)} />;
+	// Thin, low-contrast, structural hairline — theme-adaptive so it reads on
+	// both the light frosted veil and the dark veil. Callers must not override
+	// this with a fixed white/10 wash (invisible on the light veil).
+	return (
+		<hr
+			className={cn(
+				"-mx-1 my-1 h-px border-0 bg-black/[0.08] dark:bg-white/10",
+				className,
+			)}
+		/>
+	);
 }
 
 export interface ContextMenuShortcutProps {
@@ -797,7 +824,7 @@ export function ContextMenuShortcut({
 		<span
 			aria-hidden="true"
 			className={cn(
-				"ml-auto pl-4 font-medium text-[10px] text-muted-foreground tracking-wide",
+				"ml-auto pl-4 text-[11px] font-normal tracking-wide opacity-70",
 				className,
 			)}
 		>

@@ -215,6 +215,7 @@ export function FileTree({
 	const [internalValue, setInternalValue] = useState(defaultValue);
 	const [internalExpandedIds, setInternalExpandedIds] =
 		useState(defaultExpandedIds);
+	const [hoveredId, setHoveredId] = useState<string | null>(null);
 	const [focusedId, setFocusedId] = useState<string | null>(
 		value ?? defaultValue,
 	);
@@ -315,9 +316,14 @@ export function FileTree({
 			aria-label={ariaLabel}
 			aria-multiselectable="false"
 			inset={0}
-			pillClassName="rounded-xl bg-muted"
+			// ONE surface for hovered-or-selected: the committed selection
+			// keeps the pill when the pointer leaves; keyboard focus keeps
+			// its ring. Rows own foreground only — no native selected bg.
+			activeKey={hoveredId ?? selectedId}
+			pillClassName="rounded-lg bg-muted"
 			pillContainerClassName="inset-y-auto top-0 h-9"
 			className={cn("min-w-0", className, classNames?.tree)}
+			onMouseLeave={() => setHoveredId(null)}
 		>
 			{rows.map((row) => {
 				const isFolder = row.item.type === "folder";
@@ -356,6 +362,9 @@ export function FileTree({
 							aria-disabled={row.item.disabled || undefined}
 							tabIndex={focusedRow === row.item.value ? 0 : -1}
 							onFocus={() => setFocusedId(row.item.value)}
+							onMouseEnter={() => {
+								if (!row.item.disabled) setHoveredId(row.item.value);
+							}}
 							onKeyDown={(event) => handleKeyDown(event, row)}
 							onClick={() => {
 								if (row.item.disabled) return;
@@ -366,7 +375,7 @@ export function FileTree({
 								"group/file-tree relative flex h-9 w-full items-center gap-2 overflow-hidden rounded-lg pr-2 text-left text-muted-foreground text-sm outline-none",
 								"transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
 								"aria-disabled:cursor-not-allowed",
-								isSelected && "bg-muted font-medium text-foreground",
+								isSelected && "font-medium text-foreground",
 								classNames?.item,
 								row.item.className,
 							)}
