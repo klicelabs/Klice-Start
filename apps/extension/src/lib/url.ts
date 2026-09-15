@@ -84,6 +84,30 @@ export function deriveTitleFromUrl(rawUrl: string): string {
 	return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
+const ICON_BRAND_NAMES: Record<string, string> = {
+	figma: "Figma",
+	github: "GitHub",
+	linear: "Linear",
+	stackoverflow: "Stack Overflow",
+	vercel: "Vercel",
+	youtube: "YouTube",
+};
+
+/** Short, app-like label for Icon mode; Card mode keeps its saved title. */
+export function deriveIconLabel(rawUrl: string): string {
+	const domain = getDomain(rawUrl);
+	if (!domain) return "";
+	const identity = domain.split(".")[0] ?? domain;
+	return (
+		ICON_BRAND_NAMES[identity.toLowerCase()] ??
+		identity
+			.split(/[-_]+/)
+			.filter(Boolean)
+			.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+			.join(" ")
+	);
+}
+
 /** Google favicon service URL for a given site. Empty string when invalid. */
 export function faviconUrl(rawUrl: string, size = 64): string {
 	const domain = getDomain(rawUrl);

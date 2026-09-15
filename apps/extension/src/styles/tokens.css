@@ -26,11 +26,19 @@ html.dark body {
 	/* Liquid Glass toolbar ink. Light uses black primary ink; Dark overrides the
 	   same ladder to white primary ink below. The selectors at the bottom keep older
 	   utility-shaped consumers on this single theme-aware source. */
-	--liquid-glass-toolbar-foreground-active: var(--klice-glass-foreground-primary);
-	--liquid-glass-toolbar-foreground-normal: var(--klice-glass-foreground-primary);
-	--liquid-glass-toolbar-foreground-secondary: var(--klice-glass-foreground-secondary);
+	--liquid-glass-toolbar-foreground-active: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-normal: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-secondary: var(
+		--klice-glass-foreground-secondary
+	);
 	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
-	--liquid-glass-toolbar-foreground-disabled: var(--klice-glass-foreground-disabled);
+	--liquid-glass-toolbar-foreground-disabled: var(
+		--klice-glass-foreground-disabled
+	);
 	--apple-blue: var(--klice-accent);
 	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
@@ -40,11 +48,19 @@ html.dark body {
 }
 .dark {
 	--apple-blue: var(--klice-accent);
-	--liquid-glass-toolbar-foreground-active: var(--klice-glass-foreground-primary);
-	--liquid-glass-toolbar-foreground-normal: var(--klice-glass-foreground-primary);
-	--liquid-glass-toolbar-foreground-secondary: var(--klice-glass-foreground-secondary);
+	--liquid-glass-toolbar-foreground-active: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-normal: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-secondary: var(
+		--klice-glass-foreground-secondary
+	);
 	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
-	--liquid-glass-toolbar-foreground-disabled: var(--klice-glass-foreground-disabled);
+	--liquid-glass-toolbar-foreground-disabled: var(
+		--klice-glass-foreground-disabled
+	);
 }
 
 /* The new-tab workspace owns its scroll regions. Keep the browser viewport
@@ -117,9 +133,171 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Icon layout uses tighter spacing so icons feel closer together. */
+/* Icon layout: one measured Home Screen rhythm. Card layout stays separate. */
 .dial-grid[data-layout="icon"] {
-	--grid-gap: 10px;
+	--icon-cell-w: 104px;
+	--icon-cell-h: 124px;
+	--icon-size: 76px;
+	--icon-favicon-size: 48px;
+	--icon-column-gap: 20px;
+	--icon-row-gap: 20px;
+	--icon-label-gap: 7px;
+	--icon-folder-span: 2;
+	--icon-radius: 24px;
+	--icon-mini-radius: 11px;
+	--icon-label-line-height: 14px;
+	grid-auto-rows: var(--icon-cell-h);
+}
+
+.dial-grid[data-layout="icon"] .dial-cell {
+	width: var(--icon-cell-w);
+	height: var(--icon-cell-h);
+	min-width: var(--icon-cell-w);
+	min-height: var(--icon-cell-h);
+}
+
+.dial-grid[data-layout="icon"] .dial-icon-folder-cell {
+	width: calc(
+		var(--icon-cell-w) *
+		var(--icon-folder-span) +
+		var(--icon-column-gap)
+	);
+	height: calc(
+		var(--icon-cell-h) *
+		var(--icon-folder-span) +
+		var(--icon-row-gap)
+	);
+	min-width: calc(
+		var(--icon-cell-w) *
+		var(--icon-folder-span) +
+		var(--icon-column-gap)
+	);
+	min-height: calc(
+		var(--icon-cell-h) *
+		var(--icon-folder-span) +
+		var(--icon-row-gap)
+	);
+	grid-column: span var(--icon-folder-span);
+	grid-row: span var(--icon-folder-span);
+	overflow: visible;
+}
+
+.icon-bookmark-layout {
+	gap: var(--icon-label-gap);
+	padding: 6px 2px;
+}
+
+.icon-label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  max-width: var(--icon-cell-w);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: var(--icon-label-line-height);
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.32);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-app-tile {
+	background: linear-gradient(
+		145deg,
+		hsl(var(--icon-hue) 74% 97%),
+		hsl(var(--icon-hue) 52% 86%)
+	);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.66),
+		0 7px 16px -11px rgb(0 0 0 / 0.72);
+}
+
+.icon-app-tile::after,
+.icon-folder-tile::after {
+	position: absolute;
+	inset: 0;
+	border: 1px solid rgb(255 255 255 / 0.54);
+	border-radius: inherit;
+	content: "";
+	pointer-events: none;
+}
+
+.dark .icon-app-tile {
+	background: linear-gradient(
+		145deg,
+		hsl(var(--icon-hue) 34% 32%),
+		hsl(var(--icon-hue) 30% 20%)
+	);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.18),
+		0 8px 18px -12px rgb(0 0 0 / 0.9);
+}
+
+.dark .icon-app-tile::after,
+.dark .icon-folder-tile::after {
+	border-color: rgb(255 255 255 / 0.22);
+}
+
+.icon-folder-layout {
+	gap: var(--icon-label-gap);
+	padding: 4px 0;
+}
+
+.icon-folder-tile {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	border-radius: var(--icon-radius);
+	background: linear-gradient(
+		145deg,
+		rgb(255 255 255 / 0.76),
+		rgb(255 255 255 / 0.34)
+	);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.76),
+		0 10px 24px -16px rgb(0 0 0 / 0.8);
+}
+
+.dark .icon-folder-tile {
+	background: linear-gradient(
+		145deg,
+		rgb(38 42 49 / 0.86),
+		rgb(12 14 18 / 0.72)
+	);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.2),
+		0 12px 28px -16px rgb(0 0 0 / 0.95);
+}
+
+.icon-folder-preview {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-rows: repeat(2, minmax(0, 1fr));
+	gap: clamp(6px, 1vw, 10px);
+	width: 100%;
+	height: 100%;
+	padding: clamp(10px, 1.6vw, 18px);
+}
+
+.icon-folder-preview[data-count="1"] > :first-child {
+	grid-column: 1 / -1;
+	grid-row: 1 / -1;
+	padding: 18%;
+}
+
+.icon-folder-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	color: rgb(0 0 0 / 0.38);
+}
+
+.dark .icon-folder-empty {
+	color: rgb(255 255 255 / 0.46);
 }
 
 /* data-tile lives on the grid wrapper, NOT on :root. Only the WIDTH changes
@@ -665,14 +843,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	   top so dark toolbar ink stays readable, gone below the toolbar. No
 	   radial blob — the linear alone diffuses evenly without a visible
 	   ellipse edge on dark photography. */
-	background-image:
-		linear-gradient(
-			to bottom,
-			rgb(255 255 255 / 0.88),
-			rgb(255 255 255 / 0.55) 38%,
-			rgb(255 255 255 / 0.18) 72%,
-			transparent 100%
-		);
+	background-image: linear-gradient(
+		to bottom,
+		rgb(255 255 255 / 0.88),
+		rgb(255 255 255 / 0.55) 38%,
+		rgb(255 255 255 / 0.18) 72%,
+		transparent 100%
+	);
 }
 
 /* Dark Glass family: the same shape as soft dark atmospheric diffusion. */
