@@ -35,8 +35,8 @@ export const KliceShape = {
 	 * globals.css), so the surface and its segments can never disagree.
 	 */
 	toolbarGroup: "klice-toolbar-group rounded-full",
-	searchCollapsed: "klice-squircle rounded-[28px] [--squircle-r:17px]",
-	searchExpanded: "klice-squircle rounded-[22px] [--squircle-r:13px]",
+	searchCollapsed: "klice-squircle rounded-[28px] [--squircle-r:28px]",
+	searchExpanded: "klice-squircle rounded-[32px] [--squircle-r:19px]",
 } as const;
 
 export type KliceShapeName = keyof typeof KliceShape;

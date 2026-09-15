@@ -26,6 +26,8 @@ const MAX_TEXTURE_SIZE = 480;
 const EDGE_TAPER_PX = 1.25;
 /** Keep every glasscn refraction surface inside the app's blur budget. */
 export const MAX_LIQUID_GLASS_BLUR = 12;
+/** Keep refraction visible but prevent extreme edge displacement on tiny UI. */
+export const MAX_LIQUID_GLASS_REFRACTION = 48;
 
 const displacementMapCache = new Map<string, string>();
 
@@ -143,6 +145,12 @@ export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
   /** Backdrop saturation. */
   saturation?: number;
   /**
+   * Backdrop brightness (standard CSS backdrop-filter). Dark-on-wallpaper
+   * heroes pull this below 1 for white-ink contrast; Light stays near 1.
+   * Clamped 0.5…1.2 at the material boundary.
+   */
+  brightness?: number;
+  /**
    * Corner role for the glass surface. Defaults to the generic `surface`
    * role, but a consumer that owns a stronger geometry contract (a toolbar
    * capsule, an icon chip) must pass its own role here.
@@ -159,11 +167,12 @@ export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
 export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function LiquidGlass(
 	{
 		refract = true,
-		blur = 8,
+	blur = 3,
     refraction = 15,
     mapSize: _mapSize,
     bezel = 0.34,
     saturation = 1.28,
+    brightness = 1,
     shape = "surface",
     className,
     style,
@@ -240,20 +249,25 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
   // `blur` is public API, so clamp it at the material boundary rather than
   // relying on every consumer to remember the performance budget. The
   // fallback adds a small optical cushion, but must stay inside the same cap.
-  const effectiveBlur = Math.min(MAX_LIQUID_GLASS_BLUR, Math.max(0, blur));
+	const effectiveBlur = Math.min(MAX_LIQUID_GLASS_BLUR, Math.max(0, blur));
+	const effectiveRefraction = Math.min(
+		MAX_LIQUID_GLASS_REFRACTION,
+		Math.max(0, refraction),
+	);
+	const effectiveBrightness = Math.min(1.2, Math.max(0.5, brightness));
 	const refractionActive = refract && supported && mapUrl !== "";
 	const backdropFilter = refractionActive
-		? `url(#${filterId}) blur(${effectiveBlur}px) saturate(${saturation})`
+		? `url(#${filterId}) blur(${effectiveBlur}px) saturate(${saturation}) brightness(${effectiveBrightness})`
 		: refract
-			? `blur(${Math.min(MAX_LIQUID_GLASS_BLUR, effectiveBlur + 2)}px) saturate(${saturation})`
+			? `blur(${Math.min(MAX_LIQUID_GLASS_BLUR, effectiveBlur + 2)}px) saturate(${saturation}) brightness(${effectiveBrightness})`
 			: undefined;
 
   return (
     <>
       <div
         ref={setRefs}
-        className={cn(
-          "relative overflow-hidden bg-white/[0.08]",
+		className={cn(
+			"relative overflow-hidden bg-white/[0.04] text-[var(--klice-glass-foreground-primary)] dark:bg-black/[0.06]",
           shape !== "none" && kliceShape(shape),
           className,
         )}
@@ -308,7 +322,7 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
             <feDisplacementMap
               in="SourceGraphic"
               in2="map"
-              scale={refraction}
+				scale={effectiveRefraction}
               xChannelSelector="R"
               yChannelSelector="G"
               result="displaced"
