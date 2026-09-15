@@ -112,14 +112,14 @@ export const TOOLBAR_ICON = {
  *
  * chevrons: ink 14.2 tall. An exact optical match with Settings (ink 22 tall)
  * would be an 18 * 24 / 14.2 = 30.4 -> 30px box, giving a 17.8px ink height.
- * They are deliberately set one step lower, at 28px (ink 16.6px), so the
- * arrows read a touch lighter than the gear instead of exactly equal to it.
+ * They are deliberately set lower, at 26px (ink ~15.4px), so the arrows read
+ * a touch lighter than the gear instead of exactly equal to it.
  */
 const TOOLBAR_GLYPH_BOX: Partial<
 	Record<IconName, { size: number; className: string }>
 > = {
-	"chevron-left": { size: 28, className: "size-[28px]" },
-	"chevron-right": { size: 28, className: "size-[28px]" },
+	"chevron-left": { size: 26, className: "size-[26px]" },
+	"chevron-right": { size: 26, className: "size-[26px]" },
 };
 
 /**
