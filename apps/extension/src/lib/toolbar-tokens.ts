@@ -119,6 +119,9 @@ const TOOLBAR_GLYPH_BOX: Partial<
 > = {
 	"chevron-left": { size: 24, className: "size-[24px]" },
 	"chevron-right": { size: 24, className: "size-[24px]" },
+	// Same small-ink chevron family as Back/Forward: same 24px box so the
+	// Go to Top glyph reaches the same optical weight.
+	"chevron-up": { size: 24, className: "size-[24px]" },
 };
 
 /**

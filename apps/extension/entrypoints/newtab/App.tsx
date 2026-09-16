@@ -20,6 +20,7 @@ import { ClockWidget } from "../../src/components/newtab/clock-widget";
 import { DialGrid } from "../../src/components/newtab/dial-grid";
 import { EmptyLanding } from "../../src/components/newtab/empty-landing";
 import type { FolderPreviewItem } from "../../src/components/newtab/folders/folder-preview-card";
+import { GoToTopButton } from "../../src/components/newtab/go-to-top";
 import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { RestMode } from "../../src/components/newtab/rest-mode";
 import {
@@ -864,6 +865,12 @@ export default function App() {
 										<SelectionTray onNavigateFolder={handleSelectFolder} />
 									</div>
 								</div>
+								{!restMode && (
+									<GoToTopButton
+										scrollRef={speedDialScrollRef}
+										folderId={activeFolderId}
+									/>
+								)}
 							</div>
 						</SidebarInset>
 
