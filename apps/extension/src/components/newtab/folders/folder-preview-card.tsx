@@ -155,7 +155,8 @@ export function FolderPreviewCard({
 						<IconFolderBody
 							id={id}
 							name={name}
-							previewCards={previewCards}
+														previewCards={previewCards}
+														itemCount={itemCount}
 							isSelected={isSelected}
 							editing={editing}
 							showOpenAction={showOpenAction}
@@ -390,6 +391,7 @@ interface IconFolderBodyProps {
 	id: string;
 	name: string;
 	previewCards: FolderPreviewItem[];
+	itemCount: number;
 	isSelected: boolean;
 	editing: boolean;
 	showOpenAction: boolean;
@@ -416,6 +418,7 @@ function IconFolderBody({
 	id,
 	name,
 	previewCards,
+	itemCount,
 	isSelected,
 	editing,
 	showOpenAction,
@@ -432,6 +435,7 @@ function IconFolderBody({
 	previewInsertion,
 }: IconFolderBodyProps) {
 	const hasPreviews = previewCards.length > 0;
+	const overflowCount = Math.max(0, itemCount - 10);
 
 	function handleFolderKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
 		if (e.key === "Enter" || e.key === " ") {
@@ -492,7 +496,7 @@ function IconFolderBody({
 											{...stackDragProps}
 										>
 											{slot.back ? (
-												<IconAppTile
+													<IconAppTile
 													url={slot.back.url}
 													favicon={slot.back.favicon}
 													mini
@@ -511,8 +515,20 @@ function IconFolderBody({
 												url={card.url}
 												favicon={card.favicon}
 												mini
-												className="icon-folder-stack-front-tile"
-											/>
+														className="icon-folder-stack-front-tile"
+													/>
+													{slot.back && overflowCount > 0 ? (
+														<span
+															aria-hidden="true"
+															className={cn(
+																"icon-folder-stack-count rounded-full px-1.5 text-[10px] font-semibold leading-none tabular-nums",
+																glassMaterial(isLiquid, "menu", "dense"),
+																isLiquid ? glassForeground() : "text-flat-ink",
+															)}
+														>
+															+{overflowCount}
+														</span>
+													) : null}
 										</button>
 									</motion.div>
 								);

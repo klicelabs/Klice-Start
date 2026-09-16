@@ -366,12 +366,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 .icon-folder-preview-stack {
+	--icon-stack-back-offset: 20px;
 	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 84%;
-	height: 84%;
+	width: 80%;
+	height: 80%;
 	margin: auto;
 	pointer-events: auto;
 	border: 0;
@@ -382,10 +383,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 .icon-folder-preview-stack .icon-folder-stack-back-tile {
 	position: absolute;
-	top: 5px;
+	top: var(--icon-stack-back-offset);
 	right: 0;
 	bottom: 0;
-	left: 5px;
+	left: var(--icon-stack-back-offset);
 	z-index: 0;
 	width: auto;
 	height: auto;
@@ -396,9 +397,31 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .icon-folder-preview-stack .icon-folder-stack-front-tile {
 	position: relative;
 	z-index: 1;
-	width: calc(100% - 5px);
-	height: calc(100% - 5px);
+	width: calc(100% - var(--icon-stack-back-offset));
+	height: calc(100% - var(--icon-stack-back-offset));
 	transform: translate(-2px, -2px) rotate(-3deg);
+}
+
+.icon-folder-stack-count {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	z-index: 3;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 20px;
+	transform: translate(50%, 50%);
+	border: 1px solid rgb(0 0 0 / 0.14);
+	box-shadow: 0 3px 8px -4px rgb(0 0 0 / 0.7);
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.dark .icon-folder-stack-count {
+	border-color: rgb(255 255 255 / 0.16);
+	box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.92);
 }
 
 .icon-folder-preview-stack:hover .icon-folder-stack-front-tile {
