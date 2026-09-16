@@ -143,6 +143,12 @@ interface DialGridProps {
 		target: ItemRef,
 		position: "before" | "after",
 	) => void;
+	onPreviewDrop: (
+		targetFolderId: string,
+		draggedCardId: string,
+		targetCardId: string,
+		position: "before" | "after",
+	) => void;
 	onCombineCards: (draggedCardId: string, targetCardId: string) => void;
 	canNestFolder: (folderId: string, targetFolderId: string) => boolean;
 	navigation: NavigationState;
@@ -165,6 +171,7 @@ export function DialGrid({
 	onNewSubfolder,
 	onMoveItems,
 	onLiveReorder,
+	onPreviewDrop,
 	onCombineCards,
 	canNestFolder,
 	navigation,
@@ -357,12 +364,14 @@ export function DialGrid({
 			const store = useSelectionStore.getState();
 			if (!store.selectedIds.includes(ref.id)) {
 				store.clear();
+				if (dialLayout === "icon") showGroupDragGhost(e, 1);
 				return;
 			}
 			const group = store.selectedIds;
 			if (group.length > 1) showGroupDragGhost(e, group.length);
+			else if (dialLayout === "icon") showGroupDragGhost(e, 1);
 		},
-		[],
+		[dialLayout],
 	);
 
 	const dnd = useGridDnd({
@@ -375,6 +384,26 @@ export function DialGrid({
 		onDropOnFolder: handleDropOnFolder,
 		onBackgroundDrop: handleBackgroundDrop,
 		onOpenFolder,
+		allowFolderSpringLoad: dialLayout !== "icon",
+		onPreviewLiveReorder: useCallback(
+			(
+				targetFolderId: string,
+				dragged: ItemRef,
+				target: ItemRef,
+				position: "before" | "after",
+			) => {
+				if (
+					dragged.kind !== "card" ||
+					target.kind !== "card" ||
+					allCards.find((card) => card.id === dragged.id)?.folderId !==
+						targetFolderId
+				)
+					return;
+				onLiveReorder(targetFolderId, dragged, target, position);
+			},
+			[allCards, onLiveReorder],
+		),
+		onPreviewDrop: onPreviewDrop,
 		canNest: canNestFolder,
 		isInContainer,
 		onItemDragStart: handleItemDragStart,
@@ -447,10 +476,23 @@ export function DialGrid({
 	return (
 		<section
 			className="dial-grid-wrap mx-auto w-full px-[var(--speed-dial-content-gutter)]"
-			style={{ maxWidth: gridMaxWidth }}
+			data-layout={dialLayout}
+			data-drag-active={dnd.drag ? "true" : undefined}
+			style={{ maxWidth: dialLayout === "icon" ? undefined : gridMaxWidth }}
 			{...dnd.backgroundProps}
 		>
-			<div ref={stageRef} className="dial-grid-stage overflow-hidden">
+			<div
+				ref={stageRef}
+				className={
+					dialLayout === "icon"
+						? "dial-grid-stage dial-grid-stage-icon"
+						: "dial-grid-stage overflow-hidden"
+				}
+				style={{
+					maxWidth: dialLayout === "icon" ? gridMaxWidth : undefined,
+					marginInline: dialLayout === "icon" ? "auto" : undefined,
+				}}
+			>
 				<AnimatePresence initial={false} mode="sync" custom={motionContext}>
 					<motion.div
 						key={folderId}
@@ -493,9 +535,9 @@ export function DialGrid({
 										["--icon-column-gap" as string]: `${iconGrid.columnGap}px`,
 										["--icon-row-gap" as string]: `${iconGrid.rowGap}px`,
 										["--icon-label-gap" as string]: `${iconGrid.labelGap}px`,
-										["--icon-folder-span" as string]: iconGrid.folderSpan,
-										["--icon-radius" as string]: `${iconGrid.radius}px`,
-										["--icon-mini-radius" as string]: `${iconGrid.miniRadius}px`,
+									["--icon-folder-span" as string]: iconGrid.folderSpan,
+									["--icon-radius" as string]: `${iconGrid.radius}px`,
+									["--icon-safe-padding" as string]: `${iconGrid.safePadding}px`,
 									}
 								: {}),
 							...cellAspectStyle,
@@ -532,6 +574,21 @@ export function DialGrid({
 												onOpen={onOpenFolder}
 												onNewSubfolder={onNewSubfolder}
 												onDelete={onDeleteFolder}
+												getPreviewDragProps={(cardId) =>
+													dnd.getPreviewItemDragProps(folder.id, cardId)
+												}
+												stackDragProps={dnd.getFolderStackDragProps(
+													folder.id,
+													previewCards[folder.id]?.[8]?.id,
+												)}
+												previewInsertion={
+													dnd.previewInsertion?.folderId === folder.id
+														? {
+																targetCardId: dnd.previewInsertion.targetCardId,
+																position: dnd.previewInsertion.position,
+															}
+														: null
+												}
 												dragProps={dnd.getItemDragProps({
 													kind: "folder",
 													id: folder.id,

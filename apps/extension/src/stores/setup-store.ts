@@ -52,6 +52,13 @@ interface SetupActions {
 	) => string;
 	updateCard: (id: string, changes: Partial<Card>) => void;
 	moveCard: (id: string, folderId: string) => void;
+	/** Atomically insert a card before/after a card in a target folder. */
+	insertCardAt: (
+		targetFolderId: string,
+		cardId: string,
+		targetCardId: string,
+		position?: InsertPosition,
+	) => void;
 	moveCards: (ids: string[], folderId: string) => void;
 	/**
 	 * Move a mixed group of cards + folders into one folder in a SINGLE set()
@@ -447,6 +454,45 @@ export const useSetupStore = create<SetupStore>()(
 						c.id === id ? { ...c, folderId } : c,
 					);
 					return { ...reindexOrders(s.folders, cards, itemOrder), itemOrder };
+				}),
+
+			insertCardAt: (
+				targetFolderId,
+				cardId,
+				targetCardId,
+				position = "before",
+			) =>
+				set((s) => {
+					if (cardId === targetCardId) return {};
+					const dragged = s.cards.find((card) => card.id === cardId);
+					const target = s.cards.find((card) => card.id === targetCardId);
+					if (!dragged || !target || target.folderId !== targetFolderId)
+						return {};
+
+					const base = s.itemOrder ?? {};
+					const draggedKey = itemKey("card", cardId);
+					const targetKey = itemKey("card", targetCardId);
+					const targetKeys = [...(base[targetFolderId] ?? [])].filter(
+						(key) => key !== draggedKey,
+					);
+					const targetIndex = targetKeys.indexOf(targetKey);
+					if (targetIndex === -1) return {};
+
+					const itemOrder: ItemOrder = {};
+					for (const [container, keys] of Object.entries(base)) {
+						itemOrder[container] = keys.filter((key) => key !== draggedKey);
+					}
+					const insertAt = position === "after" ? targetIndex + 1 : targetIndex;
+					targetKeys.splice(insertAt, 0, draggedKey);
+					itemOrder[targetFolderId] = targetKeys;
+
+					const cards = s.cards.map((card) =>
+						card.id === cardId ? { ...card, folderId: targetFolderId } : card,
+					);
+					return {
+						...reindexOrders(s.folders, cards, itemOrder),
+						itemOrder,
+					};
 				}),
 
 			moveCards: (ids, folderId) =>

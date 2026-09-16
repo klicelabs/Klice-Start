@@ -100,6 +100,7 @@ export function DialCard({
 		<ContextMenu>
 			<ContextMenuTrigger
 				data-selected={isSelected ? "true" : undefined}
+				data-dragging={dragging ? "true" : undefined}
 				className={cn(
 					// Calm by default: no hover lift/translate/glow. The card's
 					// material stays local to its own rounded surface.
@@ -115,9 +116,15 @@ export function DialCard({
 					// independently below.
 					dialLayout === "card" && !isLiquid && glassCardMaterial(false),
 					glassFocusRing(isLiquid),
-					insertion === "before" && "drop-insert-before",
-					insertion === "after" && "drop-insert-after",
-					combineActive && cn("scale-[1.02]", glassDropRing(isLiquid)),
+					insertion === "before" &&
+						dialLayout === "card" &&
+						"drop-insert-before",
+					insertion === "after" &&
+						dialLayout === "card" &&
+						"drop-insert-after",
+					combineActive &&
+						dialLayout === "card" &&
+						cn("scale-[1.02]", glassDropRing(isLiquid)),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
@@ -153,7 +160,16 @@ export function DialCard({
 				>
 					{dialLayout === "icon" ? (
 						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center justify-center">
-							<IconAppTile url={card.url} favicon={faviconSrc} />
+							<IconAppTile
+								url={card.url}
+								favicon={faviconSrc}
+								className={cn(
+									combineActive && "icon-app-tile-drop-active",
+									dragging && "icon-app-tile-dragging",
+									insertion === "before" && "icon-drop-insert-before",
+									insertion === "after" && "icon-drop-insert-after",
+								)}
+							/>
 							{iconShowLabel &&
 								(editing ? (
 									<InlineRenameInput

@@ -133,6 +133,7 @@ export default function App() {
 	const addFolder = useSetupStore((s) => s.addFolder);
 	const deleteCard = useSetupStore((s) => s.deleteCard);
 	const deleteFolder = useSetupStore((s) => s.deleteFolder);
+	const insertCardAt = useSetupStore((s) => s.insertCardAt);
 	const moveFolders = useSetupStore((s) => s.moveFolders);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
 	const reorderItems = useSetupStore((s) => s.reorderItems);
@@ -341,14 +342,18 @@ export default function App() {
 		return counts;
 	}, [allCards]);
 
-	// Preview cards per subfolder (first ≤4 cards) for the mini Speed-Dial mosaic.
+	// Keep ten ordered cards available for Icon mode's stable 3×3 preview: the
+	// ninth slot is the folder trigger and the tenth sits visibly underneath it.
+	// Card mode still renders only its original four-card mosaic.
 	const previewCards = useMemo(() => {
 		const map: Record<string, FolderPreviewItem[]> = {};
+		const cardsById = new Map(allCards.map((card) => [card.id, card]));
 		for (const folder of subfolders) {
-			map[folder.id] = allCards
-				.filter((c) => c.folderId === folder.id)
-				.sort((a, b) => a.order - b.order)
-				.slice(0, 4)
+			map[folder.id] = getOrderedRefs(folder.id, folders, allCards, itemOrder)
+				.filter((ref) => ref.kind === "card")
+				.map((ref) => cardsById.get(ref.id))
+				.filter((card): card is Card => card !== undefined)
+				.slice(0, 10)
 				.map((c) => ({
 					id: c.id,
 					url: c.url,
@@ -357,7 +362,7 @@ export default function App() {
 				}));
 		}
 		return map;
-	}, [allCards, subfolders]);
+	}, [allCards, folders, itemOrder, subfolders]);
 
 	// Whether the current folder is empty (no cards and no subfolders).
 	const isEmpty = cards.length === 0 && subfolders.length === 0;
@@ -498,6 +503,18 @@ export default function App() {
 			reorderItems(container, dragged, target, position);
 		},
 		[reorderItems],
+	);
+
+	const handlePreviewDrop = useCallback(
+		(
+			targetFolderId: string,
+			draggedCardId: string,
+			targetCardId: string,
+			position: "before" | "after",
+		) => {
+			insertCardAt(targetFolderId, draggedCardId, targetCardId, position);
+		},
+		[insertCardAt],
 	);
 
 	// Tabbar/overflow drop: the move persists first (multi-aware, both kinds
@@ -821,6 +838,7 @@ export default function App() {
 													moveItemsToContainer(targetId, cardIds, folderIds)
 												}
 												onLiveReorder={handleLiveReorder}
+												onPreviewDrop={handlePreviewDrop}
 												onCombineCards={handleCombineCards}
 												canNestFolder={canNestFolder}
 												navigation={navigation}

@@ -8,6 +8,7 @@ import {
 import {
 	clearActiveDrag,
 	dropZoneFor,
+	insertPositionFor,
 	type GridItemDragProps,
 	resolveDragRef,
 	setDragData,
@@ -30,6 +31,21 @@ export interface GridDndHandlers {
 	onBackgroundDrop: (dragged: ItemRef) => void;
 	/** Spring-loaded navigation into a folder. */
 	onOpenFolder: (id: string) => void;
+	/** Icon mode owns spring-loading on its stacked ninth preview slot. */
+	allowFolderSpringLoad?: boolean;
+	/** Preview reorder callbacks share the grid's active drag lifecycle. */
+	onPreviewLiveReorder?: (
+		targetFolderId: string,
+		dragged: ItemRef,
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
+	onPreviewDrop?: (
+		targetFolderId: string,
+		draggedCardId: string,
+		targetCardId: string,
+		position: "before" | "after",
+	) => void;
 	/** Cycle guard for folder-in-folder drops. */
 	canNest: (folderId: string, targetFolderId: string) => boolean;
 	/** True when the ref belongs to this grid's container. */
@@ -114,6 +130,11 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	} | null>(null);
 	const [combineKey, setCombineKey] = useState<string | null>(null);
 	const [nestId, setNestId] = useState<string | null>(null);
+	const [previewInsertion, setPreviewInsertion] = useState<{
+		folderId: string;
+		targetCardId: string;
+		position: "before" | "after";
+	} | null>(null);
 
 	const dragRef = useRef<ItemRef | null>(null);
 	const lastApplied = useRef<string | null>(null);
@@ -132,6 +153,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		setInsertion(null);
 		setCombineKey(null);
 		setNestId(null);
+		setPreviewInsertion(null);
 	}, []);
 
 	// Clear the rendered intent without clearing the native payload. A
@@ -224,8 +246,13 @@ export function useGridDnd(handlers: GridDndHandlers) {
 					setInsertion(null);
 					setCombineKey(null);
 					setNestId(ref.id);
-					springTarget.current = ref.id;
-					springStart();
+					if (h.allowFolderSpringLoad !== false) {
+						springTarget.current = ref.id;
+						springStart();
+					} else {
+						springTarget.current = null;
+						springCancel();
+					}
 					return;
 				}
 				// Edge: reorder for locals; foreign folders land on drop.
@@ -388,16 +415,140 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		],
 	);
 
+	const getPreviewItemDragProps = useCallback(
+		(folderId: string, cardId: string): GridItemDragProps => {
+			const ref: ItemRef = { kind: "card", id: cardId };
+			return {
+				draggable: true,
+				onDragStart: (e) => {
+					e.stopPropagation();
+					handlersRef.current.onItemDragStart?.(ref, e);
+					dragRef.current = ref;
+					lastApplied.current = null;
+					setDragData(e, "card", cardId);
+					requestAnimationFrame(() => {
+						if (dragRef.current?.id === cardId) setDrag(ref);
+					});
+				},
+				onDragEnd: (e) => {
+					e.stopPropagation();
+					resetDrag();
+				},
+				onDragOver: (e) => {
+					const dragged = dragRef.current ?? resolveDrag(e);
+					if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
+						return;
+					const target = e.currentTarget;
+					if (!(target instanceof HTMLElement)) return;
+					const position = insertPositionFor(e, target);
+					e.preventDefault();
+					// Specific preview target beats folder body and page background.
+					e.stopPropagation();
+					e.dataTransfer.dropEffect = "move";
+					setPreviewInsertion({ folderId, targetCardId: cardId, position });
+					const stamp = `preview:${folderId}|${dragged.id}|${cardId}|${position}`;
+					if (lastApplied.current === stamp) return;
+					lastApplied.current = stamp;
+					handlersRef.current.onPreviewLiveReorder?.(
+						folderId,
+						dragged,
+						{ kind: "card", id: cardId },
+						position,
+					);
+				},
+				onDragLeave: (e) => {
+					const related = e.relatedTarget as Node | null;
+					if (
+						related &&
+						e.currentTarget instanceof Node &&
+						e.currentTarget.contains(related)
+					)
+						return;
+					e.stopPropagation();
+					setPreviewInsertion((current) =>
+						current?.folderId === folderId && current.targetCardId === cardId
+							? null
+							: current,
+					);
+				},
+				onDrop: (e) => {
+					const dragged = dragRef.current ?? resolveDrag(e);
+					if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
+						return;
+					const target = e.currentTarget;
+					if (!(target instanceof HTMLElement)) return;
+					const position =
+						previewInsertion?.folderId === folderId &&
+						previewInsertion.targetCardId === cardId
+							? previewInsertion.position
+							: insertPositionFor(e, target);
+					e.preventDefault();
+					e.stopPropagation();
+					resetDrag();
+					handlersRef.current.onPreviewDrop?.(
+						folderId,
+						dragged.id,
+						cardId,
+						position,
+					);
+				},
+			};
+		},
+		[resetDrag, previewInsertion],
+	);
+
+	const getFolderStackDragProps = useCallback(
+		(folderId: string, sourceCardId?: string) => ({
+			onDragOver: (e: DragEvent) => {
+				const dragged = dragRef.current ?? resolveDrag(e);
+				if (!dragged || dragged.kind !== "card" || dragged.id === sourceCardId)
+					return;
+				e.preventDefault();
+				e.stopPropagation();
+				e.dataTransfer.dropEffect = "move";
+				setNestId(folderId);
+				springTarget.current = folderId;
+				springStart();
+			},
+			onDragLeave: (e: DragEvent) => {
+				const related = e.relatedTarget as Node | null;
+				if (
+					related &&
+					e.currentTarget instanceof Node &&
+					e.currentTarget.contains(related)
+				)
+					return;
+				e.stopPropagation();
+				setNestId((current) => (current === folderId ? null : current));
+				springTarget.current = null;
+				springCancel();
+			},
+			onDrop: (e: DragEvent) => {
+				e.preventDefault();
+				e.stopPropagation();
+				const dragged = dragRef.current ?? resolveDrag(e);
+				resetDrag();
+				if (!dragged || dragged.kind !== "card" || dragged.id === sourceCardId)
+					return;
+				handlersRef.current.onDropOnFolder(dragged.id, folderId);
+			},
+		}),
+		[springStart, springCancel, resetDrag],
+	);
+
 	return {
 		drag,
 		insertion,
 		combineKey,
 		nestId,
+		previewInsertion,
 		/** Settle a stale gesture (e.g. the container swapped mid-drag). */
 		reset: resetDrag,
 		/** Clear hover visuals while preserving the native drag payload. */
 		resetVisuals,
 		getItemDragProps,
+		getPreviewItemDragProps,
+		getFolderStackDragProps,
 		backgroundProps: {
 			onDragOver: handleBackgroundDragOver,
 			onDrop: handleBackgroundDrop,

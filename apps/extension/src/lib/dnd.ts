@@ -74,6 +74,15 @@ export interface GridItemDragProps {
  */
 export type DropZone = "before" | "after" | "center";
 
+/** Preview cells always represent insertion, including over their center. */
+export function insertPositionFor(
+	e: DragEvent,
+	el: HTMLElement,
+): "before" | "after" {
+	const rect = el.getBoundingClientRect();
+	return e.clientX < rect.left + rect.width / 2 ? "before" : "after";
+}
+
 export function dropZoneFor(e: DragEvent, el: HTMLElement): DropZone {
 	const rect = el.getBoundingClientRect();
 	const ratio = (e.clientX - rect.left) / Math.max(1, rect.width);

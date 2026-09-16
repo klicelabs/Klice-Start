@@ -13,7 +13,63 @@ import type { DragEvent } from "react";
  */
 export function showGroupDragGhost(e: DragEvent, total: number): void {
 	if (typeof document === "undefined") return;
-	if (!Number.isFinite(total) || total < 2) return;
+	if (!Number.isFinite(total) || total < 1) return;
+
+	if (total === 1) {
+		const ghost = document.createElement("div");
+		ghost.setAttribute("aria-hidden", "true");
+		ghost.style.cssText = [
+			"position:fixed",
+			"left:-1000px",
+			"top:-1000px",
+			"width:48px",
+			"height:48px",
+			"pointer-events:none",
+			"margin:0",
+			"padding:0",
+		].join(";");
+
+		const front = document.createElement("div");
+		front.style.cssText = [
+			"display:flex",
+			"position:absolute",
+			"inset:4px",
+			"align-items:center",
+			"justify-content:center",
+			"overflow:hidden",
+			"border-radius:14px",
+			"background:linear-gradient(145deg,#f8f9fc 0%,#dfe4ec 100%)",
+			"box-shadow:0 10px 22px rgba(0,0,0,0.28)",
+		].join(";");
+
+		const sourceTile =
+			e.currentTarget instanceof HTMLElement
+				? e.currentTarget.querySelector<HTMLElement>(".icon-app-tile")
+				: null;
+		if (sourceTile) {
+			front.style.background = getComputedStyle(sourceTile).background;
+			const sourceImage = sourceTile.querySelector<HTMLImageElement>("img");
+			if (sourceImage?.src) {
+				const image = document.createElement("img");
+				image.src = sourceImage.src;
+				image.alt = "";
+				image.draggable = false;
+				image.style.cssText = "width:62%;height:62%;object-fit:contain";
+				front.appendChild(image);
+			}
+		}
+
+		ghost.appendChild(front);
+		document.body.appendChild(ghost);
+		try {
+			e.dataTransfer.setDragImage(ghost, 24, 24);
+		} catch {
+			ghost.remove();
+			return;
+		}
+		window.addEventListener("dragend", () => ghost.remove(), { once: true });
+		return;
+	}
 
 	const ghost = document.createElement("div");
 	ghost.setAttribute("aria-hidden", "true");
