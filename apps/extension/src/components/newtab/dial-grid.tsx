@@ -637,9 +637,12 @@ export function DialGrid({
 		>
 			<div
 				ref={stageRef}
+				// Both layouts clip identically: transitions slide inside the
+				// stage, while outlines/shadows/feedback live in the safe
+				// padding (12px card, 24px icon) and never touch the edge.
 				className={
 					dialLayout === "icon"
-						? "dial-grid-stage dial-grid-stage-icon"
+						? "dial-grid-stage dial-grid-stage-icon overflow-hidden"
 						: "dial-grid-stage overflow-hidden"
 				}
 				style={{

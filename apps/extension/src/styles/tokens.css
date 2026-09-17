@@ -163,6 +163,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	background: rgb(var(--klice-accent-rgb) / 0.035);
 }
 
+/* Same broad drop-surface acknowledgement as icon mode: one token, one
+   feedback language in both layouts. */
+.dial-grid-wrap[data-layout="card"][data-drag-active="true"] {
+	border-radius: 28px;
+	background: rgb(var(--klice-accent-rgb) / 0.035);
+}
+
 /* Keep transform, shadow, outline and insertion feedback inside a measured
    breathing room. The outer wrapper remains the broad drop target. */
 .dial-grid-stage-icon {
