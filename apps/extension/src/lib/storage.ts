@@ -592,6 +592,50 @@ export function getResetGeneration(): number {
 }
 
 /**
+ * Read the persisted setup envelope for a non-page context (the background
+ * service worker) while honoring the reset-generation protocol (N1).
+ * Returns null when the envelope is older than the current generation —
+ * exactly how page hydration treats stale writes — so post-reset saves can
+ * never resurrect dead state.
+ */
+export async function readSetupEnvelope(name: string): Promise<Setup | null> {
+	if (typeof chrome === "undefined" || !chrome.storage?.local) return null;
+	if (!_resetGenerationLoaded) await _resetGenerationReady;
+	const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
+	if (!data[name]) return null;
+	const resetGeneration = normalizeResetGeneration(data[RESET_GENERATION_KEY]);
+	_resetGeneration = Math.max(_resetGeneration, resetGeneration);
+	try {
+		const parsed = JSON.parse(data[name] as string) as StorageValue<Setup> &
+			Record<string, unknown>;
+		const persistedGeneration = normalizeResetGeneration(
+			parsed[PERSIST_GENERATION_KEY],
+		);
+		if (persistedGeneration < resetGeneration) return null;
+		return normalizeState(parsed.state as Partial<Setup>);
+	} catch {
+		// Corrupt envelope: quarantine semantics match the page adapter (D2) —
+		// the caller treats it as "nothing stored" and the next write replaces it.
+		return null;
+	}
+}
+
+/**
+ * Persist the setup envelope for a non-page context with the current
+ * generation stamped (N1). Serialized on the same in-flight chain as page
+ * writes so a background save cannot interleave with a coalesced page write.
+ */
+export async function writeSetupEnvelope(
+	name: string,
+	setup: Setup,
+): Promise<void> {
+	if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+	if (!_resetGenerationLoaded) await _resetGenerationReady;
+	const value: StorageValue<Setup> = { state: setup };
+	await _doWrite(name, value, _resetGeneration);
+}
+
+/**
  * Returns the JSON string of the last successfully completed write,
  * used by the cross-tab sync guard to detect our own echoes.
  */
@@ -677,8 +721,24 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 			data[RESET_GENERATION_KEY],
 		);
 		_resetGeneration = Math.max(_resetGeneration, resetGeneration);
-		const parsed = JSON.parse(data[name] as string) as StorageValue<Setup> &
-			Record<string, unknown>;
+		// D2: parse symmetrically with the localStorage branch. A corrupt
+		// value is quarantined (overwritten with the default envelope) and
+		// reported instead of silently degrading the session: unguarded
+		// JSON.parse rejection used to be absorbed by zustand, leaving the
+		// app on defaults with hasHydrated=false and the bad bytes alive.
+		let parsed: StorageValue<Setup> & Record<string, unknown>;
+		try {
+			parsed = JSON.parse(data[name] as string) as StorageValue<Setup> &
+				Record<string, unknown>;
+		} catch (error) {
+			reportPersistenceError(error);
+			try {
+				await chrome.storage.local.remove(name);
+			} catch {
+				// Quarantine is best-effort; the null return still applies.
+			}
+			return null;
+		}
 		const persistedGeneration = normalizeResetGeneration(
 			parsed[PERSIST_GENERATION_KEY],
 		);

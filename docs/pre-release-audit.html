@@ -370,12 +370,12 @@
 <h2 id="novos">Novos achados (2ª passada)</h2>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Novo — confirmado por rastreio</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>N1 — Background grava o setup sem carimbo de geração: pós-reset, saves do contexto/atalho ressuscitam dado morto</h3>
 <dl>
-<dt>Mecanismo</dt><dd><code>beginReset()</code> incrementa <code>__perchResetGeneration</code>; loads rejeitam envelopes com geração menor (<code>persistedGeneration &lt; resetGeneration → null</code>), e a ausência do carimbo parseia como 0. <code>writeSetup</code> do background (<code>background.ts:38</code>) serializa <code>{ state }</code> <strong>sem</strong> <code>PERSIST_GENERATION_KEY</code> e sem ler a geração corrente. Depois de um reset, o próximo save do menu de contexto/atalho lê o setup antigo (ou default), grava, mostra badge "✓" — mas o envelope sem carimbo é descartado por toda hidratação (<code>0 &lt; 1</code>) e ignorado pelo cross-tab sync dos outras abas (<code>use-cross-tab-sync</code> rejeita geração &lt; corrente). Resultado: <strong>quick-save pós-reset apaga silenciosamente</strong> — a UI do background confirma, o dado nunca aparece e ainda contamina o storage com um estado paralelo morto.</dd>
-<dt>Combinação</dt><dd>M13 (aba morta) + M14 (fora do protocolo) + este caminho = três escritores, um sem participação no protocolo. Nuvem de risco única.</dd>
-<dt>Próxima ação</dt><dd><code>writeSetup</code> deve ler a geração corrente e gravá-la no envelope; idealmente rotear pelo mesmo adapter do newtab.</dd>
+<dt>Mecanismo</dt><dd><code>beginReset()</code> incrementa <code>__perchResetGeneration</code>; loads rejeitam envelopes com geração menor (<code>persistedGeneration &lt; resetGeneration → null</code>), e a ausência do carimbo parseia como 0. <code>writeSetup</code> do background serializava <code>{ state }</code> <strong>sem</strong> carimbo e sem ler a geração corrente.</dd>
+<dt>Fix (onda 3)</dt><dd>Protocolo extraído para o storage seam: <code>readSetupEnvelope</code>/<code>writeSetupEnvelope</code> — leitura honra a barreira de geração (envelope velho lê como "nada armazenado", igual à hidratação de página); escrita carimba a geração corrente e passa pela mesma cadeia de escrita dos coalesced writes da página (<code>_doWrite</code>). <code>background.ts</code> 100% no protocolo: pós-reset, o próximo quick-save lê null (setup fresco), grava com o carimbo novo — o badge "✓" volta a significar dado persistido.</dd>
+<dt>Validação</dt><dd><code>verify-persistence-protocol.test.ts</code>: escrita carimba a geração; envelope pré-reset lê como null após o bump; envelope pós-reset sobrevive à leitura. Builds chrome/firefox ✔; <code>tsc</code> limpo. (Execução real do service worker em navegador segue como lacuna de validação, não como bug.)</dd>
 </dl>
 </div>
 
@@ -390,11 +390,12 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-open">Novo (resíduo de C2)</span></div>
+<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>D2 — Valor corrupto no storage: sessão degradada em silêncio, sem quarentena</h3>
 <dl>
-<dt>Sintoma real</dt><dd>Hidratação rejeitada é absorvida pelo zustand; app roda com defaults; <code>hasHydrated=false</code> desliga Back/Forward para sempre naquela aba; o valor ruim permanece no storage e nenhuma UI reporta.</dd>
-<dt>Próxima ação</dt><dd>Catch simétrico + quarentena + reuso do canal de <code>reportPersistenceError</code>.</dd>
+<dt>Sintoma real</dt><dd>Hidratação rejeitada era absorvida pelo zustand; app rodava com defaults; <code>hasHydrated=false</code> desligava Back/Forward para sempre naquela aba; o valor ruim permanecia no storage e nada reportava.</dd>
+<dt>Fix (onda 3)</dt><dd>Parse simétrico no branch <code>chrome.storage</code> do adapter (igual ao branch <code>localStorage</code>): <code>JSON.parse</code> guardado; em falha, <code>reportPersistenceError</code> dispara o toast de persistência e o valor corrupto é removido do storage (quarentena) — a próxima escrita substitui limpo.</dd>
+<dt>Validação</dt><dd><code>verify-persistence-protocol.test.ts</code>: envelope corrupto → getItem null + valor removido do storage; escrita/leitura seguinte round-tripa. C2 segue "achado parcialmente incorreto" (nunca houve brick), mas o resíduo D2 está fechado.</dd>
 </dl>
 </div>
 
@@ -459,7 +460,7 @@
 <li><s><strong>Desbloquear o typecheck (R1)</strong></s> — <strong>concluído (onda 3):</strong> <code>ext</code> tipado como <code>typeof Browser</code> (wxt/browser); <code>tsc --noEmit</code> 0 erros.</li>
 <li><s><strong>C3 (crítico restante)</strong></s> — <strong>concluído (onda 3):</strong> época de gesto com flag de cancel checada nos 4 handlers de drop antes de <code>resolveDrag(e)</code>; loop vermelho da 2ª passada virou teste de regressão verde.</li>
 <li><strong>Confiança no undo</strong> — <s>H4 (commit único no drop das tabs)</s> <strong>resolvido (onda 3: hover=preview via previewReorderItems, drop=commit)</strong>; resíduo de H1 <strong>resolvido (onda 3: deadIdNotice + toast)</strong>; M1 <strong>resolvido (applier lê nameOnlyIds)</strong>.</li>
-<li><strong>Protocolo de escrita único</strong> — N1 (generation stamp no background) + M13 pendentes; M20 <strong>resolvido (reset/import limpam past+future)</strong>; NPD-3 <strong>implementada (sync invalida future e poda undo por verificação de snapshot)</strong>.</li>
+<li><strong>Protocolo de escrita único</strong> — <s>N1 (generation stamp no background)</s> <strong>resolvido (onda 3: readSetupEnvelope/writeSetupEnvelope)</strong>; M13 pendente (aba morta repersistindo — mitiga-se com o mesmo protocolo, ver tabela); M20 <strong>resolvido</strong>; NPD-3 <strong>implementada</strong>; D2 <strong>resolvido (quarentena + report)</strong>.</li>
 <li><strong>Integridade de dados</strong> — H5/M11 (remapear órfãos), H12 (uuid/dedupe), D2 (quarentena), H3/P3 (popular tombstones e adiar GC).</li>
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
 <li><strong>Decisões P1/P2 no DnD</strong> — H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop).</li>

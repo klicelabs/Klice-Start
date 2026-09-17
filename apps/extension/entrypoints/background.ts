@@ -13,7 +13,11 @@ import {
 	pendingSaveId,
 	pendingSaveThumbId,
 } from "../src/lib/pending-save";
-import { normalizeState } from "../src/lib/storage";
+import {
+	normalizeState,
+	readSetupEnvelope,
+	writeSetupEnvelope,
+} from "../src/lib/storage";
 import { canonicalUrl, isAbsoluteHttpUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
 import type { Folder, Setup } from "../src/types";
@@ -25,22 +29,23 @@ const MENU_ID = "add-to-perch";
 const NEW_FOLDER_SEPARATOR_ID = "klice-new-folder-separator";
 const NEW_FOLDER_MENU_ID = "klice-new-folder";
 
-/** Read and normalize the persisted setup, or null when nothing is stored. */
-async function readSetup(): Promise<Setup | null> {
-	const data = await ext.storage.local.get(STORAGE_KEY);
-	const persisted = data[STORAGE_KEY];
-	if (!persisted) return null;
-	try {
-		return normalizeState(JSON.parse(persisted as string).state);
-	} catch {
-		return null;
-	}
+/**
+ * Read and normalize the persisted setup, or null when nothing is stored.
+ * N1: routes through the shared generation protocol — an envelope older
+ * than the current reset generation reads as "nothing stored", so a save
+ * never builds on dead state.
+ */
+function readSetup(): Promise<Setup | null> {
+	return readSetupEnvelope(STORAGE_KEY);
 }
 
-async function writeSetup(setup: Setup): Promise<void> {
-	await ext.storage.local.set({
-		[STORAGE_KEY]: JSON.stringify({ state: setup }),
-	});
+/**
+ * N1: persist with the current generation stamped and the shared write
+ * chain honored. Post-reset, the next quick-save reads null (fresh setup),
+ * writes with the new stamp — the badge "✓" finally means the data landed.
+ */
+function writeSetup(setup: Setup): Promise<void> {
+	return writeSetupEnvelope(STORAGE_KEY, setup);
 }
 
 // Context menu: "Save page to Klice Start" is a parent item with one entry
