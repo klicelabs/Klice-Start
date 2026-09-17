@@ -158,14 +158,13 @@
 
 <h3>❌ Regressão introduzida pelos fixes</h3>
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-reg">Regressão</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>R1 — <code>ext</code> quebra <code>tsc --noEmit</code> (18 erros novos)</h3>
 <dl>
-<dt>Evidência</dt><dd><code>cd apps/extension &amp;&amp; bun run compile</code> → 18 erros <code>TS2339/TS2353/TS2554/TS7006</code>, todos em <code>entrypoints/background.ts</code> (ex.: <code>Property 'onStartup' does not exist on type 'typeof runtime'</code>). Baseline <code>a14b754</code> verificado em worktree limpo: <strong>0 erros</strong> nesse arquivo (com <code>.wxt</code> presente, <code>browser</code> é global auto-importado do WXT).</dd>
+<dt>Evidência</dt><dd><code>cd apps/extension &amp;&amp; bun run compile</code> → 18 erros <code>TS2339/TS2353/TS2554/TS7006</code>, todos em <code>entrypoints/background.ts</code> (ex.: <code>Property 'onStartup' does not exist on type 'typeof runtime'</code>). Baseline <code>a14b754</code> verificado em worktree limpo: <strong>0 erros</strong> nesse arquivo (com <code>.wxt</code> presente, <code>browser</code> é global auto-importado do WXT). (+1 erro em <code>zz-audit-harness.test.mts</code>: <code>bun:test</code> sem tipos, fora do exclude do tsconfig.)</dd>
 <dt>Causa raiz</dt><dd><code>ext</code> é tipado como <code>typeof chrome</code>, e o <code>chrome.d.ts</code> do projeto tem 107 linhas mínimas. No <code>background.ts</code> o código usa superfícies que o d.ts não declara; o global <code>browser</code> do WXT as tinha.</dd>
-<dt>Por que o build passa</dt><dd><code>chrome-mv3</code> e <code>firefox-mv3</code> compilam (esbuild não faz typecheck) — a regressão é invisível no build e fatal no typecheck/IDE.</dd>
-<dt>Impacto</dt><dd>CI de tipos quebrado; falso seguro de tipos no pior lugar (o arquivo com 31 usos de API).</dd>
-<dt>Próxima ação</dt><dd>Expandir o <code>chrome.d.ts</code> (ou adotar <code>@types/chrome</code> / tipos do WXT para o <code>ext</code>) antes de commitar a onda.</dd>
+<dt>Fix (onda 3)</dt><dd><code>ext</code> agora é tipado como <code>typeof Browser</code> do <code>wxt/browser</code> — o tipo completo derivado de <code>@types/chrome</code> que o WXT já gera para o global <code>browser</code>, sem dependência nova. O <code>.mts</code> de teste entrou no exclude do tsconfig (convenção dos testes existentes).</dd>
+<dt>Validação</dt><dd><code>tsc --noEmit</code> → <strong>0 erros</strong> (19/19 resolvidos, incluindo a cascata de implicit-any nos callbacks, que era efeito colateral do tipo mínimo). Builds chrome-mv3 e firefox-mv3 ✔; suíte 51 verdes (C3 segue vermelho por desenho).</dd>
 </dl>
 </div>
 
@@ -220,7 +219,7 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High (rebaixado de Critical)</span><span class="badge st-part">Resolvido parcialmente</span><span class="badge st-reg">Regressão R1</span></div>
+<div class="badges"><span class="badge sev-High">High (rebaixado de Critical)</span><span class="badge st-part">Resolvido parcialmente (R1 resolvido na onda 3)</span></div>
 <h3>C4 — Split <code>chrome.*</code> vs <code>browser.*</code> ameaça o Firefox</h3>
 <dl>
 <dt>Original</dt><dd>Popup/storage/sync/bookmarks usam <code>chrome.*</code> promise-style; background usa <code>browser.*</code>; no Firefox o split ameaça quick-save, sync e import.</dd>
@@ -456,7 +455,7 @@
 
 <h2 id="ordem">Ordem de correção recomendada</h2>
 <ol>
-<li><strong>Desbloquear o typecheck (R1)</strong> — tipar <code>ext</code> de verdade (d.ts expandido ou tipos do WXT) e só então commitar a onda anterior.</li>
+<li><s><strong>Desbloquear o typecheck (R1)</strong></s> — <strong>concluído (onda 3):</strong> <code>ext</code> tipado como <code>typeof Browser</code> (wxt/browser); <code>tsc --noEmit</code> 0 erros.</li>
 <li><strong>C3 (crítico restante)</strong> — flag de gesto/época checada nos drops antes de <code>resolveDrag(e)</code>; o loop vermelho desta passada vira o teste de regressão.</li>
 <li><strong>Confiança no undo</strong> — H4 (commit único no drop das tabs) + resíduo de H1 (feedback para id inexistente) + M1 (applier ler <code>nameOnlyIds</code>).</li>
 <li><strong>Protocolo de escrita único</strong> — N1 (generation stamp no background) + M13/M20 + NPD-3 (decidida: reset/import limpam past+future; sync invalida future).</li>
@@ -469,7 +468,7 @@
 </ol>
 
 <footer>
-<p>2ª passada independente sobre <code>a14b754</code> + working tree não commitado. Loops executáveis: <code>scripts/zz-audit-harness.test.mts</code> (5 verdes), <code>scripts/zz-audit-c3-esc-drop.test.tsx</code> (1 vermelho proposital = regressão do C3). Suíte: 51 passando. Builds: chrome-mv3 ✔ firefox-mv3 ✔ · <code>tsc --noEmit</code> ✖ (R1, 18 erros). Nenhuma correção de produção aplicada nesta passada; nenhum arquivo de produção foi modificado. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
+<p>2ª passada independente sobre <code>a14b754</code> + working tree não commitado; remediação (ondas 3+) em andamento a partir de <code>9c710b4</code>. Loops executáveis: <code>scripts/zz-audit-harness.test.mts</code> (5 verdes), <code>scripts/zz-audit-c3-esc-drop.test.tsx</code> (1 vermelho proposital = regressão do C3). Suíte: 51 passando. Builds: chrome-mv3 ✔ firefox-mv3 ✔ · <code>tsc --noEmit</code> ✔ desde a onda 3 (R1 resolvido). Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
 </footer>
 
 </main>
