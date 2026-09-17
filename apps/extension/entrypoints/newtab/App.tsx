@@ -135,6 +135,7 @@ export default function App() {
 	const reorderGroup = useSetupStore((s) => s.reorderGroup);
 	const reorderItems = useSetupStore((s) => s.reorderItems);
 	const reorderFolders = useSetupStore((s) => s.reorderFolders);
+	const previewReorderItems = useSetupStore((s) => s.previewReorderItems);
 	const createSubfolderFromCards = useSetupStore(
 		(s) => s.createSubfolderFromCards,
 	);
@@ -704,23 +705,20 @@ export default function App() {
 		[moveFolders, reorderFolders, commitManualHistory, snapshotLiveSetup],
 	);
 
-	// Tab-bar root reorder during a tab drag: the gesture capture (begun at
-	// tab dragstart) diffs to exactly one entry; same-slot hovers diff null.
+	// Tab-bar root reorder during a tab drag. H4: hovers are visual-only
+	// previews (order-array write; legacy fields and history untouched); the
+	// DROP commits once via reorderItems + the capture diff. Undo now always
+	// restores the final position, and every intermediate hover is covered.
 	const handleReorderTabFolders = useCallback(
 		(fromId: string, toId: string, position: "before" | "after" = "before") => {
-			const before = takeGestureCapture();
-			reorderFolders(fromId, toId, position);
-			if (!before) return;
-			const live = useSetupStore.getState();
-			commitManualHistory(before, {
-				kind: "reorder",
-				total: 1,
-				cardCount: 0,
-				folderCount: 1,
-				container: historyContainerName(ROOT_CONTAINER, live.folders),
-			});
+			previewReorderItems(
+				ROOT_CONTAINER,
+				{ kind: "folder", id: fromId },
+				{ kind: "folder", id: toId },
+				position,
+			);
 		},
-		[reorderFolders, commitManualHistory],
+		[previewReorderItems],
 	);
 
 	// Folder deletion restores atomically on undo: the folder record, its

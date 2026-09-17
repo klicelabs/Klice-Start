@@ -124,6 +124,18 @@ interface SetupActions {
 	 */
 	applyHistorySnapshot: (snapshot: HistorySnapshot) => void;
 	/**
+	 * Live reorder preview during an in-gesture hover: mutates itemOrder
+	 * ONLY, never the legacy `order` fields. The real commit runs at drop
+	 * via reorderItems, whose reindex converges the legacy fields (H4:
+	 * history must capture the drop, not the first hover).
+	 */
+	previewReorderItems: (
+		container: string,
+		dragged: ItemRef,
+		target: ItemRef,
+		position: InsertPosition,
+	) => void;
+	/**
 	 * Restore a previously snapshotted ordering (drag cancellation). Replaces
 	 * the order map wholesale and reindexes legacy fields so readers that
 	 * still sort by `order` see the same sequence.
@@ -669,6 +681,23 @@ export const useSetupStore = create<SetupStore>()(
 						...reindexOrders(s.folders, s.cards, itemOrder),
 						itemOrder,
 					};
+				}),
+
+			previewReorderItems: (container, dragged, target, position) =>
+				set((s) => {
+					if (dragged.id === target.id) return {};
+					const base = s.itemOrder ?? {};
+					const keys = [...(base[container] ?? [])];
+					const dKey = itemKey(dragged.kind, dragged.id);
+					const tKey = itemKey(target.kind, target.id);
+					if (!keys.includes(dKey) || !keys.includes(tKey)) return {};
+					const next = keys.filter((k) => k !== dKey);
+					const to = next.indexOf(tKey);
+					if (to === -1) return {};
+					next.splice(position === "after" ? to + 1 : to, 0, dKey);
+					// H4: order-array write only — legacy `order` fields stay
+					// untouched until the drop commits via reorderItems.
+					return { itemOrder: { ...base, [container]: next } };
 				}),
 
 			restoreItemOrder: (snapshot) =>

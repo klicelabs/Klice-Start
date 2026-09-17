@@ -259,11 +259,12 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>H4 — Reorder de tabs fragmenta o histórico (commit no primeiro hover)</h3>
 <dl>
-<dt>Evidência passada 2</dt><dd>Correção ao relatório original: o capture de gesto <em>existe</em> (<code>folder-tabs.tsx:468-478</code>, <code>beginGestureCapture</code> no dragstart) — o problema é o momento do commit. <code>handleReorderTabFolders</code> (App.tsx:709) faz <code>takeGestureCapture()</code> e commita <strong>no primeiro hover</strong> (<code>liveReorder</code> → <code>onReorderFolders</code>). Hovers seguintes: <code>before</code> é <code>null</code> → <code>return</code> sem commit; o drop final (<code>handleDrop</code> → <code>onReorderFolders</code>) também fica sem capture. Resultado igual ao relatado (undo restaura posição intermediária; moves finais sem undo), mas a mecânica correta é "commit cedo demais", não "capture ausente".</dd>
-<dt>Próxima ação</dt><dd>Hover live-only (sem take) + commit único no drop — padrão já usado pelo grid.</dd>
+<dt>Causa raiz confirmada</dt><dd>O capture de gesto existia (<code>folder-tabs.tsx</code>, dragstart), mas <code>handleReorderTabFolders</code> commitava <strong>no primeiro hover</strong> (<code>takeGestureCapture()</code> → <code>reorderFolders</code> → diff nulo nos hovers seguintes) e o drop final ficava sem capture — undo restaurava posição intermediária e moves finais ficavam sem undo.</dd>
+<dt>Fix (onda 3)</dt><dd>Padrão hover=preview / drop=commit: nova ação <code>previewReorderItems</code> no setup-store (escreve <strong>só</strong> o array de <code>itemOrder</code>, sem reindexar os campos <code>order</code> legados, sem histórico); hovers de tab usam a preview (<code>handleReorderTabFolders</code>); o <strong>drop</strong> chama <code>reorderItems</code> de verdade — convergindo os campos legados e diffando o capture do dragstart em <strong>uma</strong> entrada cobrindo o gesto inteiro (inclusive gesto sem hover).</dd>
+<dt>Validação</dt><dd><code>verify-tab-reorder-history.test.ts</code>: preview não reindexa legados; drop converge; diff capture→pós-drop gera exatamente 1 entrada com undo restaurando a sequência pré-drag; gesto zero-hover também produz 1 entrada. Suíte 58/58; <code>tsc</code> limpo.</dd>
 </dl>
 </div>
 
@@ -457,7 +458,7 @@
 <ol>
 <li><s><strong>Desbloquear o typecheck (R1)</strong></s> — <strong>concluído (onda 3):</strong> <code>ext</code> tipado como <code>typeof Browser</code> (wxt/browser); <code>tsc --noEmit</code> 0 erros.</li>
 <li><s><strong>C3 (crítico restante)</strong></s> — <strong>concluído (onda 3):</strong> época de gesto com flag de cancel checada nos 4 handlers de drop antes de <code>resolveDrag(e)</code>; loop vermelho da 2ª passada virou teste de regressão verde.</li>
-<li><strong>Confiança no undo</strong> — H4 (commit único no drop das tabs) pendente; resíduo de H1 <strong>resolvido (onda 3: deadIdNotice + toast)</strong>; M1 <strong>resolvido (applier lê nameOnlyIds)</strong>.</li>
+<li><strong>Confiança no undo</strong> — <s>H4 (commit único no drop das tabs)</s> <strong>resolvido (onda 3: hover=preview via previewReorderItems, drop=commit)</strong>; resíduo de H1 <strong>resolvido (onda 3: deadIdNotice + toast)</strong>; M1 <strong>resolvido (applier lê nameOnlyIds)</strong>.</li>
 <li><strong>Protocolo de escrita único</strong> — N1 (generation stamp no background) + M13 pendentes; M20 <strong>resolvido (reset/import limpam past+future)</strong>; NPD-3 <strong>implementada (sync invalida future e poda undo por verificação de snapshot)</strong>.</li>
 <li><strong>Integridade de dados</strong> — H5/M11 (remapear órfãos), H12 (uuid/dedupe), D2 (quarentena), H3/P3 (popular tombstones e adiar GC).</li>
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>

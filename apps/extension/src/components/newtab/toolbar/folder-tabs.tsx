@@ -288,6 +288,8 @@ function FolderTab({
 		const stamp = `${draggedId}|${folder.id}|${position}`;
 		if (lastApplied.current === stamp) return;
 		lastApplied.current = stamp;
+		// H4: hover = visual-only preview (no legacy reindex, no history);
+		// the drop commits once (see handleDrop).
 		onReorderFolders?.(draggedId, folder.id, position);
 	}
 
@@ -370,10 +372,11 @@ function FolderTab({
 			return;
 		}
 		if (isRootFolder?.(dragged.id) ?? true) {
-			const stamp = `${dragged.id}|${folder.id}|${zone}`;
-			if (lastApplied.current !== stamp) {
-				onReorderFolders?.(dragged.id, folder.id, zone);
-			}
+			// H4: the drop is the single history-worthy commit. Hovers only
+			// previewed (order-array writes); this final reorderItems converges
+			// the legacy order fields and diffs the dragstart capture to one
+			// entry covering the whole gesture — even with zero hovers.
+			onReorderFolders?.(dragged.id, folder.id, zone);
 		} else {
 			onMoveFolderToRoot?.(dragged.id, folder.id, zone);
 		}
