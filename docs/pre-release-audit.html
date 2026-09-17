@@ -412,16 +412,19 @@
 </table>
 
 <h2 id="decisoes">Decisões de produto necessárias</h2>
+<p class="meta" style="border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);border-radius:var(--radius);padding:12px 16px;">Decidido pelo mantenedor em 17/09/2026 — registrado abaixo como regra oficial. Resumo: <strong>P1 A · P2 A · P3 A · P4 A · P5 A primeiro · P6 B conservador · P7 A</strong>.</p>
 <table>
-<tr><th>#</th><th>Questão</th><th>Opções</th></tr>
-<tr><td>P1</td><td>Drop estrangeiro na borda: inserir na posição ou append com aviso?</td><td>A) Insert posicionado cross-container · B) Cue explícito de fim-de-lista</td></tr>
-<tr><td>P2</td><td>Combine com grupo &gt;1: bloquear com aviso ou block-combine?</td><td>A) Bloquear + <code>dropEffect="none"</code> · B) Combinar o bloco</td></tr>
-<tr><td>P3</td><td>Thumbnails no undo de delete: adiar GC ou limpar <code>thumbId</code> no restore?</td><td>A) Tombstone até evicção · B) Strip no restore</td></tr>
-<tr><td>P4</td><td>Virtualização vs <code>content-visibility</code> paliativo a 500+?</td><td>A) Windowing real · B) <code>content-visibility:auto</code> + sem <code>layout</code></td></tr>
-<tr><td>P5</td><td>Estratégia de quota do persist (avisar/expurgar thumbs/degradar)?</td><td>A) Check pré-write + indicador persistente · B) Shard/compressão</td></tr>
-<tr><td>P6</td><td>Política canônica de URL (<code>www</code>, userinfo, case de path)?</td><td>A) Documentar atual · B) Apertar deliberadamente</td></tr>
-<tr><td>P7</td><td>Renomear "Frequently visited" (não mede visitas)?</td><td>A) "Suggestions" · B) Telemetria real</td></tr>
+<tr><th>#</th><th>Questão</th><th>Decisão registrada</th></tr>
+<tr><td>P1</td><td>Drop estrangeiro na borda: inserir na posição ou append com aviso?</td><td><strong>A — inserir exatamente na posição indicada.</strong> Regra global: "o que você vê é onde vai cair". Mandar para o final quebra a relação feedback visual × resultado.</td></tr>
+<tr><td>P2</td><td>Combine com grupo &gt;1: bloquear com aviso ou block-combine?</td><td><strong>A — bloquear combine com mais de 1 item.</strong> Sem regra mágica de "combinar 7 itens"; combine card→card é exclusivo de single item, com indicação visual de target recusado. Grupo segue movível/reordenável.</td></tr>
+<tr><td>P3</td><td>Thumbnails no undo de delete: adiar GC ou limpar <code>thumbId</code> no restore?</td><td><strong>A — tombstone, GC só na evicção do histórico.</strong> Undo deve restaurar exatamente o apagado, inclusive imagens; bytes só morrem quando a operação não puder mais ser desfeita.</td></tr>
+<tr><td>P4</td><td>Virtualização vs <code>content-visibility</code> paliativo a 500+?</td><td><strong>A — virtualização real acima de um threshold</strong> (grids pequenos normais; windowing quando a coleção cresce). <code>content-visibility</code> como otimização complementar, não como arquitetura.</td></tr>
+<tr><td>P5</td><td>Estratégia de quota do persist (avisar/expurgar thumbs/degradar)?</td><td><strong>A agora, com caminho para B.</strong> Preflight antes de salvar + erro claro + estado persistente de "não salvo"; nunca falhar em silêncio. Shard/compressão só se medição provar pressão real.</td></tr>
+<tr><td>P6</td><td>Política canônica de URL (<code>www</code>, userinfo, case de path)?</td><td><strong>B, extremamente conservadora.</strong> Definir política oficial agora (afeta Import, dedupe, Smart Save, IA), normalizando só o comprovadamente seguro (scheme/hostname onde aplicável, formato estrutural); preservar path/query/fragment; <strong>não</strong> remover <code>www</code> às cegas.</td></tr>
+<tr><td>P7</td><td>Renomear "Frequently visited" (não mede visitas)?</td><td><strong>A — renomear já</strong> (Suggestions / Suggested / Quick access, conforme a lógica atual). Nome factual só com telemetria real futura.</td></tr>
 </table>
+<h3>Filosofia do produto (registrada)</h3>
+<p>As duas decisões estruturantes são <strong>P1 e P3</strong>: DnD respeita exatamente a intenção visual, e Undo significa restauração real — nunca "mais ou menos voltou". Essas duas regras sustentam a confiança no produto.</p>
 
 <h2 id="navegadores">Achados por navegador</h2>
 <h3>Firefox / Zen</h3>
@@ -458,7 +461,7 @@
 <li><strong>Previsibilidade do DnD:</strong> H7/H8 (combine/preview parciais) + H9 (append sem cue) + H10 (borda recalculada) + H11 (hover obsoleto).</li>
 <li><strong>Escala:</strong> virtualização/memo (F1/F2 perf) + batch do reorder + índice de previews + cache de thumbs + payload do persist.</li>
 <li><strong>Polimento:</strong> M6–M9 (import), M15–M19 (atalhos/menus), L1–L8.</li>
-<li><strong>Decisões P1–P7</strong> com o usuário antes dos itens que dependem delas.</li>
+<li><strong>Aplicar decisões P1–P7</strong> já registradas acima nos itens correspondentes (H9→P1, H7→P2, H3→P3, escala→P4, H14→P5, canônico→P6, F14-nav→P7).</li>
 </ol>
 
 <footer>
