@@ -16,6 +16,7 @@ import {
 	useState,
 } from "react";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
+import { useMarqueeSelection } from "../../hooks/use-marquee-selection";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import {
@@ -705,6 +706,14 @@ export function DialGrid({
 		return new Set(selectedIds);
 	}, [dnd.drag, selectedIds]);
 
+	// Rubber-band selection owns empty-space presses; item presses stay
+	// with DnD. Results land in the one selection store, so tray,
+	// Select-all and group drag consume them untouched.
+	const marquee = useMarqueeSelection({
+		folderId,
+		items: orderedItems,
+	});
+
 	function handleCardClick(e: React.MouseEvent, id: string) {
 		const item = { id, kind: "card" as const, sourceId: folderId };
 		if (e.metaKey || e.ctrlKey) {
@@ -754,9 +763,17 @@ export function DialGrid({
 			className="dial-grid-wrap mx-auto w-full px-[var(--speed-dial-content-gutter)]"
 			data-layout={dialLayout}
 			data-drag-active={dnd.drag ? "true" : undefined}
-			style={{ maxWidth: dialLayout === "icon" ? undefined : gridMaxWidth }}
 			{...dnd.backgroundProps}
+			{...marquee.marqueeProps}
 		>
+			{marquee.marqueeActive && (
+				<div
+					aria-hidden="true"
+					className="marquee-box"
+					ref={marquee.overlayRef}
+					style={{ display: "none" }}
+				/>
+			)}
 			<div
 				ref={stageRef}
 				// Both layouts clip identically: transitions slide inside the
@@ -767,9 +784,12 @@ export function DialGrid({
 						? "dial-grid-stage dial-grid-stage-icon overflow-hidden"
 						: "dial-grid-stage overflow-hidden"
 				}
+				// Track width and centering live here (not on the wrap) so the
+				// full-bleed wrap stays the interaction surface in both
+				// layouts while content alignment never moves.
 				style={{
-					maxWidth: dialLayout === "icon" ? gridMaxWidth : undefined,
-					marginInline: dialLayout === "icon" ? "auto" : undefined,
+					maxWidth: gridMaxWidth,
+					marginInline: "auto",
 				}}
 			>
 				<AnimatePresence initial={false} mode="sync" custom={motionContext}>
@@ -845,6 +865,7 @@ export function DialGrid({
 												data-dragging={
 													dragGroupIds?.has(folder.id) ? "true" : undefined
 												}
+												data-marquee-id={folder.id}
 												className={cn(
 													"dial-cell",
 													dialLayout === "icon" && "dial-icon-folder-cell",
@@ -904,6 +925,7 @@ export function DialGrid({
 											layout
 											transition={reorderTransition}
 											className="dial-cell"
+											data-marquee-id={card.id}
 										>
 										<DialCard
 											card={card}

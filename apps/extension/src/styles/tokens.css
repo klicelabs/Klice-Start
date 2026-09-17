@@ -159,6 +159,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transition: background-color 180ms var(--ease-out);
 }
 
+/* Card mode owns the same broad interaction surface: marquee selection
+   and drops need empty space to start from, whatever the row count. */
+.dial-grid-wrap[data-layout="card"] {
+	min-height: max(320px, calc(100dvh - 280px));
+}
+
 .dial-grid-wrap[data-layout="icon"][data-drag-active="true"] {
 	background: rgb(var(--klice-accent-rgb) / 0.035);
 }
@@ -1066,6 +1072,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 .speed-dial-grid-region {
+	/* Spacing rhythm lives on .dial-grid-wrap below, so the interaction
+	   surface (marquee selection + DnD drops) covers the full content
+	   region — side bands and rhythm space included — not just the grid. */
+	padding: 0;
+}
+
+/* The wrap is the full-bleed interaction surface: it owns the vertical
+   rhythm (previously the region's padding) so presses and drags work
+   anywhere in the blue content area. Track width/centering live on the
+   stage, so content alignment is pixel-identical. */
+.dial-grid-wrap {
 	padding-top: var(--speed-dial-toolbar-grid-gap);
 	padding-bottom: var(--speed-dial-grid-bottom);
 }
@@ -1149,6 +1166,22 @@ html.dark .speed-dial-top-fade {
 }
 .drop-insert-after::after {
 	bottom: -5px;
+}
+
+/* Marquee (rubber-band) selection region. Wallpaper-direct geometry, not a
+   surface: translucent accent fill plus a thin accent edge, squircle
+   corners, no shadow or glow. Identical in Glass and Flat, Dark and Light.
+   Positioned `fixed` in client space and mutated per frame (never through
+   React state), so tracking stays 1:1 with the pointer by construction. */
+.marquee-box {
+	position: fixed;
+	z-index: 30;
+	margin: 0;
+	padding: 0;
+	pointer-events: none;
+	border: 1px solid var(--klice-accent);
+	border-radius: 10px;
+	background: rgb(var(--klice-accent-rgb) / 0.12);
 }
 
 /* Insertion rails fade in on zone change (opacity-only, interruptible) so

@@ -46,6 +46,7 @@ import {
 	getChildren,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
+import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
 import {
 	buildHistoryEntry,
 	clearGestureCapture,
@@ -105,33 +106,6 @@ function SpeedDialTopFade({ visible }: { visible: boolean }) {
 		/>
 	);
 }
-
-const SPEED_DIAL_INTERACTIVE_SELECTOR = [
-	"[data-unified-search]",
-	"[data-speed-dial-navigation]",
-	"[data-speed-dial-app-toolbar]",
-	"[data-local-context-menu]",
-	"[data-selection-tray]",
-	"[data-context-menu-portal]",
-	"[data-morph-popover-portal]",
-	"[data-settings-sidebar-slot]",
-	"[data-settings-ui]",
-	".dial-cell",
-	".settings-scope",
-	".clock-widget",
-	"button",
-	"a",
-	"input",
-	"textarea",
-	"select",
-	'[contenteditable="true"]',
-	'[role="button"]',
-	'[role="tab"]',
-	'[role="menu"]',
-	'[role="menuitem"]',
-	'[role="listbox"]',
-	'[role="tree"]',
-].join(",");
 
 export default function App() {
 	useCrossTabSync();

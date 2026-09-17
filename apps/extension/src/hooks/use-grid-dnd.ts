@@ -15,6 +15,7 @@ import {
 } from "../lib/dnd";
 import { sweepDragGhosts } from "../lib/drag-ghost";
 import type { ItemOrder, ItemRef } from "../lib/item-order";
+import { useAutoscroll } from "../lib/autoscroll";
 import { useSpringLoad } from "./use-spring-load";
 
 export interface GridDndHandlers {
@@ -83,35 +84,10 @@ function resolveDrag(e: DragEvent): ItemRef | null {
 }
 
 /**
- * Edge-triggered autoscroll tuning. The zone is viewport pixels from the
- * scroll container's lip; speed follows a quadratic depth curve so the
- * entry edge crawls for precision (~1 row/s) while the extreme lip
- * traverses (~6 rows/s) without ever jumping.
+ * Shared edge-triggered autoscroll tuning lives in lib/autoscroll
+ * (90px zone, quadratic 180→1000px/s). The grid keeps the legacy window
+ * fallback for drags that leave the scroll viewport.
  */
-const AUTOSCROLL_ZONE_PX = 90;
-const AUTOSCROLL_MIN_PX_S = 180;
-const AUTOSCROLL_MAX_PX_S = 1000;
-
-interface AutoscrollPointer {
-	x: number;
-	y: number;
-	active: boolean;
-}
-
-function autoscrollSpeed(distancePx: number): number {
-	const depth = Math.min(1, Math.max(0, 1 - distancePx / AUTOSCROLL_ZONE_PX));
-	return (
-		AUTOSCROLL_MIN_PX_S +
-		(AUTOSCROLL_MAX_PX_S - AUTOSCROLL_MIN_PX_S) * depth * depth
-	);
-}
-
-function canScrollY(el: HTMLElement, dir: -1 | 1): boolean {
-	if (el.scrollHeight <= el.clientHeight + 1) return false;
-	if (dir < 0) return el.scrollTop > 0;
-	return el.scrollTop < el.scrollHeight - el.clientHeight - 1;
-}
-
 function isValidItemDrop(
 	dragged: ItemRef,
 	target: ItemRef,
@@ -181,99 +157,20 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		position: "before" | "after";
 	} | null>(null);
 
-	// Time-driven autoscroll session. Native dragover events stall when the
-	// pointer holds still, so sensing (dragover writes the pointer) is
-	// decoupled from scrolling (a rAF loop owns all scrollTop writes and
-	// keeps running with a static pointer inside the edge zone).
-	const scrollPointer = useRef<AutoscrollPointer>({ x: 0, y: 0, active: false });
-	const scrollContainer = useRef<HTMLElement | null | undefined>(undefined);
-	const scrollRaf = useRef<number | null>(null);
-	const scrollLastT = useRef(0);
-
-	const stopAutoscroll = useCallback(() => {
-		scrollPointer.current.active = false;
-		if (scrollRaf.current !== null) {
-			cancelAnimationFrame(scrollRaf.current);
-			scrollRaf.current = null;
-		}
-	}, []);
-
-	const autoscrollTick = useCallback(() => {
-		scrollRaf.current = null;
-		const pointer = scrollPointer.current;
-		if (!pointer.active) return;
-		const now =
-			typeof performance !== "undefined" ? performance.now() : Date.now();
-		const dt = Math.min(
-			0.05,
-			scrollLastT.current === 0 ? 0.016 : (now - scrollLastT.current) / 1000,
-		);
-		scrollLastT.current = now;
-
-		let dir: -1 | 0 | 1 = 0;
-		let distance = 0;
-		const container = scrollContainer.current;
-		if (container) {
-			const bounds = container.getBoundingClientRect();
-			const dTop = pointer.y - bounds.top;
-			const dBottom = bounds.bottom - pointer.y;
-			if (dTop < AUTOSCROLL_ZONE_PX) {
-				dir = -1;
-				distance = dTop;
-			} else if (dBottom < AUTOSCROLL_ZONE_PX) {
-				dir = 1;
-				distance = dBottom;
-			}
-			if (dir !== 0) {
-				if (canScrollY(container, dir)) {
-					container.scrollTop += dir * autoscrollSpeed(distance) * dt;
-				} else {
-					dir = 0;
-				}
-			}
-		} else if (typeof window !== "undefined") {
-			if (pointer.y < AUTOSCROLL_ZONE_PX) {
-				dir = -1;
-				distance = pointer.y;
-			} else if (window.innerHeight - pointer.y < AUTOSCROLL_ZONE_PX) {
-				dir = 1;
-				distance = window.innerHeight - pointer.y;
-			}
-			if (dir !== 0) {
-				window.scrollBy({
-					top: dir * autoscrollSpeed(distance) * dt,
-					behavior: "auto" as ScrollBehavior,
-				});
-			}
-		}
-		// Keep looping only while scrolling is needed. A fresh dragover
-		// restarts the loop, so an idle pointer outside the zone costs
-		// nothing while a static pointer inside the zone keeps travelling.
-		if (pointer.active && dir !== 0) {
-			scrollRaf.current = requestAnimationFrame(autoscrollTick);
-		}
-	}, []);
+	// Time-driven autoscroll session (shared with marquee selection).
+	// Native dragover events stall when the pointer holds still, so sensing
+	// (dragover writes the pointer) is decoupled from scrolling (a rAF loop
+	// owns all scrollTop writes and keeps running with a static pointer
+	// inside the edge zone).
+	const autoscroll = useAutoscroll({ windowFallback: true });
+	const stopAutoscroll = autoscroll.stop;
 
 	/** Record the pointer and ensure the scroll loop is running. */
 	const feedAutoscroll = useCallback(
 		(e: DragEvent) => {
-			scrollPointer.current = {
-				x: e.clientX,
-				y: e.clientY,
-				active: true,
-			};
-			if (scrollContainer.current === undefined) {
-				scrollContainer.current =
-					typeof document === "undefined"
-						? null
-						: document.querySelector<HTMLElement>("[data-speed-dial-scroll]");
-			}
-			if (scrollRaf.current === null) {
-				scrollLastT.current = 0;
-				scrollRaf.current = requestAnimationFrame(autoscrollTick);
-			}
+			autoscroll.feed({ x: e.clientX, y: e.clientY });
 		},
-		[autoscrollTick],
+		[autoscroll],
 	);
 
 	const spring = useSpringLoad(() => {
@@ -336,7 +233,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			handlersRef.current.onItemDragStart?.(ref, e);
 			dragRef.current = ref;
 			lastApplied.current = null;
-			scrollContainer.current = undefined;
+			autoscroll.setContainer(undefined);
 			sweepDragGhosts();
 			// Snapshot the persisted order before hover-applied live reorders
 			// mutate it, so Escape can return to a stable pre-drag state.
@@ -349,7 +246,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				if (dragRef.current?.id === ref.id) setDrag(ref);
 			});
 		},
-		[],
+		[autoscroll],
 	);
 
 	const handleItemDragEnd = useCallback(() => {
@@ -604,7 +501,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 					handlersRef.current.onItemDragStart?.(ref, e);
 					dragRef.current = ref;
 					lastApplied.current = null;
-					scrollContainer.current = undefined;
+					autoscroll.setContainer(undefined);
 					sweepDragGhosts();
 					orderSnapshot.current =
 						handlersRef.current.onSnapshotOrder?.() ?? null;
@@ -692,7 +589,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				},
 			};
 		},
-		[resetDrag, feedAutoscroll],
+		[resetDrag, feedAutoscroll, autoscroll],
 	);
 
 	const getFolderStackDragProps = useCallback(
