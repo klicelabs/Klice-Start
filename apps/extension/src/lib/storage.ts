@@ -392,6 +392,15 @@ export function normalizeState(
 		state.activeFolderId = state.folders[0]?.id || "default";
 	}
 
+	// H5/M11: cards pointing at missing folders are invisible in the grid
+	// (nothing renders a container that does not exist) yet survive into
+	// exports. Remap them to the default folder so the user sees them again.
+	const folderIds = new Set(state.folders.map((f) => f.id));
+	state.cards = state.cards.map((card) => {
+		if (folderIds.has(card.folderId)) return card;
+		return { ...card, folderId: state.activeFolderId };
+	});
+
 	// Migrate cards to include origin/capturedAt fields
 	state.cards = state.cards
 		.filter(

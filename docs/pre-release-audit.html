@@ -269,10 +269,12 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>H5 — Cards com <code>folderId</code> fantasma somem para sempre</h3>
 <dl>
-<dt>Evidência passada 2</dt><dd><code>normalizeState</code> (storage.ts ~388-410) filtra cards por URL válida, repara <code>itemOrder</code> via <code>repairItemOrder</code>, mas <strong>nunca valida <code>card.folderId</code> contra pastas existentes</strong>. <code>moveCard/moveCards</code> não validam destino. Órfãos ficam invisíveis na grade e presentes no export.</dd>
+<dt>Causa raiz confirmada</dt><dd><code>normalizeState</code> filtrava cards por URL válida e reparava <code>itemOrder</code>, mas nunca validava <code>card.folderId</code> contra pastas existentes — órfãos ficavam invisíveis na grade e presentes no export.</dd>
+<dt>Fix (onda 3)</dt><dd><code>normalizeState</code> agora remapeia cards com <code>folderId</code> fantasma para a pasta ativa (<code>activeFolderId</code>), tornando-os visíveis de novo; <code>repairItemOrder</code> os inclui no container reparado. Decisão consciente: remapear (não descartar) preserva dado do usuário; cards de URL inválida continuam filtrados como antes.</dd>
+<dt>Validação</dt><dd><code>verify-data-integrity.test.ts</code>: card órfão remapeado para a pasta ativa e presente em <code>itemOrder</code>; card válido inalterado.</dd>
 </dl>
 </div>
 
@@ -317,10 +319,11 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>H12 — Colisão de <code>uid()</code> em imports grandes</h3>
 <dl>
-<dt>Evidência passada 2</dt><dd><code>utils.ts:9</code> inalterado: <code>Date.now().toString(36) + Math.random().toString(36).slice(2,8)</code> (~31 bits de entropia + timestamp igual no mesmo ms). <code>bookmark-merge.ts</code> continua consumindo <code>uid()</code> em loop. Sem dedupe por id no normalize.</dd>
+<dt>Fix (onda 3)</dt><dd><code>uid()</code> agora usa <code>crypto.randomUUID()</code> (com fallback <code>getRandomValues</code> e, em último caso, a forma legada ampliada) — 122 bits de aleatoriedade, imune a rajadas no mesmo milissegundo. Zero mudança nos consumidores (<code>bookmark-merge</code>, <code>background</code>, stores).</dd>
+<dt>Validação</dt><dd><code>verify-data-integrity.test.ts</code>: 2×5.000 ids same-ms, todos únicos, sem sobreposição entre rajadas.</dd>
 </dl>
 </div>
 
@@ -338,7 +341,7 @@
 <tr><td>M8</td><td>Reuso de pasta casa em um lado só do trim + sem Unicode</td><td>Aberto (nuance)</td><td>Correção ao original: ambos os lados fazem <code>trim()+toLowerCase()</code> — o trim casa. O sem-normalização-Unicode (NFC/NFKC) e o case-insensitive sem locale continuam reais.</td></tr>
 <tr><td>M9</td><td>Export sem teto gera backup que o import rejeita</td><td>Aberto (nuance)</td><td>Há caps de <em>entrada</em> (<code>backup-format.ts</code>: 50MB/1000 imgs) mas o export não verifica esses tetos antes de gerar.</td></tr>
 <tr><td>M10</td><td>Settings corruptos passam pelo normalize</td><td>Aberto (nuance)</td><td>Subset validado com normalizadores (appearanceMode, colorScheme, accent, glassIntensity, thumbnailCapture); resto espalha <code>...sourceSettings</code> sem validação.</td></tr>
-<tr><td>M11</td><td>Cards órfãos sobrevivem ao normalize; exports divergem</td><td>Aberto</td><td>Mesma raiz de H5.</td></tr>
+<tr><td>M11</td><td>Cards órfãos sobrevivem ao normalize; exports divergem</td><td><strong>Resolvido (onda 3, via H5)</strong></td><td>Mesma raiz de H5: remapeio no <code>normalizeState</code> elimina a divergência grade/export.</td></tr>
 <tr><td>M12</td><td>Sync duas abas = last-writer-wins com janela de clobber</td><td>Aberto</td><td>Echo guard protege contra eco próprio; não contra interleaving real de dois escritores.</td></tr>
 <tr><td>M13</td><td>Tab morta repersiste pré-reset antes do bump propagar</td><td>Aberto (elevado → N1)</td><td>Janela existe; e o escritor do background <strong>não participa</strong> do protocolo de geração (ver N1) — pior do que o cenário original.</td></tr>
 <tr><td>M14</td><td>Background lê/escreve fora do protocolo de gerações</td><td>Aberto → fundido em N1</td><td><code>writeSetup</code> grava JSON sem <code>PERSIST_GENERATION_KEY</code>; loads com geração maior rejeitam; menu-save pós-reset fica entre ressurreição e descarte silencioso.</td></tr>
@@ -348,7 +351,7 @@
 <tr><td>M18</td><td>Reparo de location externa apaga Back válido em vez de podar</td><td>Aberto (nuance)</td><td>Comentário do código diz "prune deleted IDs"; a implementação reseta <em>ambos</em> os branches (<code>createNavigationHistory()</code>) quando a location diverge — o comentário descreve o branch de baixo, não o de cima. Comportamento relatado confirmado.</td></tr>
 <tr><td>M19</td><td>Pending-save do popup não-atômico</td><td><strong>Parcial</strong> (núcleo resolvido; resíduo → N2)</td><td>Rollback ordenado implementado e correto; pasta placeholder não resolvida segue viva (N2).</td></tr>
 <tr><td>M20</td><td><code>resetAll</code> sem histórico → undo ressuscita pré-reset</td><td><strong>Resolvido (onda 3, NPD-3)</strong></td><td><code>replaceSetup</code> (import) e <code>resetAll</code> chamam <code>clearHistory()</code> (past+future+pending). Teste de regressão prova o branch do replaceSetup; reset coberto pela mesma ação.</td></tr>
-<tr><td>M21</td><td>Falha do <code>resetAll</code> restaura tudo menos <code>itemOrder</code></td><td>Aberto (confirmado)</td><td>Catch restaura <code>folders/cards/activeFolderId/settings</code> — sem <code>itemOrder</code>.</td></tr>
+<tr><td>M21</td><td>Falha do <code>resetAll</code> restaura tudo menos <code>itemOrder</code></td><td><strong>Resolvido (onda 3)</strong></td><td>Catch do <code>resetAll</code> restaura também <code>itemOrder</code>. Teste simula falha de storage (stub que lança) e verifica estado pré-reset completo de volta.</td></tr>
 <tr><td>M22</td><td>Tab reorder por Esc não restaura</td><td>Aberto (confirmado)</td><td>Zero ocorrências de Escape/<code>onRestoreOrder</code> em <code>folder-tabs.tsx</code>.</td></tr>
 <tr><td>H6 ↓</td><td>Flush no unload fire-and-forget</td><td><strong>Rebaixado → Médio</strong></td><td>Correção ao original: existe flush em <code>visibilitychange→hidden</code> e <code>beforeunload</code>; <code>flushPersist</code> escreve <em>imediatamente</em> (não espera debounce); writes são serializados (<code>_inFlightWrite</code>). O caso real restante é a natureza best-effort de <code>beforeunload</code> (limite de plataforma MV3), não "última escrita morre" em geral. Documentar limite + <code>pagehide</code> permanece a recomendação.</td></tr>
 <tr><td>H14 ↓</td><td>Newtab ↔ background RMW 200ms</td><td><strong>Rebaixado → Médio</strong></td><td>Writes coalescidos do newtab são serializados; o RMW do background lê o <em>último JSON persistido</em>, então a janela real é o gap coalesced+in-flight. O risco Alto real foi extraído para N1 (post-reset).</td></tr>
@@ -360,7 +363,7 @@
 <tr><td>L1</td><td>Guarda de editáveis cita <code>data-rename-field</code>/<code>data-search-input</code> nunca emitidos</td><td>Aberto (confirmado)</td><td>Grep: nenhum emissor de nenhum dos dois atributos em <code>src/**</code>. Guarda funciona só via seletores nativos; atributos são código morto.</td></tr>
 <tr><td>L2</td><td>Atalhos disparam atrás de modais abertos</td><td>Aberto (nuance)</td><td><code>Ctrl+A</code> tem guarda de <code>[role="dialog"]</code>; undo/redo não. Nuance: <code>document-level</code> com Dialogs nativos... sem reprodução em navegador nesta passada.</td></tr>
 <tr><td>L3</td><td>Commits rápidos colapsam notices (só último toast)</td><td>Aberto (confirmado)</td><td><code>notice: { entryId, seq }</code> único + <code>NOTICE_TOAST_ID</code> fixo no manager.</td></tr>
-<tr><td>L4</td><td>Containers vazios fantasmas no <code>itemOrder</code></td><td>Aberto (confirmado)</td><td><code>deleteFolder</code> pula containers removidos, mas creates/moves deixam chaves de containers vazias; nada poda.</td></tr>
+<tr><td>L4</td><td>Containers vazios fantasmas no <code>itemOrder</code></td><td><strong>Resolvido (onda 3)</strong></td><td><code>deleteCard</code> poda containers não-raiz que ficaram vazios (o container <code>__root__</code> nunca é podado). Teste cobre container esvaziado e preservação da raiz.</td></tr>
 <tr><td>L5</td><td>Inversão de canto no <code>dropZoneFor</code></td><td>Aberto (confirmado)</td><td><code>dnd.ts:97-102</code>: canto sup. direito (Y&lt;0.25, X&gt;0.72) cai no <code>ratioX &gt; 0.72 → "after"</code>; espelho inferior-esquerdo idem. Diagnóstico original correto.</td></tr>
 <tr><td>L6</td><td>Marquee: Esc no-op, fase trava até pointerup</td><td><strong>Achado incorreto</strong></td><td><code>use-marquee-selection.ts:345-359</code>: listener capture + <code>stopPropagation</code> + <code>settle(true)</code> já cancela e restaura. O comentário do código inclusive documenta a intenção. Não reproduzível como descrito.</td></tr>
 <tr><td>L7</td><td>Grid com <code>windowFallback</code> contra diretriz da lib</td><td><strong>Achado incorreto</strong> (substituído por D4)</td><td><code>windowFallback: true</code> é proposital (comentário: "fallback for drags that leave the scroll viewport") e o autoscroll é co-modal com marquee. O bug real do fallback é outro: drops cross-window sem protocolo de intenção — ver D4.</td></tr>
@@ -461,7 +464,7 @@
 <li><s><strong>C3 (crítico restante)</strong></s> — <strong>concluído (onda 3):</strong> época de gesto com flag de cancel checada nos 4 handlers de drop antes de <code>resolveDrag(e)</code>; loop vermelho da 2ª passada virou teste de regressão verde.</li>
 <li><strong>Confiança no undo</strong> — <s>H4 (commit único no drop das tabs)</s> <strong>resolvido (onda 3: hover=preview via previewReorderItems, drop=commit)</strong>; resíduo de H1 <strong>resolvido (onda 3: deadIdNotice + toast)</strong>; M1 <strong>resolvido (applier lê nameOnlyIds)</strong>.</li>
 <li><strong>Protocolo de escrita único</strong> — <s>N1 (generation stamp no background)</s> <strong>resolvido (onda 3: readSetupEnvelope/writeSetupEnvelope)</strong>; M13 pendente (aba morta repersistindo — mitiga-se com o mesmo protocolo, ver tabela); M20 <strong>resolvido</strong>; NPD-3 <strong>implementada</strong>; D2 <strong>resolvido (quarentena + report)</strong>.</li>
-<li><strong>Integridade de dados</strong> — H5/M11 (remapear órfãos), H12 (uuid/dedupe), D2 (quarentena), H3/P3 (popular tombstones e adiar GC).</li>
+<li><strong>Integridade de dados</strong> — <s>H5/M11 (remapear órfãos)</s> <strong>resolvido (onda 3)</strong>; <s>H12 (uuid)</s> <strong>resolvido (crypto.randomUUID)</strong>; <s>D2 (quarentena)</s> <strong>resolvido</strong>; M21/L4 <strong>resolvidos</strong>; H3/P3 (popular tombstones e adiar GC) pendente.</li>
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
 <li><strong>Decisões P1/P2 no DnD</strong> — H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop).</li>
 <li><strong>Firefox</strong> — resto do C4 + remapear atalho + smoke real.</li>

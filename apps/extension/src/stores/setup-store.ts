@@ -9,6 +9,7 @@ import {
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
 import type { HistorySnapshot } from "../lib/history";
+import { ROOT_CONTAINER } from "../lib/item-order";
 import {
 	containerKeyOf,
 	type ItemOrder,
@@ -639,6 +640,13 @@ export const useSetupStore = create<SetupStore>()(
 							itemOrder[container] = keys.filter((k) => k !== key);
 						}
 					}
+					// L4: a folder emptied by this delete leaves a ghost container
+					// (empty array) in itemOrder forever; prune non-root empties.
+					for (const [container, keys] of Object.entries(itemOrder)) {
+						if (container !== ROOT_CONTAINER && keys.length === 0) {
+							delete itemOrder[container];
+						}
+					}
 					return {
 						cards: s.cards.filter((c) => c.id !== id),
 						itemOrder,
@@ -959,16 +967,20 @@ export const useSetupStore = create<SetupStore>()(
 					// NPD-3: reset clears past+future — undoing into the pre-reset
 					// world (M20) must be impossible after a confirmed wipe.
 					useHistoryStore.getState().clearHistory();
-				} catch (error) {
-					set({
-						folders: previous.folders,
-						cards: previous.cards,
-						activeFolderId: previous.activeFolderId,
-						settings: previous.settings,
-					});
-					await flushPersist().catch(() => undefined);
-					throw error;
-				}
+			} catch (error) {
+				set({
+					folders: previous.folders,
+					cards: previous.cards,
+					activeFolderId: previous.activeFolderId,
+					settings: previous.settings,
+					// M21: a partial reset must restore the WHOLE pre-reset state —
+					// without itemOrder the grid falls back to legacy-order reads
+					// and the user's arrangement is scrambled.
+					itemOrder: previous.itemOrder,
+				});
+				await flushPersist().catch(() => undefined);
+				throw error;
+			}
 			},
 		}),
 		{

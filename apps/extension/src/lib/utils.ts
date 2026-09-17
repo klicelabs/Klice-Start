@@ -6,8 +6,28 @@ export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
+/**
+ * Collision-resistant id (H12): the legacy form had ~31 bits of timestamped
+ * entropy and imported thousands of entities within the same millisecond,
+ * so two ids could alias and silently drop entities. Crypto randomness is
+ * always available in extension contexts (and in every modern browser),
+ * with a Math.random fallback for hardened environments.
+ */
 export function uid(): string {
-	return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+	const cryptoObj = globalThis.crypto;
+	if (typeof cryptoObj?.randomUUID === "function") {
+		return cryptoObj.randomUUID();
+	}
+	if (typeof cryptoObj?.getRandomValues === "function") {
+		const bytes = new Uint8Array(9);
+		cryptoObj.getRandomValues(bytes);
+		let binary = "";
+		for (const byte of bytes) binary += byte.toString(36).padStart(2, "0");
+		return binary;
+	}
+	// Fallback (legacy entropy + wider random slice); callers that import in
+	// bulk additionally dedupe by id downstream.
+	return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 }
 
 export function clampInt(
