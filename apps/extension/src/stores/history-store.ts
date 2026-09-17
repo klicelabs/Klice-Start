@@ -28,7 +28,12 @@ interface HistoryStoreState {
 	/** Post-action toast trigger, consumed by the history manager. */
 	notice: HistoryNotice | null;
 	noticeSeq: number;
-	commit: (entry: HistoryEntry) => void;
+	/**
+	 * Commit one entry (bounded, redo branch discarded). Announces via the
+	 * manager's post-action toast unless silent — silent commits keep their
+	 * own contextual toast and attach Undo to it instead of doubling up.
+	 */
+	commit: (entry: HistoryEntry, opts?: { silent?: boolean }) => void;
 	consumeNotice: () => void;
 	requestUndo: (entryId?: string) => void;
 	requestRedo: (entryId?: string) => void;
@@ -53,7 +58,7 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 	notice: null,
 	noticeSeq: 0,
 
-	commit: (entry) => {
+	commit: (entry, opts) => {
 		const state = get();
 		// Standard branch semantics: a new commit discards the redo branch.
 		const stacks = commitToStacks(
@@ -63,7 +68,7 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 		const seq = state.noticeSeq + 1;
 		set({
 			...stacks,
-			notice: { entryId: entry.id, seq },
+			notice: opts?.silent ? state.notice : { entryId: entry.id, seq },
 			noticeSeq: seq,
 		});
 	},

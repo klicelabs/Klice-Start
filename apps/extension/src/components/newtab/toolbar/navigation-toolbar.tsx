@@ -226,6 +226,7 @@ export function NavigationToolbar({
 							folders={visibleFolders}
 							hiddenFolders={hiddenFolders}
 							activeRootId={activeRootId}
+							activeFolderId={currentFolder?.id ?? activeRootId}
 							navigationDirection={navigationDirection}
 							showAddButton={!hasOverflow}
 							onAddRoot={onNewRootFolder}

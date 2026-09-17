@@ -9,7 +9,6 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
 import { isInsideSettingsScope } from "../../lib/context-scope";
 import { glassDropdownItem, glassMenu } from "../../lib/glass";
-import { describeHistoryAction } from "../../lib/history";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useHistoryStore } from "../../stores/history-store";
@@ -110,11 +109,9 @@ export function PageContextMenu({
 	}
 
 	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true });
-	const undoTop = useHistoryStore((s) => s.past[s.past.length - 1]);
-	const redoTop = useHistoryStore((s) => s.future[0]);
-	const historyCount = useHistoryStore(
-		(s) => s.past.length + s.future.length,
-	);
+	// Single persistent history entry: Undo/Redo live in the post-action
+	// toast, shortcuts and here — never as a duplicate direct item.
+	const hasHistory = useHistoryStore((s) => s.past.length + s.future.length) > 0;
 
 	if (!enabled) return children;
 
@@ -148,34 +145,18 @@ export function PageContextMenu({
 					</ContextMenuItem>
 				)}
 
-				{(undoTop || redoTop || onOpenHistory) && (
-					<ContextMenuSeparator
-						className={isLiquid ? "bg-foreground/10" : undefined}
-					/>
-				)}
-				{undoTop && (
-					<ContextMenuItem
-						className={itemClassName}
-						onSelect={() => useHistoryStore.getState().requestUndo()}
-					>
-						<Icon name="undo" size={14} />
-						Undo {describeHistoryAction(undoTop.summary)}
-					</ContextMenuItem>
-				)}
-				{redoTop && (
-					<ContextMenuItem
-						className={itemClassName}
-						onSelect={() => useHistoryStore.getState().requestRedo()}
-					>
-						<Icon name="redo" size={14} />
-						Redo {describeHistoryAction(redoTop.summary)}
-					</ContextMenuItem>
-				)}
-				{onOpenHistory && historyCount > 0 && (
-					<ContextMenuItem className={itemClassName} onSelect={onOpenHistory}>
-						<Icon name="history" size={14} />
-						Recent actions
-					</ContextMenuItem>
+				{/* One separator per group boundary, each gated on its own
+				    group: adjacent separators can never render. */}
+				{onOpenHistory && hasHistory && (
+					<>
+						<ContextMenuSeparator
+							className={isLiquid ? "bg-foreground/10" : undefined}
+						/>
+						<ContextMenuItem className={itemClassName} onSelect={onOpenHistory}>
+							<Icon name="history" size={14} />
+							Recent actions
+						</ContextMenuItem>
+					</>
 				)}
 
 				<ContextMenuSeparator

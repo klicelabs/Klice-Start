@@ -12,6 +12,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { flatControl } from "@klice-start/ui/lib/surface";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveDragRef, setActiveDrag } from "../../../lib/dnd";
+import { buildRenameEntry } from "../../../lib/history-capture";
 import {
 	glassDropdown,
 	glassDropdownItemPill,
@@ -20,6 +21,7 @@ import {
 	glassText,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
+import { useHistoryStore } from "../../../stores/history-store";
 import { useRenameStore } from "../../../stores/rename-store";
 import { useSetupStore } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
@@ -336,7 +338,18 @@ export function FolderTabsOverflow({
 											value={folder.name}
 											ariaLabel={`Rename folder ${folder.name}`}
 											onCommit={(name) => {
-												useSetupStore.getState().updateFolder(folder.id, name);
+												const store = useSetupStore.getState();
+												const before = store.folders.find(
+													(f) => f.id === folder.id,
+												);
+												store.updateFolder(folder.id, name);
+												if (before && before.name !== name) {
+													const entry = buildRenameEntry(before, {
+														...before,
+														name,
+													});
+													if (entry) useHistoryStore.getState().commit(entry);
+												}
 												cancelRename();
 											}}
 											onCancel={cancelRename}

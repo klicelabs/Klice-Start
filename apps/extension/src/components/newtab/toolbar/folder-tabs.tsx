@@ -20,6 +20,11 @@ import {
 	setDragData,
 } from "../../../lib/dnd";
 import {
+	beginGestureCapture,
+	buildRenameEntry,
+} from "../../../lib/history-capture";
+import { useHistoryStore } from "../../../stores/history-store";
+import {
 	glassDropdownItem,
 	glassForeground,
 	glassFocusRing,
@@ -45,6 +50,8 @@ interface FolderTabsProps {
 	folders: Folder[];
 	hiddenFolders: Folder[];
 	activeRootId: string;
+	/** Currently viewed folder id (drives redundant-Open removal by identity). */
+	activeFolderId?: string;
 	navigationDirection: NavigationDirection;
 	/** Inline "+" affordance. Only true while the lane has room (no overflow). */
 	showAddButton?: boolean;
@@ -82,6 +89,7 @@ export function FolderTabs({
 	folders,
 	hiddenFolders,
 	activeRootId,
+	activeFolderId,
 	navigationDirection,
 	showAddButton = false,
 	onAddRoot,
@@ -146,6 +154,7 @@ export function FolderTabs({
 							key={folder.id}
 							folder={folder}
 							active={folder.id === activeRootId}
+							isActiveLocation={folder.id === (activeFolderId ?? activeRootId)}
 							isLiquid={isLiquid}
 							resolvedDark={resolvedDark}
 							isSelected={selectedIds.includes(folder.id)}
@@ -204,6 +213,8 @@ export function FolderTabs({
 interface FolderTabProps {
 	folder: Folder;
 	active: boolean;
+	/** True when the tab IS the viewed location (Open would be a no-op). */
+	isActiveLocation?: boolean;
 	isLiquid: boolean;
 	resolvedDark: boolean;
 	isSelected?: boolean;
@@ -235,6 +246,7 @@ interface FolderTabProps {
 function FolderTab({
 	folder,
 	active,
+	isActiveLocation = false,
 	isLiquid,
 	resolvedDark,
 	isSelected = false,
@@ -262,7 +274,13 @@ function FolderTab({
 	const openMoveDialog = useMoveDialogStore((s) => s.open);
 
 	function handleCommitRename(name: string) {
-		useSetupStore.getState().updateFolder(folder.id, name);
+		const store = useSetupStore.getState();
+		const before = store.folders.find((f) => f.id === folder.id);
+		store.updateFolder(folder.id, name);
+		if (before && before.name !== name) {
+			const entry = buildRenameEntry(before, { ...before, name });
+			if (entry) useHistoryStore.getState().commit(entry);
+		}
 		cancelRename();
 	}
 
@@ -449,6 +467,14 @@ function FolderTab({
 							}}
 							onDragStart={(e) => {
 								lastApplied.current = null;
+								// Freeze order for history: hover writes mutate it and
+								// the drop diffs back to this capture (one entry).
+								const setup = useSetupStore.getState();
+								beginGestureCapture(
+									setup.cards,
+									setup.folders,
+									setup.itemOrder,
+								);
 								if (
 									!useSelectionStore.getState().selectedIds.includes(folder.id)
 								) {
@@ -474,13 +500,17 @@ function FolderTab({
 			/>
 
 			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
-				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
-					onSelect={() => onSelectFolder(folder.id)}
-				>
-					<Icon name="folder" size={14} />
-					Open
-				</ContextMenuItem>
+				{/* Open is a no-op on the viewed location: remove it entirely
+				    (identity by id, never by label) rather than disabling. */}
+				{!isActiveLocation && (
+					<ContextMenuItem
+						className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+						onSelect={() => onSelectFolder(folder.id)}
+					>
+						<Icon name="folder" size={14} />
+						Open
+					</ContextMenuItem>
+				)}
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
 					onSelect={onNewRootFolder}

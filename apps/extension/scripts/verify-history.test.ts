@@ -5,6 +5,7 @@ import {
 	describeHistoryGerund,
 	describeHistoryPast,
 	HISTORY_LIMIT,
+	historyContainerName,
 	type HistoryEntry,
 	type HistoryStacks,
 	popRedoIds,
@@ -12,6 +13,7 @@ import {
 } from "../src/lib/history";
 import {
 	buildHistoryEntry,
+	buildRenameEntry,
 	type GestureCapture,
 	snapshotSetup,
 } from "../src/lib/history-capture";
@@ -32,8 +34,8 @@ function card(id: string, folderId: string): Card {
 	} as Card;
 }
 
-function folder(id: string, parentId: string | null): Folder {
-	return { id, name: id, parentId, order: 0 } as Folder;
+function folder(id: string, parentId: string | null, name = id): Folder {
+	return { id, name, parentId, order: 0 } as Folder;
 }
 
 function entry(id: string): HistoryEntry {
@@ -256,4 +258,96 @@ test("describes combines contextually", () => {
 	expect(describeHistoryPast(summary)).toBe(
 		"Combined 2 bookmarks into a new folder",
 	);
+});
+
+test("describes create, rename and delete contextually", () => {
+	const create = {
+		kind: "create" as const,
+		total: 1,
+		cardCount: 3,
+		folderCount: 0,
+		label: "Inspiration",
+	};
+	expect(describeHistoryAction(create)).toBe(
+		"Create folder “Inspiration” with 3 bookmarks",
+	);
+	expect(describeHistoryGerund(create)).toBe(
+		"creating folder “Inspiration” with 3 bookmarks",
+	);
+	expect(describeHistoryPast(create)).toBe(
+		"Created folder “Inspiration” with 3 bookmarks",
+	);
+	const rename = {
+		kind: "rename" as const,
+		total: 1,
+		cardCount: 0,
+		folderCount: 1,
+		label: "Design",
+		newName: "UI",
+	};
+	expect(describeHistoryAction(rename)).toBe("Rename “Design” to “UI”");
+	expect(describeHistoryGerund(rename)).toBe("renaming “Design” to “UI”");
+	expect(describeHistoryPast(rename)).toBe("Renamed “Design” to “UI”");
+	const remove = {
+		kind: "delete" as const,
+		total: 1,
+		cardCount: 4,
+		folderCount: 1,
+		label: "Research",
+	};
+	expect(describeHistoryAction(remove)).toBe(
+		"Delete folder “Research” (4 bookmarks, 1 subfolder)",
+	);
+	expect(describeHistoryPast(remove)).toBe(
+		"Deleted folder “Research” (4 bookmarks, 1 subfolder)",
+	);
+});
+
+test("names the top-level container distinctly", () => {
+	expect(historyContainerName("__root__", [])).toBe("Top level");
+	expect(historyContainerName("f", [{ id: "f", name: "Work" }])).toBe("Work");
+	expect(historyContainerName("missing", [])).toBe("Home");
+});
+
+test("a rename carries old and new records without touching order", () => {
+	const before = folder("d", null, "Design");
+	const after = { ...before, name: "UI" };
+	const result = buildRenameEntry(before, after);
+	expect(result).not.toBeNull();
+	expect(result?.summary).toMatchObject({
+		kind: "rename",
+		label: "Design",
+		newName: "UI",
+	});
+	expect(result?.undo.putFolders).toEqual([before]);
+	expect(result?.redo.putFolders).toEqual([after]);
+	expect(buildRenameEntry(before, { ...before })).toBeNull();
+});
+
+test("a folder delete captures the subtree for atomic restore", () => {
+	const sub = folder("sub", "r");
+	const cards = [card("a", "r"), card("b", "sub")];
+	const folders = [folder("r", null), sub];
+	const order = {
+		__root__: [itemKey("folder", "r")],
+		r: [itemKey("card", "a"), itemKey("folder", "sub")],
+		sub: [itemKey("card", "b")],
+	};
+	const capture = snapshotSetup(cards, folders, order);
+	const result = buildHistoryEntry(capture, [], [], { __root__: [] }, {
+		kind: "delete",
+		total: 1,
+		cardCount: 2,
+		folderCount: 1,
+		label: "r",
+	});
+	expect(result).not.toBeNull();
+	// Undo restores every removed record; redo removes the same ids.
+	expect(result?.undo.putFolders.map((f) => f.id).sort()).toEqual(["r", "sub"]);
+	expect(result?.undo.putCards.map((c) => c.id).sort()).toEqual(["a", "b"]);
+	expect(result?.undo.delFolderIds).toHaveLength(0);
+	expect(result?.redo.delFolderIds.sort()).toEqual(["r", "sub"]);
+	expect(result?.redo.delCardIds.sort()).toEqual(["a", "b"]);
+	expect(result?.undo.containers.__root__).toEqual([itemKey("folder", "r")]);
+	expect(result?.redo.containers.__root__).toEqual([]);
 });

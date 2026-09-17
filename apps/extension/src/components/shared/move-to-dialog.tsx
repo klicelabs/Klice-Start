@@ -11,8 +11,13 @@ import { toast } from "sonner";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { getSubtreeIds } from "../../lib/folder-tree";
 import { glassShape } from "../../lib/glass";
+import {
+	buildHistoryEntry,
+	snapshotSetup,
+} from "../../lib/history-capture";
 import { describeMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
+import { useHistoryStore } from "../../stores/history-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
@@ -94,12 +99,45 @@ export function MoveToDialog() {
 			destinationId === null
 				? null
 				: (folders.find((f) => f.id === destinationId) ?? null);
+		const before = snapshotSetup(cards, folders, useSetupStore.getState().itemOrder);
 		moveItemsToContainer(destinationId, cardIds, folderIds);
+		const live = useSetupStore.getState();
 		const total = cardIds.length + folderIds.length;
+		const movedCard = total === 1 && cardIds.length === 1 ? cardIds[0] : undefined;
+		const movedFolder =
+			total === 1 && folderIds.length === 1 ? folderIds[0] : undefined;
+		const entry = buildHistoryEntry(
+			before,
+			live.cards,
+			live.folders,
+			live.itemOrder,
+			{
+				kind: "move",
+				total,
+				cardCount: cardIds.length,
+				folderCount: folderIds.length,
+				dest: dest?.name ?? "Top level",
+				label:
+					movedCard !== undefined
+						? (live.cards.find((c) => c.id === movedCard)?.title?.trim() ||
+							undefined)
+						: movedFolder !== undefined
+							? live.folders.find((f) => f.id === movedFolder)?.name
+							: undefined,
+			},
+		);
+		if (entry) useHistoryStore.getState().commit(entry, { silent: true });
 		toast.success(total === 1 ? "Item moved" : `${total} items moved`, {
 			description: dest
 				? `to ${dest.name} · ${describeMoveGroup(cardIds.length, folderIds.length)}`
 				: `to the top level · ${describeMoveGroup(cardIds.length, folderIds.length)}`,
+			// Same safety model: Undo opens confirmation, never executes.
+			action: entry
+				? {
+						label: "Undo",
+						onClick: () => useHistoryStore.getState().requestUndo(entry.id),
+					}
+				: undefined,
 		});
 		useSelectionStore.getState().clear();
 		handleClose();

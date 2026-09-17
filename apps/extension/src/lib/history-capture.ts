@@ -79,6 +79,38 @@ function nextEntryId(): string {
 }
 
 /**
+ * Rename entry: order and parents never move, so the diff engine would see
+ * nothing — the old and new folder records ARE the inverse data.
+ */
+export function buildRenameEntry(
+	before: Folder,
+	after: Folder,
+): HistoryEntry | null {
+	if (before.id !== after.id || before.name === after.name) return null;
+	const shape = {
+		containers: {},
+		cards: {},
+		folders: {},
+		delCardIds: [],
+		delFolderIds: [],
+	};
+	return {
+		id: nextEntryId(),
+		at: Date.now(),
+		summary: {
+			kind: "rename",
+			total: 1,
+			cardCount: 0,
+			folderCount: 1,
+			label: before.name,
+			newName: after.name,
+		},
+		undo: { ...shape, putCards: [], putFolders: [{ ...before }] },
+		redo: { ...shape, putCards: [], putFolders: [{ ...after }] },
+	};
+}
+
+/**
  * Diff a gesture capture against live state. Returns a single atomic entry
  * covering every touched container and entity, or null when nothing
  * actually changed (same-slot drop) so no-ops never enter history.

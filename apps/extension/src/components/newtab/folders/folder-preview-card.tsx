@@ -10,6 +10,7 @@ import { EASE_OUT } from "@klice-start/ui/lib/ease";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
+import { buildRenameEntry } from "../../../lib/history-capture";
 import {
 	glassCardFooter,
 	glassCardMaterial,
@@ -23,6 +24,7 @@ import {
 import { iconFolderPreviewSlots } from "../../../lib/icon-layout";
 import { cn, softGradientFromString } from "../../../lib/utils";
 import { useImageStore } from "../../../stores/image-store";
+import { useHistoryStore } from "../../../stores/history-store";
 import { useMoveDialogStore } from "../../../stores/move-dialog-store";
 import { useRenameStore } from "../../../stores/rename-store";
 import { useSelectionStore } from "../../../stores/selection-store";
@@ -106,7 +108,13 @@ export function FolderPreviewCard({
 	const hasPreviews = previewCards.length > 0;
 
 	function handleCommitRename(next: string) {
-		useSetupStore.getState().updateFolder(id, next);
+		const store = useSetupStore.getState();
+		const before = store.folders.find((f) => f.id === id);
+		store.updateFolder(id, next);
+		if (before && before.name !== next) {
+			const entry = buildRenameEntry(before, { ...before, name: next });
+			if (entry) useHistoryStore.getState().commit(entry);
+		}
 		cancelRename();
 	}
 

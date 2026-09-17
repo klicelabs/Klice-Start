@@ -44,15 +44,26 @@ import { orderGroupBySource } from "../../src/lib/drag-group";
 import {
 	getBreadcrumb,
 	getChildren,
+	getSubtreeIds,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
 import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
 import {
 	buildHistoryEntry,
 	clearGestureCapture,
+	snapshotSetup,
 	takeGestureCapture,
+	type GestureCapture,
 } from "../../src/lib/history-capture";
-import { getOrderedRefs, type ItemRef } from "../../src/lib/item-order";
+import {
+	historyContainerName,
+	type HistorySummary,
+} from "../../src/lib/history";
+import {
+	ROOT_CONTAINER,
+	getOrderedRefs,
+	type ItemRef,
+} from "../../src/lib/item-order";
 import type {
 	NavigationHistory,
 	NavigationState,
@@ -623,27 +634,136 @@ export default function App() {
 		[moveItemsToContainer],
 	);
 
+	/** Freeze live setup for a manual (non-gesture) history diff. */
+	const snapshotLiveSetup = useCallback((): GestureCapture => {
+		const state = useSetupStore.getState();
+		return snapshotSetup(state.cards, state.folders, state.itemOrder);
+	}, []);
+
+	/**
+	 * Diff a manual snapshot against live state and commit one atomic entry
+	 * (announced with Undo). Returns whether anything was committed.
+	 */
+	const commitManualHistory = useCallback(
+		(before: GestureCapture, summary: HistorySummary): boolean => {
+			const live = useSetupStore.getState();
+			const entry = buildHistoryEntry(
+				before,
+				live.cards,
+				live.folders,
+				live.itemOrder,
+				summary,
+			);
+			if (!entry) return false;
+			useHistoryStore.getState().commit(entry);
+			return true;
+		},
+		[],
+	);
+
 	// Direct folder creation (no Settings modal): create "New Folder",
 	// navigate so the new item is visible, then immediately enter inline
-	// rename, Vivaldi-style. Move-only operations are history-neutral; creation
-	// records history only when this intentional reveal changes the destination.
-	// The same-location guard keeps creating inside the current folder neutral.
+	// rename, Vivaldi-style. The creation itself commits one history entry
+	// (the follow-up rename commits its own when confirmed).
 	const handleNewSubfolder = useCallback(
 		(parentId: string | null) => {
+			const before = snapshotLiveSetup();
 			const id = addFolder("New Folder", parentId);
+			commitManualHistory(before, {
+				kind: "create",
+				total: 1,
+				cardCount: 0,
+				folderCount: 0,
+				label: "New Folder",
+			});
 			handleSelectFolder(parentId ?? id);
 			beginRename({ kind: "folder", id });
 		},
-		[addFolder, beginRename, handleSelectFolder],
+		[addFolder, beginRename, handleSelectFolder, snapshotLiveSetup, commitManualHistory],
 	);
 
 	// Drag a nested folder onto a tab edge: hoist it to root at that position.
+	// One entry covering both the reparent and the tab-bar reorder.
 	const handleMoveFolderToRoot = useCallback(
 		(folderId: string, targetId: string, position: "before" | "after") => {
+			const before = takeGestureCapture() ?? snapshotLiveSetup();
+			const name = useSetupStore
+				.getState()
+				.folders.find((f) => f.id === folderId)?.name;
 			moveFolders([folderId], null);
 			reorderFolders(folderId, targetId, position);
+			commitManualHistory(before, {
+				kind: "move",
+				total: 1,
+				cardCount: 0,
+				folderCount: 1,
+				dest: "Top level",
+				label: name,
+			});
 		},
-		[moveFolders, reorderFolders],
+		[moveFolders, reorderFolders, commitManualHistory, snapshotLiveSetup],
+	);
+
+	// Tab-bar root reorder during a tab drag: the gesture capture (begun at
+	// tab dragstart) diffs to exactly one entry; same-slot hovers diff null.
+	const handleReorderTabFolders = useCallback(
+		(fromId: string, toId: string, position: "before" | "after" = "before") => {
+			const before = takeGestureCapture();
+			reorderFolders(fromId, toId, position);
+			if (!before) return;
+			const live = useSetupStore.getState();
+			commitManualHistory(before, {
+				kind: "reorder",
+				total: 1,
+				cardCount: 0,
+				folderCount: 1,
+				container: historyContainerName(ROOT_CONTAINER, live.folders),
+			});
+		},
+		[reorderFolders, commitManualHistory],
+	);
+
+	// Folder deletion restores atomically on undo: the folder record, its
+	// exact position, nested subfolders, bookmarks, ordering and metadata —
+	// all from this one entry. Thumbnail bytes are already reclaimed by the
+	// store on delete, so restored cards fall back to favicon/gradient art.
+	const handleDeleteFolder = useCallback(
+		(id: string) => {
+			const state = useSetupStore.getState();
+			const target = state.folders.find((f) => f.id === id);
+			if (!target) return;
+			const subtree = new Set(getSubtreeIds(state.folders, id));
+			const containedCards = state.cards.filter((c) =>
+				subtree.has(c.folderId),
+			).length;
+			const before = snapshotSetup(state.cards, state.folders, state.itemOrder);
+			deleteFolder(id);
+			commitManualHistory(before, {
+				kind: "delete",
+				total: 1,
+				cardCount: containedCards,
+				folderCount: subtree.size - 1,
+				label: target.name,
+			});
+		},
+		[deleteFolder, commitManualHistory],
+	);
+
+	// Overflow "add folder" row: same reversible create as any other entry.
+	const handleAddRootFolder = useCallback(
+		(name: string): string => {
+			const before = snapshotLiveSetup();
+			const id = addFolder(name, null);
+			commitManualHistory(before, {
+				kind: "create",
+				total: 1,
+				cardCount: 0,
+				folderCount: 0,
+				label: name,
+			});
+			return id;
+		},
+		[addFolder, commitManualHistory, snapshotLiveSetup],
 	);
 
 	const isRootFolder = useCallback(
@@ -853,13 +973,11 @@ export default function App() {
 											searchEnabled={searchEnabled}
 											onOpenSearch={handleOpenSearch}
 											onSelectFolder={handleSelectFolder}
-											onAddFolder={(name) => addFolder(name, null)}
+											onAddFolder={handleAddRootFolder}
 											onNewRootFolder={() => handleNewSubfolder(null)}
 											onNewSubfolder={handleNewSubfolder}
-											onDeleteFolder={deleteFolder}
-											onReorderFolders={(fromId, toId, position) =>
-												reorderFolders(fromId, toId, position)
-											}
+											onDeleteFolder={handleDeleteFolder}
+											onReorderFolders={handleReorderTabFolders}
 											onDropCards={handleTabDrop}
 											onMoveFolders={handleTabDrop}
 											onMoveFolderToRoot={handleMoveFolderToRoot}
@@ -911,9 +1029,9 @@ export default function App() {
 												itemOrder={itemOrder}
 												cardCounts={cardCounts}
 												previewCards={previewCards}
-												onDelete={deleteCard}
-												onDeleteFolder={deleteFolder}
-												onOpenFolder={handleSelectFolder}
+											onDelete={deleteCard}
+											onDeleteFolder={handleDeleteFolder}
+											onOpenFolder={handleSelectFolder}
 												onNewSubfolder={handleNewSubfolder}
 												onMoveItems={(cardIds, folderIds, targetId) =>
 													moveItemsToContainer(targetId, cardIds, folderIds)

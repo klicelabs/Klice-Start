@@ -16,6 +16,7 @@ import { orderGroupBySource } from "../../lib/drag-group";
 import {
 	buildHistoryEntry,
 	snapshotSetup,
+	beginGestureCapture,
 } from "../../lib/history-capture";
 import { wouldCreateCycle } from "../../lib/folder-tree";
 import {
@@ -181,6 +182,7 @@ export function SelectionTray({
 
 	function handleCreate(name: string) {
 		if (!createRequest) return false;
+		const before = snapshotSetup(cards, folders, itemOrder);
 		const id = createFolderFromSelection(
 			name,
 			createRequest.parentId,
@@ -188,9 +190,40 @@ export function SelectionTray({
 		);
 		if (!id) return false;
 
+		// One entry for the whole bulk op: the created folder plus every
+		// grouped member, restored atomically on undo.
+		const live = useSetupStore.getState();
+		const movedCards = createRequest.selectedIds.filter((selectedId) =>
+			live.cards.some((c) => c.id === selectedId),
+		).length;
+		const movedFolders = createRequest.selectedIds.filter((selectedId) =>
+			live.folders.some((f) => f.id === selectedId),
+		).length;
+		const entry = buildHistoryEntry(
+			before,
+			live.cards,
+			live.folders,
+			live.itemOrder,
+			{
+				kind: "create",
+				total: 1,
+				cardCount: movedCards,
+				folderCount: movedFolders,
+				label: name,
+			},
+		);
+		if (entry) useHistoryStore.getState().commit(entry, { silent: true });
+
 		const label = createRequest.mode === "folder" ? "Folder" : "Subfolder";
 		toast.success(`${label} created`, {
 			description: `${selectionSummary(createRequest.selectedIds)} moved into ${name}.`,
+			// Same safety model: Undo opens confirmation, never executes.
+			action: entry
+				? {
+						label: "Undo",
+						onClick: () => useHistoryStore.getState().requestUndo(entry.id),
+					}
+				: undefined,
 		});
 		setCreateRequest(null);
 		clearSelection();
@@ -241,6 +274,8 @@ export function SelectionTray({
 			e.preventDefault();
 			return;
 		}
+		// Freeze order for history so tab drops diff to one entry.
+		beginGestureCapture(cards, folders, itemOrder);
 		e.dataTransfer.effectAllowed = "move";
 		setDragData(e, first.kind, first.id);
 		if (total > 1) showGroupDragGhost(e, total);
