@@ -10,15 +10,20 @@
  * mutations are committed in a single setState at the end to avoid
  * intermediate re-renders and read-modify-write races on the store.
  */
+import {
+	type BookmarkTreeFolder,
+	planBookmarkMerge,
+} from "../lib/bookmark-merge";
 import { repairItemOrder } from "../lib/item-order";
-import { canonicalUrl, faviconUrl, isAbsoluteHttpUrl } from "../lib/url";
-import { uid } from "../lib/utils";
+import { isAbsoluteHttpUrl } from "../lib/url";
 import { useSetupStore } from "../stores/setup-store";
 import type { Card, Folder } from "../types";
 
 export interface BookmarkImportResult {
 	foldersCreated: number;
 	cardsCreated: number;
+	/** First folder that gained content (reveal target), if any. */
+	revealFolderId: string | null;
 }
 
 interface ParsedLink {
@@ -34,11 +39,7 @@ interface ParsedFolder {
 }
 
 /** A folder in a normalized bookmark tree (HTML file or browser bookmarks). */
-export interface BookmarkTreeFolder {
-	name: string;
-	links: { title: string; url: string }[];
-	children: BookmarkTreeFolder[];
-}
+export type { BookmarkTreeFolder };
 
 /** Escape text for safe embedding in an HTML attribute or text node. */
 function escapeHtml(text: string): string {
@@ -217,139 +218,79 @@ function parseLevel(
 
 /**
  * Merge a normalized bookmark tree into Klice Start as folders + cards.
- * Folders are matched by (case-insensitive) name at the same level and
- * reused if present, so re-importing is idempotent. Cards are de-duplicated
- * per folder by canonical URL. Loose root links land in a catch-all
- * "Bookmarks" root folder. Commits a single store update, and only when
- * something changed.
+ * Plans purely, then commits a single store update (plus the repaired
+ * ordering) so a failed import can never leave a half-written library.
+ * See lib/bookmark-merge for the merge rules.
  */
 export function mergeBookmarkTree(
 	rootFolders: BookmarkTreeFolder[],
 	rootLinks: { title: string; url: string }[],
 ): BookmarkImportResult {
 	const store = useSetupStore.getState();
+	const plan = planBookmarkMerge(
+		store.folders,
+		store.cards,
+		rootFolders,
+		rootLinks,
+	);
 
-	// Work on local copies, commit once at the end.
-	const folders: Folder[] = [...store.folders];
-	const cards: Card[] = [...store.cards];
-
-	// Existing folders indexed by (case-insensitive) name per parent level.
-	const folderByParentAndName = new Map<string, Folder>();
-	for (const f of folders) {
-		folderByParentAndName.set(
-			`${f.parentId ?? ""}\u0000${f.name.toLowerCase()}`,
-			f,
-		);
-	}
-
-	// Canonical URLs already present per folder id, for dedup.
-	const seenByFolder = new Map<string, Set<string>>();
-	const seenFor = (folderId: string): Set<string> => {
-		let set = seenByFolder.get(folderId);
-		if (!set) {
-			set = new Set(
-				cards
-					.filter((c) => c.folderId === folderId)
-					.map((c) => canonicalUrl(c.url))
-					.filter((u): u is string => u !== null),
-			);
-			seenByFolder.set(folderId, set);
-		}
-		return set;
-	};
-
-	let foldersCreated = 0;
-	let cardsCreated = 0;
-
-	const ensureFolder = (name: string, parentId: string | null): Folder => {
-		const key = `${parentId ?? ""}\u0000${name.toLowerCase()}`;
-		const existing = folderByParentAndName.get(key);
-		if (existing) return existing;
-		const folder: Folder = {
-			id: uid(),
-			name,
-			order: folders.reduce(
-				(nextOrder, folder) =>
-					(folder.parentId ?? null) === parentId
-						? Math.max(nextOrder, folder.order + 1)
-						: nextOrder,
-				0,
-			),
-			parentId,
-		};
-		folders.push(folder);
-		folderByParentAndName.set(key, folder);
-		foldersCreated++;
-		return folder;
-	};
-
-	const addLinks = (
-		target: Folder,
-		links: { title: string; url: string }[],
-	): void => {
-		const seen = seenFor(target.id);
-		let order = cards.reduce(
-			(nextOrder, card) =>
-				card.folderId === target.id
-					? Math.max(nextOrder, card.order + 1)
-					: nextOrder,
-			0,
-		);
-		for (const link of links) {
-			const canon = canonicalUrl(link.url);
-			if (!canon || seen.has(canon)) continue;
-			cards.push({
-				id: uid(),
-				folderId: target.id,
-				title: link.title,
-				url: link.url,
-				favicon: faviconUrl(link.url),
-				thumbId: null,
-				order: order++,
-				origin: "local",
-				capturedAt: null,
-			});
-			seen.add(canon);
-			cardsCreated++;
-		}
-	};
-
-	const merge = (
-		treeFolder: BookmarkTreeFolder,
-		parentId: string | null,
-	): void => {
-		const folder = ensureFolder(treeFolder.name, parentId);
-		addLinks(folder, treeFolder.links);
-		for (const child of treeFolder.children) merge(child, folder.id);
-	};
-
-	// Loose links outside any folder land in a catch-all root folder.
-	if (rootLinks.length > 0) {
-		addLinks(ensureFolder("Bookmarks", null), rootLinks);
-	}
-	for (const treeFolder of rootFolders) merge(treeFolder, null);
-
-	if (foldersCreated > 0 || cardsCreated > 0) {
+	if (plan.foldersCreated > 0 || plan.cardsCreated > 0) {
 		// repairItemOrder appends the newly imported entities to their
 		// containers, so the unified ordering survives bulk imports.
 		useSetupStore.setState({
-			folders,
-			cards,
-			itemOrder: repairItemOrder(store.itemOrder, folders, cards),
+			folders: plan.folders,
+			cards: plan.cards,
+			itemOrder: repairItemOrder(store.itemOrder, plan.folders, plan.cards),
 		});
 	}
 
-	return { foldersCreated, cardsCreated };
+	return {
+		foldersCreated: plan.foldersCreated,
+		cardsCreated: plan.cardsCreated,
+		revealFolderId: plan.touchedFolderIds[0] ?? null,
+	};
+}
+
+export interface BookmarkReplaceResult extends BookmarkImportResult {
+	/** First folder with imported content (reveal target), if any. */
+	revealFolderId: string | null;
 }
 
 /**
- * Import a Netscape Bookmark File (as exported by Chrome or Firefox) into
- * Klice Start as folders + cards. Throws when the file contains no folders
- * or links. Merge semantics are provided by {@link mergeBookmarkTree}.
+ * Replace the library with a bookmark tree: plan against an empty library,
+ * then swap folders/cards/active folder in one commit. Settings are kept.
  */
-export async function importBookmarksHtml(
-	fileText: string,
-): Promise<BookmarkImportResult> {
+export function replaceBookmarkLibrary(
+	rootFolders: BookmarkTreeFolder[],
+	rootLinks: { title: string; url: string }[],
+): BookmarkReplaceResult {
+	const plan = planBookmarkMerge([], [], rootFolders, rootLinks);
+	const firstFolder = plan.folders[0] ?? null;
+	useSetupStore.setState({
+		folders: plan.folders,
+		cards: plan.cards,
+		activeFolderId: firstFolder?.id ?? "default",
+		itemOrder: repairItemOrder(undefined, plan.folders, plan.cards),
+	});
+	return {
+		foldersCreated: plan.foldersCreated,
+		cardsCreated: plan.cardsCreated,
+		revealFolderId: plan.touchedFolderIds[0] ?? firstFolder?.id ?? null,
+	};
+}
+
+export interface ParsedBookmarkFile {
+	rootFolders: ParsedFolder[];
+	rootLinks: ParsedLink[];
+}
+
+/**
+ * Parse a Netscape Bookmark File without touching state: used for the
+ * pre-import preview (counts) in the Keep/Replace choice, so malformed or
+ * empty files fail before any dialog opens. Throws on the same conditions
+ * as the import itself.
+ */
+export function parseNetscapeBookmarkFile(fileText: string): ParsedBookmarkFile {
 	if (typeof fileText !== "string") {
 		throw new Error("Bookmark file must be provided as text.");
 	}
@@ -385,6 +326,26 @@ export async function importBookmarksHtml(
 		throw new Error("No bookmarks found in file.");
 	}
 
+	return { rootFolders, rootLinks };
+}
+
+export interface BookmarkImportOptions {
+	/** Replace the library instead of merging into it. */
+	replace?: boolean;
+}
+
+/**
+ * Import a Netscape Bookmark File (as exported by Chrome or Firefox) into
+ * Klice Start as folders + cards. Throws when the file contains no folders
+ * or links. Merge semantics are provided by {@link mergeBookmarkTree};
+ * replace mode swaps the whole library via {@link replaceBookmarkLibrary}.
+ */
+export async function importBookmarksHtml(
+	fileText: string,
+	options: BookmarkImportOptions = {},
+): Promise<BookmarkImportResult> {
+	const { rootFolders, rootLinks } = parseNetscapeBookmarkFile(fileText);
+	if (options.replace) return replaceBookmarkLibrary(rootFolders, rootLinks);
 	return mergeBookmarkTree(rootFolders, rootLinks);
 }
 
@@ -397,7 +358,14 @@ export async function importBookmarksHtml(
  * "Bookmarks" folder). Only http(s) links are imported. Merge semantics are
  * provided by {@link mergeBookmarkTree}.
  */
-export async function importBookmarksFromBrowser(): Promise<BookmarkImportResult> {
+/**
+ * Read + convert the browser tree without touching state (preview step).
+ * Throws when unsupported, unreadable, or empty — before any dialog opens.
+ */
+export async function readBrowserBookmarks(): Promise<{
+	topFolders: BookmarkTreeFolder[];
+	topLinks: { title: string; url: string }[];
+}> {
 	if (typeof chrome === "undefined" || !chrome.bookmarks?.getTree) {
 		throw new Error("Bookmark import is not supported in this browser.");
 	}
@@ -477,5 +445,13 @@ export async function importBookmarksFromBrowser(): Promise<BookmarkImportResult
 		throw new Error("No bookmarks found in this browser.");
 	}
 
+	return { topFolders, topLinks };
+}
+
+export async function importBookmarksFromBrowser(
+	options: BookmarkImportOptions = {},
+): Promise<BookmarkImportResult> {
+	const { topFolders, topLinks } = await readBrowserBookmarks();
+	if (options.replace) return replaceBookmarkLibrary(topFolders, topLinks);
 	return mergeBookmarkTree(topFolders, topLinks);
 }

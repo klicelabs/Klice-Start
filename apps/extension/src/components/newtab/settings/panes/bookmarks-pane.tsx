@@ -19,6 +19,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { findBookmarkInFolder } from "../../../../lib/bookmark-match";
+import { summarizeBookmarkTree } from "../../../../lib/bookmark-merge";
 import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
 import {
 	getBreadcrumb,
@@ -33,11 +34,14 @@ import {
 	normalizeUrl,
 } from "../../../../lib/url";
 import { cn } from "../../../../lib/utils";
-import { exportBackup, importBackup } from "../../../../services/backup";
+import { exportBackup, importBackup, preflightBackup } from "../../../../services/backup";
 import {
+	type BookmarkTreeFolder,
 	exportBookmarksHtml,
-	importBookmarksFromBrowser,
-	importBookmarksHtml,
+	mergeBookmarkTree,
+	parseNetscapeBookmarkFile,
+	readBrowserBookmarks,
+	replaceBookmarkLibrary,
 } from "../../../../services/bookmarks-html";
 import { useSetupStore } from "../../../../stores/setup-store";
 import type { Card } from "../../../../types";
@@ -180,6 +184,40 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	// in-flight flag lives here)
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [isProcessingIo, setIsProcessingIo] = useState(false);
+
+	// Pending import awaiting a Keep/Replace decision. Staged only after the
+	// payload parses and validates, so the dialog never opens for garbage.
+	interface PendingImport {
+		kind: "html" | "backup" | "browser";
+		fileName: string;
+		text?: string;
+		tree?: { rootFolders: BookmarkTreeFolder[]; rootLinks: { title: string; url: string }[] };
+		summary: string;
+		backupCounts?: { folders: number; cards: number };
+	}
+	const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+	const [importWantsReplace, setImportWantsReplace] = useState(false);
+	const [importConfirmReplace, setImportConfirmReplace] = useState(false);
+
+	function closeImportDialog() {
+		setPendingImport(null);
+		setImportWantsReplace(false);
+		setImportConfirmReplace(false);
+	}
+
+	function libraryIsEmpty(): boolean {
+		const state = useSetupStore.getState();
+		return state.folders.length === 0 && state.cards.length === 0;
+	}
+
+	/** Reveal imported content: jump to it unless already looking at it. */
+	function revealImport(revealFolderId: string | null) {
+		if (!revealFolderId) return;
+		const state = useSetupStore.getState();
+		if (state.activeFolderId !== revealFolderId) {
+			state.setActiveFolder(revealFolderId);
+		}
+	}
 
 	// Handle initial action if provided from outside
 	useEffect(() => {
@@ -430,10 +468,22 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	async function handleImportFromBrowser() {
 		setIsProcessingIo(true);
 		try {
-			const { foldersCreated, cardsCreated } =
-				await importBookmarksFromBrowser();
-			toast.success("Import completed", {
-				description: importedSummary(foldersCreated, cardsCreated),
+			const browser = await readBrowserBookmarks();
+			const tree = { rootFolders: browser.topFolders, rootLinks: browser.topLinks };
+			const summary = summarizeBookmarkTree(tree.rootFolders, tree.rootLinks);
+			if (libraryIsEmpty()) {
+				const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
+				toast.success("Import completed", {
+					description: importedSummary(result.foldersCreated, result.cardsCreated),
+				});
+				revealImport(result.revealFolderId);
+				return;
+			}
+			setPendingImport({
+				kind: "browser",
+				fileName: "browser bookmarks",
+				tree,
+				summary: summary.text,
 			});
 		} catch (err) {
 			toast.error("Import failed", {
@@ -454,27 +504,109 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		try {
 			const text = await file.text();
 			if (isBackup) {
-				await importBackup(text);
-				toast.success("Backup restored.");
-			} else {
-				const { foldersCreated, cardsCreated } =
-					await importBookmarksHtml(text);
-				toast.success("Import completed", {
-					description: importedSummary(foldersCreated, cardsCreated),
+				// Validate shape up front so malformed files fail here with a
+				// clear message instead of opening a dialog over garbage.
+				let counts: { folders: number; cards: number } | undefined;
+				try {
+					counts = preflightBackup(text);
+				} catch (err) {
+					toast.error("Restore failed", {
+						description:
+							err instanceof Error
+								? err.message
+								: "Could not restore that backup.",
+					});
+					return;
+				}
+				if (libraryIsEmpty()) {
+					await importBackup(text);
+					toast.success("Backup restored.");
+					return;
+				}
+				setPendingImport({
+					kind: "backup",
+					fileName: file.name,
+					text,
+					summary: `${counts.cards} link${counts.cards === 1 ? "" : "s"} in ${counts.folders} folder${counts.folders === 1 ? "" : "s"}`,
+					backupCounts: counts,
 				});
+				return;
 			}
-		} catch (err) {
-			toast.error(isBackup ? "Restore failed" : "Import failed", {
-				description:
-					err instanceof Error
-						? err.message
-						: isBackup
-							? "Could not restore that backup."
-							: "Could not read that file.",
+			let tree: {
+				rootFolders: BookmarkTreeFolder[];
+				rootLinks: { title: string; url: string }[];
+			};
+			try {
+				tree = parseNetscapeBookmarkFile(text);
+			} catch (err) {
+				toast.error("Import failed", {
+					description:
+						err instanceof Error ? err.message : "Could not read that file.",
+				});
+				return;
+			}
+			if (libraryIsEmpty()) {
+				const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
+				toast.success("Import completed", {
+					description: importedSummary(result.foldersCreated, result.cardsCreated),
+				});
+				revealImport(result.revealFolderId);
+				return;
+			}
+			setPendingImport({
+				kind: "html",
+				fileName: file.name,
+				text,
+				tree,
+				summary: summarizeBookmarkTree(tree.rootFolders, tree.rootLinks).text,
 			});
 		} finally {
 			setIsProcessingIo(false);
 			e.target.value = "";
+		}
+	}
+
+	/** Commit the staged import. Replace always arrives confirmed. */
+	async function executePendingImport(replace: boolean) {
+		const pending = pendingImport;
+		if (!pending) return;
+		closeImportDialog();
+		setIsProcessingIo(true);
+		try {
+			if (pending.kind === "backup") {
+				await importBackup(pending.text ?? "");
+				toast.success("Backup restored.");
+				return;
+			}
+			const tree = pending.tree;
+			if (!tree) return;
+			if (replace) {
+				const result = replaceBookmarkLibrary(tree.rootFolders, tree.rootLinks);
+				toast.success("Library replaced", {
+					description: importedSummary(result.foldersCreated, result.cardsCreated),
+				});
+				// Replace already lands on the first folder; nothing to reveal.
+				return;
+			}
+			const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
+			toast.success("Import completed", {
+				description: importedSummary(result.foldersCreated, result.cardsCreated),
+			});
+			revealImport(result.revealFolderId);
+		} catch (err) {
+			toast.error(
+				pending.kind === "backup" ? "Restore failed" : "Import failed",
+				{
+					description:
+						err instanceof Error
+							? err.message
+							: pending.kind === "backup"
+								? "Could not restore that backup."
+								: "Could not read that file.",
+				},
+			);
+		} finally {
+			setIsProcessingIo(false);
 		}
 	}
 
@@ -990,6 +1122,146 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 						>
 							Delete folder
 						</SettingsAction>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+			{/* Import choice: Keep merges, Replace swaps the library (confirmed). */}
+			<Dialog
+				open={pendingImport !== null}
+				onOpenChange={(open) => {
+					if (!open) closeImportDialog();
+				}}
+			>
+				<DialogContent
+					closeGlass={isLiquid}
+					className={cn(
+						"squircle",
+						SETTINGS_SCOPE_CLASS,
+						SETTINGS_RADIUS.panel,
+						"sm:max-w-[420px]",
+					)}
+				>
+					<DialogHeader>
+						<DialogTitle>
+							{pendingImport?.kind === "backup"
+								? "Restore backup?"
+								: "Import bookmarks?"}
+						</DialogTitle>
+						<DialogDescription>
+							{pendingImport?.kind === "backup" ? (
+								<>
+									&ldquo;{pendingImport.fileName}&rdquo; holds{" "}
+									{pendingImport.summary}. Restoring replaces the
+									current library.
+								</>
+							) : (
+								<>
+									&ldquo;{pendingImport?.fileName}&rdquo; holds{" "}
+									{pendingImport?.summary}. Duplicates already saved
+									here are skipped.
+								</>
+							)}
+						</DialogDescription>
+					</DialogHeader>
+
+					{pendingImport?.kind !== "backup" && !importConfirmReplace && (
+						<div
+							role="radiogroup"
+							aria-label="Import mode"
+							className="flex flex-col gap-2 py-1"
+						>
+							<label
+								className={cn(
+									"flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors",
+									!importWantsReplace
+										? "bg-flat-sunken-raised text-flat-ink"
+										: "text-flat-ink-muted hover:bg-flat-sunken-raised/60",
+									"focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+								)}
+							>
+								<input
+									type="radio"
+									name="klice-import-mode"
+									checked={!importWantsReplace}
+									onChange={() => setImportWantsReplace(false)}
+									className="sr-only"
+								/>
+								<span aria-hidden="true">{!importWantsReplace ? "●" : "○"}</span>
+								<span>
+									<span className="block font-medium">Keep current bookmarks</span>
+									<span className="block text-[12px] opacity-70">
+										Add the new bookmarks and folders without deleting anything.
+									</span>
+								</span>
+							</label>
+							<label
+								className={cn(
+									"flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] transition-colors",
+									importWantsReplace
+										? "bg-flat-sunken-raised text-flat-ink"
+										: "text-flat-ink-muted hover:bg-flat-sunken-raised/60",
+									"focus-within:outline-none focus-within:ring-2 focus-within:ring-ring",
+								)}
+							>
+								<input
+									type="radio"
+									name="klice-import-mode"
+									checked={importWantsReplace}
+									onChange={() => setImportWantsReplace(true)}
+									className="sr-only"
+								/>
+								<span aria-hidden="true">{importWantsReplace ? "●" : "○"}</span>
+								<span>
+									<span className="block font-medium">Replace current bookmarks</span>
+									<span className="block text-[12px] opacity-70">
+										Remove the existing library and use only the imported data.
+									</span>
+								</span>
+							</label>
+						</div>
+					)}
+
+					{(pendingImport?.kind === "backup" || importWantsReplace) && (
+						<p
+							role={importConfirmReplace ? "alert" : undefined}
+							className="rounded-xl bg-red-500/10 px-3 py-2 text-[12px] text-red-600 dark:text-red-400"
+						>
+							{importConfirmReplace ? (
+								<>
+									This deletes {folders.length} folder
+									{folders.length === 1 ? "" : "s"} and {cards.length}{" "}
+									bookmark{cards.length === 1 ? "" : "s"}. This cannot be
+									undone from here.
+								</>
+							) : (
+								"Replacing removes the existing library first."
+							)}
+						</p>
+					)}
+
+					<DialogFooter>
+						<SettingsAction onClick={closeImportDialog}>Cancel</SettingsAction>
+						{pendingImport?.kind === "backup" || importWantsReplace ? (
+							importConfirmReplace ? (
+								<SettingsAction
+									tone="danger"
+									onClick={() => void executePendingImport(true)}
+								>
+									Yes, replace everything
+								</SettingsAction>
+							) : (
+								<SettingsAction
+									tone="danger"
+									onClick={() => setImportConfirmReplace(true)}
+								>
+									Replace…
+								</SettingsAction>
+							)
+						) : (
+							<SettingsAction onClick={() => void executePendingImport(false)}>
+								Import
+							</SettingsAction>
+						)}
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
