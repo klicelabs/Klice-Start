@@ -6,6 +6,7 @@ import { useGridDnd } from "../src/hooks/use-grid-dnd";
 import { useSpringLoad } from "../src/hooks/use-spring-load";
 import {
 	clearActiveDrag,
+	dropZoneFor,
 	getActiveDrag,
 } from "../src/lib/dnd";
 import type { ItemRef } from "../src/lib/item-order";
@@ -309,14 +310,127 @@ test("applies an edge reorder once per zone and settles on drop", async () => {
 
 	// A folder's centre is a nest target, not a reorder. The pointer stays at
 	// the centre for both the over and the drop, exactly like a real gesture.
+	// Both coordinates must match: zones are Y-aware, so a drop dispatched at
+	// the bottom edge would (correctly) read as an edge reorder instead.
 	await act(async () => {
 		dispatchDnd(a, "dragstart", dataTransfer);
 		await new Promise((resolve) => setTimeout(resolve, 20));
 		dispatchDragOver(folder, dataTransfer, 50);
-		dispatchDnd(folder, "drop", dataTransfer, 50);
+		dispatchDnd(folder, "drop", dataTransfer, 50, 50);
 	});
 	expect(folderDrops).toEqual(["card-a->folder-1"]);
 	expect(reorders).toHaveLength(1);
 	expect(getActiveDrag()).toBeNull();
+});
+
+// ---------------------------------------------------------------------------
+// Y-aware zones. In a wrapping grid the pointer approaches along rows, so a
+// pointer clearly above/below a square tile's middle reads as reorder even
+// when horizontally central. Wide (multi-cell folder) tiles stay X-dominant.
+// ---------------------------------------------------------------------------
+
+function zoneAt(
+	clientX: number,
+	clientY: number,
+	width: number,
+	height: number,
+) {
+	const el = document.createElement("div");
+	Object.defineProperty(el, "getBoundingClientRect", {
+		configurable: true,
+		value: () => ({
+			left: 0,
+			top: 0,
+			right: width,
+			bottom: height,
+			width,
+			height,
+			x: 0,
+			y: 0,
+			toJSON: () => ({}),
+		}),
+	});
+	return dropZoneFor(
+		{ clientX, clientY } as Parameters<typeof dropZoneFor>[0],
+		el as HTMLElement,
+	);
+}
+
+test("drop zones read vertical approaches on square tiles", () => {
+	// Top strip, horizontally central → before (insert above).
+	expect(zoneAt(50, 10, 100, 100)).toBe("before");
+	// Bottom strip, horizontally central → after (insert below).
+	expect(zoneAt(50, 90, 100, 100)).toBe("after");
+	// Middle band keeps the horizontal contract.
+	expect(zoneAt(10, 50, 100, 100)).toBe("before");
+	expect(zoneAt(50, 50, 100, 100)).toBe("center");
+	expect(zoneAt(90, 50, 100, 100)).toBe("after");
+	// Wide folder tiles (2-cell span) stay X-dominant: a top-strip pointer
+	// at the horizontal centre still nests instead of reordering.
+	expect(zoneAt(110, 10, 220, 100)).toBe("center");
+	expect(zoneAt(20, 50, 220, 100)).toBe("before");
+	expect(zoneAt(200, 50, 220, 100)).toBe("after");
+});
+
+// ---------------------------------------------------------------------------
+// Spring restart. Sliding between targets mid-dwell (A → B) must navigate to
+// the latest target: restarting the dwell replaces the stale countdown
+// instead of stacking a second navigation. (Wall-clock dwells cannot be
+// asserted reliably under act/linkedom timer slop, so restart semantics are
+// verified with zero-delay timers: replace coalesces to one fire, cancel
+// suppresses it.)
+// ---------------------------------------------------------------------------
+
+function SpringHarness({
+	mode,
+	fires,
+}: {
+	mode: "replace" | "cancel";
+	fires: number[];
+}) {
+	const spring = useSpringLoad(
+		() => {
+			fires.push(1);
+		},
+		0,
+	);
+	useEffect(() => {
+		if (mode === "replace") {
+			spring.start();
+			spring.restart();
+		} else {
+			spring.restart();
+			spring.cancel();
+		}
+	}, [spring, mode]);
+	return <output data-testid="spring-armed">armed</output>;
+}
+
+test("restarting the dwell replaces the stale countdown", async () => {
+	const mount = document.getElementById("app");
+	if (!mount) throw new Error("test mount missing");
+
+	const replaced: number[] = [];
+	root = createRoot(mount);
+	await act(async () => {
+		root?.render(<SpringHarness mode="replace" fires={replaced} />);
+	});
+	await new Promise((resolve) => setTimeout(resolve, 30));
+	// start() + restart() in the same tick: exactly one fire. A stacking
+	// implementation would navigate twice (A → B navigates to A, then B).
+	expect(replaced).toHaveLength(1);
+});
+
+test("cancelling after restart suppresses the navigation", async () => {
+	const mount = document.getElementById("app");
+	if (!mount) throw new Error("test mount missing");
+
+	const cancelled: number[] = [];
+	root = createRoot(mount);
+	await act(async () => {
+		root?.render(<SpringHarness mode="cancel" fires={cancelled} />);
+	});
+	await new Promise((resolve) => setTimeout(resolve, 30));
+	expect(cancelled).toHaveLength(0);
 });
 

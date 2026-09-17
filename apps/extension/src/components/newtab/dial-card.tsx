@@ -124,7 +124,7 @@ export function DialCard({
 						"drop-insert-after",
 					combineActive &&
 						dialLayout === "card" &&
-						cn("scale-[1.02]", glassDropRing(isLiquid)),
+						glassDropRing(isLiquid),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}

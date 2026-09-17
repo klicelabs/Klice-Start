@@ -93,7 +93,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--tile-h: 176px;
 		--grid-gap: 22px;
 		--grid-max-width: 1216px;
-		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
+		/* Interaction-safe overflow space for card grids (outlines, drop
+		   rings, shadows, small transforms). Mirrored by a negative stage
+		   margin so content alignment never shifts. */
+		--grid-safe-padding: 12px;		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
 		--card-footer-h: 30px;
 		/* Speed Dial composition rhythm. These tokens keep the ambient hero,
 		   navigation toolbar and grid in one spacing system. */
@@ -559,6 +562,25 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid-stage {
 	display: grid;
 	min-width: 0;
+}
+
+/* Card grids gain the same breathing room icon grids already own
+   (--icon-safe-padding): selection/drop outlines, shadows and small
+   transforms render inside the padding instead of clipping at the stage
+   edge. The mirrored negative margin keeps the stage's outer footprint —
+   and therefore the content's alignment with Search, clock and headings —
+   exactly where it was. Applies to every folder/subfolder page using the
+   shared grid primitive. */
+.dial-grid-stage:not(.dial-grid-stage-icon) {
+	padding: var(--grid-safe-padding);
+	margin: calc(var(--grid-safe-padding) * -1);
+}
+
+/* Contain the stage's compensating negative vertical margin: without a new
+   block formatting context it would collapse through the wrap and tug the
+   hero/composition rhythm. Outer layout behavior is unchanged. */
+.dial-grid-wrap {
+	display: flow-root;
 }
 
 /* One wake language for the first new-tab paint and Rest Mode exit. The
@@ -1120,6 +1142,51 @@ html.dark .speed-dial-top-fade {
 }
 .drop-insert-after::after {
 	bottom: -5px;
+}
+
+/* Insertion rails fade in on zone change (opacity-only, interruptible) so
+   scrubbing an edge boundary does not strobe. Position still snaps — only
+   the rail's presence softens, and it must never lag the pointer. */
+.drop-insert-before::after,
+.drop-insert-after::after,
+.icon-drop-insert-before::before,
+.icon-drop-insert-after::after {
+	animation: drop-rail-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes drop-rail-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* History spring-navigation dwell progress: a thin bottom-anchored fill
+   whose 750ms linear sweep matches the traversal dwell exactly. It
+   communicates "hold here to navigate" with no scale, glow, or motion. */
+.history-spring-fill {
+	transform-origin: left center;
+	animation: history-spring-fill 750ms linear forwards;
+}
+@keyframes history-spring-fill {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.drop-insert-before::after,
+	.drop-insert-after::after,
+	.icon-drop-insert-before::before,
+	.icon-drop-insert-after::after {
+		animation-duration: 1ms;
+	}
+	.history-spring-fill {
+		animation-timing-function: steps(2, end);
+	}
 }
 
 /* =========================================================

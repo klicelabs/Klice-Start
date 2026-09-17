@@ -6,6 +6,7 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { EASE_OUT } from "@klice-start/ui/lib/ease";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
@@ -145,7 +146,7 @@ export function FolderPreviewCard({
 					insertion === "after" && dialLayout === "card" && "drop-insert-after",
 					dropActive &&
 						dialLayout === "card" &&
-						cn("scale-[1.02]", glassDropRing(isLiquid)),
+						glassDropRing(isLiquid),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
@@ -484,6 +485,7 @@ function IconFolderBody({
 									<motion.div
 										key={card.id}
 										layout="position"
+										transition={{ duration: 0.2, ease: EASE_OUT }}
 										className="icon-folder-preview-motion-cell"
 									>
 										<button
@@ -550,6 +552,7 @@ function IconFolderBody({
 								<motion.div
 									key={card.id}
 									layout="position"
+									transition={{ duration: 0.2, ease: EASE_OUT }}
 									className="icon-folder-preview-motion-cell"
 								>
 									<a

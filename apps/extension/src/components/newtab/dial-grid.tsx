@@ -1,5 +1,6 @@
 import {
 	EASE_OUT,
+	REORDER_TWEEN,
 	SPRING_DEPTH,
 	SPRING_SEGMENT,
 } from "@klice-start/ui/lib/ease";
@@ -18,6 +19,10 @@ import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
+import {
+	resolveDragGroup,
+	splitGroupKinds,
+} from "../../lib/drag-group";
 import { computeIconGridMaxWidth, iconGridConfig } from "../../lib/icon-layout";
 import {
 	getOrderedRefs,
@@ -143,6 +148,20 @@ interface DialGridProps {
 		target: ItemRef,
 		position: "before" | "after",
 	) => void;
+	/** Contiguous group reorder: one block move, one store write. */
+	onReorderGroup: (
+		container: string,
+		groupIds: string[],
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
+	/** Block card insert for folder-preview drops (reparents as needed). */
+	onInsertCardsAt: (
+		targetFolderId: string,
+		cardIds: string[],
+		targetCardId: string,
+		position: "before" | "after",
+	) => void;
 	onPreviewDrop: (
 		targetFolderId: string,
 		draggedCardId: string,
@@ -171,6 +190,8 @@ export function DialGrid({
 	onNewSubfolder,
 	onMoveItems,
 	onLiveReorder,
+	onReorderGroup,
+	onInsertCardsAt,
 	onPreviewDrop,
 	onCombineCards,
 	canNestFolder,
@@ -189,6 +210,11 @@ export function DialGrid({
 	const reduceMotion = useReducedMotion() ?? false;
 	const stageRef = useRef<HTMLDivElement>(null);
 	const [stageWidth, setStageWidth] = useState(0);
+	// Depth-travel distance for folder navigation entrances, measured against
+	// the visible scroll viewport (never the full grid height). Hoisted out of
+	// render: measuring getBoundingClientRect during render forces a sync
+	// layout on every hover setState during drags.
+	const [depthTravel, setDepthTravel] = useState(96);
 
 	useLayoutEffect(() => {
 		const stage = stageRef.current;
@@ -212,24 +238,49 @@ export function DialGrid({
 		};
 	}, [layoutOpen]);
 
-	const motionContext: GridMotionContext = {
-		...navigation,
-		stageWidth,
-		// Measure against the visible scroll viewport, never the full grid
-		// height. This lets depth navigation enter from the screen edge even
-		// when the current folder has many rows below the fold.
-		depthTravel: (() => {
-			const stage = stageRef.current;
-			const scrollContainer = stage?.closest<HTMLElement>(
-				"[data-speed-dial-scroll]",
-			);
-			if (!stage || !scrollContainer) return 96;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: folderId/navigation are intentional re-measure triggers.
+	useLayoutEffect(() => {
+		const stage = stageRef.current;
+		if (!stage) return;
+		const scrollContainer = stage.closest<HTMLElement>(
+			"[data-speed-dial-scroll]",
+		);
+		const measure = () => {
+			if (!scrollContainer) {
+				setDepthTravel((prev) => (prev === 96 ? prev : 96));
+				return;
+			}
 			const stageRect = stage.getBoundingClientRect();
 			const scrollRect = scrollContainer.getBoundingClientRect();
-			return Math.max(96, Math.round(scrollRect.bottom - stageRect.top));
-		})(),
-		reduceMotion,
-	};
+			const next = Math.max(96, Math.round(scrollRect.bottom - stageRect.top));
+			setDepthTravel((prev) => (prev === next ? prev : next));
+		};
+		measure();
+		const raf = requestAnimationFrame(measure);
+		window.addEventListener("resize", measure);
+		scrollContainer?.addEventListener("scroll", measure, { passive: true });
+		return () => {
+			cancelAnimationFrame(raf);
+			window.removeEventListener("resize", measure);
+			scrollContainer?.removeEventListener("scroll", measure);
+		};
+	}, [layoutOpen, folderId, navigation]);
+
+	const motionContext: GridMotionContext = useMemo(
+		() => ({
+			...navigation,
+			stageWidth,
+			depthTravel,
+			reduceMotion,
+		}),
+		[navigation, stageWidth, depthTravel, reduceMotion],
+	);
+
+	// Sibling displacement during live reorder: an interruptible ease-out
+	// tween (<300ms). Springs stay reserved for hierarchy travel.
+	const reorderTransition = reduceMotion
+		? REDUCED_GRID_TRANSITION
+		: REORDER_TWEEN;
 
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	const toggle = useSelectionStore((s) => s.toggle);
@@ -290,68 +341,90 @@ export function DialGrid({
 		[allCards, allFolders],
 	);
 
-	// Multi-item drop on folder: cards move in; folders nest when valid.
-	// Cards already inside the target stay put (explicit drop ≠ reorder).
+	// A committed drop ends the gesture: the moved members land in their
+	// normal state and the selection (plus tray) closes. Keeping them
+	// selected would reopen the tray over items the user just finished
+	// moving. When nothing moved, the previous selection is left untouched.
+	const settleMovedSelection = useCallback(
+		(cardIds: string[], folderIds: string[]) => {
+			if (cardIds.length === 0 && folderIds.length === 0) return;
+			useSelectionStore.getState().clear();
+		},
+		[],
+	);
+
+	// Multi-item drop on folder: the whole drag group moves in source order;
+	// cards already inside the target stay put, folders nest when valid.
 	// One store call — a mixed group can never be half-moved.
 	const handleDropOnFolder = useCallback(
 		(draggedId: string, targetFolderId: string) => {
-			const group = selectedIds.includes(draggedId) ? selectedIds : [draggedId];
-			const cardIds = group.filter((id) => {
-				const card = allCards.find((c) => c.id === id);
-				return card !== undefined && card.folderId !== targetFolderId;
-			});
-			const folderIds = group.filter(
-				(id) =>
-					allFolders.some((f) => f.id === id) &&
-					canNestFolder(id, targetFolderId),
+			const draggedKind = allCards.some((c) => c.id === draggedId)
+				? ("card" as const)
+				: ("folder" as const);
+			const group = resolveDragGroup(
+				{ kind: draggedKind, id: draggedId },
+				useSelectionStore.getState().items,
+				allCards,
+				allFolders,
+				itemOrder,
 			);
-			if (cardIds.length > 0 || folderIds.length > 0) {
-				onMoveItems(cardIds, folderIds, targetFolderId);
-				movedToast(cardIds, folderIds, targetFolderId);
+			const { cardIds, folderIds } = splitGroupKinds(group);
+			const movableCards = cardIds.filter(
+				(id) => allCards.find((c) => c.id === id)?.folderId !== targetFolderId,
+			);
+			const movableFolders = folderIds.filter((id) =>
+				canNestFolder(id, targetFolderId),
+			);
+			if (movableCards.length > 0 || movableFolders.length > 0) {
+				onMoveItems(movableCards, movableFolders, targetFolderId);
+				movedToast(movableCards, movableFolders, targetFolderId);
+				settleMovedSelection(movableCards, movableFolders);
 			}
-			clearSelection();
 		},
 		[
-			selectedIds,
 			allCards,
 			allFolders,
+			itemOrder,
 			onMoveItems,
 			canNestFolder,
-			clearSelection,
+			settleMovedSelection,
 			movedToast,
 		],
 	);
 
-	// Drop on empty grid background. A selected group can contain cards and
-	// folders; keep both kinds in one store call so a spring-loaded container
+	// Drop on empty grid background. The whole drag group moves in source
+	// order, cards and folders in one store call so a spring-loaded container
 	// swap cannot split the move or leave half of the selection behind.
 	const handleBackgroundDrop = useCallback(
 		(dragged: ItemRef) => {
-			const group = selectedIds.includes(dragged.id)
-				? selectedIds
-				: [dragged.id];
-			const cardIds = group.filter((id) =>
+			const group = resolveDragGroup(
+				dragged,
+				useSelectionStore.getState().items,
+				allCards,
+				allFolders,
+				itemOrder,
+			);
+			const { cardIds, folderIds } = splitGroupKinds(group);
+			const movableCards = cardIds.filter((id) =>
 				allCards.some((card) => card.id === id),
 			);
-			const folderIds = group.filter(
-				(id) =>
-					allFolders.some((folder) => folder.id === id) &&
-					canNestFolder(id, folderId),
+			const movableFolders = folderIds.filter((id) =>
+				canNestFolder(id, folderId),
 			);
-			if (cardIds.length > 0 || folderIds.length > 0) {
-				onMoveItems(cardIds, folderIds, folderId);
-				movedToast(cardIds, folderIds, folderId);
+			if (movableCards.length > 0 || movableFolders.length > 0) {
+				onMoveItems(movableCards, movableFolders, folderId);
+				movedToast(movableCards, movableFolders, folderId);
+				settleMovedSelection(movableCards, movableFolders);
 			}
-			clearSelection();
 		},
 		[
-			selectedIds,
 			allCards,
 			allFolders,
+			itemOrder,
 			folderId,
 			onMoveItems,
 			canNestFolder,
-			clearSelection,
+			settleMovedSelection,
 			movedToast,
 		],
 	);
@@ -376,9 +449,30 @@ export function DialGrid({
 
 	const dnd = useGridDnd({
 		onLiveReorder: useCallback(
-			(dragged: ItemRef, target: ItemRef, position: "before" | "after") =>
-				onLiveReorder(folderId, dragged, target, position),
-			[onLiveReorder, folderId],
+			(dragged: ItemRef, target: ItemRef, position: "before" | "after") => {
+				// One drag operation → one group insertion: when the grabbed
+				// item belongs to a multi-selection, the whole source-ordered
+				// block moves contiguously instead of one member at a time.
+				const group = resolveDragGroup(
+					dragged,
+					useSelectionStore.getState().items,
+					allCards,
+					allFolders,
+					itemOrder,
+				);
+				const local = group.filter((member) => member.sourceId === folderId);
+				if (local.length > 1) {
+					onReorderGroup(
+						folderId,
+						local.map((member) => member.id),
+						target,
+						position,
+					);
+					return;
+				}
+				onLiveReorder(folderId, dragged, target, position);
+			},
+			[onLiveReorder, onReorderGroup, folderId, allCards, allFolders, itemOrder],
 		),
 		onCombineCards,
 		onDropOnFolder: handleDropOnFolder,
@@ -403,10 +497,57 @@ export function DialGrid({
 			},
 			[allCards, onLiveReorder],
 		),
-		onPreviewDrop: onPreviewDrop,
+		onPreviewDrop: useCallback(
+			(
+				targetFolderId: string,
+				draggedCardId: string,
+				targetCardId: string,
+				position: "before" | "after",
+			) => {
+				// Preview drops commit the selected card block once, in source
+				// order, instead of once per member. Folders cannot be
+				// preview-represented, so a mixed selection moves its cards.
+				const group = resolveDragGroup(
+					{ kind: "card", id: draggedCardId },
+					useSelectionStore.getState().items,
+					allCards,
+					allFolders,
+					itemOrder,
+				);
+				const block = group
+					.filter((member) => member.kind === "card")
+					.map((member) => member.id);
+				if (block.length > 1) {
+					onInsertCardsAt(targetFolderId, block, targetCardId, position);
+					settleMovedSelection(block, []);
+					return;
+				}
+				onPreviewDrop(targetFolderId, draggedCardId, targetCardId, position);
+			},
+			[
+				onPreviewDrop,
+				onInsertCardsAt,
+				settleMovedSelection,
+				allCards,
+				allFolders,
+				itemOrder,
+			],
+		),
 		canNest: canNestFolder,
 		isInContainer,
 		onItemDragStart: handleItemDragStart,
+		onSnapshotOrder: useCallback(() => {
+			const base = useSetupStore.getState().itemOrder;
+			if (!base) return null;
+			const copy: ItemOrder = {};
+			for (const [container, keys] of Object.entries(base)) {
+				copy[container] = [...keys];
+			}
+			return copy;
+		}, []),
+		onRestoreOrder: useCallback((snapshot: ItemOrder) => {
+			useSetupStore.getState().restoreItemOrder(snapshot);
+		}, []),
 	} as Parameters<typeof useGridDnd>[0]);
 
 	// The coordinator outlives container swaps (same hook instance): when the
@@ -428,6 +569,14 @@ export function DialGrid({
 			})),
 		[orderedRefs, folderId],
 	);
+
+	// Every member of a group drag dims together so the whole payload reads
+	// as one lifted unit, not one dimmed card plus silent passengers.
+	const dragGroupIds = useMemo(() => {
+		if (!dnd.drag) return null;
+		if (!selectedIds.includes(dnd.drag.id)) return new Set([dnd.drag.id]);
+		return new Set(selectedIds);
+	}, [dnd.drag, selectedIds]);
 
 	function handleCardClick(e: React.MouseEvent, id: string) {
 		const item = { id, kind: "card" as const, sourceId: folderId };
@@ -551,13 +700,18 @@ export function DialGrid({
 										if (!folder) return null;
 										const isSelected = selectedIds.includes(folder.id);
 										return (
-											<FolderPreviewCard
+											<motion.div
 												key={folder.id}
+												layout
+												transition={reorderTransition}
+												className="dial-cell"
+											>
+											<FolderPreviewCard
 												id={folder.id}
 												name={folder.name}
 												itemCount={cardCounts[folder.id] ?? 0}
-												previewCards={previewCards[folder.id] ?? []}
-												dragging={dnd.drag?.id === folder.id}
+											previewCards={previewCards[folder.id] ?? []}
+											dragging={dragGroupIds?.has(folder.id) ?? false}
 												isSelected={isSelected}
 												showOpenAction={selectedIds.length > 0}
 												insertion={
@@ -593,16 +747,21 @@ export function DialGrid({
 													kind: "folder",
 													id: folder.id,
 												})}
-												className="dial-cell"
 											/>
+											</motion.div>
 										);
 									}
 									const card = cardById.get(ref.id);
 									if (!card) return null;
 									const isSelected = selectedIds.includes(card.id);
 									return (
-										<DialCard
+										<motion.div
 											key={card.id}
+											layout
+											transition={reorderTransition}
+											className="dial-cell"
+										>
+										<DialCard
 											card={card}
 											onDelete={onDelete}
 											isSelected={isSelected}
@@ -616,10 +775,10 @@ export function DialGrid({
 													? dnd.insertion.position
 													: null
 											}
-											combineActive={dnd.combineKey === card.id}
-											dragging={dnd.drag?.id === card.id}
-											className="dial-cell"
+										combineActive={dnd.combineKey === card.id}
+										dragging={dragGroupIds?.has(card.id) ?? false}
 										/>
+										</motion.div>
 									);
 								})}
 					</motion.div>

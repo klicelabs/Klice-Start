@@ -5,6 +5,8 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { flatSeparator, flatSurface } from "@klice-start/ui/lib/surface";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSpringLoad } from "../../../hooks/use-spring-load";
+import { getActiveDrag } from "../../../lib/dnd";
 import {
 	glassForeground,
 	glassLensVeil,
@@ -316,6 +318,10 @@ function HistoryControls({
 	// Hooks below are unconditional so every render path shares one order.
 	const { resolvedDark } = useAppearance();
 	const { glassParams } = useGlassAppearance();
+	// Shared spring-navigation gate: a Back/Forward dwell that just fired
+	// locks both segments briefly so one held pointer cannot chain
+	// Back → Back → Back (or straddle the divider into Forward) by accident.
+	const springGate = useRef(0);
 	const groupClassName = cn(TOOLBAR.groupHeight, "shrink-0");
 	const groupButtons = (
 		<>
@@ -325,6 +331,9 @@ function HistoryControls({
 				disabled={!canGoBack}
 				isLiquid={isLiquid}
 				onClick={onBack}
+				springEnabled={canGoBack}
+				onSpringNavigate={onBack}
+				springGate={springGate}
 			/>
 			<HistoryDivider isLiquid={isLiquid} />
 			<HistoryButton
@@ -333,6 +342,9 @@ function HistoryControls({
 				disabled={!canGoForward}
 				isLiquid={isLiquid}
 				onClick={onForward}
+				springEnabled={canGoForward}
+				onSpringNavigate={onForward}
+				springGate={springGate}
 			/>
 		</>
 	);
@@ -383,7 +395,21 @@ interface HistoryButtonProps {
 	disabled: boolean;
 	isLiquid: boolean;
 	onClick: () => void;
+	/** Spring-load DnD navigation: arm dwell only when history can traverse. */
+	springEnabled: boolean;
+	onSpringNavigate: () => void;
+	/** Shared Back/Forward gate against accidental chained traversals. */
+	springGate: React.RefObject<number>;
 }
+
+/** Dwell before a held drag traverses history (slower than folder springs:
+ * history navigation destroys context, so it must never fire by accident). */
+const HISTORY_SPRING_DELAY_MS = 750;
+/** Per-direction cooldown after a spring traversal: the pointer is still
+ * over the button, so re-arm requires a fresh dwell after this gap. */
+const HISTORY_SPRING_COOLDOWN_MS = 1000;
+/** Cross-button lock after any spring traversal (Back → Forward straddle). */
+const HISTORY_SPRING_GATE_MS = 400;
 
 /**
  * The native-style divider between the Back and Forward segments.
@@ -414,7 +440,90 @@ function HistoryButton({
 	disabled,
 	isLiquid,
 	onClick,
+	springEnabled,
+	onSpringNavigate,
+	springGate,
 }: HistoryButtonProps) {
+	const [dwelling, setDwelling] = useState(false);
+	const [cooling, setCooling] = useState(false);
+	const enabledRef = useRef(springEnabled);
+	enabledRef.current = springEnabled;
+	const navigateRef = useRef(onSpringNavigate);
+	navigateRef.current = onSpringNavigate;
+	const dragIdentity = useRef<string | null>(null);
+	const cooldownTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	const fireSpring = useCallback(() => {
+		setDwelling(false);
+		// Fire-time re-validation: the history stack may have changed
+		// mid-dwell (pruned folders, external navigation), and the drag
+		// itself may have been cancelled and replaced.
+		if (!enabledRef.current) return;
+		const live = getActiveDrag();
+		const liveKey = live ? `${live.kind}:${live.id}` : null;
+		if (!liveKey || liveKey !== dragIdentity.current) return;
+		const now = Date.now();
+		if (now - springGate.current < HISTORY_SPRING_GATE_MS) return;
+		springGate.current = now;
+		navigateRef.current();
+		// Cooldown: the pointer is still over the button. Each further leg
+		// costs a fresh dwell + gap, so draining the stack stays deliberate.
+		setCooling(true);
+		if (cooldownTimer.current !== null) clearTimeout(cooldownTimer.current);
+		cooldownTimer.current = setTimeout(() => {
+			cooldownTimer.current = null;
+			setCooling(false);
+		}, HISTORY_SPRING_COOLDOWN_MS);
+	}, [springGate]);
+
+	const spring = useSpringLoad(fireSpring, HISTORY_SPRING_DELAY_MS);
+
+	useEffect(
+		() => () => {
+			if (cooldownTimer.current !== null)
+				clearTimeout(cooldownTimer.current);
+		},
+		[],
+	);
+
+	function handleDragOver(e: React.DragEvent) {
+		if (!enabledRef.current || cooling) return;
+		if (!getActiveDrag()) return;
+		e.preventDefault();
+		e.stopPropagation();
+		e.dataTransfer.dropEffect = "move";
+		const live = getActiveDrag();
+		dragIdentity.current = live ? `${live.kind}:${live.id}` : null;
+		if (!dwelling) {
+			setDwelling(true);
+			spring.start();
+		}
+	}
+
+	function handleDragLeave(e: React.DragEvent) {
+		const related = e.relatedTarget as Node | null;
+		if (
+			related &&
+			e.currentTarget instanceof Node &&
+			e.currentTarget.contains(related)
+		) {
+			return;
+		}
+		if (!dwelling) return;
+		setDwelling(false);
+		spring.cancel();
+	}
+
+	function handleDrop(e: React.DragEvent) {
+		// History targets are view-only: swallow the drop so it can neither
+		// persist a move nor fall through to a background append. The drag
+		// payload stays alive for the destination page.
+		e.preventDefault();
+		e.stopPropagation();
+		setDwelling(false);
+		spring.cancel();
+	}
+
 	return (
 		<Button
 			variant="ghost"
@@ -422,8 +531,11 @@ function HistoryButton({
 			aria-label={label}
 			disabled={disabled}
 			onClick={onClick}
+			onDragOver={disabled ? undefined : handleDragOver}
+			onDragLeave={disabled ? undefined : handleDragLeave}
+			onDrop={disabled ? undefined : handleDrop}
 			className={cn(
-				"h-full",
+				"relative h-full",
 				TOOLBAR.controlWidth,
 				// Same wash tint as the tabbar items. The seam and the outer
 				// capsule ends stay native to the group.
@@ -435,6 +547,13 @@ function HistoryButton({
 				isLiquid
 					? `${glassForeground()} hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
 					: "text-flat-ink disabled:opacity-25",
+				// Active DnD dwell: the button's own hover wash so the target
+				// reads "listening — hold here to navigate". Restrained by
+				// design: no outer glow, no layout shift, no scale.
+				dwelling &&
+					(isLiquid
+						? "bg-foreground/[0.10] ring-1 ring-foreground/30 ring-inset"
+						: "bg-flat-sunken-raised ring-1 ring-flat-edge-strong ring-inset"),
 			)}
 			data-slot="button"
 		>
@@ -445,6 +564,12 @@ function HistoryButton({
 				className={toolbarIconClass(icon)}
 				aria-hidden="true"
 			/>
+			{dwelling && (
+				<span
+					aria-hidden="true"
+					className="history-spring-fill pointer-events-none absolute inset-x-2 bottom-1 h-[2px] rounded-full bg-current opacity-40"
+				/>
+			)}
 		</Button>
 	);
 }

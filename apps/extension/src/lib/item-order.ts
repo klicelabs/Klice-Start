@@ -215,6 +215,8 @@ export function reindexOrders(
 ): { folders: Folder[]; cards: Card[] } {
 	const folderOrder = new Map<string, number>();
 	const cardOrder = new Map<string, number>();
+	const folderById = new Map(folders.map((f) => [f.id, f]));
+	const cardById = new Map(cards.map((c) => [c.id, c]));
 	for (const [container, keys] of Object.entries(itemOrder)) {
 		let fi = 0;
 		let ci = 0;
@@ -222,7 +224,7 @@ export function reindexOrders(
 			const ref = parseItemKey(key);
 			if (!ref) continue;
 			if (ref.kind === "folder") {
-				const folder = folders.find((f) => f.id === ref.id);
+				const folder = folderById.get(ref.id);
 				if (
 					folder &&
 					containerKeyOf(folder.parentId ?? null) === container &&
@@ -231,7 +233,7 @@ export function reindexOrders(
 					folderOrder.set(ref.id, fi++);
 				}
 			} else {
-				const card = cards.find((c) => c.id === ref.id);
+				const card = cardById.get(ref.id);
 				if (card && card.folderId === container && !cardOrder.has(ref.id)) {
 					cardOrder.set(ref.id, ci++);
 				}
@@ -256,5 +258,58 @@ export function removeKeysForId(itemOrder: ItemOrder, id: string): ItemOrder {
 	for (const [container, keys] of Object.entries(itemOrder)) {
 		next[container] = keys.filter((k) => parseItemKey(k)?.id !== id);
 	}
+	return next;
+}
+
+/**
+ * Move a contiguous block of keys to before/after a target key inside one
+ * container array. Pure: operates on key strings only, never reparents.
+ * Returns null when the move is a no-op (unknown keys, or the target sits
+ * inside the dragged block — dropping a group onto itself).
+ */
+export function reorderGroupKeys(
+	keys: string[],
+	draggedKeys: string[],
+	targetKey: string,
+	position: "before" | "after",
+): string[] | null {
+	const moving = new Set(draggedKeys);
+	if (moving.size === 0) return null;
+	if (moving.has(targetKey)) return null;
+	const block = keys.filter((k) => moving.has(k));
+	if (block.length === 0) return null;
+	const rest = keys.filter((k) => !moving.has(k));
+	const to = rest.indexOf(targetKey);
+	if (to === -1) return null;
+	const next = [...rest];
+	next.splice(position === "after" ? to + 1 : to, 0, ...block);
+	return next;
+}
+
+/**
+ * Insert a block of card keys at an anchor inside the target container,
+ * removing the block from every container first (reparenting move).
+ * Pure: returns the next full order map, or null when nothing changes.
+ */
+export function insertCardsBlock(
+	itemOrder: ItemOrder,
+	targetContainer: string,
+	draggedKeys: string[],
+	targetKey: string,
+	position: "before" | "after",
+): ItemOrder | null {
+	const moving = new Set(draggedKeys);
+	if (moving.size === 0 || moving.has(targetKey)) return null;
+	const next: ItemOrder = {};
+	for (const [container, keys] of Object.entries(itemOrder)) {
+		next[container] = keys.filter((k) => !moving.has(k));
+	}
+	const anchor = [...(next[targetContainer] ?? [])];
+	const to = anchor.indexOf(targetKey);
+	if (to === -1) return null;
+	// Preserve the caller's block order (already source-ordered upstream).
+	const block = draggedKeys.filter((k) => k.length > 0);
+	anchor.splice(position === "after" ? to + 1 : to, 0, ...block);
+	next[targetContainer] = anchor;
 	return next;
 }

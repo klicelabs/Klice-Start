@@ -38,6 +38,7 @@ import { ToolbarActions } from "../../src/components/newtab/toolbar/toolbar-acti
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
 import { usePersistenceErrorToast } from "../../src/hooks/use-persistence-error-toast";
+import { orderGroupBySource } from "../../src/lib/drag-group";
 import {
 	getBreadcrumb,
 	getChildren,
@@ -135,8 +136,10 @@ export default function App() {
 	const deleteCard = useSetupStore((s) => s.deleteCard);
 	const deleteFolder = useSetupStore((s) => s.deleteFolder);
 	const insertCardAt = useSetupStore((s) => s.insertCardAt);
+	const insertCardsAt = useSetupStore((s) => s.insertCardsAt);
 	const moveFolders = useSetupStore((s) => s.moveFolders);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
+	const reorderGroup = useSetupStore((s) => s.reorderGroup);
 	const reorderItems = useSetupStore((s) => s.reorderItems);
 	const reorderFolders = useSetupStore((s) => s.reorderFolders);
 	const createSubfolderFromCards = useSetupStore(
@@ -251,8 +254,15 @@ export default function App() {
 	);
 	const handleSelectAll = useCallback(() => {
 		if (selectableItems.length === 0) return;
-		useSelectionStore.getState().selectAll(selectableItems);
+		// Union, not replace: items selected on other pages stay selected.
+		useSelectionStore.getState().addAll(selectableItems);
 	}, [selectableItems]);
+	// Stable id list of the current page scope for the tray's contextual
+	// Select all (local scope membership, never global).
+	const pageIds = useMemo(
+		() => selectableItems.map((item) => item.id),
+		[selectableItems],
+	);
 	const breadcrumb = useMemo(
 		() => getBreadcrumb(folders, activeFolderId),
 		[folders, activeFolderId],
@@ -506,6 +516,30 @@ export default function App() {
 		[reorderItems],
 	);
 
+	const handleReorderGroup = useCallback(
+		(
+			container: string,
+			groupIds: string[],
+			target: ItemRef,
+			position: "before" | "after",
+		) => {
+			reorderGroup(container, groupIds, target, position);
+		},
+		[reorderGroup],
+	);
+
+	const handleInsertCardsAt = useCallback(
+		(
+			targetFolderId: string,
+			cardIds: string[],
+			targetCardId: string,
+			position: "before" | "after",
+		) => {
+			insertCardsAt(targetFolderId, cardIds, targetCardId, position);
+		},
+		[insertCardsAt],
+	);
+
 	const handlePreviewDrop = useCallback(
 		(
 			targetFolderId: string,
@@ -520,23 +554,37 @@ export default function App() {
 
 	// Tabbar/overflow drop: the move persists first (multi-aware, both kinds
 	// in one store call so a mixed group can never be half-moved), then any
-	// spring-loaded navigation is just a view change.
+	// spring-loaded navigation is just a view change. A committed drop ends
+	// the gesture: the selection closes so the tray never reopens over items
+	// the user just finished moving.
 	const handleTabDrop = useCallback(
 		(draggedId: string, targetId: string) => {
 			const state = useSetupStore.getState();
-			const selected = useSelectionStore.getState().selectedIds;
-			const group = selected.includes(draggedId) ? selected : [draggedId];
-			const cardIds = group.filter(
-				(id) =>
-					state.cards.some((c) => c.id === id) &&
-					state.cards.find((c) => c.id === id)?.folderId !== targetId,
+			const selection = useSelectionStore.getState().items;
+			const group = orderGroupBySource(
+				selection.some((item) => item.id === draggedId)
+					? selection.map((item) => item.id)
+					: [draggedId],
+				state.cards,
+				state.folders,
+				state.itemOrder,
 			);
-			const folderIds = group.filter(
-				(id) =>
-					state.folders.some((f) => f.id === id) &&
-					id !== targetId &&
-					!wouldCreateCycle(state.folders, id, targetId),
-			);
+			const cardIds = group
+				.filter(
+					(member) =>
+						member.kind === "card" &&
+						state.cards.find((c) => c.id === member.id)?.folderId !==
+							targetId,
+				)
+				.map((member) => member.id);
+			const folderIds = group
+				.filter(
+					(member) =>
+						member.kind === "folder" &&
+						member.id !== targetId &&
+						!wouldCreateCycle(state.folders, member.id, targetId),
+				)
+				.map((member) => member.id);
 			if (cardIds.length === 0 && folderIds.length === 0) return;
 			moveItemsToContainer(targetId, cardIds, folderIds);
 			useSelectionStore.getState().clear();
@@ -670,7 +718,7 @@ export default function App() {
 			}
 			if (selectableItems.length === 0) return;
 			e.preventDefault();
-			useSelectionStore.getState().selectAll(selectableItems);
+			useSelectionStore.getState().addAll(selectableItems);
 		}
 		document.addEventListener("keydown", handleSelectAllShortcut);
 		return () =>
@@ -838,8 +886,10 @@ export default function App() {
 												onMoveItems={(cardIds, folderIds, targetId) =>
 													moveItemsToContainer(targetId, cardIds, folderIds)
 												}
-												onLiveReorder={handleLiveReorder}
-												onPreviewDrop={handlePreviewDrop}
+											onLiveReorder={handleLiveReorder}
+											onReorderGroup={handleReorderGroup}
+											onInsertCardsAt={handleInsertCardsAt}
+											onPreviewDrop={handlePreviewDrop}
 												onCombineCards={handleCombineCards}
 												canNestFolder={canNestFolder}
 												navigation={navigation}
@@ -861,8 +911,12 @@ export default function App() {
 										{/* Lightweight Move-to destination picker */}
 										<MoveToDialog />
 
-										{/* Floating multi-select transport tray */}
-										<SelectionTray onNavigateFolder={handleSelectFolder} />
+									{/* Floating multi-select transport tray */}
+									<SelectionTray
+										onNavigateFolder={handleSelectFolder}
+										pageIds={pageIds}
+										onSelectAll={handleSelectAll}
+									/>
 									</div>
 								</div>
 								{!restMode && (

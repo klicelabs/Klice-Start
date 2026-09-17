@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
+import { orderGroupBySource } from "../../lib/drag-group";
 import { wouldCreateCycle } from "../../lib/folder-tree";
 import {
 	glassDropdownItem,
@@ -33,6 +34,13 @@ import { useAppearance } from "./appearance-provider";
 interface SelectionTrayProps {
 	/** Navigate to a folder after a successful create-and-move operation. */
 	onNavigateFolder?: (id: string) => void;
+	/**
+	 * Ids in the current page/folder scope (never global). Powers the
+	 * contextual Select all: local to the visible page only.
+	 */
+	pageIds?: string[];
+	/** Select every item in the current page/folder scope. */
+	onSelectAll?: () => void;
 }
 
 interface CreateRequest {
@@ -40,6 +48,8 @@ interface CreateRequest {
 	parentId: string | null;
 	selectedIds: string[];
 }
+
+const EMPTY_PAGE_IDS: string[] = [];
 
 /**
  * Floating Selection Tray — the transport surface for multi-select.
@@ -53,13 +63,19 @@ interface CreateRequest {
  * with a centered preview stack, a count summary and quiet overflow actions,
  * in the same Glass/Flat material as the context menus.
  */
-export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
+export function SelectionTray({
+	onNavigateFolder,
+	pageIds = EMPTY_PAGE_IDS,
+	onSelectAll,
+}: SelectionTrayProps) {
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
+	const selectionScope = useSelectionStore((s) => s.scope);
 	const clearSelection = useSelectionStore((s) => s.clear);
 	const cards = useSetupStore((s) => s.cards as Card[]);
 	const folders = useSetupStore((s) => s.folders as Folder[]);
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
+	const itemOrder = useSetupStore((s) => s.itemOrder);
 	const createFolderFromSelection = useSetupStore(
 		(s) => s.createFolderFromSelection,
 	);
@@ -113,10 +129,17 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 			.slice(0, 3);
 	}, [selectedIds, selCards, selFolders]);
 
-	const move = useMemo(
-		() => resolveMoveGroup(selectedIds, cards, folders, activeFolderId),
-		[selectedIds, cards, folders, activeFolderId],
-	);
+	const move = useMemo(() => {
+		// Transport order is source order, never click order: the group lands
+		// internally ordered as it sits in its origin container(s).
+		const ordered = orderGroupBySource(selectedIds, cards, folders, itemOrder);
+		return resolveMoveGroup(
+			ordered.map((member) => member.id),
+			cards,
+			folders,
+			activeFolderId,
+		);
+	}, [selectedIds, cards, folders, itemOrder, activeFolderId]);
 	const destName = folders.find((f) => f.id === activeFolderId)?.name;
 	// Whole-operation validity: if ANY selected folder would cycle at the
 	// current destination, Move here stays disabled rather than partially
@@ -181,19 +204,17 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 					: undefined,
 			},
 		);
+		// A committed move ends the gesture: close the selection so the
+		// tray never reopens over items the user just finished moving.
 		clearSelection();
 	}
 
 	// The tray is a group drag source: one member id rides the native payload
-	// and every drop site expands it back to the live selection (same rule as
-	// dragging a selected grid item).
+	// and every drop site expands it back to the live selection in source
+	// order (same rule as dragging a selected grid item).
 	function handleTrayDragStart(e: React.DragEvent) {
-		const first =
-			selCards.length > 0
-				? { kind: "card" as const, id: selCards[0].id }
-				: selFolders.length > 0
-					? { kind: "folder" as const, id: selFolders[0].id }
-					: null;
+		const ordered = orderGroupBySource(selectedIds, cards, folders, itemOrder);
+		const first = ordered[0] ?? null;
 		if (!first) {
 			e.preventDefault();
 			return;
@@ -244,9 +265,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 								// Dense readable veil (shared menu tier), never the faint
 								// hero veil: the tray carries status text + actions.
 								glassMaterial(isLiquid, "menu", "dense"),
-								isLiquid
-									? glassForeground()
-									: "text-flat-ink",
+								isLiquid ? glassForeground() : "text-flat-ink",
 							)}
 						>
 							<div className="flex h-8 items-center justify-between">
@@ -255,15 +274,19 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 									onClick={clearSelection}
 									aria-label="Clear selection"
 									title="Clear selection"
-								className={cn(
-									"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
-									isLiquid
-										? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground(), "hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)]")
-										: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink",
-								)}
-							>
-								<Icon name="x" size={15} aria-hidden="true" />
-							</button>
+									className={cn(
+										"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+										isLiquid
+											? cn(
+													"bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+													glassForeground(),
+													"hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)]",
+												)
+											: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink",
+									)}
+								>
+									<Icon name="x" size={15} aria-hidden="true" />
+								</button>
 
 								<DropdownMenu>
 									<DropdownMenuTrigger
@@ -272,12 +295,16 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 												type="button"
 												aria-label="Selection actions"
 												title="Selection actions"
-											className={cn(
-												"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-												isLiquid
-										? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground(), "hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)] aria-expanded:bg-foreground/15")
-													: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
-											)}
+												className={cn(
+													"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+													isLiquid
+														? cn(
+																"bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+																glassForeground(),
+																"hover:bg-foreground/15 hover:text-[var(--klice-glass-foreground-primary)] aria-expanded:bg-foreground/15",
+															)
+														: "bg-flat-sunken-raised text-flat-ink-muted shadow-control hover:text-flat-ink aria-expanded:bg-flat-sunken-raised",
+												)}
 											>
 												<Icon name="ellipsis" size={16} aria-hidden="true" />
 											</button>
@@ -287,17 +314,20 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										side="top"
 										align="end"
 										sideOffset={10}
-										className={cn(glassMenu(isLiquid, resolvedDark), "min-w-56")}
+										className={cn(
+											glassMenu(isLiquid, resolvedDark),
+											"min-w-56",
+										)}
 									>
 										<DropdownMenuGroup>
-										<DropdownMenuLabel
-											className={cn(
-												"px-3 py-1.5 text-[12px] font-normal",
-												isLiquid
-										? glassForeground("secondary")
-													: "text-flat-ink-muted",
-											)}
-										>
+											<DropdownMenuLabel
+												className={cn(
+													"px-3 py-1.5 font-normal text-[12px]",
+													isLiquid
+														? glassForeground("secondary")
+														: "text-flat-ink-muted",
+												)}
+											>
 												Selection actions
 											</DropdownMenuLabel>
 											<DropdownMenuItem
@@ -349,7 +379,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 										" selected " +
 										(total === 1 ? "item" : "items")
 									}
-									className="relative h-[100px] w-[116px] shrink-0 cursor-grab touch-none border-0 bg-transparent p-0 active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+									className="relative h-[100px] w-[116px] shrink-0 cursor-grab touch-none border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:cursor-grabbing"
 								>
 									<AnimatePresence initial={false} mode="popLayout">
 										{previewItems.map((item, i) => (
@@ -370,16 +400,66 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 							<div
 								role="status"
 								aria-live="polite"
-							className={cn(
-								"mx-auto inline-flex max-w-[92%] items-center justify-center rounded-full px-3 py-1.5 text-[12px] font-medium leading-none tracking-[-0.01em] tabular-nums",
-								isLiquid
-									? cn("bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]", glassForeground())
-									: "bg-flat-sunken-raised text-flat-ink-muted shadow-control",
-							)}
+								className={cn(
+									"mx-auto inline-flex max-w-[92%] items-center justify-center rounded-full px-3 py-1.5 font-medium text-[12px] tabular-nums leading-none tracking-[-0.01em]",
+									isLiquid
+										? cn(
+												"bg-foreground/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
+												glassForeground(),
+											)
+										: "bg-flat-sunken-raised text-flat-ink-muted shadow-control",
+								)}
 							>
 								<span className="truncate">{pillLabel}</span>
 							</div>
-
+							{/* Contextual scope selection: always visible once
+							    selection starts, strictly local to the current
+							    page/folder. Only members of THIS page count
+							    toward the full-scope state, so a selection
+							    carried in from another folder still offers
+							    Select all here. Root-tab selections scope to
+							    tabs, so this row stays hidden there. */}
+							{selectionScope !== "roots" &&
+								pageIds.length > 0 &&
+								onSelectAll &&
+								(() => {
+									const pageSet = new Set(pageIds);
+									const selectedInPage = selectedIds.filter((id) =>
+										pageSet.has(id),
+									).length;
+									const pageComplete = selectedInPage >= pageIds.length;
+									return (
+										<button
+											type="button"
+											onClick={() => {
+												if (pageComplete) {
+													// True inverse of local Select all: drop
+													// this page's members, keep the rest.
+													const remaining =
+														useSelectionStore
+															.getState()
+															.items.filter((item) => !pageSet.has(item.id));
+													if (remaining.length === 0) clearSelection();
+													else
+														useSelectionStore.getState().selectAll(remaining);
+												} else onSelectAll();
+											}}
+											className={cn(
+												"mx-auto inline-flex h-7 shrink-0 items-center justify-center rounded-full px-3 font-medium text-[12px] leading-none transition-[background-color,color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
+												isLiquid
+													? cn(
+															glassForeground("secondary"),
+															"hover:bg-foreground/10 hover:text-[var(--klice-glass-foreground-primary)]",
+														)
+													: "text-flat-ink-muted hover:bg-flat-sunken-raised hover:text-flat-ink",
+											)}
+										>
+											{pageComplete
+												? "Deselect all"
+												: `Select all (${pageIds.length})`}
+										</button>
+									);
+								})()}
 							<AnimatePresence initial={false} mode="popLayout">
 								{canMoveHere && (
 									<motion.button
@@ -421,7 +501,7 @@ export function SelectionTray({ onNavigateFolder }: SelectionTrayProps) {
 													}
 										}
 										className={cn(
-											"accent-action-shadow inline-flex h-9 w-full shrink-0 items-center justify-center bg-[var(--klice-accent)] px-3.5 font-medium text-[12px] text-[var(--klice-accent-foreground)] transition-opacity motion-reduce:transition-none hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+											"inline-flex h-9 w-full shrink-0 items-center justify-center bg-[var(--klice-accent)] px-3.5 font-medium text-[12px] text-[var(--klice-accent-foreground)] accent-action-shadow transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
 											glassShape("control"),
 										)}
 									>
@@ -515,9 +595,7 @@ function TrayMini({
 						name="globe"
 						size={52}
 						className={
-									isLiquid
-										? glassForeground("secondary")
-								: "text-flat-ink-muted/70"
+							isLiquid ? glassForeground("secondary") : "text-flat-ink-muted/70"
 						}
 						aria-hidden="true"
 					/>

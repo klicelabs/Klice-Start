@@ -85,9 +85,21 @@ export function insertPositionFor(
 
 export function dropZoneFor(e: DragEvent, el: HTMLElement): DropZone {
 	const rect = el.getBoundingClientRect();
-	const ratio = (e.clientX - rect.left) / Math.max(1, rect.width);
-	if (ratio < 0.28) return "before";
-	if (ratio > 0.72) return "after";
+	// Y-aware zones for wrapping grids: a pointer clearly above/below the
+	// tile's vertical middle is a reorder signal even when horizontally
+	// central. This keeps top/bottom approaches forgiving across rows and
+	// variable heights, while the X ratio still decides within the middle
+	// band. Wide (multi-cell folder) tiles keep X-dominant behavior because
+	// their center band is physically meaningful.
+	const ratioX = (e.clientX - rect.left) / Math.max(1, rect.width);
+	const ratioY = (e.clientY - rect.top) / Math.max(1, rect.height);
+	const isWide = rect.width > rect.height * 1.5;
+	if (!isWide) {
+		if (ratioY < 0.25 && ratioX < 0.72) return "before";
+		if (ratioY > 0.75 && ratioX > 0.28) return "after";
+	}
+	if (ratioX < 0.28) return "before";
+	if (ratioX > 0.72) return "after";
 	return "center";
 }
 

@@ -1,5 +1,25 @@
 import type { DragEvent } from "react";
 
+const GHOST_ATTR = "data-klice-drag-ghost";
+
+/** Remove leaked ghost nodes (a cancelled gesture can skip dragend). */
+export function sweepDragGhosts(): void {
+	if (typeof document === "undefined") return;
+	for (const node of document.querySelectorAll(`[${GHOST_ATTR}]`)) {
+		node.remove();
+	}
+}
+
+function trackGhost(ghost: HTMLElement): void {
+	ghost.setAttribute(GHOST_ATTR, "true");
+	const remove = () => ghost.remove();
+	// drop precedes dragend in practice, but a browser-cancelled gesture
+	// (window blur, Escape races) can skip dragend and leak the node.
+	window.addEventListener("dragend", remove, { once: true });
+	window.addEventListener("drop", remove, { once: true });
+	window.addEventListener("blur", remove, { once: true });
+}
+
 /**
  * Premium group drag overlay for multi-item transport.
  *
@@ -8,12 +28,14 @@ import type { DragEvent } from "react";
  * Selection Tray so both halves of the transport system read as one.
  *
  * The ghost lives offscreen in the document (same document, so it renders in
- * the native drag image) and removes itself on the next dragend. Call
- * synchronously inside dragstart: browsers ignore setDragImage after return.
+ * the native drag image) and removes itself at the terminal gesture boundary
+ * (drop, dragend, or window blur). Call synchronously inside dragstart:
+ * browsers ignore setDragImage after return.
  */
 export function showGroupDragGhost(e: DragEvent, total: number): void {
 	if (typeof document === "undefined") return;
 	if (!Number.isFinite(total) || total < 1) return;
+	sweepDragGhosts();
 
 	if (total === 1) {
 		const ghost = document.createElement("div");
@@ -67,7 +89,7 @@ export function showGroupDragGhost(e: DragEvent, total: number): void {
 			ghost.remove();
 			return;
 		}
-		window.addEventListener("dragend", () => ghost.remove(), { once: true });
+		trackGhost(ghost);
 		return;
 	}
 
@@ -137,5 +159,5 @@ export function showGroupDragGhost(e: DragEvent, total: number): void {
 		return;
 	}
 
-	window.addEventListener("dragend", () => ghost.remove(), { once: true });
+	trackGhost(ghost);
 }

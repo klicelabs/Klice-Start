@@ -81,3 +81,14 @@ export const SPRING_GLIDE = {
 	damping: 50,
 	mass: 0.5,
 } as const;
+
+/**
+ * Live reorder displacement — utilitarian position communication, never
+ * celebration. Siblings glide to their new slot with an interruptible
+ * ease-out tween under 300ms. Springs are reserved for hierarchy travel
+ * (SPRING_DEPTH) and must never drive reorder: overshoot reads as lag.
+ */
+export const REORDER_TWEEN = {
+	duration: 0.2,
+	ease: EASE_OUT,
+} as const;

@@ -36,6 +36,14 @@ interface SelectionStoreState {
 	selectRange: (targetId: string, ordered: SelectionItem[]) => void;
 	clear: () => void;
 	selectAll: (items: SelectionItem[]) => void;
+	/**
+	 * Union the given items into the live selection (Select all adds the
+	 * current page to whatever is already selected elsewhere, never
+	 * replacing it). Existing members keep their position; newcomers append
+	 * in the given order. An incompatible domain still replaces, same as
+	 * toggle, so root tabs never mix with content.
+	 */
+	addAll: (items: SelectionItem[]) => void;
 	isSelected: (id: string) => boolean;
 }
 
@@ -133,6 +141,34 @@ export const useSelectionStore = create<SelectionStoreState>()((set, get) => ({
 			selectedIds: syncIds(items),
 			lastSelectedId: items[items.length - 1]?.id ?? null,
 			scope,
+		});
+	},
+
+	addAll: (items) => {
+		const state = get();
+		const incoming = items.length > 0 ? domainOf(items[0]) : null;
+		if (
+			state.scope !== null &&
+			incoming !== null &&
+			state.scope !== incoming
+		) {
+			set({
+				items,
+				selectedIds: syncIds(items),
+				lastSelectedId: items[items.length - 1]?.id ?? null,
+				scope: incoming,
+			});
+			return;
+		}
+		const merged = new Map(state.items.map((i) => [i.id, i]));
+		for (const item of items) merged.set(item.id, item);
+		const next = Array.from(merged.values());
+		set({
+			items: next,
+			selectedIds: syncIds(next),
+			lastSelectedId:
+				state.lastSelectedId ?? items[items.length - 1]?.id ?? null,
+			scope: next.length > 0 ? (state.scope ?? incoming) : null,
 		});
 	},
 

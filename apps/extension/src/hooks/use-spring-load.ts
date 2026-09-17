@@ -26,11 +26,25 @@ export function useSpringLoad(onTrigger: () => void, delayMs = 620) {
 		}, delayMs);
 	}, [delayMs]);
 
+	// Restart the dwell unconditionally: cancel any pending fire and begin a
+	// fresh countdown. Required when the hover target changes mid-gesture
+	// (A → B): reusing start() would keep the stale timer and navigate to A.
+	const restart = useCallback(() => {
+		if (timer.current !== null) {
+			clearTimeout(timer.current);
+			timer.current = null;
+		}
+		timer.current = setTimeout(() => {
+			timer.current = null;
+			triggerRef.current();
+		}, delayMs);
+	}, [delayMs]);
+
 	useEffect(() => cancel, [cancel]);
 
 	// Keep the coordinator object stable between renders. Consumers use the
 	// returned value in callback/effect dependencies, and a fresh object here
 	// would make those effects tear down an in-flight native drag on every
 	// visual state update.
-	return useMemo(() => ({ start, cancel }), [start, cancel]);
+	return useMemo(() => ({ start, restart, cancel }), [start, restart, cancel]);
 }

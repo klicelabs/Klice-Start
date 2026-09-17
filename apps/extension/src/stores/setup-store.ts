@@ -12,9 +12,11 @@ import {
 	containerKeyOf,
 	type ItemOrder,
 	type ItemRef,
+	insertCardsBlock,
 	itemKey,
 	parseItemKey,
 	reindexOrders,
+	reorderGroupKeys,
 } from "../lib/item-order";
 import {
 	beginReset,
@@ -87,6 +89,36 @@ interface SetupActions {
 		target: ItemRef,
 		position: InsertPosition,
 	) => void;
+	/**
+	 * Move a source-ordered group of ids as one contiguous block to
+	 * before/after a target inside one container. One set(), one write —
+	 * hover reorder treats the selection as a single operation, never N
+	 * independent member moves. Never reparents; unknown ids and a target
+	 * inside the block are no-ops.
+	 */
+	reorderGroup: (
+		container: string,
+		groupIds: string[],
+		target: ItemRef,
+		position: InsertPosition,
+	) => void;
+	/**
+	 * Move a source-ordered block of cards to before/after a target card in
+	 * one folder (reparenting when needed). One set() — folder-preview drops
+	 * commit the group once instead of once per member.
+	 */
+	insertCardsAt: (
+		targetFolderId: string,
+		cardIds: string[],
+		targetCardId: string,
+		position?: InsertPosition,
+	) => void;
+	/**
+	 * Restore a previously snapshotted ordering (drag cancellation). Replaces
+	 * the order map wholesale and reindexes legacy fields so readers that
+	 * still sort by `order` see the same sequence.
+	 */
+	restoreItemOrder: (snapshot: ItemOrder) => void;
 	/**
 	 * Atomically create a subfolder containing two cards of one container.
 	 * Returns the new folder id, or null when the pair is invalid (nothing
@@ -625,6 +657,78 @@ export const useSetupStore = create<SetupStore>()(
 					const itemOrder: ItemOrder = { ...base, [container]: next };
 					return {
 						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			restoreItemOrder: (snapshot) =>
+				set((s) => {
+					const itemOrder: ItemOrder = {};
+					for (const [container, keys] of Object.entries(snapshot)) {
+						itemOrder[container] = [...keys];
+					}
+					return {
+						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			reorderGroup: (container, groupIds, target, position) =>
+				set((s) => {
+					const base = s.itemOrder ?? {};
+					const keys = base[container];
+					if (!keys) return {};
+					const cardIds = new Set(
+						s.cards.map((c) => c.id),
+					);
+					const folderIds = new Set(
+						s.folders.map((f) => f.id),
+					);
+					const draggedKeys = groupIds.flatMap((id) => {
+						if (cardIds.has(id)) return [itemKey("card", id)];
+						if (folderIds.has(id)) return [itemKey("folder", id)];
+						return [];
+					});
+					const tKey = itemKey(target.kind, target.id);
+					const next = reorderGroupKeys(keys, draggedKeys, tKey, position);
+					if (!next) return {};
+					const itemOrder: ItemOrder = { ...base, [container]: next };
+					return {
+						...reindexOrders(s.folders, s.cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			insertCardsAt: (
+				targetFolderId,
+				cardIds,
+				targetCardId,
+				position = "before",
+			) =>
+				set((s) => {
+					const existing = new Set(s.cards.map((c) => c.id));
+					const block = cardIds.filter(
+						(id) => existing.has(id) && id !== targetCardId,
+					);
+					if (block.length === 0) return {};
+					const target = s.cards.find((c) => c.id === targetCardId);
+					if (!target || target.folderId !== targetFolderId) return {};
+					const base = s.itemOrder ?? {};
+					const draggedKeys = block.map((id) => itemKey("card", id));
+					const itemOrder = insertCardsBlock(
+						base,
+						targetFolderId,
+						draggedKeys,
+						itemKey("card", targetCardId),
+						position,
+					);
+					if (!itemOrder) return {};
+					const blockSet = new Set(block);
+					const cards = s.cards.map((c) =>
+						blockSet.has(c.id) ? { ...c, folderId: targetFolderId } : c,
+					);
+					return {
+						...reindexOrders(s.folders, cards, itemOrder),
 						itemOrder,
 					};
 				}),
