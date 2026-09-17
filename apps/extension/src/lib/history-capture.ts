@@ -81,6 +81,11 @@ function nextEntryId(): string {
 /**
  * Rename entry: order and parents never move, so the diff engine would see
  * nothing — the old and new folder records ARE the inverse data.
+ *
+ * Why nameOnlyIds: the applier (setup-store, owned separately) replaces
+ * whole records on putFolders, so a stale full record would clobber
+ * concurrent fields. putFolders is retained for backward compatibility;
+ * the applier owner will merge only `name` for nameOnlyIds next wave.
  */
 export function buildRenameEntry(
 	before: Folder,
@@ -105,8 +110,18 @@ export function buildRenameEntry(
 			label: before.name,
 			newName: after.name,
 		},
-		undo: { ...shape, putCards: [], putFolders: [{ ...before }] },
-		redo: { ...shape, putCards: [], putFolders: [{ ...after }] },
+		undo: {
+			...shape,
+			putCards: [],
+			putFolders: [{ ...before }],
+			nameOnlyIds: [before.id],
+		},
+		redo: {
+			...shape,
+			putCards: [],
+			putFolders: [{ ...after }],
+			nameOnlyIds: [after.id],
+		},
 	};
 }
 

@@ -54,6 +54,16 @@ export interface HistorySnapshot {
 	/** Ids to remove (entities created by the action). */
 	delCardIds: string[];
 	delFolderIds: string[];
+	/**
+	 * Rename-only folder ids (kind "rename" only).
+	 *
+	 * Why this exists: applyHistorySnapshot in setup-store replaces whole
+	 * folder records on putFolders, so replaying a stale full record would
+	 * clobber concurrent fields (order, parentId, …). The applier owner will
+	 * merge only `name` for these ids; until then putFolders is retained for
+	 * backward compatibility.
+	 */
+	nameOnlyIds?: string[];
 }
 
 export interface HistoryEntry {
@@ -62,6 +72,14 @@ export interface HistoryEntry {
 	summary: HistorySummary;
 	undo: HistorySnapshot;
 	redo: HistorySnapshot;
+	/**
+	 * Thumbnail byte ids staged for deletion.
+	 *
+	 * Why: bytes must survive while the entry is undoable (undo may need to
+	 * restore them) and are deleted best-effort once the entry leaves both
+	 * stacks (eviction or redo-branch discard).
+	 */
+	thumbnails?: string[];
 }
 
 export type HistoryDirection = "undo" | "redo";
@@ -219,15 +237,43 @@ export interface HistoryStacks {
 	future: HistoryEntry[];
 }
 
-/** Commit: append bounded, discard the redo branch. */
+/**
+ * Commit: append bounded, discard the redo branch.
+ *
+ * Returns evicted entries (past overflow + discarded redo branch) so the
+ * store can delete their staged thumbnail bytes best-effort. Pure: the
+ * caller owns the side effect, keeping this transition unit-testable.
+ */
 export function commitToStacks(
 	stacks: HistoryStacks,
 	entry: HistoryEntry,
-): HistoryStacks {
+): HistoryStacks & { evicted: HistoryEntry[] } {
+	const past = [...stacks.past, entry].slice(-HISTORY_LIMIT);
+	const droppedCount = stacks.past.length + 1 - past.length;
+	const evictedPast = droppedCount > 0 ? stacks.past.slice(0, droppedCount) : [];
 	return {
-		past: [...stacks.past, entry].slice(-HISTORY_LIMIT),
+		past,
 		future: [],
+		evicted: [...evictedPast, ...stacks.future],
 	};
+}
+
+/**
+ * Collect staged thumbnail ids across entries, in order, skipping empties.
+ *
+ * Why a helper: the store deletes bytes on eviction, but tests must stay on
+ * pure functions (history-store pulls the setup-store chain, which breaks
+ * under bun cross-file imports), so the flattening lives here where it is
+ * unit-testable.
+ */
+export function stagedThumbnailIds(
+	entries: readonly Pick<HistoryEntry, "thumbnails">[],
+): string[] {
+	const ids: string[] = [];
+	for (const entry of entries) {
+		if (entry.thumbnails) ids.push(...entry.thumbnails);
+	}
+	return ids;
 }
 
 /**
@@ -249,11 +295,18 @@ export function popUndoIds(
 		past = past.slice(0, -1);
 		undone.push(top);
 	}
+	// Why reversed: entries are in apply order (top-down, e.g. [c, b]) but
+	// future is redo-ready head-first (newest-undone first, e.g. [b, c]).
+	// Sequential single undos prepend one at a time, so a cascade must
+	// prepend reversed to stay equivalent.
 	return {
 		entries,
 		stacks: {
 			past,
-			future: [...undone, ...stacks.future].slice(0, HISTORY_LIMIT),
+			future: [...[...undone].reverse(), ...stacks.future].slice(
+				0,
+				HISTORY_LIMIT,
+			),
 		},
 	};
 }

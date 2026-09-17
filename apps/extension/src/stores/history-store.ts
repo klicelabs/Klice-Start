@@ -5,7 +5,9 @@ import {
 	type PendingConfirmation,
 	popRedoIds,
 	popUndoIds,
+	stagedThumbnailIds,
 } from "../lib/history";
+import { useImageStore } from "./image-store";
 import { useSetupStore } from "./setup-store";
 
 interface HistoryNotice {
@@ -61,7 +63,7 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 	commit: (entry, opts) => {
 		const state = get();
 		// Standard branch semantics: a new commit discards the redo branch.
-		const stacks = commitToStacks(
+		const { evicted, ...stacks } = commitToStacks(
 			{ past: state.past, future: state.future },
 			entry,
 		);
@@ -71,6 +73,13 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 			notice: opts?.silent ? state.notice : { entryId: entry.id, seq },
 			noticeSeq: seq,
 		});
+		// Why here: evicted entries (past overflow + discarded redo branch)
+		// are no longer undoable, so their staged thumbnail bytes can go.
+		// Best-effort, never blocks the commit.
+		const thumbIds = stagedThumbnailIds(evicted);
+		if (thumbIds.length > 0) {
+			void useImageStore.getState().deleteThumbnails(thumbIds);
+		}
 	},
 
 	consumeNotice: () => {
@@ -82,6 +91,13 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 		const top = state.past[state.past.length - 1];
 		if (!top) return;
 		const id = entryId ?? top.id;
+		// Why cascade: a stale toast Undo carries a non-top id; a single-id
+		// pending would zero-match in popUndoIds and dismiss silently.
+		// Delegating to undo-to-here preserves intent.
+		if (id !== top.id) {
+			get().requestUndoTo(id);
+			return;
+		}
 		if (!state.past.some((entry) => entry.id === id)) return;
 		set({ pending: { direction: "undo", entryIds: [id] } });
 	},
@@ -91,6 +107,12 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 		const top = state.future[0];
 		if (!top) return;
 		const id = entryId ?? top.id;
+		// Why cascade: mirrors requestUndo — a non-head redo id becomes
+		// redo-to-here instead of a zero-match silent dismiss.
+		if (id !== top.id) {
+			get().requestRedoTo(id);
+			return;
+		}
 		if (!state.future.some((entry) => entry.id === id)) return;
 		set({ pending: { direction: "redo", entryIds: [id] } });
 	},

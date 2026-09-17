@@ -121,10 +121,11 @@ export function HistoryManager() {
 	useEffect(() => {
 		if (!pending) return;
 		function onKeyDown(e: KeyboardEvent) {
-			if (e.key === "Escape") {
-				e.stopPropagation();
-				useHistoryStore.getState().cancelPending();
-			}
+			if (e.key !== "Escape") return;
+			// Why: rename/search/drag own Esc first; only claim it otherwise.
+			if (isHistoryEditableTarget(e.target)) return;
+			e.stopPropagation();
+			useHistoryStore.getState().cancelPending();
 		}
 		window.addEventListener("keydown", onKeyDown, { capture: true });
 		return () =>

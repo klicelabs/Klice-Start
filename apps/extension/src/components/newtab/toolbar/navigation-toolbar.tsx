@@ -150,7 +150,7 @@ export function NavigationToolbar({
 			fit += 1;
 		}
 
-		setVisibleCount(Math.max(1, fit));
+		setVisibleCount(fit);
 	}, [sorted]);
 
 	useEffect(() => {
@@ -160,6 +160,22 @@ export function NavigationToolbar({
 		const resizeObserver = new ResizeObserver(updateOverflow);
 		resizeObserver.observe(container);
 		return () => resizeObserver.disconnect();
+	}, [updateOverflow]);
+
+	// Webfonts shift tab widths after first paint; re-run the overflow fit
+	// once they settle so the pill-only (fit=0) state is measured, not stuck.
+	useEffect(() => {
+		const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
+		if (!fonts) return;
+		let cancelled = false;
+		fonts.ready
+			.then(() => {
+				if (!cancelled) updateOverflow();
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
 	}, [updateOverflow]);
 
 	const visibleFolders = useMemo(

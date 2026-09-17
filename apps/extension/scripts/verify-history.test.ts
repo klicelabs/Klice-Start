@@ -10,6 +10,7 @@ import {
 	type HistoryStacks,
 	popRedoIds,
 	popUndoIds,
+	stagedThumbnailIds,
 } from "../src/lib/history";
 import {
 	buildHistoryEntry,
@@ -128,7 +129,9 @@ test("undo pops strictly top-down and stops at mismatches", () => {
 	const cascade = popUndoIds(stacks, ["c", "b"]);
 	expect(cascade.entries.map((e) => e.id)).toEqual(["c", "b"]);
 	expect(cascade.stacks.past.map((e) => e.id)).toEqual(["a"]);
-	expect(cascade.stacks.future.map((e) => e.id)).toEqual(["c", "b"]);
+	// Why ["b", "c"]: future is redo-ready head-first (newest-undone first),
+	// matching sequential single undos — not apply order.
+	expect(cascade.stacks.future.map((e) => e.id)).toEqual(["b", "c"]);
 
 	const stale = popUndoIds(stacks, ["b"]);
 	expect(stale.entries).toHaveLength(0);
@@ -141,6 +144,31 @@ test("redo mirrors head-first through the future branch", () => {
 		future: [entry("b"), entry("c")],
 	};
 	const redone = popRedoIds(stacks, ["b", "c"]);
+	expect(redone.entries.map((e) => e.id)).toEqual(["b", "c"]);
+	expect(redone.stacks.past.map((e) => e.id)).toEqual(["a", "b", "c"]);
+	expect(redone.stacks.future).toHaveLength(0);
+});
+
+test("cascade undo matches sequential undos and round-trips through redo", () => {
+	const start: HistoryStacks = {
+		past: [entry("a"), entry("b"), entry("c")],
+		future: [],
+	};
+	// Cascade two at once.
+	const cascade = popUndoIds(start, ["c", "b"]);
+	// Same work one at a time.
+	const step1 = popUndoIds(start, ["c"]);
+	const step2 = popUndoIds(step1.stacks, ["b"]);
+	// Cascade ≡ sequential: identical past and redo-ready future order.
+	expect(cascade.stacks.past.map((e) => e.id)).toEqual(
+		step2.stacks.past.map((e) => e.id),
+	);
+	expect(cascade.stacks.future.map((e) => e.id)).toEqual(
+		step2.stacks.future.map((e) => e.id),
+	);
+	expect(cascade.stacks.future.map((e) => e.id)).toEqual(["b", "c"]);
+	// Round-trip: redoing the cascade restores the original past order.
+	const redone = popRedoIds(cascade.stacks, ["b", "c"]);
 	expect(redone.entries.map((e) => e.id)).toEqual(["b", "c"]);
 	expect(redone.stacks.past.map((e) => e.id)).toEqual(["a", "b", "c"]);
 	expect(redone.stacks.future).toHaveLength(0);
@@ -321,7 +349,59 @@ test("a rename carries old and new records without touching order", () => {
 	});
 	expect(result?.undo.putFolders).toEqual([before]);
 	expect(result?.redo.putFolders).toEqual([after]);
+	// Contract hook for the setup-store owner: merge only `name` for these.
+	expect(result?.undo.nameOnlyIds).toEqual(["d"]);
+	expect(result?.redo.nameOnlyIds).toEqual(["d"]);
 	expect(buildRenameEntry(before, { ...before })).toBeNull();
+});
+
+test("commit eviction reports dropped entries for thumbnail cleanup (pure)", () => {
+	// Why pure-only: history-store pulls the setup-store chain, which breaks
+	// under bun cross-file imports, so the store wires this transition and
+	// tests prove the transition here.
+	function thumbEntry(id: string, thumbs?: string[]): HistoryEntry {
+		const base = entry(id);
+		return thumbs ? { ...base, thumbnails: thumbs } : base;
+	}
+	// Overflow: oldest past entries fall off and are reported.
+	let past: HistoryEntry[] = [];
+	for (let i = 0; i < HISTORY_LIMIT; i += 1) {
+		past.push(thumbEntry(`e${i}`));
+	}
+	const full: HistoryStacks = { past, future: [] };
+	const overflow = commitToStacks(
+		full,
+		thumbEntry("new", ["thumb-new"]),
+	);
+	expect(overflow.past).toHaveLength(HISTORY_LIMIT);
+	expect(overflow.past[0].id).toBe("e1");
+	expect(overflow.evicted.map((e) => e.id)).toEqual(["e0"]);
+	expect(stagedThumbnailIds(overflow.evicted)).toEqual([]);
+	// Staged bytes on the evicted entry surface for deletion.
+	const withThumbs: HistoryStacks = {
+		past: [thumbEntry("old", ["t1", "t2"]), ...past.slice(1)],
+		future: [],
+	};
+	const overflowThumbs = commitToStacks(withThumbs, thumbEntry("new2"));
+	expect(overflowThumbs.evicted.map((e) => e.id)).toEqual(["old"]);
+	expect(stagedThumbnailIds(overflowThumbs.evicted)).toEqual(["t1", "t2"]);
+	// Redo-branch discard: committing with a live future drops it for cleanup.
+	const branched: HistoryStacks = {
+		past: [thumbEntry("a")],
+		future: [thumbEntry("b", ["tb"]), thumbEntry("c")],
+	};
+	const committed = commitToStacks(branched, thumbEntry("d"));
+	expect(committed.future).toHaveLength(0);
+	expect(committed.evicted.map((e) => e.id)).toEqual(["b", "c"]);
+	expect(stagedThumbnailIds(committed.evicted)).toEqual(["tb"]);
+	// Flattening skips entries without staged bytes, preserving order.
+	expect(
+		stagedThumbnailIds([
+			thumbEntry("x"),
+			thumbEntry("y", ["t3"]),
+			thumbEntry("z", []),
+		]),
+	).toEqual(["t3"]);
 });
 
 test("a folder delete captures the subtree for atomic restore", () => {

@@ -492,7 +492,7 @@ export const UnifiedSearch = forwardRef<
 		}
 
 		if (frequentCards.length > 0) {
-			resultNodes.push(groupLabel("Frequently visited", "frequent-label"));
+			resultNodes.push(groupLabel("Suggested", "frequent-label"));
 			for (const card of frequentCards) {
 				resultNodes.push(
 					option(

@@ -23,16 +23,29 @@ interface GoToTopButtonProps {
  * Rows come from real `offsetTop` bands (shared offsetParent for every cell),
  * never from assumed card heights — so tile size, max columns, layout mode
  * and folder-span tiles all stay correct. Fewer than two bands → no target.
+ * Cells within a 2px epsilon share a band (sub-pixel/zoom rounding), instead
+ * of exact rounded equality.
  */
+const ROW_BAND_EPSILON_PX = 2;
+
 function secondRowCells(grid: HTMLElement): HTMLElement[] {
 	const cells = Array.from(grid.querySelectorAll<HTMLElement>(".dial-cell"));
 	if (cells.length === 0) return [];
 	const bands = new Map<number, HTMLElement[]>();
 	for (const cell of cells) {
-		const key = Math.round(cell.offsetTop);
-		const group = bands.get(key);
-		if (group) group.push(cell);
-		else bands.set(key, [cell]);
+		const top = cell.offsetTop;
+		let key: number | undefined;
+		for (const band of bands.keys()) {
+			if (Math.abs(band - top) <= ROW_BAND_EPSILON_PX) {
+				key = band;
+				break;
+			}
+		}
+		if (key === undefined) {
+			key = top;
+			bands.set(key, []);
+		}
+		bands.get(key)?.push(cell);
 	}
 	const tops = [...bands.keys()].sort((a, b) => a - b);
 	if (tops.length < 2) return [];

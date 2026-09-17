@@ -2,6 +2,7 @@ import {
 	findBookmarkInFolder,
 	findBookmarksWithoutScreenshot,
 } from "../src/lib/bookmark-match";
+import { ext } from "../src/lib/extension-api";
 import { getChildren } from "../src/lib/folder-tree";
 import { idbDelete, STORE_THUMBS, saveThumbnail } from "../src/lib/idb";
 import {
@@ -26,7 +27,7 @@ const NEW_FOLDER_MENU_ID = "klice-new-folder";
 
 /** Read and normalize the persisted setup, or null when nothing is stored. */
 async function readSetup(): Promise<Setup | null> {
-	const data = await browser.storage.local.get(STORAGE_KEY);
+	const data = await ext.storage.local.get(STORAGE_KEY);
 	const persisted = data[STORAGE_KEY];
 	if (!persisted) return null;
 	try {
@@ -37,7 +38,7 @@ async function readSetup(): Promise<Setup | null> {
 }
 
 async function writeSetup(setup: Setup): Promise<void> {
-	await browser.storage.local.set({
+	await ext.storage.local.set({
 		[STORAGE_KEY]: JSON.stringify({ state: setup }),
 	});
 }
@@ -94,11 +95,11 @@ function createFolderMenuItems(folders: Folder[]): void {
  * duplicate here is harmless because rebuildMenus always removeAll()s first.
  */
 function safeCreateMenuItem(
-	properties: Parameters<typeof browser.contextMenus.create>[0],
+	properties: Parameters<typeof ext.contextMenus.create>[0],
 ): void {
 	try {
-		browser.contextMenus.create(properties, () => {
-			void browser.runtime.lastError;
+		ext.contextMenus.create(properties, () => {
+			void ext.runtime.lastError;
 		});
 	} catch {
 		// Duplicate id or invalid properties — safe to ignore, see above.
@@ -111,7 +112,7 @@ function safeCreateMenuItem(
  * restarts, resets, or folder changes.
  */
 async function rebuildMenus(): Promise<void> {
-	await browser.contextMenus.removeAll();
+	await ext.contextMenus.removeAll();
 
 	// Parent item. It has children, so it can never receive a click itself —
 	// every folder leaf handles its own click.
@@ -188,8 +189,8 @@ function captureVisible(
 ): Promise<string> {
 	const options = { format: "jpeg" as const, quality };
 	return typeof windowId === "number"
-		? browser.tabs.captureVisibleTab(windowId, options)
-		: browser.tabs.captureVisibleTab(options);
+		? ext.tabs.captureVisibleTab(windowId, options)
+		: ext.tabs.captureVisibleTab(options);
 }
 
 const THUMBNAIL_SETTLE_DELAY_MS = 1200;
@@ -259,24 +260,24 @@ function tabCanBeCaptured(
 }
 
 export default defineBackground(() => {
-	browser.runtime.onInstalled.addListener(() => {
+	ext.runtime.onInstalled.addListener(() => {
 		scheduleRebuild();
 	});
 
 	// Covers browser restarts: the service worker's menu registrations persist,
 	// but rebuilding guarantees they match the current setup.
-	browser.runtime.onStartup.addListener(() => {
+	ext.runtime.onStartup.addListener(() => {
 		scheduleRebuild();
 	});
 
 	// Keep the menu in sync with folder create/delete/rename/move, import,
 	// reset, and cross-tab writes — everything persists to this one key.
-	browser.storage.onChanged.addListener((changes, area) => {
+	ext.storage.onChanged.addListener((changes, area) => {
 		if (area !== "local" || !(STORAGE_KEY in changes)) return;
 		scheduleRebuildDebounced();
 	});
 
-	browser.contextMenus.onClicked.addListener((info, tab) => {
+	ext.contextMenus.onClicked.addListener((info, tab) => {
 		if (!tab) return;
 		const menuItemId = info.menuItemId;
 		if (menuItemId === NEW_FOLDER_MENU_ID) {
@@ -291,15 +292,15 @@ export default defineBackground(() => {
 		}
 	});
 
-	browser.commands.onCommand.addListener((command) => {
+	ext.commands.onCommand.addListener((command) => {
 		if (command === "add-current-page") {
-			browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+			ext.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
 				if (tabs[0]) captureAndAdd(tabs[0]);
 			});
 		}
 	});
 
-	browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		if (changeInfo.status === "loading") {
 			const startUrl = changeInfo.url ?? tab.url;
 			if (startUrl) navigationStartUrls.set(tabId, startUrl);
@@ -324,9 +325,9 @@ export default defineBackground(() => {
 		);
 	});
 
-	browser.tabs.onActivated.addListener(async ({ tabId }) => {
+	ext.tabs.onActivated.addListener(async ({ tabId }) => {
 		try {
-			const tab = await browser.tabs.get(tabId);
+			const tab = await ext.tabs.get(tabId);
 			if (tab.url) {
 				// Activation is a fresh opportunity for an already-settled tab;
 				// do not reuse a stale redirect candidate from an old navigation.
@@ -340,7 +341,7 @@ export default defineBackground(() => {
 		}
 	});
 
-	browser.tabs.onRemoved.addListener((tabId) => {
+	ext.tabs.onRemoved.addListener((tabId) => {
 		cancelPendingThumbnailCapture(tabId);
 		navigationStartUrls.delete(tabId);
 		navigationGenerations.delete(tabId);
@@ -366,13 +367,13 @@ async function clearPendingSave(
 	deleteThumb: boolean,
 	fallbackThumbId: string | null = null,
 ): Promise<void> {
-	const data = await browser.storage.local.get(PENDING_SAVE_KEY);
+	const data = await ext.storage.local.get(PENDING_SAVE_KEY);
 	const raw = data[PENDING_SAVE_KEY];
 	if (pendingSaveId(raw) !== expectedId) return;
 	const thumbId = deleteThumb
 		? pendingSaveThumbId(raw) || fallbackThumbId
 		: null;
-	await browser.storage.local.remove(PENDING_SAVE_KEY);
+	await ext.storage.local.remove(PENDING_SAVE_KEY);
 	if (thumbId) await deletePendingThumbnail(thumbId);
 }
 
@@ -418,16 +419,16 @@ async function captureAndOpenPendingSave(tab: {
 
 	let stored = false;
 	try {
-		const existing = await browser.storage.local.get(PENDING_SAVE_KEY);
+		const existing = await ext.storage.local.get(PENDING_SAVE_KEY);
 		const previousThumbId = pendingSaveThumbId(existing[PENDING_SAVE_KEY]);
-		await browser.storage.local.set({ [PENDING_SAVE_KEY]: validated });
+		await ext.storage.local.set({ [PENDING_SAVE_KEY]: validated });
 		stored = true;
 		if (previousThumbId) await deletePendingThumbnail(previousThumbId);
 
-		const popupUrl = browser.runtime.getURL(
+		const popupUrl = ext.runtime.getURL(
 			`/popup.html?${PENDING_SAVE_QUERY_PARAM}=${encodeURIComponent(id)}`,
 		);
-		await browser.windows.create({
+		await ext.windows.create({
 			url: popupUrl,
 			type: "popup",
 			width: 360,
@@ -616,7 +617,7 @@ async function captureMissingThumbnail(
 		const state = await readSetup();
 		if (!state?.settings.thumbnailCapture?.enabled) return;
 
-		let tab = await browser.tabs.get(tabId);
+		let tab = await ext.tabs.get(tabId);
 		if (!tabCanBeCaptured(tab, tabId, navigationGeneration)) return;
 
 		let matches = findBookmarksWithoutScreenshot(state.cards, [
@@ -641,7 +642,7 @@ async function captureMissingThumbnail(
 		// expensive capture so we never attach a stale frame or duplicate an
 		// explicit refresh.
 		if (navigationGenerations.get(tabId) !== navigationGeneration) return;
-		tab = await browser.tabs.get(tabId);
+		tab = await ext.tabs.get(tabId);
 		if (!tabCanBeCaptured(tab, tabId, navigationGeneration)) return;
 		const beforeCaptureUrl = tab.url ?? "";
 		const beforeCaptureState = await readSetup();
@@ -656,7 +657,7 @@ async function captureMissingThumbnail(
 		thumbId = await saveThumbnail(dataUrl);
 
 		if (navigationGenerations.get(tabId) !== navigationGeneration) return;
-		tab = await browser.tabs.get(tabId);
+		tab = await ext.tabs.get(tabId);
 		if (!tabCanBeCaptured(tab, tabId, navigationGeneration)) return;
 
 		// Re-read fresh state right before writing to avoid clobbering concurrent
@@ -696,7 +697,7 @@ async function captureMissingThumbnail(
 			navigationStartUrls.delete(tabId);
 		}
 		if (navigationChanged) {
-			void browser.tabs
+			void ext.tabs
 				.get(tabId)
 				.then((currentTab) => {
 					if (currentTab.active && currentTab.status === "complete") {
@@ -709,7 +710,7 @@ async function captureMissingThumbnail(
 }
 
 function flashBadge(text: string, color: string) {
-	browser.action.setBadgeBackgroundColor({ color });
-	browser.action.setBadgeText({ text });
-	setTimeout(() => browser.action.setBadgeText({ text: "" }), 1400);
+	ext.action.setBadgeBackgroundColor({ color });
+	ext.action.setBadgeText({ text });
+	setTimeout(() => ext.action.setBadgeText({ text: "" }), 1400);
 }

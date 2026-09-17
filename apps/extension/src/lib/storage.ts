@@ -7,10 +7,16 @@ import type {
 	ColorScheme,
 	CustomWallpaper,
 	Folder,
+	Settings,
 	Setup,
 	WallpaperFrequency,
 } from "../types";
-import { DEFAULT_SETUP, WALLPAPERS } from "./constants";
+import {
+	DEFAULT_SETUP,
+	MAX_COLUMNS,
+	MIN_COLUMNS,
+	WALLPAPERS,
+} from "./constants";
 import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";

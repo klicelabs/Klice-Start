@@ -1,6 +1,7 @@
 import { Button } from "@klice-start/ui/components/button";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { findBookmarkInFolder } from "../../src/lib/bookmark-match";
+import { ext } from "../../src/lib/extension-api";
 import { flattenForPicker } from "../../src/lib/folder-tree";
 import {
 	PENDING_SAVE_KEY,
@@ -36,11 +37,11 @@ async function clearPendingOperation(
 	deleteThumbnail: (id: string) => Promise<void>,
 ): Promise<void> {
 	if (!expectedId) return;
-	const data = await chrome.storage.local.get(PENDING_SAVE_KEY);
+	const data = await ext.storage.local.get(PENDING_SAVE_KEY);
 	const raw = data[PENDING_SAVE_KEY];
 	if (pendingSaveId(raw) !== expectedId) return;
 	const thumbId = deleteThumb ? pendingSaveThumbId(raw) : null;
-	await chrome.storage.local.remove(PENDING_SAVE_KEY);
+	await ext.storage.local.remove(PENDING_SAVE_KEY);
 	if (thumbId) await deleteThumbnail(thumbId);
 }
 
@@ -73,7 +74,14 @@ export default function App() {
 	const deleteThumbnail = useImageStore((s) => s.deleteThumbnail);
 
 	const [folderId, setFolderId] = useState(activeFolderId);
+	// The picker mounts pre-hydration with the store default. Sync the
+	// hydrated activeFolderId until the user touches the picker (H13).
+	const folderTouchedRef = useRef(false);
 	const folderOptions = useMemo(() => flattenForPicker(folders), [folders]);
+
+	useEffect(() => {
+		if (!folderTouchedRef.current) setFolderId(activeFolderId);
+	}, [activeFolderId]);
 
 	useEffect(() => {
 		if (isPendingFlow) {
@@ -84,7 +92,7 @@ export default function App() {
 					return;
 				}
 				try {
-					const data = await chrome.storage.local.get(PENDING_SAVE_KEY);
+					const data = await ext.storage.local.get(PENDING_SAVE_KEY);
 					const record = parsePendingSave(data[PENDING_SAVE_KEY], pendingId);
 					if (!record) {
 						await clearPendingOperation(pendingId, true, deleteThumbnail).catch(
@@ -121,7 +129,7 @@ export default function App() {
 
 		let cancelled = false;
 		(async () => {
-			const [tab] = await chrome.tabs.query({
+			const [tab] = await ext.tabs.query({
 				active: true,
 				currentWindow: true,
 			});
@@ -138,11 +146,11 @@ export default function App() {
 			try {
 				const dataUrl =
 					tab.windowId !== undefined
-						? await chrome.tabs.captureVisibleTab(tab.windowId, {
+						? await ext.tabs.captureVisibleTab(tab.windowId, {
 								format: "jpeg",
 								quality: 80,
 							})
-						: await chrome.tabs.captureVisibleTab({
+						: await ext.tabs.captureVisibleTab({
 								format: "jpeg",
 								quality: 80,
 							});
@@ -179,10 +187,15 @@ export default function App() {
 		setPendingNameError(false);
 
 		setPendingState("saving");
-		let cardAdded = false;
+		// Snapshot the ids created by this mutation (+ the thumbnail they
+		// reference) so a flushPersist failure can roll the commit back.
+		// Ordering mirrors the wallpaper pane: save → commit → flush →
+		// cleanup-previous (M19).
 		let createdFolderId: string | null = null;
+		let createdCardId: string | null = null;
+		const thumbSnapshot = pendingThumbId;
 		try {
-			const data = await chrome.storage.local.get(PENDING_SAVE_KEY);
+			const data = await ext.storage.local.get(PENDING_SAVE_KEY);
 			const current = parsePendingSave(data[PENDING_SAVE_KEY], pendingId);
 			if (!current) throw new Error("Pending save expired");
 
@@ -193,23 +206,28 @@ export default function App() {
 					? parentFolderId
 					: null;
 			createdFolderId = setup.addFolder(name, parentId);
-			setup.addCard({
+			createdCardId = setup.addCard({
 				folderId: createdFolderId,
 				title: current.title,
 				url: current.url,
 				favicon: current.favicon || faviconUrl(current.url),
 				thumbId: pendingThumbId,
 			});
-			cardAdded = true;
 			await flushPersist();
 			await clearPendingOperation(pendingId, false, deleteThumbnail);
 			setPendingState("saved");
 			setTimeout(() => window.close(), 600);
 		} catch {
-			if (!cardAdded && createdFolderId) {
+			if (createdFolderId) {
 				useSetupStore.getState().deleteFolder(createdFolderId);
+			} else if (createdCardId) {
+				useSetupStore.getState().deleteCard(createdCardId);
 			}
-			await clearPendingOperation(pendingId, !cardAdded, deleteThumbnail).catch(
+			if (thumbSnapshot) {
+				await deleteThumbnail(thumbSnapshot).catch(() => undefined);
+			}
+			await flushPersist().catch(() => undefined);
+			await clearPendingOperation(pendingId, false, deleteThumbnail).catch(
 				() => undefined,
 			);
 			setPendingState("error");
@@ -484,10 +502,11 @@ export default function App() {
 						<select
 							id="folder-select-input"
 							value={folderId}
-							onChange={(e) => {
-								setFolderId(e.target.value);
-								if (saveState !== "idle") setSaveState("idle");
-							}}
+						onChange={(e) => {
+							folderTouchedRef.current = true;
+							setFolderId(e.target.value);
+							if (saveState !== "idle") setSaveState("idle");
+						}}
 							className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 font-medium text-white text-xs outline-none focus:border-white/30"
 						>
 							{folderOptions.map((opt) => (
