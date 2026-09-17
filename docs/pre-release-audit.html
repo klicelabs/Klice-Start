@@ -113,14 +113,14 @@
 <h2 id="resumo">Resumo executivo</h2>
 <div class="kpi">
 <div><b>52</b><span>Itens rastreados (48 originais + 4 novos/reclassificados)</span></div>
-<div><b>2</b><span>Resolvidos e validados</span></div>
+<div><b>4</b><span>Resolvidos e validados (C1, C3, H13, R1)</span></div>
 <div><b>5</b><span>Resolvidos parcialmente</span></div>
 <div><b>4</b><span>Achados incorretos / não reproduzidos / parciais</span></div>
-<div><b>1</b><span>Regressão introduzida pelos fixes</span></div>
-<div><b>41</b><span>Ainda abertos</span></div>
+<div><b>1</b><span>Regressão introduzida pelos fixes (resolvida: R1)</span></div>
+<div><b>40</b><span>Ainda abertos</span></div>
 </div>
 <div class="kpi">
-<div><b>1</b><span>Crítico aberto (antes: 4)</span></div>
+<div><b>0</b><span>Crítico aberto (antes: 1)</span></div>
 <div><b>11</b><span>Altos abertos</span></div>
 <div><b>23</b><span>Médios abertos</span></div>
 <div><b>6</b><span>Baixos abertos</span></div>
@@ -206,15 +206,13 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-open">Confirmado — reforçado</span></div>
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-res">Resolvido (onda 3)</span></div>
 <h3>C3 — Esc durante o drag não torna o drop inerte (forma mais grave que a original)</h3>
 <dl>
 <dt>Original</dt><dd><code>resetDrag</code> limpa refs mas o drag nativo continua; o drop resolveria pelo fallback de <code>dataTransfer</code> e persistiria o move cancelado. Status anterior: "Muito provável".</dd>
-<dt>Reprodução (loop vermelho)</dt><dd><code>zz-audit-c3-esc-drop.test.tsx</code>, cenário B: dragstart → <strong>Esc entregue</strong> (o handler de cancelamento do hook roda: <code>restoreSnapshot()</code> + <code>resetDrag()</code>, <code>dragRef=null</code> confirmado via <code>getActiveDrag()</code>) → drop → <code>onBackgroundDrop</code> <strong>dispara</strong>. <code>handleBackgroundDrop</code>/<code>handleItemDrop</code> fazem <code>dragRef.current ?? resolveDrag(e)</code> — o fallback relê o payload e re-arma o gesto mesmo após um cancelamento observado. Cenário A (Esc não entregue, como o Chrome faz em drag nativo sem teclado) também commita.</dd>
-<dt>Interpretação</dt><dd>O bug original era "o cancelamento não é comunicado ao drop". O loop prova a forma forte: <strong>mesmo o cancelamento que roda é ignorado pelo drop</strong>. O flag de época/gesto-cancelado proposto no fix original continua sendo o caminho — mas precisa ser checado nos handlers de drop, não só no cancel.</dd>
-<dt>Limitação honesta</dt><dd>linkedom não entrega o ciclo nativo completo do Chrome; em navegador real o cenário A é o esperado (Esc engolido) e o B cobre plataformas/diálogos onde keydown passa. Ambos commitam no código atual.</dd>
-<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:196-215</code> (cancel), <code>:412-448</code> (<code>handleItemDrop</code>), <code>:458-468</code> (<code>handleBackgroundDrop</code>), <code>src/lib/dnd.ts</code> (<code>resolveDragRef/resolveDrag</code>).</dd>
-<dt>Próxima ação</dt><dd>Flag de gesto (id incrementado a cada dragstart, invalidado em Esc/dragend) checada <strong>antes</strong> do <code>resolveDrag(e)</code> nos dois handlers de drop + <code>clearGestureCapture()</code> no cancel.</dd>
+<dt>Causa raiz confirmada</dt><dd><code>handleBackgroundDrop</code>/<code>handleItemDrop</code> fazem <code>dragRef.current ?? resolveDrag(e)</code> — após um cancelamento observado (Esc entregue ou dragend), o fallback relê o payload persistido em <code>dataTransfer</code> e re-arma o gesto morto. O cancelamento rodava, mas nada comunicava a morte do gesto aos handlers de drop.</dd>
+<dt>Fix (onda 3)</dt><dd>Época de gesto em <code>use-grid-dnd</code> (<code>gestureRef</code>: id incrementado a cada dragstart, card e preview): <code>resetDragCancelled</code> (Esc, dragend e unmount) marca <code>cancelled=true</code> na época corrente + <code>clearGestureCapture()</code>; os quatro handlers de drop (grid item, grid background, preview cell, folder stack) checam <code>!cancelled</code> <strong>antes</strong> do fallback <code>resolveDrag(e)</code>. Um drop após cancel vira no-op; um novo dragstart limpa o flag (gesto novo é legítimo). Drops normais (sem cancel) continuam resolvendo pelo fallback — cenário A continua válido.</dd>
+<dt>Validação</dt><dd><code>zz-audit-c3-esc-drop.test.tsx</code> cenário B — vermelho na 2ª passada, <strong>verde</strong> com o fix (regressão travada); cenário A verde (comportamento correto documentado); suíte completa 52/52 verdes; <code>tsc --noEmit</code> limpo. Limitação mantida: linkedom não entrega o ciclo nativo completo do Chrome; cenário B cobre plataformas/diálogos onde o keydown passa.</dd>
 </dl>
 </div>
 
@@ -456,7 +454,7 @@
 <h2 id="ordem">Ordem de correção recomendada</h2>
 <ol>
 <li><s><strong>Desbloquear o typecheck (R1)</strong></s> — <strong>concluído (onda 3):</strong> <code>ext</code> tipado como <code>typeof Browser</code> (wxt/browser); <code>tsc --noEmit</code> 0 erros.</li>
-<li><strong>C3 (crítico restante)</strong> — flag de gesto/época checada nos drops antes de <code>resolveDrag(e)</code>; o loop vermelho desta passada vira o teste de regressão.</li>
+<li><s><strong>C3 (crítico restante)</strong></s> — <strong>concluído (onda 3):</strong> época de gesto com flag de cancel checada nos 4 handlers de drop antes de <code>resolveDrag(e)</code>; loop vermelho da 2ª passada virou teste de regressão verde.</li>
 <li><strong>Confiança no undo</strong> — H4 (commit único no drop das tabs) + resíduo de H1 (feedback para id inexistente) + M1 (applier ler <code>nameOnlyIds</code>).</li>
 <li><strong>Protocolo de escrita único</strong> — N1 (generation stamp no background) + M13/M20 + NPD-3 (decidida: reset/import limpam past+future; sync invalida future).</li>
 <li><strong>Integridade de dados</strong> — H5/M11 (remapear órfãos), H12 (uuid/dedupe), D2 (quarentena), H3/P3 (popular tombstones e adiar GC).</li>
@@ -468,7 +466,7 @@
 </ol>
 
 <footer>
-<p>2ª passada independente sobre <code>a14b754</code> + working tree não commitado; remediação (ondas 3+) em andamento a partir de <code>9c710b4</code>. Loops executáveis: <code>scripts/zz-audit-harness.test.mts</code> (5 verdes), <code>scripts/zz-audit-c3-esc-drop.test.tsx</code> (1 vermelho proposital = regressão do C3). Suíte: 51 passando. Builds: chrome-mv3 ✔ firefox-mv3 ✔ · <code>tsc --noEmit</code> ✔ desde a onda 3 (R1 resolvido). Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
+<p>2ª passada independente sobre <code>a14b754</code> + working tree não commitado; remediação em andamento (onda 3): R1 e C3 resolvidos e validados, suíte 52/52, <code>tsc</code> limpo, builds chrome/firefox ✔. Loops executáveis: <code>scripts/zz-audit-harness.test.mts</code> (5 verdes), <code>scripts/zz-audit-c3-esc-drop.test.tsx</code> (verde — agora teste de regressão do C3). Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
 </footer>
 
 </main>

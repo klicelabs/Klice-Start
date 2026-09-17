@@ -13,6 +13,7 @@ import {
 	resolveDragRef,
 	setDragData,
 } from "../lib/dnd";
+import { clearGestureCapture } from "../lib/history-capture";
 import { sweepDragGhosts } from "../lib/drag-ghost";
 import type { ItemOrder, ItemRef } from "../lib/item-order";
 import { useAutoscroll } from "../lib/autoscroll";
@@ -142,6 +143,14 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	} | null>(null);
 
 	const dragRef = useRef<ItemRef | null>(null);
+	/**
+	 * C3 gesture epoch. Bumped to a new id at dragstart; a cancelled gesture
+	 * flips `cancelled` while the epoch stays armed until the NEXT dragstart.
+	 * Drop handlers must consult this BEFORE the resolveDrag fallback: after a
+	 * cancel the native dataTransfer payload still exists, and re-resolving it
+	 * re-arms a gesture the user explicitly killed.
+	 */
+	const gestureRef = useRef({ id: 0, cancelled: false });
 	const lastApplied = useRef<string | null>(null);
 	const springTarget = useRef<string | null>(null);
 	const handlersRef = useRef(handlers);
@@ -211,6 +220,22 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		clearActiveDrag();
 	}, [resetVisuals, stopAutoscroll]);
 
+	/**
+	 * C3: settle a cancelled gesture. dragRef/_activeDrag only cover the
+	 * in-memory path; the native dataTransfer payload survives cancel (Esc or
+	 * dragend elsewhere), so a later drop would re-resolve it via the
+	 * resolveDrag fallback and commit the move anyway. The cancelled flag
+	 * (same epoch, armed until the next dragstart) is what drop handlers
+	 * check before falling back to resolveDrag. A cancelled gesture also
+	 * discards the pending history capture: the drop that follows a cancel
+	 * is inert, so nothing may commit against the stale "before".
+	 */
+	const resetDragCancelled = useCallback(() => {
+		gestureRef.current.cancelled = true;
+		resetDrag();
+		clearGestureCapture();
+	}, [resetDrag]);
+
 	/** Restore the pre-drag order (Escape cancellation). */
 	const restoreSnapshot = useCallback(() => {
 		const snapshot = orderSnapshot.current;
@@ -232,6 +257,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		(ref: ItemRef) => (e: DragEvent) => {
 			handlersRef.current.onItemDragStart?.(ref, e);
 			dragRef.current = ref;
+			// Fresh gesture: any stale cancel from a previous drag is void.
+			gestureRef.current = { id: gestureRef.current.id + 1, cancelled: false };
 			lastApplied.current = null;
 			autoscroll.setContainer(undefined);
 			sweepDragGhosts();
@@ -258,23 +285,27 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	// window boundary as a backstop, and let Escape cancel the same state.
 	// Escape also restores the pre-drag order: hover-applied live reorders
 	// are real store writes, so cancelling must undo them.
+	//
+	// C3: both cancels use resetDragCancelled so the gesture epoch is
+	// invalidated — a drop arriving after Esc (delivered) or dragend must not
+	// re-resolve the persisted dataTransfer payload and commit.
 	useEffect(() => {
 		if (typeof window === "undefined") return;
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && dragRef.current) {
 				restoreSnapshot();
-				resetDrag();
+				resetDragCancelled();
 			}
 		};
-		const handleDragEnd = () => resetDrag();
+		const handleDragEnd = () => resetDragCancelled();
 		window.addEventListener("keydown", handleKeyDown);
 		window.addEventListener("dragend", handleDragEnd);
 		return () => {
 			window.removeEventListener("keydown", handleKeyDown);
 			window.removeEventListener("dragend", handleDragEnd);
-			resetDrag();
+			resetDragCancelled();
 		};
-	}, [resetDrag, restoreSnapshot]);
+	}, [resetDragCancelled, restoreSnapshot]);
 
 	const handleItemDragOver = useCallback(
 		(ref: ItemRef) => (e: DragEvent) => {
@@ -407,7 +438,11 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			// already owned this drop.
 			e.stopPropagation();
 			const h = handlersRef.current;
-			const dragged = dragRef.current ?? resolveDrag(e);
+			// C3: a cancelled gesture must never re-resolve via the dataTransfer
+			// fallback — check BEFORE the resolveDrag path (dragRef is already
+			// null after cancel; the payload is not).
+			const isLiveGesture = !gestureRef.current.cancelled;
+			const dragged = dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
 			// Preserve the hover stamp until the final edge decision. Clearing it
 			// before reading it made every edge drop invoke reorder twice.
 			const appliedStamp = lastApplied.current;
@@ -463,7 +498,11 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	const handleBackgroundDrop = useCallback(
 		(e: DragEvent) => {
 			e.preventDefault();
-			const dragged = dragRef.current ?? resolveDrag(e);
+			// C3: same guard as item drops — check the gesture epoch BEFORE the
+			// resolveDrag fallback so a drop after Esc (delivered) or dragend
+			// cannot resurrect a cancelled gesture from the dataTransfer payload.
+			const isLiveGesture = !gestureRef.current.cancelled;
+			const dragged = dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
 			// Same full settle as item drops (see handleItemDrop).
 			resetDrag();
 			if (!dragged || !dragged.id) return;
@@ -499,6 +538,14 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				onDragStart: (e) => {
 					e.stopPropagation();
 					handlersRef.current.onItemDragStart?.(ref, e);
+					/**
+					 * C3: preview drags share the gesture lifecycle; a fresh
+					 * gesture voids any stale cancel from a previous drag.
+					 */
+					gestureRef.current = {
+						id: gestureRef.current.id + 1,
+						cancelled: false,
+					};
 					dragRef.current = ref;
 					lastApplied.current = null;
 					autoscroll.setContainer(undefined);
@@ -566,10 +613,13 @@ export function useGridDnd(handlers: GridDndHandlers) {
 							: current,
 					);
 				},
-				onDrop: (e) => {
-					const dragged = dragRef.current ?? resolveDrag(e);
-					if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
-						return;
+			onDrop: (e) => {
+				// C3: same cancelled-gesture guard as the grid drop handlers.
+				const isLiveGesture = !gestureRef.current.cancelled;
+				const dragged =
+					dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
+				if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
+					return;
 					const target = e.currentTarget;
 					if (!(target instanceof HTMLElement)) return;
 					const live = previewInsertionRef.current;
@@ -625,7 +675,10 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			onDrop: (e: DragEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
-				const dragged = dragRef.current ?? resolveDrag(e);
+				// C3: same cancelled-gesture guard as the grid drop handlers.
+				const isLiveGesture = !gestureRef.current.cancelled;
+				const dragged =
+					dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
 				resetDrag();
 				if (!dragged || dragged.kind !== "card" || dragged.id === sourceCardId)
 					return;

@@ -1,15 +1,15 @@
 /**
- * C3 diagnostic loop — Esc-during-drag must make the subsequent drop inert.
- * Review only: this documents current behavior; it does not fix anything.
+ * C3 regression test — Esc-during-drag must make the subsequent drop inert.
  * Run: cd apps/extension && bun test scripts/zz-audit-c3-esc-drop.test.tsx
  *
- * CONFIRMED (pass 2, red loop): the drop after Esc commits in BOTH scenarios.
- * Scenario B is the stronger form: even when the Esc keydown IS delivered and
- * the hook's cancel handler runs, handleBackgroundDrop re-resolves the drag
- * via the dataTransfer payload (dragRef is null, resolveDrag(e) is not) and
- * commits. Scenario B is intentionally RED while C3 is unfixed — it is the
- * regression test diagnosing-bugs calls for: green once a gesture-epoch/
- * cancel flag is checked in the drop handlers.
+ * History: written as the pass-2 red loop (drop after Esc committed in BOTH
+ * scenarios — scenario B being the stronger form: even a DELIVERED Esc whose
+ * cancel handler ran was ignored by handleBackgroundDrop, which re-resolved
+ * the drag via the dataTransfer payload). Fixed in wave 3: drop handlers
+ * consult the gesture-epoch `cancelled` flag BEFORE the resolveDrag fallback
+ * (use-grid-dnd resetDragCancelled). Scenario B is the locked-in regression
+ * test; scenario A documents that a drop without any observed cancel still
+ * commits (correct behavior — nothing cancelled it).
  */
 import { afterEach, expect, test } from "bun:test";
 import { parseHTML } from "linkedom";
@@ -158,13 +158,14 @@ test("C3 scenario A: drop after Esc still resolves via dataTransfer fallback", a
 		dispatchDnd(grid, "drop", dataTransfer);
 	});
 
-	// Documents the audited C3 defect: the drop after (unobserved) Esc still
-	// commits through the dataTransfer fallback.
+	// Correct behavior: nothing observed a cancel (native Esc is swallowed by
+	// the browser's drag loop before reaching the page), so the drop commits
+	// through the dataTransfer fallback.
 	expect(backgroundDrops).toEqual([{ kind: "card", id: "card-1" }]);
 	expect(getActiveDrag()).toBeNull();
 });
 
-test("C3 scenario B (KNOWN RED while C3 unfixed): delivered Esc cancels, but drop re-commits via dataTransfer fallback", async () => {
+test("C3 scenario B (regression): delivered Esc cancels, and the drop stays inert — no dataTransfer re-commit", async () => {
 	const backgroundDrops: ItemRef[] = [];
 	const folderDrops: string[] = [];
 
@@ -199,9 +200,9 @@ test("C3 scenario B (KNOWN RED while C3 unfixed): delivered Esc cancels, but dro
 		dispatchDnd(grid, "drop", dataTransfer);
 	});
 
-	// CONFIRMED BUG (this assertion is the red loop): the drop should be
-	// inert after an observed cancel, but resolveDrag(e) re-arms the gesture
-	// from the persisted payload and onBackgroundDrop fires.
+	// FIXED (wave 3): the drop is inert after an observed cancel — the gesture
+	// epoch's cancelled flag blocks the resolveDrag fallback from re-arming
+	// the gesture from the persisted payload.
 	expect(backgroundDrops).toEqual([]);
 	expect(getActiveDrag()).toBeNull();
 });
