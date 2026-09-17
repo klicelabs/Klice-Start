@@ -7,6 +7,7 @@ import {
 	type HistoryEntry,
 	isHistoryEditableTarget,
 } from "../../lib/history";
+import { useRenameStore } from "../../stores/rename-store";
 import { useHistoryStore } from "../../stores/history-store";
 
 const NOTICE_TOAST_ID = "history-notice";
@@ -117,6 +118,23 @@ export function HistoryManager() {
 		focusConfirmButton(title, verb);
 	}, [pending]);
 
+	// H1 residue: explain a dead undo/redo id (evicted by the 30-entry bound
+	// or a discarded redo branch) instead of leaving the click unanswered.
+	useEffect(() => {
+		const deadIdNotice = useHistoryStore((s) => s.deadIdNotice) as
+			| { direction: "undo" | "redo"; entryId: string }
+			| null;
+		if (!deadIdNotice) return;
+		const consumed = useHistoryStore.getState().consumeDeadIdNotice();
+		if (!consumed) return;
+		toast.info(
+			consumed.direction === "undo"
+				? "That action is no longer undoable — history moved on"
+				: "That action is no longer redoable — history moved on",
+			{ id: NOTICE_TOAST_ID, duration: NOTICE_DURATION_MS },
+		);
+	}, []);
+
 	// Esc cancels the active confirmation (never executes).
 	useEffect(() => {
 		if (!pending) return;
@@ -145,6 +163,10 @@ export function HistoryManager() {
 				(key === "y" && e.ctrlKey && !e.metaKey && !e.shiftKey);
 			if (!isUndo && !isRedo) return;
 			if (isHistoryEditableTarget(e.target)) return;
+			// M3: finalize an open rename before opening a confirmation so the
+			// blur-commit can never land after the undo (NPD-5: the states never
+			// coexist). Empty draft still reverts; nothing is silently lost.
+			useRenameStore.getState().cancel();
 			const state = useHistoryStore.getState();
 			if (isUndo && state.past.length === 0) return;
 			if (isRedo && state.future.length === 0) return;

@@ -1,7 +1,15 @@
 import { expect, mock, test } from "bun:test";
 import type { Card, Setup } from "../src/types";
+// Static import resolves BEFORE mock.module registers, so the spread below
+// carries the REAL module surface (idbGet, idbPut, putImages, …). bun's
+// module mocks are global across the whole test run: an incomplete mock
+// here used to break any later test file that imports the real store graph
+// (setup-store → image-store → idb) with a misleading
+// "Export named 'idbGet' not found".
+import * as realIdb from "../src/lib/idb";
 
 mock.module("../src/lib/idb", () => ({
+	...realIdb,
 	STORE_BG: "backgrounds",
 	STORE_THUMBS: "thumbnails",
 	idbDelete: async () => undefined,

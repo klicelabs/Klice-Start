@@ -5,6 +5,7 @@ import {
 	normalizeState,
 	PERSIST_GENERATION_KEY,
 } from "../lib/storage";
+import { useHistoryStore } from "../stores/history-store";
 import { useSetupStore } from "../stores/setup-store";
 import type { Setup } from "../types";
 
@@ -63,6 +64,13 @@ export function useCrossTabSync() {
 				if (keepActive && incoming.folders.some((f) => f.id === keepActive)) {
 					useSetupStore.setState({ activeFolderId: keepActive });
 				}
+
+				// M4/NPD-3: external state arrived. Invalidate the redo branch and
+				// prune undo entries whose snapshots no longer match live state —
+				// stale cascades must never replay over another tab's writes.
+				useHistoryStore
+					.getState()
+					.invalidateForExternalSync(buildLiveShape(incoming));
 			} catch {
 				// Ignore parse errors
 			}
@@ -73,4 +81,24 @@ export function useCrossTabSync() {
 			chrome.storage.onChanged.removeListener(handler);
 		};
 	}, []);
+}
+
+/**
+ * Extract the id → parent/container shape the history store compares its
+ * snapshots against (see invalidateForExternalSync).
+ */
+function buildLiveShape(setup: Setup): {
+	cards: Map<string, string>;
+	folders: Map<string, string | null>;
+	containers: Record<string, string[]>;
+} {
+	const cards = new Map(setup.cards.map((card) => [card.id, card.folderId]));
+	const folders = new Map(
+		setup.folders.map((folder) => [folder.id, folder.parentId ?? null]),
+	);
+	const containers: Record<string, string[]> = {};
+	for (const [container, keys] of Object.entries(setup.itemOrder ?? {})) {
+		containers[container] = [...keys];
+	}
+	return { cards, folders, containers };
 }

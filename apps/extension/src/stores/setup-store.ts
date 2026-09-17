@@ -29,6 +29,7 @@ import {
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
 import type { Card, Settings, Setup } from "../types";
 import { useImageStore } from "./image-store";
+import { useHistoryStore } from "./history-store";
 
 export type InsertPosition = "before" | "after";
 
@@ -760,7 +761,20 @@ export const useSetupStore = create<SetupStore>()(
 							? cards.map((c) => (c.id === record.id ? { ...record } : c))
 							: [...cards, { ...record }];
 					}
+					// M1: rename snapshots ship nameOnlyIds so the applier merges ONLY
+					// the name into the live record — replaying a stale full record
+					// would clobber concurrent fields (order, parentId). putFolders
+					// stays populated for backward compatibility but is not applied
+					// wholesale for these ids.
+					const nameOnly = new Set(snapshot.nameOnlyIds ?? []);
 					for (const record of snapshot.putFolders ?? []) {
+						if (nameOnly.has(record.id)) {
+							// Merge only the name; every other field stays live.
+							folders = folders.map((f) =>
+								f.id === record.id ? { ...f, name: record.name } : f,
+							);
+							continue;
+						}
 						folders = folders.some((f) => f.id === record.id)
 							? folders.map((f) => (f.id === record.id ? { ...record } : f))
 							: [...folders, { ...record }];
@@ -894,7 +908,12 @@ export const useSetupStore = create<SetupStore>()(
 					return { settings };
 				}),
 
-			replaceSetup: (setup) => set(normalizeState(setup)),
+			replaceSetup: (setup) => {
+				set(normalizeState(setup));
+				// NPD-3: a full external replacement (import) invalidates the
+				// local history — old snapshots must never replay over it.
+				useHistoryStore.getState().clearHistory();
+			},
 
 			resetAll: async () => {
 				const previous = get();
@@ -908,6 +927,9 @@ export const useSetupStore = create<SetupStore>()(
 						...normalizeState(null),
 					});
 					await flushPersist();
+					// NPD-3: reset clears past+future — undoing into the pre-reset
+					// world (M20) must be impossible after a confirmed wipe.
+					useHistoryStore.getState().clearHistory();
 				} catch (error) {
 					set({
 						folders: previous.folders,
