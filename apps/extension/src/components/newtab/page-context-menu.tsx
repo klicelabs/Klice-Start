@@ -9,8 +9,10 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
 import { isInsideSettingsScope } from "../../lib/context-scope";
 import { glassDropdownItem, glassMenu } from "../../lib/glass";
+import { describeHistoryAction } from "../../lib/history";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
+import { useHistoryStore } from "../../stores/history-store";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 import { useAppearance } from "./appearance-provider";
@@ -22,6 +24,7 @@ interface PageContextMenuProps {
 	onAddQuickLink: () => void;
 	onAddFolder?: () => void;
 	onSelectAll?: () => void;
+	onOpenHistory?: () => void;
 	onOpenGeneralSettings?: () => void;
 	onEnterRestMode?: () => void;
 	enabled?: boolean;
@@ -33,6 +36,7 @@ export function PageContextMenu({
 	onAddQuickLink,
 	onAddFolder,
 	onSelectAll,
+	onOpenHistory,
 	onOpenGeneralSettings,
 	onEnterRestMode,
 	enabled = true,
@@ -106,6 +110,11 @@ export function PageContextMenu({
 	}
 
 	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true });
+	const undoTop = useHistoryStore((s) => s.past[s.past.length - 1]);
+	const redoTop = useHistoryStore((s) => s.future[0]);
+	const historyCount = useHistoryStore(
+		(s) => s.past.length + s.future.length,
+	);
 
 	if (!enabled) return children;
 
@@ -136,6 +145,36 @@ export function PageContextMenu({
 					<ContextMenuItem className={itemClassName} onSelect={onSelectAll}>
 						<Icon name="check-square" size={14} />
 						Select all
+					</ContextMenuItem>
+				)}
+
+				{(undoTop || redoTop || onOpenHistory) && (
+					<ContextMenuSeparator
+						className={isLiquid ? "bg-foreground/10" : undefined}
+					/>
+				)}
+				{undoTop && (
+					<ContextMenuItem
+						className={itemClassName}
+						onSelect={() => useHistoryStore.getState().requestUndo()}
+					>
+						<Icon name="undo" size={14} />
+						Undo {describeHistoryAction(undoTop.summary)}
+					</ContextMenuItem>
+				)}
+				{redoTop && (
+					<ContextMenuItem
+						className={itemClassName}
+						onSelect={() => useHistoryStore.getState().requestRedo()}
+					>
+						<Icon name="redo" size={14} />
+						Redo {describeHistoryAction(redoTop.summary)}
+					</ContextMenuItem>
+				)}
+				{onOpenHistory && historyCount > 0 && (
+					<ContextMenuItem className={itemClassName} onSelect={onOpenHistory}>
+						<Icon name="history" size={14} />
+						Recent actions
 					</ContextMenuItem>
 				)}
 

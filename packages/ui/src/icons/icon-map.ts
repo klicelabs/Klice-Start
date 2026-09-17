@@ -29,6 +29,7 @@ import {
 	GlassWater,
 	Globe,
 	GripVertical,
+	History,
 	Hourglass,
 	Image,
 	Import,
@@ -44,6 +45,7 @@ import {
 	Plus,
 	RectangleHorizontal,
 	RectangleVertical,
+	Redo2,
 	Scan,
 	Search,
 	Settings,
@@ -57,6 +59,7 @@ import {
 	Trash2,
 	TriangleAlert,
 	Type,
+	Undo2,
 	Upload,
 	UserRound,
 	WandSparkles,
@@ -139,6 +142,10 @@ export const iconMap = {
 	hourglass: Hourglass,
 	// Multi-select transport — one glyph for entering selection mode.
 	"check-square": SquareCheck,
+	// Command history — undo/redo/recent-actions surfaces.
+	undo: Undo2,
+	redo: Redo2,
+	history: History,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof iconMap;

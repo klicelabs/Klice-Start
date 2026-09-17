@@ -13,6 +13,10 @@ import { toast } from "sonner";
 import { setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { orderGroupBySource } from "../../lib/drag-group";
+import {
+	buildHistoryEntry,
+	snapshotSetup,
+} from "../../lib/history-capture";
 import { wouldCreateCycle } from "../../lib/folder-tree";
 import {
 	glassDropdownItem,
@@ -24,6 +28,7 @@ import {
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
+import { useHistoryStore } from "../../stores/history-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
@@ -195,17 +200,34 @@ export function SelectionTray({
 
 	function handleMoveHere() {
 		if (!canMoveHere) return;
+		const before = snapshotSetup(cards, folders, itemOrder);
 		moveItemsToContainer(activeFolderId, move.cardIds, move.folderIds);
-		toast.success(
-			move.movable === 1 ? "Item moved" : `${move.movable} items moved`,
+		const live = useSetupStore.getState();
+		const entry = buildHistoryEntry(
+			before,
+			live.cards,
+			live.folders,
+			live.itemOrder,
 			{
-				description: destName
-					? `to ${destName} · ${describeMoveGroup(move.cardIds.length, move.folderIds.length)}`
-					: undefined,
+				kind: "move",
+				total: move.movable,
+				cardCount: move.cardIds.length,
+				folderCount: move.folderIds.length,
+				dest: destName,
+				label:
+					move.movable === 1
+						? (move.cardIds.length === 1
+								? live.cards.find((c) => c.id === move.cardIds[0])?.title?.trim() ||
+									undefined
+								: live.folders.find((f) => f.id === move.folderIds[0])?.name)
+						: undefined,
 			},
 		);
-		// A committed move ends the gesture: close the selection so the
-		// tray never reopens over items the user just finished moving.
+		if (entry) useHistoryStore.getState().commit(entry);
+		// The history manager announces the move with Undo; no local toast
+		// here, or feedback would double. A committed move ends the
+		// gesture: close the selection so the tray never reopens over items
+		// the user just finished moving.
 		clearSelection();
 	}
 

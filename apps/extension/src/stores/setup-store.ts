@@ -114,6 +114,17 @@ interface SetupActions {
 		position?: InsertPosition,
 	) => void;
 	/**
+	 * Apply one history snapshot (undo/redo): replace the listed containers
+	 * wholesale and reparent the listed entities, in a single set() with a
+	 * legacy-order reindex. Unknown ids are ignored, so entries stay safe
+	 * even if entities were deleted afterwards.
+	 */
+	applyHistorySnapshot: (snapshot: {
+		containers: Record<string, string[]>;
+		cards: Record<string, string>;
+		folders: Record<string, string | null>;
+	}) => void;
+	/**
 	 * Restore a previously snapshotted ordering (drag cancellation). Replaces
 	 * the order map wholesale and reindexes legacy fields so readers that
 	 * still sort by `order` see the same sequence.
@@ -729,6 +740,34 @@ export const useSetupStore = create<SetupStore>()(
 					);
 					return {
 						...reindexOrders(s.folders, cards, itemOrder),
+						itemOrder,
+					};
+				}),
+
+			applyHistorySnapshot: (snapshot) =>
+				set((s) => {
+					const base = s.itemOrder ?? {};
+					const itemOrder: ItemOrder = { ...base };
+					for (const [container, keys] of Object.entries(
+						snapshot.containers,
+					)) {
+						itemOrder[container] = [...keys];
+					}
+					const cards = s.cards.map((c) => {
+						const folderId = snapshot.cards[c.id];
+						return folderId !== undefined && folderId !== c.folderId
+							? { ...c, folderId }
+							: c;
+					});
+					const folders = s.folders.map((f) => {
+						if (!(f.id in snapshot.folders)) return f;
+						const parentId = snapshot.folders[f.id] ?? null;
+						return (parentId ?? null) !== (f.parentId ?? null)
+							? { ...f, parentId }
+							: f;
+					});
+					return {
+						...reindexOrders(folders, cards, itemOrder),
 						itemOrder,
 					};
 				}),

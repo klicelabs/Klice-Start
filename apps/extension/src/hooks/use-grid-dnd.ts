@@ -68,6 +68,12 @@ export interface GridDndHandlers {
 	 * custom drag image while the browser still accepts one.
 	 */
 	onItemDragStart?: (ref: ItemRef, e: DragEvent) => void;
+	/**
+	 * Fires after every settled item/background drop (all paths), once the
+	 * owner's drop handler has run. Lets the owner diff gesture state for
+	 * history without distinguishing hover writes from drop commits.
+	 */
+	onDropSettled?: (dragged: ItemRef) => void;
 }
 
 function resolveDrag(e: DragEvent): ItemRef | null {
@@ -521,15 +527,18 @@ export function useGridDnd(handlers: GridDndHandlers) {
 
 			if (ref.kind === "folder" && zone === "center") {
 				h.onDropOnFolder(dragged.id, ref.id);
+				h.onDropSettled?.(dragged);
 				return;
 			}
 			if (ref.kind === "card" && dragged.kind === "card" && zone === "center") {
 				h.onCombineCards(dragged.id, ref.id);
+				h.onDropSettled?.(dragged);
 				return;
 			}
 			if (!h.isInContainer(dragged)) {
 				// Foreign item dropped on an edge: append to this container.
 				h.onBackgroundDrop(dragged);
+				h.onDropSettled?.(dragged);
 				return;
 			}
 			// Edge drop: live reorder already applied on hover; ensure the
@@ -538,6 +547,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			if (appliedStamp !== stamp && zone !== "center") {
 				h.onLiveReorder(dragged, ref, zone);
 			}
+			h.onDropSettled?.(dragged);
 		},
 		[resetDrag],
 	);
@@ -561,6 +571,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			resetDrag();
 			if (!dragged || !dragged.id) return;
 			handlersRef.current.onBackgroundDrop(dragged);
+			handlersRef.current.onDropSettled?.(dragged);
 		},
 		[resetDrag],
 	);

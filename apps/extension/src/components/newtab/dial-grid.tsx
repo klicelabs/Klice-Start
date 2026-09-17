@@ -15,7 +15,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
@@ -23,14 +22,20 @@ import {
 	resolveDragGroup,
 	splitGroupKinds,
 } from "../../lib/drag-group";
+import {
+	beginGestureCapture,
+	buildHistoryEntry,
+	takeGestureCapture,
+} from "../../lib/history-capture";
+import type { HistorySummary } from "../../lib/history";
 import { computeIconGridMaxWidth, iconGridConfig } from "../../lib/icon-layout";
 import {
 	getOrderedRefs,
 	type ItemOrder,
 	type ItemRef,
 } from "../../lib/item-order";
-import { describeMoveGroup } from "../../lib/move-selection";
 import type { NavigationState } from "../../lib/navigation";
+import { useHistoryStore } from "../../stores/history-store";
 import { cn } from "../../lib/utils";
 import { useSelectionStore } from "../../stores/selection-store";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
@@ -324,22 +329,47 @@ export function DialGrid({
 		[cardById, folderById],
 	);
 
-	const movedToast = useCallback(
-		(cardIds: string[], folderIds: string[], targetFolderId: string) => {
-			const total = cardIds.length + folderIds.length;
-			if (total === 0) return;
-			const dest = allFolders.find((f) => f.id === targetFolderId);
-			const movedCards = allCards.filter((c) => cardIds.includes(c.id)).length;
-			const movedFolders = allFolders.filter((f) =>
-				folderIds.includes(f.id),
-			).length;
-			toast.success(total === 1 ? "Item moved" : `${total} items moved`, {
-				description: dest
-					? `to ${dest.name} · ${describeMoveGroup(movedCards, movedFolders)}`
-					: describeMoveGroup(movedCards, movedFolders),
-			});
+	const containerName = useCallback(
+		(containerId: string) =>
+			allFolders.find((f) => f.id === containerId)?.name ?? "Home",
+		[allFolders],
+	);
+
+	/** Display label for a single moved item (card title / folder name). */
+	const singleItemLabel = useCallback(
+		(kind: "card" | "folder", id: string) => {
+			if (kind === "card") {
+				const title = allCards.find((c) => c.id === id)?.title?.trim();
+				return title && title.length > 0 ? title : undefined;
+			}
+			return allFolders.find((f) => f.id === id)?.name;
 		},
 		[allCards, allFolders],
+	);
+
+	/**
+	 * Diff the gesture capture against live state and commit one atomic
+	 * history entry (announced by the history manager with Undo). No-op
+	 * drops produce no entry and no toast. Returns whether an entry was
+	 * committed, so drops settle selection only on real commits.
+	 */
+	const commitGestureHistory = useCallback(
+		(summary: HistorySummary): boolean => {
+			const capture = takeGestureCapture();
+			if (!capture) return false;
+			const state = useSetupStore.getState();
+			const entry = buildHistoryEntry(
+				capture,
+				state.cards,
+				state.folders,
+				state.itemOrder,
+				summary,
+			);
+			if (!entry) return false;
+			useHistoryStore.getState().commit(entry);
+			return true;
+		},
+		[],
 	);
 
 	// A committed drop ends the gesture: the moved members land in their
@@ -378,8 +408,22 @@ export function DialGrid({
 			);
 			if (movableCards.length > 0 || movableFolders.length > 0) {
 				onMoveItems(movableCards, movableFolders, targetFolderId);
-				movedToast(movableCards, movableFolders, targetFolderId);
-				settleMovedSelection(movableCards, movableFolders);
+				const total = movableCards.length + movableFolders.length;
+				const committed = commitGestureHistory({
+					kind: "move",
+					total,
+					cardCount: movableCards.length,
+					folderCount: movableFolders.length,
+					dest: containerName(targetFolderId),
+					label:
+						total === 1
+							? singleItemLabel(
+									movableCards.length === 1 ? "card" : "folder",
+									(movableCards[0] ?? movableFolders[0]) as string,
+								)
+							: undefined,
+				});
+				if (committed) settleMovedSelection(movableCards, movableFolders);
 			}
 		},
 		[
@@ -389,7 +433,9 @@ export function DialGrid({
 			onMoveItems,
 			canNestFolder,
 			settleMovedSelection,
-			movedToast,
+			commitGestureHistory,
+			containerName,
+			singleItemLabel,
 		],
 	);
 
@@ -414,8 +460,22 @@ export function DialGrid({
 			);
 			if (movableCards.length > 0 || movableFolders.length > 0) {
 				onMoveItems(movableCards, movableFolders, folderId);
-				movedToast(movableCards, movableFolders, folderId);
-				settleMovedSelection(movableCards, movableFolders);
+				const total = movableCards.length + movableFolders.length;
+				const committed = commitGestureHistory({
+					kind: "move",
+					total,
+					cardCount: movableCards.length,
+					folderCount: movableFolders.length,
+					dest: containerName(folderId),
+					label:
+						total === 1
+							? singleItemLabel(
+									movableCards.length === 1 ? "card" : "folder",
+									(movableCards[0] ?? movableFolders[0]) as string,
+								)
+							: undefined,
+				});
+				if (committed) settleMovedSelection(movableCards, movableFolders);
 			}
 		},
 		[
@@ -426,15 +486,20 @@ export function DialGrid({
 			onMoveItems,
 			canNestFolder,
 			settleMovedSelection,
-			movedToast,
+			commitGestureHistory,
+			containerName,
+			singleItemLabel,
 		],
 	);
 
 	// Dragstart rule: dragging an unselected item starts a fresh single drag
 	// (previous selection clears); dragging a selected item carries the whole
 	// set with a premium group overlay instead of N duplicated cards.
+	// Either way the live order is frozen for history: hover writes mutate
+	// it, and the drop diffs back to this capture for one atomic entry.
 	const handleItemDragStart = useCallback(
 		(ref: ItemRef, e: React.DragEvent) => {
+			beginGestureCapture(allCards, allFolders, itemOrder);
 			const store = useSelectionStore.getState();
 			if (!store.selectedIds.includes(ref.id)) {
 				store.clear();
@@ -445,7 +510,7 @@ export function DialGrid({
 			if (group.length > 1) showGroupDragGhost(e, group.length);
 			else if (dialLayout === "icon") showGroupDragGhost(e, 1);
 		},
-		[dialLayout],
+		[dialLayout, allCards, allFolders, itemOrder],
 	);
 
 	const dnd = useGridDnd({
@@ -524,18 +589,75 @@ export function DialGrid({
 					.map((member) => member.id);
 				if (block.length > 1) {
 					onInsertCardsAt(targetFolderId, block, targetCardId, position);
-					settleMovedSelection(block, []);
+					const committed = commitGestureHistory({
+						kind: "move",
+						total: block.length,
+						cardCount: block.length,
+						folderCount: 0,
+						dest: containerName(targetFolderId),
+						label:
+							block.length === 1
+								? singleItemLabel("card", block[0] as string)
+								: undefined,
+					});
+					if (committed) settleMovedSelection(block, []);
 					return;
 				}
 				onPreviewDrop(targetFolderId, draggedCardId, targetCardId, position);
+				// Single preview drops reparent too: diff the gesture so the
+				// move stays reversible.
+				const committed = commitGestureHistory({
+					kind: "move",
+					total: 1,
+					cardCount: 1,
+					folderCount: 0,
+					dest: containerName(targetFolderId),
+					label: singleItemLabel("card", draggedCardId),
+				});
+				if (committed) settleMovedSelection([draggedCardId], []);
 			},
 			[
 				onPreviewDrop,
 				onInsertCardsAt,
 				settleMovedSelection,
+				commitGestureHistory,
+				containerName,
+				singleItemLabel,
 				allCards,
 				allFolders,
 				itemOrder,
+			],
+		),
+		// Edge-reorder settlement: folder/background drops already committed
+		// (and consumed the capture) above. Whatever capture remains here is
+		// a same-container reorder — or a no-op drop, which diffs to nothing.
+		onDropSettled: useCallback(
+			(dragged: ItemRef) => {
+				const group = resolveDragGroup(
+					dragged,
+					useSelectionStore.getState().items,
+					allCards,
+					allFolders,
+					itemOrder,
+				);
+				const local = group.filter(
+					(member) => member.sourceId === folderId,
+				);
+				commitGestureHistory({
+					kind: "reorder",
+					total: local.length > 0 ? local.length : 1,
+					cardCount: local.filter((m) => m.kind === "card").length,
+					folderCount: local.filter((m) => m.kind === "folder").length,
+					container: containerName(folderId),
+				});
+			},
+			[
+				allCards,
+				allFolders,
+				itemOrder,
+				folderId,
+				commitGestureHistory,
+				containerName,
 			],
 		),
 		canNest: canNestFolder,

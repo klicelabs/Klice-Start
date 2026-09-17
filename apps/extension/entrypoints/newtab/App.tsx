@@ -28,6 +28,8 @@ import {
 	type UnifiedSearchHandle,
 } from "../../src/components/newtab/search/unified-search";
 import { SelectionTray } from "../../src/components/newtab/selection-tray";
+import { HistoryDialog } from "../../src/components/newtab/history-dialog";
+import { HistoryManager } from "../../src/components/newtab/history-manager";
 import {
 	type SettingsPaneId,
 	SettingsSidebar,
@@ -39,6 +41,11 @@ import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
 import { usePersistenceErrorToast } from "../../src/hooks/use-persistence-error-toast";
 import { orderGroupBySource } from "../../src/lib/drag-group";
+import {
+	buildHistoryEntry,
+	clearGestureCapture,
+	takeGestureCapture,
+} from "../../src/lib/history-capture";
 import {
 	getBreadcrumb,
 	getChildren,
@@ -61,6 +68,7 @@ import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useRenameStore } from "../../src/stores/rename-store";
 import { useSelectionStore } from "../../src/stores/selection-store";
+import { useHistoryStore } from "../../src/stores/history-store";
 import { useSetupStore } from "../../src/stores/setup-store";
 import type { Card } from "../../src/types";
 
@@ -386,6 +394,7 @@ export default function App() {
 
 	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
+	const [historyOpen, setHistoryOpen] = useState(false);
 	const [settingsLayoutOpen, setSettingsLayoutOpen] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
@@ -490,8 +499,11 @@ export default function App() {
 
 	// Drop one bookmark onto another: fold both into a fresh subfolder and
 	// immediately offer it for naming. Atomic — nothing is lost on failure.
+	// Combine stays outside history for now (folder creation is a later
+	// command); the gesture capture is discarded so no bogus entry forms.
 	const handleCombineCards = useCallback(
 		(draggedCardId: string, targetCardId: string) => {
+			clearGestureCapture();
 			const id = createSubfolderFromCards(
 				activeFolderId,
 				draggedCardId,
@@ -556,7 +568,8 @@ export default function App() {
 	// in one store call so a mixed group can never be half-moved), then any
 	// spring-loaded navigation is just a view change. A committed drop ends
 	// the gesture: the selection closes so the tray never reopens over items
-	// the user just finished moving.
+	// the user just finished moving. The gesture diff commits one history
+	// entry announced with Undo.
 	const handleTabDrop = useCallback(
 		(draggedId: string, targetId: string) => {
 			const state = useSetupStore.getState();
@@ -585,8 +598,38 @@ export default function App() {
 						!wouldCreateCycle(state.folders, member.id, targetId),
 				)
 				.map((member) => member.id);
-			if (cardIds.length === 0 && folderIds.length === 0) return;
+			if (cardIds.length === 0 && folderIds.length === 0) {
+				clearGestureCapture();
+				return;
+			}
+			const capture = takeGestureCapture();
 			moveItemsToContainer(targetId, cardIds, folderIds);
+			if (capture) {
+				const total = cardIds.length + folderIds.length;
+				const live = useSetupStore.getState();
+				const dest = live.folders.find((f) => f.id === targetId)?.name;
+				const entry = buildHistoryEntry(
+					capture,
+					live.cards,
+					live.folders,
+					live.itemOrder,
+					{
+						kind: "move",
+						total,
+						cardCount: cardIds.length,
+						folderCount: folderIds.length,
+						dest,
+						label:
+							total === 1
+								? (cardIds.length === 1
+										? live.cards.find((c) => c.id === cardIds[0])?.title?.trim() ||
+											undefined
+										: live.folders.find((f) => f.id === folderIds[0])?.name)
+								: undefined,
+					},
+				);
+				if (entry) useHistoryStore.getState().commit(entry);
+			}
 			useSelectionStore.getState().clear();
 		},
 		[moveItemsToContainer],
@@ -758,6 +801,7 @@ export default function App() {
 				}
 				onAddFolder={() => handleNewSubfolder(activeFolderId)}
 				onSelectAll={selectableItems.length > 0 ? handleSelectAll : undefined}
+				onOpenHistory={() => setHistoryOpen(true)}
 				onOpenGeneralSettings={() => handleOpenSettings("general")}
 				onEnterRestMode={enterRestMode}
 				enabled={!restMode}
@@ -916,6 +960,12 @@ export default function App() {
 										onNavigateFolder={handleSelectFolder}
 										pageIds={pageIds}
 										onSelectAll={handleSelectAll}
+									/>
+									{/* Command history: toasts, confirmation, shortcuts */}
+									<HistoryManager />
+									<HistoryDialog
+										open={historyOpen}
+										onOpenChange={setHistoryOpen}
 									/>
 									</div>
 								</div>
