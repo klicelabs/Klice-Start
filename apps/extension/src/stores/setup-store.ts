@@ -8,6 +8,7 @@ import {
 	TILE_SIZE_DIMENSIONS,
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
+import type { HistorySnapshot } from "../lib/history";
 import {
 	containerKeyOf,
 	type ItemOrder,
@@ -115,15 +116,12 @@ interface SetupActions {
 	) => void;
 	/**
 	 * Apply one history snapshot (undo/redo): replace the listed containers
-	 * wholesale and reparent the listed entities, in a single set() with a
-	 * legacy-order reindex. Unknown ids are ignored, so entries stay safe
-	 * even if entities were deleted afterwards.
+	 * wholesale, reparent the listed entities, restore deleted entities and
+	 * remove created ones — in a single set() with a legacy-order reindex.
+	 * Unknown ids are ignored, so entries stay safe even if entities were
+	 * deleted afterwards.
 	 */
-	applyHistorySnapshot: (snapshot: {
-		containers: Record<string, string[]>;
-		cards: Record<string, string>;
-		folders: Record<string, string | null>;
-	}) => void;
+	applyHistorySnapshot: (snapshot: HistorySnapshot) => void;
 	/**
 	 * Restore a previously snapshotted ordering (drag cancellation). Replaces
 	 * the order map wholesale and reindexes legacy fields so readers that
@@ -753,13 +751,27 @@ export const useSetupStore = create<SetupStore>()(
 					)) {
 						itemOrder[container] = [...keys];
 					}
-					const cards = s.cards.map((c) => {
+					const delCards = new Set(snapshot.delCardIds ?? []);
+					const delFolders = new Set(snapshot.delFolderIds ?? []);
+					let cards = s.cards.filter((c) => !delCards.has(c.id));
+					let folders = s.folders.filter((f) => !delFolders.has(f.id));
+					for (const record of snapshot.putCards ?? []) {
+						cards = cards.some((c) => c.id === record.id)
+							? cards.map((c) => (c.id === record.id ? { ...record } : c))
+							: [...cards, { ...record }];
+					}
+					for (const record of snapshot.putFolders ?? []) {
+						folders = folders.some((f) => f.id === record.id)
+							? folders.map((f) => (f.id === record.id ? { ...record } : f))
+							: [...folders, { ...record }];
+					}
+					cards = cards.map((c) => {
 						const folderId = snapshot.cards[c.id];
 						return folderId !== undefined && folderId !== c.folderId
 							? { ...c, folderId }
 							: c;
 					});
-					const folders = s.folders.map((f) => {
+					folders = folders.map((f) => {
 						if (!(f.id in snapshot.folders)) return f;
 						const parentId = snapshot.folders[f.id] ?? null;
 						return (parentId ?? null) !== (f.parentId ?? null)

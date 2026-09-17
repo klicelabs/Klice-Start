@@ -37,7 +37,15 @@ function folder(id: string, parentId: string | null): Folder {
 }
 
 function entry(id: string): HistoryEntry {
-	const empty = { containers: {}, cards: {}, folders: {} };
+	const empty = {
+		containers: {},
+		cards: {},
+		folders: {},
+		putCards: [],
+		putFolders: [],
+		delCardIds: [],
+		delFolderIds: [],
+	};
 	return {
 		id,
 		at: 0,
@@ -196,4 +204,56 @@ test("a same-slot drop diffs to nothing", () => {
 		{ kind: "reorder", total: 1, cardCount: 1, folderCount: 0 },
 	);
 	expect(result).toBeNull();
+});
+
+test("a combine captures the created folder for exact undo/redo", () => {
+	const state = setup(["x", "y"], ["t"]);
+	const capture = snapshotSetup(state.cards, state.folders, state.order);
+	const sub = folder("sub", "a");
+	const moved = [card("x", "sub"), card("y", "sub"), card("t", "b")];
+	const afterOrder = {
+		a: [itemKey("folder", "sub")],
+		b: [itemKey("card", "t")],
+		sub: [itemKey("card", "x"), itemKey("card", "y")],
+	};
+	const result = buildHistoryEntry(
+		capture,
+		moved,
+		[...state.folders, sub],
+		afterOrder,
+		{ kind: "combine", total: 2, cardCount: 2, folderCount: 0 },
+	);
+	expect(result).not.toBeNull();
+	// Undo removes the created folder and restores both cards home.
+	expect(result?.undo.delFolderIds).toEqual(["sub"]);
+	expect(result?.undo.cards).toEqual({ x: "a", y: "a" });
+	expect(result?.undo.containers.a).toEqual([
+		itemKey("card", "x"),
+		itemKey("card", "y"),
+	]);
+	// Redo recreates the folder record and reparents the block.
+	expect(result?.redo.putFolders.map((f) => f.id)).toEqual(["sub"]);
+	expect(result?.redo.cards).toEqual({ x: "sub", y: "sub" });
+	expect(result?.redo.containers.sub).toEqual([
+		itemKey("card", "x"),
+		itemKey("card", "y"),
+	]);
+});
+
+test("describes combines contextually", () => {
+	const summary = {
+		kind: "combine" as const,
+		total: 2,
+		cardCount: 2,
+		folderCount: 0,
+	};
+	expect(describeHistoryAction(summary)).toBe(
+		"Combine 2 bookmarks into a new folder",
+	);
+	expect(describeHistoryGerund(summary)).toBe(
+		"combining 2 bookmarks into a new folder",
+	);
+	expect(describeHistoryPast(summary)).toBe(
+		"Combined 2 bookmarks into a new folder",
+	);
 });

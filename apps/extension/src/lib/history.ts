@@ -7,10 +7,12 @@
  * history UI copy all derive from the same summary, never ad hoc strings.
  */
 
+import type { Card, Folder } from "../types";
+
 /** Recent-operation bound. Session-scoped; old entries fall off the top. */
 export const HISTORY_LIMIT = 30;
 
-export type HistoryKind = "move" | "reorder";
+export type HistoryKind = "move" | "reorder" | "combine";
 
 /**
  * What happened, in UI words. `dest` is the destination folder name (moves);
@@ -34,6 +36,12 @@ export interface HistorySnapshot {
 	cards: Record<string, string>;
 	/** Folder id → parent id (null = root), for every touched folder. */
 	folders: Record<string, string | null>;
+	/** Full records to restore (entities deleted by the action). */
+	putCards: Card[];
+	putFolders: Folder[];
+	/** Ids to remove (entities created by the action). */
+	delCardIds: string[];
+	delFolderIds: string[];
 }
 
 export interface HistoryEntry {
@@ -81,6 +89,9 @@ export function describeHistoryPast(summary: HistorySummary): string {
 			? `Reordered in ${where}`
 			: `Reordered ${summary.total} items in ${where}`;
 	}
+	if (summary.kind === "combine") {
+		return `Combined ${summary.total} ${itemNoun(summary.total, summary.cardCount, summary.folderCount)} into a new folder`;
+	}
 	const dest = summary.dest ?? "another folder";
 	if (summary.total === 1 && summary.label) {
 		return `Moved “${summary.label}” to ${dest}`;
@@ -96,6 +107,9 @@ export function describeHistoryGerund(summary: HistorySummary): string {
 			? `reordering in ${where}`
 			: `reordering ${summary.total} items in ${where}`;
 	}
+	if (summary.kind === "combine") {
+		return `combining ${summary.total} ${itemNoun(summary.total, summary.cardCount, summary.folderCount)} into a new folder`;
+	}
 	const dest = summary.dest ?? "another folder";
 	return `moving ${moveObject(summary)} to ${dest}`;
 }
@@ -107,6 +121,9 @@ export function describeHistoryAction(summary: HistorySummary): string {
 		return summary.total === 1
 			? `Reorder in ${where}`
 			: `Reorder ${summary.total} items in ${where}`;
+	}
+	if (summary.kind === "combine") {
+		return `Combine ${summary.total} ${itemNoun(summary.total, summary.cardCount, summary.folderCount)} into a new folder`;
 	}
 	const dest = summary.dest ?? "another folder";
 	return `Move ${moveObject(summary)} to ${dest}`;
