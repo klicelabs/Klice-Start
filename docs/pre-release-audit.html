@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klice Start — Auditoria Pré-Release de Confiabilidade</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f6f7f9;
+    --ink: #1a1d21;
+    --ink-soft: #5b6470;
+    --line: #e4e7ec;
+    --accent: #0a84ff;
+    --crit-bg: #fdecec; --crit-ink: #b42318; --crit-line: #f3c2bd;
+    --high-bg: #fff4e5; --high-ink: #b54708; --high-line: #f5d6a8;
+    --med-bg: #fffde7; --med-ink: #8a6d00; --med-line: #e8dfae;
+    --low-bg: #eef4ff; --low-ink: #3538cd; --low-line: #c7d7fe;
+    --ok-bg: #ecfdf3; --ok-ink: #067647; --ok-line: #a6f4c5;
+    --code-bg: #f2f4f7;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121417;
+      --bg-soft: #1a1d21;
+      --ink: #eef1f4;
+      --ink-soft: #a6b0bc;
+      --line: #2a2f36;
+      --accent: #5aa9ff;
+      --crit-bg: #2a1414; --crit-ink: #ff9c94; --crit-line: #5c2626;
+      --high-bg: #2a1f10; --high-ink: #ffcf87; --high-line: #5c441a;
+      --med-bg: #26240f; --med-ink: #e8dd8a; --med-line: #57531f;
+      --low-bg: #141b33; --low-ink: #a9bcff; --low-line: #27315c;
+      --ok-bg: #0f241b; --ok-ink: #6fe3a5; --ok-line: #1c4d38;
+      --code-bg: #1e2228;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 880px; margin: 0 auto; padding: 56px 24px 96px; }
+  h1 { font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 1.35rem; letter-spacing: -0.01em; margin: 56px 0 16px; padding-top: 24px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 28px 0 8px; }
+  .sub { color: var(--ink-soft); margin: 0 0 8px; }
+  .meta { color: var(--ink-soft); font-size: 0.9rem; }
+  p, li { max-width: 70ch; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: var(--code-bg); padding: 1px 6px; border-radius: 6px; }
+  pre { background: var(--code-bg); padding: 16px; border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.93rem; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--ink-soft); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .finding { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin: 16px 0; background: var(--bg); }
+  .finding h3 { margin: 8px 0 6px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .badge { display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; border: 1px solid; }
+  .sev-Critical { background: var(--crit-bg); color: var(--crit-ink); border-color: var(--crit-line); }
+  .sev-High { background: var(--high-bg); color: var(--high-ink); border-color: var(--high-line); }
+  .sev-Medium { background: var(--med-bg); color: var(--med-ink); border-color: var(--med-line); }
+  .sev-Low { background: var(--low-bg); color: var(--low-ink); border-color: var(--low-line); }
+  .status { background: var(--bg-soft); color: var(--ink-soft); border-color: var(--line); }
+  dl { display: grid; grid-template-columns: 150px 1fr; gap: 6px 16px; margin: 12px 0 0; font-size: 0.93rem; }
+  dt { color: var(--ink-soft); font-weight: 600; }
+  dd { margin: 0; }
+  .toc { columns: 2; font-size: 0.93rem; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc li { margin-bottom: 4px; }
+  .kpi { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+  .kpi div { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 18px; min-width: 120px; }
+  .kpi b { display: block; font-size: 1.6rem; }
+  .kpi span { color: var(--ink-soft); font-size: 0.85rem; }
+  footer { margin-top: 64px; color: var(--ink-soft); font-size: 0.88rem; border-top: 1px solid var(--line); padding-top: 16px; }
+  @media (max-width: 640px) { dl { grid-template-columns: 1fr; } .toc { columns: 1; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Auditoria pré-release de confiabilidade</h1>
+<p class="sub">Klice Start — extensão de new-tab (Chromium + Firefox/Zen) · branch <code>audit/pre-release-reliability</code></p>
+<p class="meta">Metodologia: skill <em>diagnosing-bugs</em> (Matt Pocock) como primária — loops de feedback reproduzíveis, hipóteses falsificáveis, evidência por caminho de código — complementada por <em>browser-extension-builder</em> (1,8 mil instalações; APIs de extensão, storage e compatibilidade Firefox) e <em>deliver-edge-cases</em> (765 instalações; análise sistemática de casos-limite). Seis subagentes seniores investigaram em paralelo; achados consolidados, deduplicados e validados por amostragem no repositório. Nenhum fix aplicado (exceto o bug de Import, autorizado).</p>
+
+<h2>Índice</h2>
+<ol class="toc">
+<li><a href="#resumo">Resumo executivo</a></li>
+<li><a href="#import">Correção do Import</a></li>
+<li><a href="#criticos">Críticos</a></li>
+<li><a href="#altos">Altos</a></li>
+<li><a href="#medios">Médios</a></li>
+<li><a href="#baixos">Baixos</a></li>
+<li><a href="#decisoes">Decisões de produto necessárias</a></li>
+<li><a href="#navegadores">Achados por navegador</a></li>
+<li><a href="#performance">Performance / escala</a></li>
+<li><a href="#ordem">Ordem de correção recomendada</a></li>
+</ol>
+
+<h2 id="resumo">Resumo executivo</h2>
+<div class="kpi">
+<div><b>4</b><span>Críticos</span></div>
+<div><b>14</b><span>Altos</span></div>
+<div><b>22</b><span>Médios</span></div>
+<div><b>8</b><span>Baixos</span></div>
+<div><b>7</b><span>Decisões de produto</span></div>
+</div>
+<p><strong>Avaliação geral:</strong> base sólida — proteção contra ciclos, reparo de ordenação, atomicidade de escrita e confirmação obrigatória de Undo/Redo estão corretos e com testes. Os riscos concentram-se em quatro pontos: (1) o próprio sistema de Undo corrompe o branch de redo em cascata e executa drops cancelados por Esc; (2) persistência sem guarda contra corrupção nem flush confiável no unload; (3) divisão <code>chrome.*</code> vs <code>browser.*</code> ameaça o Firefox; (4) ausência de virtualização e escritas O(n) por hover limitam bibliotecas grandes.</p>
+<p><strong>Áreas de maior risco:</strong> Undo/Redo (confiança do sistema de segurança), persistência/hidratação (brick e perda silenciosa), Firefox (namespaces), escala acima de ~500 itens.</p>
+<p><strong>Fraquezas de regra de negócio:</strong> drops estrangeiros descartam posição sem avisar; combine/preview movem metade do grupo em silêncio; renomeação concorre com undo; exclusões não passam pelo histórico; "Frequently visited" não mede visitas.</p>
+
+<h2 id="import">Correção do Import</h2>
+<h3>Causa raiz</h3>
+<p>Funcionalmente o parse/merge operava (validado em Chromium real via Playwright: toast de sucesso correto). O bug percebido era de <strong>revelação</strong>: o import criava pastas-raiz novas e mantinha o usuário na view anterior (ex.: Home vazia), sem dizer onde o conteúdo foi parar — "parece que não fez nada". Evidência: screenshot pós-import com toast de sucesso e grade vazia. De bônus, o linkedom diverge do parser HTML5 real (aninha <code>DT</code> dentro de <code>P</code>), o que inviabiliza testes de parser em bun — documentado para não gerar falsos positivos.</p>
+<h3>O que mudou</h3>
+<ul>
+<li>Planejador puro extraído (<code>lib/bookmark-merge.ts</code>): regras documentadas — pastas reusadas por nome no mesmo nível, dedupe por URL canônica <em>por pasta</em> (mesma URL em pastas distintas é mantida), links malformados pulados, aninhamento preservado, planejamento sem mutação + commit atômico único.</li>
+<li>Dialog de escolha <strong>Manter vs Substituir</strong> (backup: só Substituir, com confirmação em dois passos e contagens reais). Biblioteca vazia executa direto.</li>
+<li>Revelação pós-import: navega ao primeiro conteúdo tocado, salvo se o usuário já o estiver vendo.</li>
+<li>Erros amigáveis (arquivo vazio, malformado, não-suportado, backup inválido); validação de backup isolada em <code>lib/backup-format.ts</code>.</li>
+<li>Testes <code>scripts/verify-import.test.ts</code> (regras, idempotência, preflight); fluxos Keep/Replace/backup/malformado validados no Chromium real.</li>
+</ul>
+<h3>Regras de merge</h3>
+<table><tr><th>Caso</th><th>Comportamento</th></tr>
+<tr><td>URLs duplicadas (mesma pasta)</td><td>Ignoradas (idempotente)</td></tr>
+<tr><td>Mesma URL em pastas distintas</td><td>Mantidas em ambas</td></tr>
+<tr><td>Nomes de pasta iguais</td><td>Reusadas no mesmo nível (case-insensitive); níveis distintos não colidem</td></tr>
+<tr><td>Pastas aninhadas</td><td>Estrutura preservada</td></tr>
+<tr><td>Entradas malformadas</td><td>Puladas por link; arquivo vazio/ilegível → erro amigável, nada é escrito</td></tr>
+<tr><td>Arquivos/pastas vazios</td><td>Pastas vazias importadas; import sem conteúdo → erro, sem escrita</td></tr></table>
+
+<h2 id="criticos">Críticos</h2>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge status">Confirmado</span></div>
+<h3>C1 — Undo em cascata corrompe o branch de redo</h3>
+<dl>
+<dt>Feature</dt><dd>Undo-to-here / redo com 2+ entradas</dd>
+<dt>Reprodução</dt><dd>3 moves → "Undo to here" na 1ª → Redo.</dd>
+<dt>Esperado × atual</dt><dd>Redo reaplica em ordem cronológica. Atual: <code>future=[e3,e2,e1]</code>, redo aplica ao contrário e o teste existente trava o bug como correto.</dd>
+<dt>Causa provável</dt><dd><code>popUndoIds</code> empilha em ordem de aplicação em vez de reversa (<code>lib/history.ts</code>).</dd>
+<dt>Arquivos</dt><dd><code>src/lib/history.ts:244-258</code>, <code>scripts/verify-history.test.ts:128-131</code></dd>
+<dt>Impacto</dt><dd>Todo multi-undo embaralha redos permanentemente.</dd>
+<dt>Fix</dt><dd>Prepend reverso + corrigir o teste + round-trip multi-step.</dd>
+<dt>Evidência</dt><dd>Prova em função pura, validada por leitura direta. Alta.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge status">Confirmado</span></div>
+<h3>C2 — JSON persistido corrompido bricka o carregamento</h3>
+<dl>
+<dt>Feature</dt><dd>Hidratação via <code>chrome.storage</code></dd>
+<dt>Reprodução</dt><dd>Gravar lixo na chave <code>perch-setup</code> e recarregar.</dd>
+<dt>Esperado × atual</dt><dd>Fallback para defaults (como o branch <code>localStorage</code> faz). Atual: <code>JSON.parse</code> sem guarda propaga a rejeição.</dd>
+<dt>Causa provável</dt><dd>Assimetria entre os dois branches do adapter.</dd>
+<dt>Arquivos</dt><dd><code>src/lib/storage.ts:668-675</code> vs <code>:649-666</code></dd>
+<dt>Impacto</dt><dd>Um valor corrompido bricka o app até limpeza manual.</dd>
+<dt>Fix</dt><dd><code>try/catch → null</code> simétrico + quarentena do valor ruim.</dd>
+<dt>Evidência</dt><dd>Assimetria direta no código. Alta.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge status">Confirmado</span></div>
+<h3>C3 — Esc durante o drag não cancela o drop nativo</h3>
+<dl>
+<dt>Feature</dt><dd>Cancelamento de DnD</dd>
+<dt>Reprodução</dt><dd>Arrastar → hover com reorder → Esc (ordem volta) → soltar sem clicar.</dd>
+<dt>Esperado × atual</dt><dd>Drop vira no-op. Atual: <code>handleItemDrop</code> resolve pelo fallback <code>dataTransfer</code> e persiste o move (+ histórico).</dd>
+<dt>Causa provável</dt><dd><code>resetDrag</code> limpa refs, mas o drag nativo continua; falta flag de época/gesto-cancelado no drop.</dd>
+<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:206-219</code>, <code>src/lib/dnd.ts:106-129</code></dd>
+<dt>Impacto</dt><dd>Usuário crê que cancelou e commita ao soltar.</dd>
+<dt>Fix</dt><dd>Flag de cancelamento checada no drop + <code>clearGestureCapture()</code> no cancel.</dd>
+<dt>Evidência</dt><dd>Caminho rastreado ponta a ponta. Alta.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge status">Muito provável</span></div>
+<h3>C4 — Split <code>chrome.*</code> vs <code>browser.*</code> ameaça o Firefox</h3>
+<dl>
+<dt>Feature</dt><dd>Popup, sync, import do navegador</dd>
+<dt>Reprodução</dt><dd>Firefox/Zen → popup → Save.</dd>
+<dt>Esperado × atual</dt><dd>Mesmo fluxo do Chromium. Atual (previsto): <code>chrome.*</code> estilo-promise no popup/storage/sync/bookmarks vs <code>browser.*</code> no background.</dd>
+<dt>Causa provável</dt><dd>Dois namespaces sem helper unificado; <code>chrome.d.ts</code> dá falsa confiança de tipos.</dd>
+<dt>Arquivos</dt><dd><code>entrypoints/popup/App.tsx</code> (7 usos), <code>entrypoints/background.ts</code> (31 usos <code>browser.*</code>), <code>src/lib/storage.ts</code>, <code>src/hooks/use-cross-tab-sync.ts</code></dd>
+<dt>Impacto</dt><dd>Quick-save, sync e import do navegador são as superfícies de maior risco no Firefox.</dd>
+<dt>Fix</dt><dd>Helper único (<code>browser</code>/polyfill) + smoke test no Firefox.</dd>
+<dt>Evidência</dt><dd>Split confirmado por grep; quebra em runtime precisa da run no Firefox.</dd>
+</dl>
+</div>
+
+<h2 id="altos">Altos</h2>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H1 — Botão Undo "morto" em toast antigo executa em silêncio-nulo</h3>
+<dl>
+<dt>Feature</dt><dd>Tosts pós-ação com Undo por id</dd>
+<dt>Reprodução</dt><dd>Move A (toast) → move B (silent, via Move-to) → Undo do toast A → confirmar.</dd>
+<dt>Esperado × atual</dt><dd>Cascata, botão desabilitado ou erro. Atual: <code>requestUndo(id)</code> aceita id não-topo, <code>popUndoIds</code> exige topo → 0 entradas, dismiss silencioso.</dd>
+<dt>Arquivos</dt><dd><code>src/stores/history-store.ts:80-87</code>, <code>src/lib/history.ts:245-251</code>, <code>src/components/newtab/history-manager.tsx:110-114</code></dd>
+<dt>Impacto</dt><dd>Botão morto corrói confiança; usuário acha que desfez.</dd>
+<dt>Fix</dt><dd>Id não-topo vira <code>requestUndoTo</code>; zero-match mostra toast "histórico mudou".</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H2 — Deletes de cards e mutações de Settings sem histórico (e sem invalidar redo)</h3>
+<dl>
+<dt>Feature</dt><dd>Cobertura do histórico</dd>
+<dt>Reprodução</dt><dd>Deletar card → sem Undo. Editar Settings → redo antigo continua válido e replays contra estado obsoleto.</dd>
+<dt>Arquivos</dt><dd><code>deleteCard</code> direto em <code>App.tsx</code>/bookmarks-pane; <code>updateCard/addCard</code>, Settings folder ops e <code>replaceSetup/resetAll</code> sem commit.</dd>
+<dt>Impacto</dt><dd>Perda adjacente a data-loss (delete irreversível) + redos obsoletos.</dd>
+<dt>Fix</dt><dd>Entradas para delete/rename de card + Settings, ou limpar <code>future</code> deliberadamente nas mutações sem histórico.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H3 — Undo de delete perde thumbnails (bytes já destruídos)</h3>
+<dl>
+<dt>Feature</dt><dd>Fidelidade do undo de delete</dd>
+<dt>Reprodução</dt><dd>Deletar pasta com screenshots → Undo → fallback em vez da imagem.</dd>
+<dt>Causa provável</dt><dd><code>deleteThumbnail</code> fire-and-forget fora do <code>set()</code>; undo restaura <code>thumbId</code> pendurado.</dd>
+<dt>Arquivos</dt><dd><code>src/stores/setup-store.ts:380-385</code>, <code>src/stores/image-store.ts:32-35</code></dd>
+<dt>Impacto</dt><dd>Perda irreversível de screenshots numa op anunciada como atômica.</dd>
+<dt>Fix</dt><dd>Adiar delete de bytes até evicção do histórico, ou limpar <code>thumbId</code> no restore.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H4 — Reorder de tabs fragmenta o histórico (uma entrada por hover)</h3>
+<dl>
+<dt>Feature</dt><dd>Reorder de tabs raiz</dd>
+<dt>Reprodução</dt><dd>Arrastar tab por dois vizinhos e soltar: histórico registra só o primeiro hover.</dd>
+<dt>Causa provável</dt><dd><code>liveReorder</code> commita por hover consumindo o capture singleton; drop sem capture.</dd>
+<dt>Arquivos</dt><dd><code>src/components/newtab/toolbar/folder-tabs.tsx:287-292</code>, <code>entrypoints/newtab/App.tsx:709-724</code></dd>
+<dt>Impacto</dt><dd>Undo restaura posição intermediária errada; alguns moves sem undo.</dd>
+<dt>Fix</dt><dd>Hover live-only + commit único no drop (padrão do grid).</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H5 — Cards com <code>folderId</code> fantasma somem para sempre</h3>
+<dl>
+<dt>Feature</dt><dd>Moves / backup hostil</dd>
+<dt>Reprodução</dt><dd>Backup com card em pasta inexistente → invisível na grade, presente no export.</dd>
+<dt>Causa provável</dt><dd>Moves não validam destino; <code>normalizeState</code> repara <code>parentId</code> de pastas mas nunca <code>folderId</code> de cards.</dd>
+<dt>Arquivos</dt><dd><code>src/stores/setup-store.ts:481-498</code>, <code>src/lib/storage.ts:390-406</code>, <code>src/lib/item-order.ts:158-174</code></dd>
+<dt>Impacto</dt><dd>Bookmarks presentes porém inacessíveis.</dd>
+<dt>Fix</dt><dd>Validar destino nos moves; remapear órfãos na hidratação.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H6 — Flush no unload é fire-and-forget (última escrita pode morrer)</h3>
+<dl>
+<dt>Feature</dt><dd>Persistência coalescida</dd>
+<dt>Reprodução</dt><dd>Editar e fechar a aba em &lt;200ms.</dd>
+<dt>Causa provável</dt><dd>Debounce 200ms + flush sem keepalive em <code>beforeunload</code>/<code>visibilitychange</code>.</dd>
+<dt>Arquivos</dt><dd><code>src/lib/storage.ts:627-637,695-741</code></dd>
+<dt>Impacto</dt><dd>Última alteração perdida em fechamento rápido.</dd>
+<dt>Fix</dt><dd>Flush em <code>pagehide</code>, debounce menor para commits, documentar limite MV3.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H7 — Combine com multisseleção move 2 cards e abandona o resto</h3>
+<dl>
+<dt>Feature</dt><dd>Card-center combine vs grupo</dd>
+<dt>Reprodução</dt><dd>Selecionar 3+ cards → dropar um no centro de outro.</dd>
+<dt>Esperado × atual</dt><dd>Grupo tratado em bloco ou bloqueado com aviso. Atual: 2 viram subpasta, resto fica, seleção limpa.</dd>
+<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:430-434</code>, <code>entrypoints/newtab/App.tsx:488-516</code></dd>
+<dt>Impacto</dt><dd>Move parcial silencioso.</dd>
+<dt>Fix</dt><dd>Bloquear combine com grupo &gt;1 (cue) ou definir block-combine; nunca limpar em commit parcial.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H8 — Preview drop move só cards, pastas ficam sem aviso</h3>
+<dl>
+<dt>Feature</dt><dd>Drop em preview de pasta</dd>
+<dt>Causa provável</dt><dd>Filtro <code>kind === "card"</code> no bloco vs demais sites que movem ambos os kinds.</dd>
+<dt>Arquivos</dt><dd><code>src/components/newtab/dial-grid.tsx:588-590</code> vs <code>:391-441</code></dd>
+<dt>Impacto</dt><dd>Grupo meio-movido sem feedback.</dd>
+<dt>Fix</dt><dd>Rejeitar grupo misto no preview ou suportar pastas; no mínimo avisar.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H9 — Drop estrangeiro na borda descarta a posição (append)</h3>
+<dl>
+<dt>Feature</dt><dd>Cross-container edge drop</dd>
+<dt>Reprodução</dt><dd>Arrastar da pasta A ao topo de item da pasta B → append no fim, sem marcador.</dd>
+<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:318-324,435-439</code>, <code>src/stores/setup-store.ts:596-600</code></dd>
+<dt>Impacto</dt><dd>Intenção "topo da lista" cai no fim; exige segundo drag.</dd>
+<dt>Fix</dt><dd>Insert posicionado cross-container ou cue explícito de append.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Muito provável</span></div>
+<h3>H10 — Drop persiste borda diferente da previewada</h3>
+<dl>
+<dt>Feature</dt><dd>Hover vs commit</dd>
+<dt>Reprodução</dt><dd>Pairar na fronteira 0.28/0.72 parado enquanto o tween desloca o alvo → soltar.</dd>
+<dt>Causa provável</dt><dd>Zona recalculada no drop contra rect movido + segundo <code>onLiveReorder</code>; <code>insertion</code> é só-hover.</dd>
+<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:403-447</code></dd>
+<dt>Impacto</dt><dd>Drop cai um slot fora do visto.</dd>
+<dt>Fix</dt><dd>Preferir o último stamp aplicado com ponteiro parado (padrão já usado no preview-drop).</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Muito provável</span></div>
+<h3>H11 — Autoscroll com ponteiro parado deixa hover obsoleto</h3>
+<dl>
+<dt>Feature</dt><dd>Autoscroll + hover do grid</dd>
+<dt>Reprodução</dt><dd>Estacionar no edge zone, deixar rolar linhas, soltar sem mover o mouse.</dd>
+<dt>Causa provável</dt><dd>Grid sem <code>onScroll</code> re-hit-test (marquee tem).</dd>
+<dt>Arquivos</dt><dd><code>src/hooks/use-grid-dnd.ts:160-174</code>, <code>src/lib/autoscroll.ts:66-142</code></dd>
+<dt>Impacto</dt><dd>Drops longos caem linhas longe do ponteiro.</dd>
+<dt>Fix</dt><dd><code>onScroll</code> com <code>elementFromPoint</code> + re-hover, ou pausar commit até mover.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Muito provável</span></div>
+<h3>H12 — Colisão de <code>uid()</code> em imports grandes</h3>
+<dl>
+<dt>Feature</dt><dd>Geração de ids</dd>
+<dt>Reprodução</dt><dd>Importar ~1000 entidades (entropia ~5 chars base36 + <code>Date.now</code> igual no loop).</dd>
+<dt>Arquivos</dt><dd><code>src/lib/utils.ts:9-11</code>, <code>src/lib/bookmark-merge.ts:85,119</code></dd>
+<dt>Impacto</dt><dd>Ids gêmeos com cascata (moves/deletes por id afetam ambas).</dd>
+<dt>Fix</dt><dd><code>crypto.randomUUID()</code> ou re-geração contra existentes + dedupe no normalize.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Muito provável</span></div>
+<h3>H13 — Popup captura <code>activeFolderId</code> pré-hidratação</h3>
+<dl>
+<dt>Feature</dt><dd>Quick-save do popup</dd>
+<dt>Reprodução</dt><dd>Boot frio → popup → Save antes de hidratar.</dd>
+<dt>Causa provável</dt><dd><code>useState(activeFolderId)</code> sem efeito de sync.</dd>
+<dt>Arquivos</dt><dd><code>entrypoints/popup/App.tsx:69-76,484-492</code></dd>
+<dt>Impacto</dt><dd>Bookmarks arquivados na pasta errada em silêncio.</dd>
+<dt>Fix</dt><dd>Sync via efeito (se usuário não tocou) ou derivar da store.</dd>
+</dl>
+</div>
+
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge status">Confirmado</span></div>
+<h3>H14 — Newtab ↔ background em corrida read-modify-write</h3>
+<dl>
+<dt>Feature</dt><dd>Settings vs save concorrentes</dd>
+<dt>Reprodução</dt><dd>Alternar setting e salvar via menu de contexto em &lt;200ms, ~10×.</dd>
+<dt>Causa provável</dt><dd>Blob JSON único, dois escritores, debounce 200ms; sync preserva só <code>activeFolderId</code>.</dd>
+<dt>Arquivos</dt><dd><code>src/lib/storage.ts:695-742</code>, <code>entrypoints/background.ts:481-531</code></dd>
+<dt>Impacto</dt><dd>Último escritor vence em silêncio; UI mostra valor perdido até reload.</dd>
+<dt>Fix</dt><dd>Split de chaves ou geração/retry; no mínimo rollback da UI em falha.</dd>
+</dl>
+</div>
+
+<h2 id="medios">Médios</h2>
+<table>
+<tr><th>#</th><th>Achado</th><th>Status</th><th>Local principal</th></tr>
+<tr><td>M1</td><td>Undo de rename sobrescreve o registro inteiro (reverte moves intervenientes)</td><td>Confirmado</td><td><code>history-capture.ts:108-109</code>, <code>setup-store.ts:763-767</code></td></tr>
+<tr><td>M2</td><td>Esc roubado pela confirmação (capture sem guarda) — rename/search/drag não recebem</td><td>Confirmado</td><td><code>history-manager.tsx:121-132</code></td></tr>
+<tr><td>M3</td><td>Click em Undo com rename aberto commita blur e invalida o pending</td><td>Muito provável</td><td><code>history-manager.tsx:24-43</code></td></tr>
+<tr><td>M4</td><td>Sync entre abas não invalida histórico → undo sobrescreve a outra aba</td><td>Confirmado</td><td><code>hooks/use-cross-tab-sync.ts:57-65</code></td></tr>
+<tr><td>M5</td><td>Undo/redo contra estado obsoleto ressuscita chaves mortas no <code>itemOrder</code></td><td>Confirmado</td><td><code>setup-store.ts:745-785</code></td></tr>
+<tr><td>M6</td><td>Backup "succeeds" dropando cards inválidos sem avisar (contagem diverge)</td><td>Confirmado</td><td><code>lib/backup-format.ts</code>, <code>lib/storage.ts:390-406</code></td></tr>
+<tr><td>M7</td><td>Roteamento de import por extensão (arquivo renomeado = erro enganoso)</td><td>Confirmado</td><td><code>bookmarks-pane.tsx:502</code></td></tr>
+<tr><td>M8</td><td>Reuso de pasta casa em um lado só do trim + sem normalização Unicode</td><td>Confirmado</td><td><code>lib/bookmark-merge.ts:55-58,79-82</code></td></tr>
+<tr><td>M9</td><td>Export sem teto gera backup que o import rejeita; HTML &gt;10MB sem caminho</td><td>Confirmado</td><td><code>backup-format.ts:3-5</code>, <code>services/backup.ts</code></td></tr>
+<tr><td>M10</td><td>Settings corruptos passam pelo normalize (só subset validado)</td><td>Confirmado</td><td><code>lib/storage.ts:322-382</code></td></tr>
+<tr><td>M11</td><td>Cards órfãos sobrevivem ao normalize; exports divergem (backup mantém, HTML perde)</td><td>Confirmado</td><td><code>lib/storage.ts:390-406</code></td></tr>
+<tr><td>M12</td><td>Sync duas abas = last-writer-wins com janela de clobber</td><td>Muito provável</td><td><code>hooks/use-cross-tab-sync.ts:22-69</code></td></tr>
+<tr><td>M13</td><td>Tab morta repersiste pré-reset antes do bump de geração propagar</td><td>Muito provável</td><td><code>lib/storage.ts:432-453,706-707</code></td></tr>
+<tr><td>M14</td><td>Background lê/escreve fora do protocolo de gerações/coalescência</td><td>Muito provável</td><td><code>entrypoints/background.ts:27-43</code></td></tr>
+<tr><td>M15</td><td><code>Ctrl+K</code> sem guarda rouba foco de inputs de Settings</td><td>Muito provável</td><td><code>App.tsx:775-784</code></td></tr>
+<tr><td>M16</td><td>Um Esc dispara confirm + settings-close + clear juntos</td><td>Muito provável</td><td><code>history-manager.tsx</code>, <code>settings-sidebar.tsx:203-215</code>, <code>dial-grid.tsx:310-318</code></td></tr>
+<tr><td>M17</td><td>Esc do search vaza para clear/confirm</td><td>Muito provável</td><td><code>unified-search.tsx:338-343</code></td></tr>
+<tr><td>M18</td><td>Reparo de location externa apaga Back válido em vez de podar</td><td>Confirmado</td><td><code>App.tsx:319-338</code></td></tr>
+<tr><td>M19</td><td>Pending-save do popup não-atômico orfana thumbnails em falha</td><td>Muito provável</td><td><code>entrypoints/popup/App.tsx:195-216</code></td></tr>
+<tr><td>M20</td><td><code>resetAll</code> sem histórico/seleção → undo ressuscita pré-reset</td><td>Muito provável</td><td><code>setup-store.ts:899-910</code></td></tr>
+<tr><td>M21</td><td>Falha do <code>resetAll</code> restaura tudo menos <code>itemOrder</code></td><td>Precisa de reprodução</td><td><code>setup-store.ts:911-919</code></td></tr>
+<tr><td>M22</td><td>Tab reorder por Esc não restaura (sem handler nas tabs)</td><td>Confirmado</td><td><code>folder-tabs.tsx:287-292</code></td></tr>
+</table>
+
+<h2 id="baixos">Baixos</h2>
+<table>
+<tr><th>#</th><th>Achado</th><th>Status</th><th>Local principal</th></tr>
+<tr><td>L1</td><td>Guarda de editáveis cita atributos nunca emitidos (<code>data-rename-field</code>)</td><td>Confirmado</td><td><code>lib/history.ts:204-211</code></td></tr>
+<tr><td>L2</td><td>Atalhos disparam atrás de modais abertos</td><td>Precisa de reprodução</td><td><code>history-manager.tsx:136-156</code></td></tr>
+<tr><td>L3</td><td>Commits rápidos colapsam notices (só último toast sobrevive)</td><td>Confirmado</td><td><code>history-store.ts:61-74</code></td></tr>
+<tr><td>L4</td><td>Containers vazios fantasmas no <code>itemOrder</code> após create/delete</td><td>Confirmado</td><td><code>setup-store.ts:749-753</code></td></tr>
+<tr><td>L5</td><td>Inversão de canto no <code>dropZoneFor</code> (top-right = after)</td><td>Confirmado</td><td><code>lib/dnd.ts:86-104</code></td></tr>
+<tr><td>L6</td><td>Marquee pendente: Esc é no-op, fase trava até pointerup</td><td>Precisa de reprodução</td><td><code>hooks/use-marquee-selection.ts:346-359</code></td></tr>
+<tr><td>L7</td><td>Grid com <code>windowFallback</code> contra a diretriz da lib</td><td>Precisa de reprodução</td><td><code>hooks/use-grid-dnd.ts:165</code></td></tr>
+<tr><td>L8</td><td>Tray drag colapsa se seleção for limpa mid-drag (move de 1 item)</td><td>Muito provável</td><td><code>selection-tray.tsx:267-282</code></td></tr>
+</table>
+
+<h2 id="decisoes">Decisões de produto necessárias</h2>
+<table>
+<tr><th>#</th><th>Questão</th><th>Opções</th></tr>
+<tr><td>P1</td><td>Drop estrangeiro na borda: inserir na posição ou append com aviso?</td><td>A) Insert posicionado cross-container · B) Cue explícito de fim-de-lista</td></tr>
+<tr><td>P2</td><td>Combine com grupo &gt;1: bloquear com aviso ou block-combine?</td><td>A) Bloquear + <code>dropEffect="none"</code> · B) Combinar o bloco</td></tr>
+<tr><td>P3</td><td>Thumbnails no undo de delete: adiar GC ou limpar <code>thumbId</code> no restore?</td><td>A) Tombstone até evicção · B) Strip no restore</td></tr>
+<tr><td>P4</td><td>Virtualização vs <code>content-visibility</code> paliativo a 500+?</td><td>A) Windowing real · B) <code>content-visibility:auto</code> + sem <code>layout</code></td></tr>
+<tr><td>P5</td><td>Estratégia de quota do persist (avisar/expurgar thumbs/degradar)?</td><td>A) Check pré-write + indicador persistente · B) Shard/compressão</td></tr>
+<tr><td>P6</td><td>Política canônica de URL (<code>www</code>, userinfo, case de path)?</td><td>A) Documentar atual · B) Apertar deliberadamente</td></tr>
+<tr><td>P7</td><td>Renomear "Frequently visited" (não mede visitas)?</td><td>A) "Suggestions" · B) Telemetria real</td></tr>
+</table>
+
+<h2 id="navegadores">Achados por navegador</h2>
+<h3>Firefox / Zen</h3>
+<ul>
+<li>Split <code>chrome.*</code>/<code>browser.*</code> (C4): popup, sync, bookmarks-import e badges em risco; unificar + smoke test.</li>
+<li>Sem guarda de quota no persist (~10MB <code>storage.local</code>; IDB em modo privado difere) — H14 da trilha storage.</li>
+<li><code>Ctrl+Shift+D</code> colide com "Bookmark all tabs" — remapear default (ex.: <code>Alt+Shift+D</code>).</li>
+<li>Rodar as corridas F6/F8 (delete-repair, setting-vs-save 200ms) nos dois browsers antes do sign-off.</li>
+<li>Checar manifest final dos dois targets (Gecko id, permissões, registrations por convenção WXT).</li>
+</ul>
+<h3>Chromium</h3>
+<ul>
+<li>Nenhum achado exclusivo de Chromium; todos acima reproduzem aqui (foi onde o harness Playwright validou o Import).</li>
+<li>Ressalva: favicon service do Google bloqueado por CORS fora da extensão — ruído de sandbox, não bug.</li>
+</ul>
+
+<h2 id="performance">Performance / escala</h2>
+<table>
+<tr><th>Carga</th><th>Comportamento esperado</th><th>Risco atual</th></tr>
+<tr><td>50 itens</td><td>Tudo fluido</td><td>OK; hover reorder já escreve O(n) por célula</td></tr>
+<tr><td>500 itens</td><td>Leve degradação aceitável</td><td>Sem virtualização (~5k nós + 500 IDB + 1000 favicons); preview O(F·N); busca sem debounce; select-all O(G·S)</td></tr>
+<tr><td>2.000+ itens</td><td>Usável com jank localizado</td><td>16–20k nós DOM; persist serializa tudo por flush (teto ~5MB); thumbs sem cache/teto; índice de busca rebuildado por write</td></tr>
+</table>
+<p>Hot paths confirmados no código: <code>previewCards</code> O(F·N) por qualquer mudança (<code>App.tsx:352-369</code>); <code>cardCounts</code> full scan + <code>orderedRefs</code> 2×; busca com scan+sort por tecla; <code>selectedIds.includes</code> por célula; <code>motion layout</code> por célula + por slot de preview; snapshots de histórico copiam a biblioteca por gesto (30 entradas retidas); thumbs N+1 sem cache.</p>
+
+<h2 id="ordem">Ordem de correção recomendada</h2>
+<ol>
+<li><strong>Confiança no Undo:</strong> C1 (ordem do redo) + H1 (toast morto) + H4 (tabs atômicas) — sem isso o sistema de segurança mente.</li>
+<li><strong>Cancelamento real:</strong> C3 (época de gesto no drop) + M22 (Esc nas tabs) + M2/M16 (precedência de Esc).</li>
+<li><strong>Persistência que não perde:</strong> C2 (parse com guarda) + H6 (flush) + H14 (quota) + M20/M21 (reset).</li>
+<li><strong>Firefox:</strong> C4 (namespace único) + smoke de popup/save/import + F10 (atalho).</li>
+<li><strong>Integridade de dados:</strong> H5 (órfãos) + H12 (uid) + M10/M11 (validação e prune no apply) + H3 (thumbs).</li>
+<li><strong>Cobertura do histórico:</strong> H2 (card delete, Settings) + M1 (rename delta) + M4 (sync invalida).</li>
+<li><strong>Previsibilidade do DnD:</strong> H7/H8 (combine/preview parciais) + H9 (append sem cue) + H10 (borda recalculada) + H11 (hover obsoleto).</li>
+<li><strong>Escala:</strong> virtualização/memo (F1/F2 perf) + batch do reorder + índice de previews + cache de thumbs + payload do persist.</li>
+<li><strong>Polimento:</strong> M6–M9 (import), M15–M19 (atalhos/menus), L1–L8.</li>
+<li><strong>Decisões P1–P7</strong> com o usuário antes dos itens que dependem delas.</li>
+</ol>
+
+<footer>
+<p>Auditoria gerada a partir de <code>audit/pre-release-reliability</code> (pós-merge de <code>feat-premium-product-refinement</code> + fix de Import). Metodologia diagnosing-bugs: loops de feedback usados — suite bun (43 testes), harness Playwright/Chromium real para Import e parse, diff de código ponta a ponta. Skills: <em>diagnosing-bugs</em> (primária), <em>browser-extension-builder</em> (APIs/storage/Firefox), <em>deliver-edge-cases</em> (casos-limite). Nenhum fix aplicado além do Import. Produção inalterada.</p>
+</footer>
+
+</main>
+</body>
+</html>
