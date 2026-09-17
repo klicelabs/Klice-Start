@@ -4,6 +4,8 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@klice-start/ui/components/button";
 import { GlassButton } from "@klice-start/ui/components/glass-button";
 
+import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
+
 import {
 	type FrostGlassVariant,
 	glassVariantStyles,
@@ -36,7 +38,7 @@ function DialogOverlay({
 		<DialogPrimitive.Backdrop
 			data-slot="dialog-overlay"
 			className={cn(
-				"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/30 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-sm",
+				"data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 z-50 bg-black/35 backdrop-blur-[3px] duration-150 data-closed:animate-out data-open:animate-in",
 				className,
 			)}
 			{...props}
@@ -49,14 +51,25 @@ function DialogContent({
 	children,
 	showCloseButton = true,
 	glassVariant,
+	closeGlass = false,
 	...props
 }: DialogPrimitive.Popup.Props & {
 	showCloseButton?: boolean;
 	glassVariant?: FrostGlassVariant | "classic";
+	/**
+	 * Glass hero close chip while the dialog body stays flat. Extension
+	 * dialogs pass the material mode here so the X follows Glass/Flat
+	 * without glassing the content surface.
+	 */
+	closeGlass?: boolean;
 }) {
 	const isGlass = glassVariant && glassVariant !== "classic";
 	const surfaceClasses = isGlass
-		? cn(glassVariantStyles[glassVariant], "text-white")
+		? cn(
+				glassVariantStyles[glassVariant],
+				"text-[var(--klice-glass-foreground-primary)]",
+				glassVariant === "liquid-refract" && "bg-transparent shadow-none ring-0",
+			)
 		: "bg-popover text-popover-foreground shadow-xl ring-1 ring-foreground/5 dark:ring-foreground/10";
 
 	return (
@@ -64,6 +77,9 @@ function DialogContent({
 			<DialogOverlay />
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"
+				render={
+					glassVariant === "liquid-refract" ? <LiquidGlass blur={3} /> : undefined
+				}
 				className={cn(
 					"data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-4xl p-6 text-sm outline-none duration-100 data-closed:animate-out data-open:animate-in sm:max-w-md",
 					surfaceClasses,
@@ -76,9 +92,9 @@ function DialogContent({
 					<DialogPrimitive.Close
 						data-slot="dialog-close"
 						render={
-							isGlass ? (
+							isGlass || closeGlass ? (
 								<GlassButton
-									glassVariant="liquid"
+									glassVariant={glassVariant === "liquid-refract" ? "liquid-refract" : "subtle"}
 									className="absolute top-4 right-4"
 									size="icon-sm"
 								/>

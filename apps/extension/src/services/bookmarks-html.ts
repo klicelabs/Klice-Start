@@ -10,6 +10,7 @@
  * mutations are committed in a single setState at the end to avoid
  * intermediate re-renders and read-modify-write races on the store.
  */
+import { repairItemOrder } from "../lib/item-order";
 import { canonicalUrl, faviconUrl, isAbsoluteHttpUrl } from "../lib/url";
 import { uid } from "../lib/utils";
 import { useSetupStore } from "../stores/setup-store";
@@ -61,10 +62,9 @@ export async function exportBookmarksHtml(): Promise<void> {
 	// Group folders by parent; orphaned parentId values fall back to root.
 	const childrenByParent = new Map<string | null, Folder[]>();
 	for (const folder of folders) {
+		const rawParentId = folder.parentId ?? null;
 		const parentId =
-			folder.parentId !== null && folderIds.has(folder.parentId)
-				? folder.parentId
-				: null;
+			rawParentId !== null && folderIds.has(rawParentId) ? rawParentId : null;
 		const list = childrenByParent.get(parentId);
 		if (list) list.push(folder);
 		else childrenByParent.set(parentId, [folder]);
@@ -330,7 +330,13 @@ export function mergeBookmarkTree(
 	for (const treeFolder of rootFolders) merge(treeFolder, null);
 
 	if (foldersCreated > 0 || cardsCreated > 0) {
-		useSetupStore.setState({ folders, cards });
+		// repairItemOrder appends the newly imported entities to their
+		// containers, so the unified ordering survives bulk imports.
+		useSetupStore.setState({
+			folders,
+			cards,
+			itemOrder: repairItemOrder(store.itemOrder, folders, cards),
+		});
 	}
 
 	return { foldersCreated, cardsCreated };

@@ -1,32 +1,81 @@
 /* Override shadcn/globals.css body background so BackgroundLayer (-z-10) is visible.
    Without this, bg-background (dark opaque color) covers the BackgroundLayer entirely. */
 html.dark {
-	background-color: #0a0a0c;
+	background-color: #111111;
 }
 html.dark body {
-	background: transparent;
-	min-height: 100vh;
+	background-color: transparent;
+	color: #f2f2f2;
 }
 
-/* System-blue accent (Apple HIG). Dark variant declared after :root so it
-   wins the cascade under .dark. */
+/* Semantic interaction accent. The provider swaps the selected light/dark
+   value at runtime; the legacy alias remains for older semantic surfaces. */
 :root {
-	--apple-blue: #007aff;
+	--klice-accent: #007aff;
+	--klice-accent-foreground: #ffffff;
+	--klice-accent-rgb: 0 122 255;
+	/* Liquid Glass intensity 0 (Ultra Clear) … 1 (Fully Tinted). The provider
+	   overwrites this at runtime; the default matches the calibrated middle
+	   (60) so first paint already uses the intended density. */
+	--klice-glass-intensity: 0.6;
+	/* Ambient copy sits directly on user artwork, so it never follows the
+	   Light/Dark surface palette. */
+	--foreground-on-wallpaper: #ffffff;
+	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
+	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
+	/* Liquid Glass toolbar ink. Light uses black primary ink; Dark overrides the
+	   same ladder to white primary ink below. The selectors at the bottom keep older
+	   utility-shaped consumers on this single theme-aware source. */
+	--liquid-glass-toolbar-foreground-active: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-normal: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-secondary: var(
+		--klice-glass-foreground-secondary
+	);
+	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
+	--liquid-glass-toolbar-foreground-disabled: var(
+		--klice-glass-foreground-disabled
+	);
+	--apple-blue: var(--klice-accent);
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	--motion-toolbar-duration: 180ms;
 }
 .dark {
-	--apple-blue: #0a84ff;
+	--apple-blue: var(--klice-accent);
+	--liquid-glass-toolbar-foreground-active: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-normal: var(
+		--klice-glass-foreground-primary
+	);
+	--liquid-glass-toolbar-foreground-secondary: var(
+		--klice-glass-foreground-secondary
+	);
+	--liquid-glass-toolbar-foreground-muted: var(--klice-glass-foreground-muted);
+	--liquid-glass-toolbar-foreground-disabled: var(
+		--klice-glass-foreground-disabled
+	);
 }
 
-/* Reserve scrollbar space permanently — eliminates layout shift when
-   navigating between pages with/without scroll. */
-html {
-	scrollbar-gutter: stable;
+/* The new-tab workspace owns its scroll regions. Keep the browser viewport
+   fixed so the Speed Dial's internal scroll is the only page-level scroll. */
+html,
+body,
+#root {
+	height: 100%;
+	overflow: hidden;
 }
 
 /* Switch — system blue when active, white thumb always */
 html [data-slot="switch"][data-checked] {
-	background-color: var(--apple-blue);
-	border-color: var(--apple-blue);
+	background-color: var(--klice-accent);
+	border-color: var(--klice-accent);
 }
 html [data-slot="switch"] [data-slot="switch-thumb"] {
 	background-color: #ffffff;
@@ -41,18 +90,448 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		/* Fallback height only — the grid overrides --tile-h with a value derived
 		   from --tile-w × the active aspect ratio (see DialGrid). Kept ≈1.12× so
 		   any fallback still reads slightly-taller-than-wide, Vivaldi-style. */
-		--tile-h: 179px;
+		--tile-h: 176px;
 		--grid-gap: 22px;
 		--grid-max-width: 1216px;
-		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
+		/* Interaction-safe overflow space for card grids (outlines, drop
+		   rings, shadows, small transforms). Mirrored by a negative stage
+		   margin so content alignment never shifts. */
+		--grid-safe-padding: 12px;		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
 		--card-footer-h: 30px;
-		--ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+		/* Speed Dial composition rhythm. These tokens keep the ambient hero,
+		   navigation toolbar and grid in one spacing system. */
+		--speed-dial-content-gutter: 24px;
+		--speed-dial-toolbar-gutter: 20px;
+		--speed-dial-toolbar-compact-gap: 8px;
+		/* THE shared toolbar control height: the single outer height every
+		   toolbar cluster resolves to (Back/Forward group, Tabbar shell,
+		   Settings, compact Search). The TS mirror is TOOLBAR_HEIGHT.surface
+		   in toolbar-tokens.ts — the two must stay in sync because Tailwind
+		   needs literal classes and cannot consume this var for sizing. */
+		--toolbar-control-height: 34px;
+		--speed-dial-toolbar-compact-size: var(--toolbar-control-height);
+		/* Vertical rhythm scale: tight inside an information unit, then clear
+		   steps between ambient content and functional controls. */
+		--speed-dial-space-tight: 8px;
+		--speed-dial-space-medium: clamp(28px, 3.5vh, 36px);
+		--speed-dial-space-large: clamp(42px, 5.5vh, 56px);
+		--speed-dial-space-xlarge: clamp(80px, 11vh, 112px);
+		/* Reserve balanced side lanes without starving the positioned Back slot
+		   or the compact Search anchor on narrow viewports. The 11rem cap
+		   preserves desktop geometry. */
+		--speed-dial-navigation-rail: clamp(7rem, 10vw, 11rem);
+		/* Semantic workspace layers. Keep the material surfaces stable and move
+		   whole interaction families between these boundaries. */
+		--speed-dial-layer-content: 0;
+		--speed-dial-layer-scroll-fade: 20;
+		--speed-dial-layer-navigation: 30;
+		--speed-dial-layer-app-toolbar: 60;
+		--speed-dial-layer-popover: 70;
+		--speed-dial-layer-search: 80;
+		--speed-dial-hero-top: var(--speed-dial-space-xlarge);
+		--speed-dial-hero-gap: var(--speed-dial-space-large);
+		--speed-dial-hero-bottom: var(--speed-dial-space-medium);
+		--speed-dial-toolbar-grid-gap: var(--speed-dial-space-large);
+		--speed-dial-grid-bottom: 80px;
 	}
 }
 
-/* Icon layout uses tighter spacing so icons feel closer together. */
+/* Icon layout: one measured Home Screen rhythm. Card layout stays separate. */
 .dial-grid[data-layout="icon"] {
-	--grid-gap: 10px;
+	--icon-cell-w: 104px;
+	--icon-cell-h: 124px;
+	--icon-size: 76px;
+	--icon-favicon-size: 48px;
+	--icon-column-gap: 20px;
+	--icon-row-gap: 20px;
+	--icon-label-gap: 7px;
+	--icon-folder-span: 2;
+	--icon-radius: 24px;
+	--icon-label-line-height: 14px;
+	grid-auto-rows: var(--icon-cell-h);
+}
+
+/* The grid remains centered visually, but its context owns a generous full-
+   width drop surface. This keeps one-row pages easy to target. */
+.dial-grid-wrap[data-layout="icon"] {
+	min-height: max(320px, calc(100dvh - 280px));
+	border-radius: 28px;
+	transition: background-color 180ms var(--ease-out);
+}
+
+/* Card mode owns the same broad interaction surface: marquee selection
+   and drops need empty space to start from, whatever the row count. */
+.dial-grid-wrap[data-layout="card"] {
+	min-height: max(320px, calc(100dvh - 280px));
+}
+
+.dial-grid-wrap[data-layout="icon"][data-drag-active="true"] {
+	background: rgb(var(--klice-accent-rgb) / 0.035);
+}
+
+/* Same broad drop-surface acknowledgement as icon mode: one token, one
+   feedback language in both layouts. */
+.dial-grid-wrap[data-layout="card"][data-drag-active="true"] {
+	border-radius: 28px;
+	background: rgb(var(--klice-accent-rgb) / 0.035);
+}
+
+/* Keep transform, shadow, outline and insertion feedback inside a measured
+   breathing room. The outer wrapper remains the broad drop target. */
+.dial-grid-stage-icon {
+	padding: var(--icon-safe-padding, 24px);
+}
+
+.dial-grid[data-layout="icon"] .dial-cell {
+	width: var(--icon-cell-w);
+	height: var(--icon-cell-h);
+	min-width: var(--icon-cell-w);
+	min-height: var(--icon-cell-h);
+}
+
+.dial-grid[data-layout="icon"] .dial-icon-folder-cell {
+	width: calc(
+		var(--icon-cell-w) *
+		var(--icon-folder-span) +
+		var(--icon-column-gap)
+	);
+	height: calc(
+		var(--icon-cell-h) *
+		var(--icon-folder-span) +
+		var(--icon-row-gap)
+	);
+	min-width: calc(
+		var(--icon-cell-w) *
+		var(--icon-folder-span) +
+		var(--icon-column-gap)
+	);
+	min-height: calc(
+		var(--icon-cell-h) *
+		var(--icon-folder-span) +
+		var(--icon-row-gap)
+	);
+	grid-column: span var(--icon-folder-span);
+	grid-row: span var(--icon-folder-span);
+	overflow: visible;
+}
+
+.icon-bookmark-layout {
+	gap: var(--icon-label-gap);
+	padding: 6px 2px;
+}
+
+.icon-label {
+	display: block;
+	width: 100%;
+	overflow: hidden;
+	max-width: var(--icon-cell-w);
+	font-size: 12px;
+	font-weight: 500;
+	line-height: var(--icon-label-line-height);
+	letter-spacing: -0.01em;
+	text-align: center;
+	text-shadow: 0 1px 3px rgb(0 0 0 / 0.32);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.icon-app-tile {
+	background: var(--icon-surface-light);
+	box-shadow:
+		0 12px 24px -16px rgb(4 8 18 / 0.64),
+		0 2px 5px -3px rgb(4 8 18 / 0.34);
+	transition:
+		transform 160ms var(--ease-out),
+		box-shadow 160ms var(--ease-out),
+		filter 160ms var(--ease-out);
+}
+
+.dark .icon-app-tile {
+	background: var(--icon-surface-dark);
+	box-shadow:
+		0 14px 28px -17px rgb(0 0 0 / 0.92),
+		0 2px 6px -3px rgb(0 0 0 / 0.68);
+}
+
+.icon-folder-layout {
+	gap: var(--icon-label-gap);
+	padding: 4px 0;
+}
+
+.icon-folder-tile {
+	position: relative;
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	--squircle-r: var(--icon-radius);
+	border-radius: var(--icon-radius);
+}
+
+.icon-folder-open-surface {
+	border: 0;
+	background: transparent;
+}
+
+.icon-folder-preview {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-template-rows: repeat(3, minmax(0, 1fr));
+	gap: clamp(5px, 0.8vw, 8px);
+	width: 100%;
+	height: 100%;
+	padding: clamp(12px, 1.8vw, 20px);
+	pointer-events: none;
+}
+
+.icon-folder-preview > * {
+	min-width: 0;
+	min-height: 0;
+}
+
+.icon-folder-preview-motion-cell {
+	width: 100%;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+}
+
+.icon-folder-preview-motion-cell > .icon-folder-preview-link {
+	width: 100%;
+	height: 100%;
+}
+
+.icon-folder-preview-link {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	min-height: 0;
+	pointer-events: auto;
+	border-radius: var(--icon-radius);
+}
+
+.icon-folder-preview-link:hover .icon-app-tile {
+	filter: brightness(1.04) saturate(1.06);
+	transform: translateY(-1px) scale(1.025);
+}
+
+.icon-folder-preview-link:focus-visible,
+.icon-folder-preview-stack:focus-visible {
+	outline: 2px solid var(--klice-accent);
+	outline-offset: 3px;
+}
+
+.icon-folder-preview-insert-before,
+.icon-folder-preview-insert-after,
+.icon-folder-preview-link[data-preview-insertion="before"],
+.icon-folder-preview-link[data-preview-insertion="after"] {
+	position: relative;
+}
+
+.icon-folder-preview-insert-before::before,
+.icon-folder-preview-insert-after::after,
+.icon-folder-preview-link[data-preview-insertion="before"]::before,
+.icon-folder-preview-link[data-preview-insertion="after"]::after {
+	position: absolute;
+	right: -4px;
+	left: -4px;
+	height: 2px;
+	z-index: 20;
+	border-radius: 999px;
+	background: var(--klice-accent);
+	box-shadow: 0 0 0 2px rgb(var(--klice-accent-rgb) / 0.14);
+	content: "";
+	pointer-events: none;
+}
+
+.icon-folder-preview-insert-before::before {
+	top: -4px;
+}
+
+.icon-folder-preview-link[data-preview-insertion="before"]::before {
+	top: -4px;
+}
+
+.icon-folder-preview-insert-after::after {
+	bottom: -4px;
+}
+
+.icon-folder-preview-link[data-preview-insertion="after"]::after {
+	bottom: -4px;
+}
+
+.icon-folder-preview-empty,
+.icon-folder-stack-back-empty {
+	border-radius: var(--icon-radius);
+	background: linear-gradient(
+		145deg,
+		rgb(255 255 255 / 0.56),
+		rgb(212 218 228 / 0.7)
+	);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.48);
+}
+
+.dark .icon-folder-preview-empty,
+.dark .icon-folder-stack-back-empty {
+	background: linear-gradient(
+		145deg,
+		rgb(255 255 255 / 0.13),
+		rgb(0 0 0 / 0.2)
+	);
+	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+
+.icon-folder-preview-stack {
+	--icon-stack-back-offset: 20px;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 80%;
+	height: 80%;
+	margin: auto;
+	pointer-events: auto;
+	border: 0;
+	border-radius: var(--icon-radius);
+	background: transparent;
+	cursor: default;
+}
+
+.icon-folder-preview-stack .icon-folder-stack-back-tile {
+	position: absolute;
+	top: var(--icon-stack-back-offset);
+	right: 0;
+	bottom: 0;
+	left: var(--icon-stack-back-offset);
+	z-index: 0;
+	width: auto;
+	height: auto;
+	transform: rotate(5deg);
+	opacity: 0.86;
+}
+
+.icon-folder-preview-stack .icon-folder-stack-front-tile {
+	position: relative;
+	z-index: 1;
+	width: calc(100% - var(--icon-stack-back-offset));
+	height: calc(100% - var(--icon-stack-back-offset));
+	transform: translate(-2px, -2px) rotate(-3deg);
+}
+
+.icon-folder-stack-count {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	z-index: 3;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 20px;
+	transform: translate(50%, 50%);
+	border: 1px solid rgb(0 0 0 / 0.14);
+	box-shadow: 0 3px 8px -4px rgb(0 0 0 / 0.7);
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+.dark .icon-folder-stack-count {
+	border-color: rgb(255 255 255 / 0.16);
+	box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.92);
+}
+
+.icon-folder-preview-stack:hover .icon-folder-stack-front-tile {
+	transform: translate(-2px, -3px) rotate(-3deg) scale(1.03);
+}
+
+.icon-folder-preview-stack-hover {
+	transform: translateY(-2px) scale(1.04);
+}
+
+.icon-folder-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	color: rgb(0 0 0 / 0.38);
+}
+
+.dark .icon-folder-empty {
+	color: rgb(255 255 255 / 0.46);
+}
+
+/* Icon mode feedback belongs to the visible surface, never the label cell. */
+.dial-grid[data-layout="icon"] .dial-icon-item[data-selected="true"]
+	.icon-app-tile,
+.dial-grid[data-layout="icon"]
+	.dial-icon-folder-cell[data-selected="true"]
+	.icon-folder-tile {
+	outline: 2px solid var(--klice-accent);
+	outline-offset: 4px;
+}
+
+.icon-app-tile-drop-active,
+.icon-folder-tile-drop-active {
+	outline: 2px solid var(--klice-accent);
+	outline-offset: 4px;
+	box-shadow:
+		0 0 0 7px rgb(var(--klice-accent-rgb) / 0.15),
+		0 14px 28px -17px rgb(0 0 0 / 0.7);
+}
+
+.dial-grid[data-layout="icon"] .icon-app-tile-dragging {
+	filter: saturate(0.82);
+	transform: scale(0.97);
+}
+
+.dial-grid[data-layout="icon"]
+	.dial-icon-item:not([data-dragging="true"]):hover
+	.icon-app-tile {
+	box-shadow:
+		0 16px 30px -17px rgb(4 8 18 / 0.68),
+		0 3px 8px -4px rgb(4 8 18 / 0.36);
+}
+
+.dial-grid[data-layout="icon"]
+	.dial-icon-folder-cell:not([data-dragging="true"]):hover
+	.icon-folder-tile {
+	box-shadow:
+		0 20px 36px -20px rgb(4 8 18 / 0.72),
+		0 4px 10px -5px rgb(4 8 18 / 0.38);
+}
+
+.dark .icon-app-tile-drop-active,
+.dark .icon-folder-tile-drop-active {
+	box-shadow:
+		0 0 0 7px rgb(var(--klice-accent-rgb) / 0.2),
+		0 16px 30px -17px rgb(0 0 0 / 0.9);
+}
+
+.icon-drop-insert-before,
+.icon-drop-insert-after {
+	position: relative;
+}
+
+.icon-drop-insert-before::before,
+.icon-drop-insert-after::after {
+	position: absolute;
+	right: -5px;
+	left: -5px;
+	height: 3px;
+	z-index: 20;
+	border-radius: 999px;
+	background: var(--klice-accent);
+	content: "";
+	pointer-events: none;
+}
+
+.icon-drop-insert-before::before {
+	top: -7px;
+}
+
+.icon-drop-insert-after::after {
+	bottom: -7px;
 }
 
 /* data-tile lives on the grid wrapper, NOT on :root. Only the WIDTH changes
@@ -68,90 +547,72 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* =========================================================
-   8.1 — Animações
+   8.1 — Animações (Emil Kowalski + Apple HIG)
    ========================================================= */
-@keyframes cardIn {
-	from {
-		opacity: 0;
-		transform: scale(0.92) translateY(8px);
-	}
-	to {
-		opacity: 1;
-		transform: scale(1) translateY(0);
-	}
-}
-
 .dial-card {
-	animation: cardIn 0.25s var(--ease-spring) both;
-}
-
-.dial-grid > * {
-	animation: cardIn 0.3s var(--ease-spring) both;
-}
-
-/* Card-layout cells (cards + folders + the empty "new folder" placeholder) all
-   derive their height STRICTLY from the fixed track width via a shared
-   aspect-ratio, so every tile keeps the exact same Vivaldi proportion and none
-   can stretch tall-and-narrow at the Small size. Icon layout opts out. */
-.dial-grid[data-layout="card"] .dial-cell {
-	aspect-ratio: var(--cell-aspect, 0.89);
-	display: flex;
-	flex-direction: column;
-	height: auto;
-}
-
-.dial-grid > *:nth-child(1) {
-	animation-delay: 0ms;
-}
-.dial-grid > *:nth-child(2) {
-	animation-delay: 20ms;
-}
-.dial-grid > *:nth-child(3) {
-	animation-delay: 40ms;
-}
-.dial-grid > *:nth-child(4) {
-	animation-delay: 60ms;
-}
-.dial-grid > *:nth-child(5) {
-	animation-delay: 80ms;
-}
-.dial-grid > *:nth-child(6) {
-	animation-delay: 100ms;
-}
-.dial-grid > *:nth-child(7) {
-	animation-delay: 120ms;
-}
-.dial-grid > *:nth-child(8) {
-	animation-delay: 140ms;
-}
-.dial-grid > *:nth-child(n + 9) {
-	animation-delay: 160ms;
-}
-
-/* Folder tab fade */
-.folder-tab {
 	transition:
-		color 0.15s ease,
-		background 0.15s ease;
+		transform 150ms var(--ease-out),
+		box-shadow 150ms var(--ease-out);
 }
 
-/* Scale-in for dialogs */
-@keyframes scaleIn {
+/* Card mode keeps its existing whole-card selection treatment. Icon mode uses
+   the surface-only rules above so labels stay outside the blue outline. */
+.dial-grid[data-layout="card"] .dial-card[data-selected="true"]::before {
+	position: absolute;
+	inset: 0;
+	z-index: 20;
+	border: 2px solid var(--klice-accent);
+	border-radius: inherit;
+	corner-shape: inherit;
+	content: "";
+	pointer-events: none;
+}
+
+.dial-card:active {
+	transform: scale(0.97);
+}
+
+.dial-grid-stage {
+	display: grid;
+	min-width: 0;
+}
+
+/* Card grids gain the same breathing room icon grids already own
+   (--icon-safe-padding): selection/drop outlines, shadows and small
+   transforms render inside the padding instead of clipping at the stage
+   edge. The mirrored negative margin keeps the stage's outer footprint —
+   and therefore the content's alignment with Search, clock and headings —
+   exactly where it was. Applies to every folder/subfolder page using the
+   shared grid primitive. */
+.dial-grid-stage:not(.dial-grid-stage-icon) {
+	padding: var(--grid-safe-padding);
+	margin: calc(var(--grid-safe-padding) * -1);
+}
+
+/* Contain the stage's compensating negative vertical margin: without a new
+   block formatting context it would collapse through the wrap and tug the
+   hero/composition rhythm. Outer layout behavior is unchanged. */
+.dial-grid-wrap {
+	display: flow-root;
+}
+
+/* One wake language for the first new-tab paint and Rest Mode exit. The
+   wallpaper is already present; content resolves in a short, readable order. */
+@keyframes kliceWakeClock {
 	from {
 		opacity: 0;
-		transform: scale(0.95) translateY(4px);
+		transform: translateY(8px) scale(0.985);
 	}
 	to {
 		opacity: 1;
-		transform: scale(1) translateY(0);
+		transform: translateY(0) scale(1);
 	}
 }
 
-/* Empty landing — unified stack entrance */
-@keyframes emptyLandingIn {
+@keyframes kliceWakeContent {
 	from {
 		opacity: 0;
-		transform: translateY(8px);
+		transform: translateY(10px);
 	}
 	to {
 		opacity: 1;
@@ -159,46 +620,96 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Toolbar leading (back + breadcrumb) — enter from left */
-@keyframes toolbarLeadingEnter {
-	from {
-		opacity: 0;
-		transform: translateX(-8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(0);
-	}
+.klice-wake .clock-widget {
+	animation: kliceWakeClock 360ms var(--ease-out) both;
 }
 
-/* Toolbar leading — exit to left */
-@keyframes toolbarLeadingExit {
-	from {
-		opacity: 1;
-		transform: translateX(0);
-	}
-	to {
-		opacity: 0;
-		transform: translateX(-8px);
-	}
+.klice-wake .speed-dial-search-anchor {
+	animation: kliceWakeContent 360ms 70ms var(--ease-out) both;
 }
 
-.toolbar-leading-enter {
-	animation: toolbarLeadingEnter 200ms ease-out both;
+.klice-wake .dial-grid-wrap {
+	animation: kliceWakeContent 420ms 130ms var(--ease-out) both;
 }
 
-.toolbar-leading-exit {
-	animation: toolbarLeadingExit 150ms ease-in both;
+.rest-mode-hidden {
+	visibility: hidden;
+	opacity: 0;
 	pointer-events: none;
+}
+
+.rest-mode {
+	animation: kliceWakeClock 420ms var(--ease-out) both;
+}
+
+.rest-mode-cta {
+	background: linear-gradient(
+		180deg,
+		rgb(255 255 255 / 0.2),
+		rgb(255 255 255 / 0.11)
+	);
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.3),
+		inset 0 -1px 2px rgb(0 0 0 / 0.18),
+		0 8px 24px -12px rgb(0 0 0 / 0.6);
+	transition:
+		transform 150ms var(--ease-out),
+		box-shadow 150ms var(--ease-out);
+}
+
+.rest-mode-cta:hover {
+	box-shadow:
+		inset 0 1px 0 rgb(255 255 255 / 0.38),
+		inset 0 -1px 2px rgb(0 0 0 / 0.18),
+		0 10px 28px -12px rgb(0 0 0 / 0.7);
+}
+
+.rest-mode-cta:active {
+	transform: scale(0.97);
+}
+
+/* Card-layout cells (cards + folders + placeholder) derive height from the
+   fixed track width and the DialGrid-provided card height ratio. */
+.dial-grid[data-layout="card"] .dial-cell {
+	width: var(--tile-w);
+	height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
+	min-width: var(--tile-w);
+	min-height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
+}
+
+/* Empty landing — unified stack entrance */
+@keyframes emptyLandingIn {
+	from {
+		opacity: 0;
+		transform: scale(0.96) translateY(12px);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
 }
 
 /* =========================================================
    8.2 — prefers-reduced-motion
    ========================================================= */
 @media (prefers-reduced-motion: reduce) {
-	* {
+	*,
+	::before,
+	::after {
 		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
+	}
+	.klice-wake .clock-widget,
+	.klice-wake .speed-dial-search-anchor,
+	.klice-wake .dial-grid-wrap,
+	.rest-mode {
+		animation: none;
+	}
+	.dial-card,
+	.dial-card:active,
+	.dial-grid-stage > * {
+		transform: none !important;
 	}
 }
 
@@ -208,9 +719,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 @media (max-width: 900px) {
 	:root {
 		--grid-gap: 16px;
-	}
-	.clock-time {
-		font-size: 42px !important;
+		--speed-dial-content-gutter: 20px;
+		--speed-dial-space-medium: clamp(24px, 3.5vh, 32px);
+		--speed-dial-space-large: clamp(36px, 5vh, 48px);
+		--speed-dial-space-xlarge: clamp(64px, 10vh, 88px);
 	}
 }
 
@@ -219,82 +731,509 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--grid-gap: 12px;
 		--tile-w: 132px;
 		--tile-h: 148px;
+		--speed-dial-content-gutter: 16px;
+		--speed-dial-space-medium: clamp(20px, 4vh, 28px);
+		--speed-dial-space-large: clamp(30px, 5vh, 40px);
+		--speed-dial-space-xlarge: clamp(52px, 9vh, 72px);
 	}
-	.hero {
-		padding-top: 24px !important;
-		gap: 16px !important;
+}
+
+@media (max-width: 480px) {
+	.clock-date {
+		font-size: 17px;
 	}
-	.clock-time {
-		font-size: 32px !important;
+	.clock-greeting {
+		font-size: 27px;
 	}
 }
 
 /* =========================================================
-   8.3b — Toolbar responsive (new HIG toolbar)
-   ========================================================= */
-@media (max-width: 640px) {
-	header[style*="grid-template-columns"] {
-		grid-template-columns: auto 1fr auto !important;
-		padding-left: 8px !important;
-		padding-right: 8px !important;
-	}
-}
-
-/* =========================================================
-   8.4 — Scrollbar estilizada
+   8.4 — Scrollbar estilizada (WebKit + Firefox)
    ========================================================= */
 ::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
+	width: 6px;
+	height: 6px;
 }
 ::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.14);
-	border-radius: 8px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
+	background: rgba(255, 255, 255, 0.18);
+	border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.32);
 }
 ::-webkit-scrollbar-track {
 	background: transparent;
 }
-.folder-tabs-scroll::-webkit-scrollbar {
+/* Scrollable but visually scrollbar-free. Wheel, trackpad, keyboard and touch
+   scrolling all keep working — only the bar is hidden, so this must never be
+   swapped for `overflow: hidden`. `scrollbar-width` covers Firefox and
+   Chromium 121+; the WebKit rule covers older Chromium and Safari. */
+.scrollbar-hidden {
+	scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
 	display: none;
 }
 
-.settings-sheet {
-	scrollbar-width: thin;
-	scrollbar-color: var(--border) transparent;
+/* Settings sidebar scroll region.
+   The scrollbar itself is hidden (see the `scrollbar-hidden` utility applied
+   alongside this class) so the controls keep the full padding box. Wheel,
+   trackpad, keyboard and touch scrolling all still work, and
+   `overscroll-behavior` keeps a scroll from escaping the inner frame. */
+.settings-workspace {
+	--settings-sidebar-width: clamp(320px, 29vw, 408px);
+	--workspace-gutter: 8px;
+	/* One authored moment for the complete push transition. */
+	--workspace-motion-duration: 220ms;
+	--workspace-motion-ease: var(--ease-drawer);
 }
 
-.settings-sheet::-webkit-scrollbar {
-	width: 8px;
+/* The slot owns the sidebar's structural footprint. It includes the
+   inter-panel gutter, so the closed layout has no phantom gap. The footprint
+   settles atomically; only the already-mounted panel moves below. */
+[data-settings-sidebar-slot] {
+	width: 0;
+}
+[data-settings-sidebar-slot][data-settings-layout-open="true"] {
+	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
 }
 
-.settings-sheet::-webkit-scrollbar-thumb {
-	background: var(--border);
-	border-radius: 8px;
+/* Geometry settles once at the start/end of the workspace transition. Only
+   the already-mounted, opaque Settings surface moves on the compositor path;
+   the Speed Dial never changes width on animation frames. */
+[data-settings-sidebar-slot] > [data-slot="sidebar"] {
+	transform: translate3d(100%, 0, 0);
+	transition: transform var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
+}
+[data-settings-sidebar-slot][data-settings-open="true"]
+	> [data-slot="sidebar"] {
+	transform: translate3d(0, 0, 0);
 }
 
-.settings-sheet::-webkit-scrollbar-track {
+/* Keep the frame radius discrete with the layout commit. Gecko gets its
+   calibrated fallback radius while Chromium uses the larger radius with
+   corner-shape:squircle. */
+[data-speed-dial-frame] {
+	border-radius: 0;
+}
+[data-speed-dial-frame][data-settings-open="true"] {
+	border-radius: 24px;
+}
+@supports not (corner-shape: squircle) {
+	[data-speed-dial-frame].squircle[data-settings-open="true"] {
+		border-radius: 15px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.settings-workspace,
+	[data-settings-sidebar-slot],
+	[data-speed-dial-frame],
+	[data-settings-sidebar-slot] > [data-slot="sidebar"] {
+		transition: none;
+	}
+}
+
+.settings-content-scroll {
+	overscroll-behavior: contain;
+}
+.dark .settings-content-scroll {
+	scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.settings-content-scroll::-webkit-scrollbar {
+	width: 6px;
+}
+.settings-content-scroll::-webkit-scrollbar-thumb {
+	background: rgba(15, 23, 42, 0.2);
+	border-radius: 9999px;
+}
+.dark .settings-content-scroll::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.2);
+}
+.settings-content-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(15, 23, 42, 0.34);
+}
+.dark .settings-content-scroll::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.3);
+}
+.settings-content-scroll::-webkit-scrollbar-track {
 	background: transparent;
 }
 
-/* =========================================================
-   8.5 — Focus states
-   ========================================================= */
-/* Browser-native focus indicators are normalized in packages/ui globals.css
-   via @layer base { * { outline-0 } }. Tailwind v4 component tokens handle
-   focus rings with ring-1 ring-ring/20. The search input override remains
-   unlayered to win against Tailwind utilities for its specific use case. */
-[data-search-input]:focus,
-[data-search-input]:focus-visible {
-	outline: none;
-	border-radius: 0;
+/* Speed Dial composition primitives. Keeping the vertical zones authored in
+   CSS makes the same rhythm survive a pushed/narrowed Settings workspace. */
+.speed-dial-app-toolbar {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	z-index: var(--speed-dial-layer-app-toolbar);
+	padding-inline: var(--speed-dial-toolbar-gutter);
+}
+
+/* Three-region toolbar contract:
+	  - the side tracks are stable slots with minimum rails;
+	  - the center track is the sole Tabbar measurement lane, capped at 880px;
+	  - side controls never widen that lane. */
+[data-speed-dial-navigation] {
+	display: flex;
+	align-items: center;
+	pointer-events: none;
+}
+
+[data-speed-dial-navigation] > :first-child {
+	display: grid;
+	width: 100%;
+	min-width: 0;
+	grid-template-columns:
+		minmax(var(--speed-dial-navigation-rail), 1fr)
+		minmax(0, 880px)
+		minmax(var(--speed-dial-navigation-rail), 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	align-items: center;
+}
+
+[data-speed-dial-navigation] > :first-child > :first-child {
+	display: flex;
+	grid-column: 1;
+	min-width: 0;
+	width: 100%;
+	align-items: center;
+	gap: var(--speed-dial-toolbar-compact-gap);
+	overflow: hidden;
+	pointer-events: auto;
+}
+
+[data-speed-dial-navigation] > :first-child > :first-child > span {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+[data-speed-dial-frame][data-compact-search="true"]
+	[data-speed-dial-navigation]
+	> :first-child
+	> :first-child
+	> span {
+	max-width: calc(
+		100% -
+		var(--speed-dial-toolbar-compact-size) -
+		var(--speed-dial-toolbar-compact-gap)
+	);
+}
+
+[data-speed-dial-navigation] > :first-child > :nth-child(2) {
+	grid-column: 2;
+	width: 100%;
+	max-width: 880px;
+	min-width: 0;
+	margin-inline: 0;
+	justify-self: center;
+	pointer-events: auto;
+}
+
+[data-speed-dial-navigation] > :first-child > :last-child {
+	display: flex;
+	grid-column: 3;
+	width: 100%;
+	min-width: 0;
+	align-items: center;
+	justify-content: flex-end;
+	pointer-events: auto;
+}
+
+/* Compact Search belongs to the Tabbar cluster. It is positioned from the
+   fixed-width Tabbar wrapper so it never consumes the center lane's width. */
+.toolbar-compact-search {
+	position: absolute;
+	top: 50%;
+	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
+	left: auto;
+	flex: 0 0 auto;
+	transform: translate3d(0, -50%, 0) scale(0.92);
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+	transition:
+		transform var(--motion-toolbar-duration) var(--ease-out),
+		opacity var(--motion-toolbar-duration) var(--ease-out);
+}
+
+[data-speed-dial-frame][data-compact-search="true"] .toolbar-compact-search {
+	position: absolute;
+	top: 50%;
+	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
+	left: auto;
+	transform: translate3d(0, -50%, 0) scale(1);
+	opacity: 1;
+	visibility: visible;
+	pointer-events: auto;
+	transition-delay: 0s, 0s;
+}
+
+/* Semantic Liquid Glass toolbar foreground. Flat controls keep their
+   text-flat-* classes and therefore do not enter these selectors. */
+[data-speed-dial-navigation] [class~="text-white"],
+[data-speed-dial-app-toolbar] [class~="text-white"] {
+	color: var(--liquid-glass-toolbar-foreground-active);
+}
+
+[data-speed-dial-navigation] [class~="text-white/85"],
+[data-speed-dial-navigation] [class~="text-white/90"],
+[data-speed-dial-navigation] [class~="text-white/75"],
+[data-speed-dial-navigation] [class~="text-white/70"],
+[data-speed-dial-app-toolbar] [class~="text-white/85"],
+[data-speed-dial-app-toolbar] [class~="text-white/90"],
+[data-speed-dial-app-toolbar] [class~="text-white/75"],
+[data-speed-dial-app-toolbar] [class~="text-white/70"] {
+	color: var(--liquid-glass-toolbar-foreground-normal);
+}
+
+[data-speed-dial-navigation] [class~="text-white/65"],
+[data-speed-dial-navigation] [class~="text-white/60"],
+[data-speed-dial-app-toolbar] [class~="text-white/65"],
+[data-speed-dial-app-toolbar] [class~="text-white/60"] {
+	color: var(--liquid-glass-toolbar-foreground-secondary);
+}
+
+[data-speed-dial-navigation] [class~="text-white/55"],
+[data-speed-dial-app-toolbar] [class~="text-white/55"] {
+	color: var(--liquid-glass-toolbar-foreground-muted);
+}
+
+[data-speed-dial-navigation] [class~="hover:text-white"]:hover,
+[data-speed-dial-app-toolbar] [class~="hover:text-white"]:hover {
+	color: var(--liquid-glass-toolbar-foreground-active);
+}
+
+/* Disabled ink follows the active material. This rule must ONLY match the
+   Liquid Glass toolbar: without the [data-material="liquid"] gate it also
+   matched Flat buttons (its unlayered specificity outranks every text-flat-*
+   utility), painting disabled glyphs near-white and invisible on light faces.
+   Flat buttons keep the library's own disabled treatment — dimmed strong ink.
+   The marker lives on the app-toolbar root, which owns both the navigation
+   cluster and the Settings action. */
+[data-speed-dial-app-toolbar][data-material="liquid"]
+	[data-speed-dial-navigation]
+	:is(button, [role="tab"]):is(:disabled, [aria-disabled="true"]),
+[data-speed-dial-app-toolbar][data-material="liquid"]
+	:is(button, [role="button"]):is(:disabled, [aria-disabled="true"]) {
+	color: var(--liquid-glass-toolbar-foreground-disabled);
+}
+
+@media (max-width: 640px) {
+	[data-speed-dial-navigation] {
+		padding-inline: 8px;
+	}
+
+	[data-speed-dial-app-toolbar] {
+		padding-inline: 8px;
+	}
+}
+
+.speed-dial-hero {
+	position: relative;
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--speed-dial-hero-gap);
+	padding: var(--speed-dial-hero-top) var(--speed-dial-content-gutter)
+		var(--speed-dial-hero-bottom);
+}
+/* The main Search reserves a stable slot in the hero. Its expanded surface is
+   anchored to this box and can overlap the functional content below without
+   changing the document geometry. */
+.speed-dial-search-anchor {
+	position: relative;
+	/* Closed search stays with content. Opening it promotes this whole
+	   ancestor above the toolbar so its Glass surface and results share one
+	   stacking boundary. */
+	z-index: var(--speed-dial-layer-content);
+	display: flex;
+	width: 100%;
+	height: 56px;
+	align-items: flex-start;
+	justify-content: center;
+}
+.speed-dial-search-anchor:not(:has(> [data-unified-search])) {
+	display: none;
+}
+.speed-dial-search-anchor > [data-unified-search] {
+	position: absolute;
+	top: 0;
+	right: 0;
+	left: 0;
+	width: 100%;
+	max-width: 42rem;
+	margin-inline: auto;
+}
+.speed-dial-search-anchor:has([data-search-open="true"]) {
+	z-index: var(--speed-dial-layer-search);
+}
+
+.speed-dial-grid-region {
+	/* Spacing rhythm lives on .dial-grid-wrap below, so the interaction
+	   surface (marquee selection + DnD drops) covers the full content
+	   region — side bands and rhythm space included — not just the grid. */
+	padding: 0;
+}
+
+/* The wrap is the full-bleed interaction surface: it owns the vertical
+   rhythm (previously the region's padding) so presses and drags work
+   anywhere in the blue content area. Track width/centering live on the
+   stage, so content alignment is pixel-identical. */
+.dial-grid-wrap {
+	padding-top: var(--speed-dial-toolbar-grid-gap);
+	padding-bottom: var(--speed-dial-grid-bottom);
+}
+
+/* Layer order is deliberate: wallpaper/content, this fade, navigation/app
+   toolbar, then the promoted Search surface. The scroll viewport must stay
+   non-stacking so these frame-level boundaries remain predictable.
+   NOTE: no `opacity` here on purpose. This file is unlayered, so any opacity
+   declared here would outrank Tailwind's `opacity-*` utilities (which live in
+   @layer utilities) and the scroll gate in App.tsx could never hide the fade.
+   Visibility is owned solely by those utilities. */
+.speed-dial-top-fade {
+	position: absolute;
+	inset-inline: 0;
+	top: 0;
+	z-index: var(--speed-dial-layer-scroll-fade);
+	pointer-events: none;
+	height: calc(4.5rem + max(env(safe-area-inset-top), 0.75rem));
+	/* Light Glass family: soft white atmospheric diffusion, opaque at the
+	   top so dark toolbar ink stays readable, gone below the toolbar. No
+	   radial blob — the linear alone diffuses evenly without a visible
+	   ellipse edge on dark photography. */
+	background-image: linear-gradient(
+		to bottom,
+		rgb(255 255 255 / 0.88),
+		rgb(255 255 255 / 0.55) 38%,
+		rgb(255 255 255 / 0.18) 72%,
+		transparent 100%
+	);
+}
+
+/* Dark Glass family: the same shape as soft dark atmospheric diffusion. */
+html.dark .speed-dial-top-fade {
+	background-image:
+		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
+		linear-gradient(
+			to bottom,
+			rgb(0 0 0 / 0.82),
+			rgb(0 0 0 / 0.52) 38%,
+			rgb(0 0 0 / 0.16) 72%,
+			transparent 100%
+		);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.toolbar-compact-search {
+		transition: none;
+	}
+}
+
+/* Accent-derived elevation for semantic primary actions. */
+.accent-action-shadow {
+	box-shadow: 0 6px 14px rgb(var(--klice-accent-rgb) / 0.24);
 }
 
 /* =========================================================
-   Seleção
+   8.5 — Drag-and-drop insertion indicators
+   ========================================================= */
+/* Static insertion rails (no layout shift, transform/opacity-free) marking
+   the live position while dragging. They remain neutral in Flat and inherit
+   the existing accent in Glass through the shared token. */
+.drop-insert-before {
+	position: relative;
+}
+.drop-insert-after {
+	position: relative;
+}
+.drop-insert-before::after,
+.drop-insert-after::after {
+	position: absolute;
+	right: 8px;
+	left: 8px;
+	height: 2px;
+	border-radius: 999px;
+	background: var(--flat-edge-strong);
+	content: "";
+	pointer-events: none;
+}
+.drop-insert-before::after {
+	top: -5px;
+}
+.drop-insert-after::after {
+	bottom: -5px;
+}
+
+/* Marquee (rubber-band) selection region. Wallpaper-direct geometry, not a
+   surface: translucent accent fill plus a thin accent edge, squircle
+   corners, no shadow or glow. Identical in Glass and Flat, Dark and Light.
+   Positioned `fixed` in client space and mutated per frame (never through
+   React state), so tracking stays 1:1 with the pointer by construction. */
+.marquee-box {
+	position: fixed;
+	z-index: 30;
+	margin: 0;
+	padding: 0;
+	pointer-events: none;
+	border: 1px solid var(--klice-accent);
+	border-radius: 10px;
+	background: rgb(var(--klice-accent-rgb) / 0.12);
+}
+
+/* Insertion rails fade in on zone change (opacity-only, interruptible) so
+   scrubbing an edge boundary does not strobe. Position still snaps — only
+   the rail's presence softens, and it must never lag the pointer. */
+.drop-insert-before::after,
+.drop-insert-after::after,
+.icon-drop-insert-before::before,
+.icon-drop-insert-after::after {
+	animation: drop-rail-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes drop-rail-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+/* History spring-navigation dwell progress: a thin bottom-anchored fill
+   whose 750ms linear sweep matches the traversal dwell exactly. It
+   communicates "hold here to navigate" with no scale, glow, or motion. */
+.history-spring-fill {
+	transform-origin: left center;
+	animation: history-spring-fill 750ms linear forwards;
+}
+@keyframes history-spring-fill {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.drop-insert-before::after,
+	.drop-insert-after::after,
+	.icon-drop-insert-before::before,
+	.icon-drop-insert-after::after {
+		animation-duration: 1ms;
+	}
+	.history-spring-fill {
+		animation-timing-function: steps(2, end);
+	}
+}
+
+/* =========================================================
+   Seleção — follows the accent via --selection tokens set by
+   AppearanceProvider (accent fill + accent foreground ink).
    ========================================================= */
 ::selection {
-	background: rgba(76, 142, 255, 0.4);
-	color: #fff;
+	background: var(--selection, rgba(10, 132, 255, 0.4));
+	color: var(--selection-foreground, #ffffff);
 }

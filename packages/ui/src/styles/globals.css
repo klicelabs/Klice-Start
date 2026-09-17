@@ -39,40 +39,236 @@
 	--sidebar-ring: oklch(0.705 0.015 286.067);
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.141 0.005 285.823);
+	/* Liquid Glass ink is intentionally stronger than generic foreground:
+	   primary content must read black on Light glass, white on Dark glass. */
+	--klice-glass-foreground-primary: rgb(0 0 0 / 1);
+	--klice-glass-foreground-secondary: rgb(0 0 0 / 0.72);
+	--klice-glass-foreground-muted: rgb(0 0 0 / 0.56);
+	--klice-glass-foreground-disabled: rgb(0 0 0 / 0.36);
+	--foreground-on-wallpaper: #ffffff;
+	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
+	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
+	--klice-glass-intensity: 0.6;
+	/* Liquid Glass optical defaults. The extension overrides these from the
+	   single Glass intensity recipe; package consumers still get a coherent
+	   clear/dense fallback without inventing their own blur values. */
+	--klice-glass-blur-clear: 2px;
+	--klice-glass-blur-dense: 10.4px;
+	--klice-glass-saturation-clear: 1.04;
+	--klice-glass-saturation-dense: 1.12;
+	--klice-glass-brightness-clear: 1.02;
+	--klice-glass-brightness-dense: 1;
+	--liquid-glass-rim-light: rgb(255 255 255 / 0.16);
+	--liquid-glass-rim-dark: rgb(18 18 22 / 0.1);
 }
 
 .dark {
-	--background: oklch(0.141 0.005 285.823);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.21 0.006 285.885);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.21 0.006 285.885);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.92 0.004 286.32);
-	--primary-foreground: oklch(0.21 0.006 285.885);
-	--secondary: oklch(0.32 0.006 286.033);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.274 0.006 286.033);
-	--muted-foreground: oklch(0.705 0.015 286.067);
-	--accent: oklch(0.274 0.006 286.033);
-	--accent-foreground: oklch(0.985 0 0);
+	/* Neutral graphite ladder anchored by the Flat control base (#252525). */
+	--background: #171717;
+	--foreground: #f2f2f2;
+	--klice-glass-foreground-primary: rgb(255 255 255 / 1);
+	--klice-glass-foreground-secondary: rgb(255 255 255 / 0.78);
+	--klice-glass-foreground-muted: rgb(255 255 255 / 0.6);
+	--klice-glass-foreground-disabled: rgb(255 255 255 / 0.4);
+	--foreground-on-wallpaper: #ffffff;
+	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
+	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
+	--klice-glass-blur-clear: 2px;
+	--klice-glass-blur-dense: 10.4px;
+	--klice-glass-saturation-clear: 1.12;
+	--klice-glass-saturation-dense: 1.35;
+	--klice-glass-brightness-clear: 0.92;
+	--klice-glass-brightness-dense: 0.912;
+	--liquid-glass-rim-light: rgb(255 255 255 / 0.24);
+	--liquid-glass-rim-dark: rgb(0 0 0 / 0.18);
+	--card: #252525;
+	--card-foreground: #f2f2f2;
+	--popover: #252525;
+	--popover-foreground: #f2f2f2;
+	--primary: #e1e1e1;
+	--primary-foreground: #191919;
+	--secondary: #2a2a2a;
+	--secondary-foreground: #f2f2f2;
+	--muted: #282828;
+	--muted-foreground: #9e9e9e;
+	--accent: #2c2c2c;
+	--accent-foreground: #f2f2f2;
 	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.552 0.016 285.938);
+	--border: #303030;
+	--input: #323232;
+	--ring: #858585;
 	--chart-1: oklch(0.809 0.105 251.813);
 	--chart-2: oklch(0.623 0.214 259.815);
 	--chart-3: oklch(0.546 0.245 262.881);
 	--chart-4: oklch(0.488 0.243 264.376);
 	--chart-5: oklch(0.424 0.199 265.638);
-	--sidebar: oklch(0.21 0.006 285.885);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.274 0.006 286.033);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.552 0.016 285.938);
+	--sidebar: #252525;
+	--sidebar-foreground: #f2f2f2;
+	--sidebar-primary: #e1e1e1;
+	--sidebar-primary-foreground: #191919;
+	--sidebar-accent: #2c2c2c;
+	--sidebar-accent-foreground: #f2f2f2;
+	--sidebar-border: #303030;
+	--sidebar-ring: #858585;
+}
+
+/* =========================================================
+   Flat material — the machined surface system
+   =========================================================
+   Flat mode deliberately rejects "one background + one border + one shadow".
+   Every class of control owns a related-but-distinct recipe: a whisper-subtle
+   vertical wash (light catching the face), a hairline top highlight, a
+   slightly shaded lower edge, and an elevation tuned to how far the surface
+   floats. Users should feel the depth before they consciously notice a
+   shadow.
+
+   The material edge is drawn as an inset ring inside the box-shadow stack —
+   never as a `border`. That keeps it hugging the element's own radius (plain
+   or squircle) and makes it read as part of the material rather than a drawn
+   rectangle.
+
+   Glass mode is untouched: its material still comes from the glasscn library.
+   ========================================================= */
+:root {
+	/* Control face — the wash painted across buttons, tabs, segment faces. */
+	--flat-face-top: oklch(1 0 0);
+	--flat-face-bottom: oklch(0.973 0.0015 286);
+	--flat-face-hover-top: oklch(1 0 0);
+	--flat-face-hover-bottom: oklch(0.983 0.0015 286);
+
+	/* Pressed face — the wash inverts so the control reads as recessed. */
+	--flat-face-active-top: oklch(0.951 0.002 286);
+	--flat-face-active-bottom: oklch(0.974 0.0015 286);
+
+	/* Sunken wells — segmented tracks, input fields, inset groups. */
+	--flat-sunken: oklch(0.952 0.002 286);
+	--flat-sunken-raised: oklch(0.966 0.002 286);
+
+	/* Solid (dark action) face. */
+	--flat-solid-top: oklch(0.312 0.006 285.9);
+	--flat-solid-bottom: oklch(0.209 0.006 285.9);
+	--flat-solid-hover-top: oklch(0.352 0.006 285.9);
+	--flat-solid-hover-bottom: oklch(0.244 0.006 285.9);
+	--flat-solid-ink: oklch(0.99 0 0);
+	--flat-solid-ink-shadow: 0 1px 1px oklch(0 0 0 / 0.45);
+
+	/* Large Flat surfaces — calmer than a control face at panel scale. */
+	--flat-panel-top: oklch(0.985 0.001 286);
+	--flat-panel-bottom: oklch(0.958 0.002 286);
+	--flat-panel-solid: oklch(0.958 0.002 286);
+
+	/* Inset light + shade consumed by every elevation recipe. */
+	--flat-hi: oklch(1 0 0 / 0.9);
+	--flat-lo: oklch(0.78 0.006 286 / 0.26);
+
+	/* Outer edges — close to the surface tone, never a drawn rectangle. */
+	--flat-edge: oklch(0.882 0.004 286 / 0.8);
+	--flat-edge-strong: oklch(0.845 0.004 286 / 0.85);
+
+	/* Control ink + the restrained engraved treatment for control labels. */
+	--flat-ink: oklch(0.253 0.006 285.9);
+	--flat-ink-muted: oklch(0.451 0.012 286);
+	--flat-ink-shadow: 0 1px 0 oklch(1 0 0 / 0.7);
+
+	/* Separators are a tonal groove, not a rule. */
+	--flat-separator: oklch(0.906 0.002 286);
+	--flat-separator-groove: oklch(0.946 0.002 286);
+
+	/* Elevation recipes. Each bakes in the edge ring + top highlight + lower
+	   shade so one `shadow-*` utility yields the full machined bevel. */
+	--elevation-control:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), inset 0 -1px 0 0 var(--flat-lo), 0 1px 1px -0.5px
+		oklch(0 0 0 / 0.05), 0 2px 4px -1px oklch(0 0 0 / 0.06);
+	--elevation-control-pressed:
+		inset 0 1px 2px 0 oklch(0 0 0 / 0.075), inset 0
+		0 0 1px var(--flat-edge), inset 0 -1px 0 0 var(--flat-hi), 0 1px 1px
+		-0.5px oklch(0 0 0 / 0.04);
+	--elevation-floating:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 3px 8px -2px oklch(0 0 0 / 0.1), 0 1px 3px -1px
+		oklch(0 0 0 / 0.07);
+	--elevation-menu:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 12px 32px -8px oklch(0 0 0 / 0.2), 0 3px 10px -4px
+		oklch(0 0 0 / 0.1);
+	--elevation-panel:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 20px 44px -12px oklch(0 0 0 / 0.22), 0 4px 12px -4px
+		oklch(0 0 0 / 0.1);
+	--elevation-panel-clean:
+		0 20px 44px -12px oklch(0 0 0 / 0.22), 0 4px 12px -4px oklch(0 0 0 / 0.1);
+	--elevation-dialog:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 40px 80px -20px oklch(0 0 0 / 0.32), 0 12px 28px -10px
+		oklch(0 0 0 / 0.16);
+}
+
+.dark {
+	/* Duo-like neutral graphite range: every Flat surface stays between a
+	   charcoal base and a restrained gray highlight. */
+	--flat-face-top: #282828;
+	--flat-face-bottom: #252525;
+	--flat-face-hover-top: #2c2c2c;
+	--flat-face-hover-bottom: #292929;
+
+	--flat-face-active-top: #1f1f1f;
+	--flat-face-active-bottom: #252525;
+
+	--flat-sunken: #1f1f1f;
+	--flat-sunken-raised: #2b2b2b;
+
+	/* Prominent actions stay in the same neutral family as #252525. */
+	--flat-solid-top: #282828;
+	--flat-solid-bottom: #252525;
+	--flat-solid-hover-top: #2c2c2c;
+	--flat-solid-hover-bottom: #292929;
+	--flat-solid-ink: #f0f0f0;
+	--flat-solid-ink-shadow: 0 1px 1px oklch(0 0 0 / 0.45);
+
+	--flat-hi: #343434;
+	--flat-lo: #1b1b1b;
+
+	--flat-edge: #2d2d2d;
+	--flat-edge-strong: #353535;
+
+	--flat-ink: #f0f0f0;
+	--flat-ink-muted: #a1a1a1;
+	--flat-ink-shadow: 0 1px 1px oklch(0 0 0 / 0.45);
+
+	--flat-separator: #2d2d2d;
+	--flat-separator-groove: #202020;
+
+	--flat-panel-top: #282828;
+	--flat-panel-bottom: #252525;
+	--flat-panel-solid: #252525;
+
+	--elevation-control:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), inset 0 -1px 0 0 var(--flat-lo), 0 1px 1px -0.5px
+		oklch(0 0 0 / 0.35), 0 2px 5px -1px oklch(0 0 0 / 0.4);
+	--elevation-control-pressed:
+		inset 0 1px 2px 0 oklch(0 0 0 / 0.5), inset 0 0 0
+		1px var(--flat-edge), inset 0 -1px 0 0 var(--flat-hi), 0 1px 1px -0.5px
+		oklch(0 0 0 / 0.3);
+	--elevation-floating:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 4px 12px -3px oklch(0 0 0 / 0.55), 0 1px 3px -1px
+		oklch(0 0 0 / 0.4);
+	--elevation-menu:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 16px 40px -10px oklch(0 0 0 / 0.7), 0 4px 12px -4px
+		oklch(0 0 0 / 0.45);
+	--elevation-panel:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 24px 56px -14px oklch(0 0 0 / 0.72), 0 6px 16px -6px
+		oklch(0 0 0 / 0.45);
+	--elevation-panel-clean:
+		0 24px 56px -14px oklch(0 0 0 / 0.72), 0 6px 16px -6px oklch(0 0 0 / 0.45);
+	--elevation-dialog:
+		inset 0 1px 0 0 var(--flat-hi), inset 0 0 0 1px
+		var(--flat-edge), 0 48px 96px -24px oklch(0 0 0 / 0.8), 0 14px 32px -12px
+		oklch(0 0 0 / 0.5);
 }
 
 @theme inline {
@@ -110,6 +306,9 @@
 	--color-card-foreground: var(--card-foreground);
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
+	--color-foreground-on-wallpaper: var(--foreground-on-wallpaper);
+	--color-foreground-on-wallpaper-muted: var(--foreground-on-wallpaper-muted);
+	--color-foreground-on-wallpaper-subtle: var(--foreground-on-wallpaper-subtle);
 	--color-background: var(--background);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
@@ -119,6 +318,32 @@
 	--radius-3xl: calc(var(--radius) + 12px);
 	--radius-4xl: calc(var(--radius) + 16px);
 	--font-heading: var(--font-sans);
+
+	/* Flat material — semantic elevation recipes (never inline shadow strings). */
+	--shadow-control: var(--elevation-control);
+	--shadow-control-pressed: var(--elevation-control-pressed);
+	--shadow-floating: var(--elevation-floating);
+	--shadow-menu: var(--elevation-menu);
+	--shadow-panel: var(--elevation-panel);
+	--shadow-panel-clean: var(--elevation-panel-clean);
+	--shadow-dialog: var(--elevation-dialog);
+
+	/* Flat material — semantic surface + ink colours. */
+	--color-flat-sunken: var(--flat-sunken);
+	--color-flat-sunken-raised: var(--flat-sunken-raised);
+	--color-flat-face-hover: var(--flat-face-hover-bottom);
+	--color-flat-edge: var(--flat-edge);
+	--color-flat-edge-strong: var(--flat-edge-strong);
+	--color-flat-ink: var(--flat-ink);
+	--color-flat-ink-muted: var(--flat-ink-muted);
+	--color-separator: var(--flat-separator);
+	--color-separator-groove: var(--flat-separator-groove);
+
+	/* Motion vocabulary — mirrors packages/ui/src/lib/motion.ts. */
+	--ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+	--ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+	--ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @layer base {
@@ -133,17 +358,210 @@
 	}
 }
 
+/* =========================================================
+   Flat material faces
+   =========================================================
+   The shared vocabulary every Flat-mode surface composes with. Components
+   pair one of these with a semantic `shadow-*` recipe; nothing hand-rolls a
+   gradient, an edge or a shadow string. */
+
+/* Standard control face — buttons, tabs, toolbar pills. Owns its own
+   hover/active wash so a control never needs a second background utility. */
+@utility face-control {
+	background-color: var(--flat-face-bottom);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-face-top),
+		var(--flat-face-bottom)
+	);
+
+	&:hover:not(:disabled):not([aria-disabled="true"]) {
+		background-image: linear-gradient(
+			to bottom,
+			var(--flat-face-hover-top),
+			var(--flat-face-hover-bottom)
+		);
+	}
+	&:active:not(:disabled) {
+		background-image: linear-gradient(
+			to bottom,
+			var(--flat-face-active-top),
+			var(--flat-face-active-bottom)
+		);
+	}
+}
+
+/* Segment container — the coherent outer surface of a segmented control.
+   Deliberately inert: the selected segment owns hover and press. */
+@utility face-segment {
+	background-color: var(--flat-sunken-raised);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-sunken-raised),
+		var(--flat-sunken)
+	);
+}
+
+/* Selected segment — rises out of its track. */
+@utility face-segment-selected {
+	background-color: var(--flat-face-bottom);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-face-top),
+		var(--flat-face-bottom)
+	);
+}
+
+/* Sunken well — inputs, slider tracks, inset groups. */
+@utility face-sunken {
+	background-color: var(--flat-sunken);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-sunken),
+		var(--flat-sunken-raised)
+	);
+}
+
+/* Solid action face — the premium dark button. */
+@utility face-solid {
+	background-color: var(--flat-solid-bottom);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-solid-top),
+		var(--flat-solid-bottom)
+	);
+	color: var(--flat-solid-ink);
+
+	&:hover:not(:disabled) {
+		background-image: linear-gradient(
+			to bottom,
+			var(--flat-solid-hover-top),
+			var(--flat-solid-hover-bottom)
+		);
+	}
+}
+
+/* Slider thumb face — a light knob that reads as machined plastic in both
+   themes, matching how physical controls behave. */
+@utility face-thumb {
+	background-color: oklch(1 0 0);
+	background-image: linear-gradient(
+		to bottom,
+		oklch(1 0 0),
+		oklch(0.953 0.002 286)
+	);
+}
+
+/* Large opaque surfaces — menus, panels, dialogs. */
+@utility face-panel {
+	background-color: var(--flat-panel-bottom);
+	background-image: linear-gradient(
+		to bottom,
+		var(--flat-panel-top),
+		var(--flat-panel-bottom)
+	);
+}
+
+/* Settings and other intentionally calm large surfaces: solid neutral fill,
+   with depth supplied only by their external elevation recipe. */
+@utility face-panel-solid {
+	background-color: var(--flat-panel-solid);
+}
+
+/* Settings groups are calm elevated surfaces, not large control faces. Keep
+   the fill solid so the panel reads as a deliberate neutral hierarchy. */
+@utility face-settings-card {
+	background-color: var(--flat-sunken-raised);
+}
+
+/* Separator groove — a tonal recess with a 1px lighter companion, never a
+   bright rule. Horizontal by default; `groove-v` for vertical separators. */
+@utility groove {
+	background-color: var(--flat-separator);
+	box-shadow: 0 1px 0 0 var(--flat-separator-groove);
+}
+@utility groove-v {
+	background-color: var(--flat-separator);
+	box-shadow: 1px 0 0 0 var(--flat-separator-groove);
+}
+
+/* Engraved control label — only for control ink, never body copy. */
+@utility ink-engraved {
+	text-shadow: var(--flat-ink-shadow);
+}
+
+/* One radius for every toolbar surface AND for the outer ends of the segments
+   inside a grouped control. Sharing the token is what stops a group from
+   reading as "a capsule wrapped around a square-er inner end": the surface and
+   its first/last segment resolve to the same geometry instead of two shapes
+   that only nearly agree. */
+:root {
+	--klice-toolbar-radius: 9999px;
+}
+
+/* `corner-shape` is not an inherited property, so `rounded-[inherit]` alone
+   copies the radius without the shape. Any decorative layer that traces a
+   surface's outline (the LiquidGlass rim hairline) must opt in explicitly —
+   otherwise it draws a circular arc on top of a squircle surface and the
+   control appears to have two different outlines. */
+.klice-corner-inherit {
+	corner-shape: inherit;
+}
+
 /* Squircle corners. `corner-shape: squircle` only renders in engines that
-   support it; the @supports fallback swaps in a plain border-radius elsewhere
-   (Gecko). Each element sets --squircle-r calibrated to ~60–65% of its Chrome
-   rounded-* radius so both renderings read as the same visual roundness
-   (rounded-2xl 16px → 10px, rounded-3xl 24px → 15px, rounded-[3rem] 48px → 28px).
-   Unlayered on purpose: it must beat Tailwind's layered rounded-* utilities. */
+   support it; the @supports fallback swaps in a calibrated border-radius for
+   Gecko/Zen. Both names remain available while feature code migrates to the
+   semantic Klice name. Unlayered on purpose: it beats Tailwind rounded-*.
+ */
+.klice-squircle,
 .squircle {
 	corner-shape: squircle;
 }
 @supports not (corner-shape: squircle) {
+	.klice-squircle,
 	.squircle {
 		border-radius: var(--squircle-r, 12px);
 	}
+}
+
+/* Toolbar pill. Every toolbar, tab, and standalone toolbar control is a true
+   capsule (fully rounded), never squircle. Unlayered on purpose and declared
+   AFTER .klice-squircle so it wins ties: LiquidGlass defaults inject
+   .klice-squircle, and this resets the corner geometry back to round while
+   keeping the capsule radius in engines with and without corner-shape support.
+
+   .klice-toolbar-group resolves to exactly the same geometry — the outer shell
+   of a grouped control IS a toolbar pill. Declaring them together removes the
+   ordering hazard that existed while they disagreed (18px squircle vs 20px
+   squircle vs capsule on one element, decided only by stylesheet order).
+ */
+.klice-toolbar-pill,
+.klice-toolbar-group {
+	border-radius: var(--klice-toolbar-radius);
+	corner-shape: round;
+}
+
+/* Grouped-control segment contract.
+
+   ButtonGroup squares the seam, but it gave the LAST segment a fixed
+   `rounded-r-lg` while the shared Button base drives the FIRST segment from
+   `rounded-4xl`. On a 42px control those are nowhere near each other (10px vs
+   a half-circle), so the group's two ends had different curvature and the
+   right segment's hover read as a square block sitting inside a capsule.
+
+   The group's own radius is the single source of truth: the outer corners of
+   the first and last segment inherit it. Unlayered, and declared after
+   Tailwind's utilities, so it resolves the geometry ButtonGroup asks for in
+   every engine — Chromium and Gecko alike.
+ */
+.klice-button-group > [data-slot="button"] {
+	border-radius: 0;
+}
+.klice-button-group > [data-slot="button"]:first-child {
+	border-top-left-radius: inherit;
+	border-bottom-left-radius: inherit;
+}
+.klice-button-group > [data-slot="button"]:last-child {
+	border-top-right-radius: inherit;
+	border-bottom-right-radius: inherit;
 }

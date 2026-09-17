@@ -1,11 +1,49 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_BACKGROUND, GRADIENTS, WALLPAPERS } from "../../lib/constants";
-import { cssUrl } from "../../lib/utils";
+import { cn, cssUrl } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 
-export function BackgroundLayer() {
+function getInitialBackgroundCss(): string {
+	try {
+		const bg = useSetupStore.getState().settings.background;
+		if (bg.type === "wallpaper" && bg.wallpaperId) {
+			const wallpaper = WALLPAPERS.find((w) => w.id === bg.wallpaperId);
+			if (wallpaper) return `${cssUrl(wallpaper.src)} center / cover no-repeat`;
+		}
+		if (bg.type === "gradient" && bg.gradientId) {
+			const g = GRADIENTS.find((x) => x.id === bg.gradientId);
+			if (g) return g.css;
+		}
+		if (bg.type === "solid" && bg.color) {
+			return bg.color;
+		}
+	} catch {
+		// Store not ready or in SSR/test
+	}
+	return DEFAULT_BACKGROUND.color;
+}
+
+/** Pre-decode an image off the main thread before setting it as CSS background. */
+async function preDecodeImage(src: string): Promise<boolean> {
+	try {
+		const img = new Image();
+		img.src = src;
+		if (img.decode) {
+			await img.decode();
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+export function BackgroundLayer({
+	contained = false,
+}: {
+	contained?: boolean;
+}) {
 	const type = useSetupStore((s) => s.settings.background.type);
 	const imageId = useSetupStore((s) => s.settings.background.imageId);
 	const wallpaperId = useSetupStore((s) => s.settings.background.wallpaperId);
@@ -14,60 +52,85 @@ export function BackgroundLayer() {
 	const pexelsImageId = useSetupStore(
 		(s) => s.settings.background.pexelsImageId,
 	);
-	const pexelsQuery = useSetupStore(
-		(s) => s.settings.background.pexelsQuery,
-	);
+	const pexelsQuery = useSetupStore((s) => s.settings.background.pexelsQuery);
 	const pexelsFrequency = useSetupStore(
 		(s) => s.settings.background.pexelsFrequency,
 	);
+	const previewBackgroundImage = useImageStore((s) => s.previewBackgroundImage);
 
 	const blur = useSetupStore((s) => s.settings.background.blur);
 	const brightness = useSetupStore((s) => s.settings.background.brightness);
 	const opacity = useSetupStore((s) => s.settings.background.opacity);
 
 	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
-	const [bgCss, setBgCss] = useState<string>(color || DEFAULT_BACKGROUND.color);
+	const [bgCss, setBgCss] = useState<string>(getInitialBackgroundCss);
 
 	const lastFetchedKeyRef = useRef<string>("");
 	const generationRef = useRef(0);
 
-	async function resolveImage(imageId: string): Promise<string | null> {
-		try {
-			const dataUrl = await getBackgroundImage(imageId);
-			if (dataUrl) return `${cssUrl(dataUrl)} center / cover no-repeat`;
-		} catch {
-			// fall through
-		}
-		return null;
-	}
+	const resolveImage = useCallback(
+		async (imgId: string): Promise<string | null> => {
+			try {
+				const dataUrl = await getBackgroundImage(imgId);
+				if (dataUrl) {
+					await preDecodeImage(dataUrl);
+					return `${cssUrl(dataUrl)} center / cover no-repeat`;
+				}
+			} catch {
+				// fall through
+			}
+			return null;
+		},
+		[getBackgroundImage],
+	);
 
-	function resolvePackagedWallpaper(wallpaperId: string): string | null {
-		const wallpaper = WALLPAPERS.find((item) => item.id === wallpaperId);
-		return wallpaper
-			? `${cssUrl(wallpaper.src)} center / cover no-repeat`
-			: null;
-	}
+	const resolvePackagedWallpaper = useCallback(
+		(wpId: string): string | null => {
+			const wallpaper = WALLPAPERS.find((item) => item.id === wpId);
+			return wallpaper
+				? `${cssUrl(wallpaper.src)} center / cover no-repeat`
+				: null;
+		},
+		[],
+	);
 
-	async function applyImage(
-		imageId: string,
-		isCurrent: () => boolean,
-		fallback: string,
-	) {
-		const css = await resolveImage(imageId);
-		if (!isCurrent()) return;
-		setBgCss(css || fallback);
-	}
+	const applyImage = useCallback(
+		async (imgId: string, isCurrent: () => boolean, fallback: string) => {
+			const css = await resolveImage(imgId);
+			if (!isCurrent()) return;
+			setBgCss(css || fallback);
+		},
+		[resolveImage],
+	);
+
+	const resolvePreview = useCallback(
+		async (dataUrl: string): Promise<string | null> => {
+			try {
+				if (!(await preDecodeImage(dataUrl))) return null;
+				return `${cssUrl(dataUrl)} center / cover no-repeat`;
+			} catch {
+				return null;
+			}
+		},
+		[],
+	);
 
 	useEffect(() => {
 		const generation = ++generationRef.current;
 		let cancelled = false;
-		const isCurrent = () =>
-			!cancelled && generationRef.current === generation;
+		const isCurrent = () => !cancelled && generationRef.current === generation;
 		const fallback = color || DEFAULT_BACKGROUND.color;
 
 		(async () => {
+			if (previewBackgroundImage) {
+				lastFetchedKeyRef.current = "";
+				const css = await resolvePreview(previewBackgroundImage);
+				if (!isCurrent()) return;
+				setBgCss(css || fallback);
+				return;
+			}
+
 			if (type === "pexels") {
-				setBgCss(fallback);
 				let loadedFromCache = false;
 				if (pexelsImageId) {
 					const css = await resolveImage(pexelsImageId);
@@ -76,6 +139,10 @@ export function BackgroundLayer() {
 						setBgCss(css);
 						loadedFromCache = true;
 					}
+				}
+
+				if (!loadedFromCache && isCurrent()) {
+					setBgCss(fallback);
 				}
 
 				// If pexelsImageId exists but failed to resolve from IDB, force refresh to recover cache
@@ -98,16 +165,19 @@ export function BackgroundLayer() {
 
 			if (type === "image" && imageId) {
 				lastFetchedKeyRef.current = "";
-				setBgCss(fallback);
 				await applyImage(imageId, isCurrent, fallback);
 				return;
 			}
 
 			if (type === "wallpaper" && wallpaperId) {
 				lastFetchedKeyRef.current = "";
-				setBgCss(fallback);
+				const wallpaper = WALLPAPERS.find((w) => w.id === wallpaperId);
+				if (wallpaper) {
+					await preDecodeImage(wallpaper.src);
+				}
+				if (!isCurrent()) return;
 				const css = resolvePackagedWallpaper(wallpaperId);
-				if (isCurrent()) setBgCss(css || fallback);
+				setBgCss(css || fallback);
 				return;
 			}
 
@@ -125,7 +195,6 @@ export function BackgroundLayer() {
 		return () => {
 			cancelled = true;
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [
 		type,
 		pexelsImageId,
@@ -135,12 +204,20 @@ export function BackgroundLayer() {
 		wallpaperId,
 		gradientId,
 		color,
+		previewBackgroundImage,
+		applyImage,
+		resolveImage,
+		resolvePackagedWallpaper,
+		resolvePreview,
 	]);
 
 	return (
 		<div
 			id="bg-layer"
-			className="fixed inset-0 -z-10"
+			className={cn(
+				contained ? "absolute z-0" : "fixed -z-10",
+				"inset-0 transition-[filter,opacity] duration-200 ease-out",
+			)}
 			style={{
 				background: bgCss,
 				filter: `blur(${blur || 0}px) brightness(${brightness || 100}%)`,

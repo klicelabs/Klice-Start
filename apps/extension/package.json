@@ -1,38 +1,41 @@
 {
-  "name": "klice-start",
-  "version": "0.0.0",
-  "private": true,
-  "description": "A personal browser dashboard for your new tab.",
-  "type": "module",
-  "scripts": {
-    "dev": "wxt --port 5555",
-    "dev:firefox": "wxt -b firefox",
-    "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
-    "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox",
-    "compile": "tsc --noEmit",
-    "postinstall": "wxt prepare"
-  },
-  "dependencies": {
-    "@base-ui/react": "^1.6.0",
-    "@klice-start/ui": "workspace:*",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "catalog:",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "tailwind-merge": "^3.6.0",
-    "zustand": "^5.0.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.2",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@wxt-dev/module-react": "^1.1.5",
-    "postcss": "^8.5.19",
-    "tailwindcss": "^4.3.2",
-    "typescript": "^5.9.3",
-    "wxt": "^0.20.27"
-  }
+	"name": "klice-start",
+	"version": "0.0.0",
+	"private": true,
+	"description": "A personal browser dashboard for your new tab.",
+	"type": "module",
+	"scripts": {
+		"dev": "wxt --port 5555",
+		"dev:firefox": "wxt -b firefox",
+		"build": "wxt build",
+		"build:firefox": "wxt build -b firefox",
+		"zip": "wxt zip",
+		"zip:firefox": "wxt zip -b firefox",
+		"compile": "tsc --noEmit",
+		"postinstall": "wxt prepare"
+	},
+	"dependencies": {
+		"@base-ui/react": "^1.6.0",
+		"@klice-start/ui": "workspace:*",
+		"class-variance-authority": "^0.7.1",
+		"clsx": "^2.1.1",
+		"lucide-react": "catalog:",
+		"motion": "^13.2.0",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"sonner": "catalog:",
+		"tailwind-merge": "^3.6.0",
+		"zustand": "^5.0.0"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4.3.2",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@wxt-dev/module-react": "^1.1.5",
+		"linkedom": "^0.18.13",
+		"postcss": "^8.5.19",
+		"tailwindcss": "^4.3.2",
+		"typescript": "^5.9.3",
+		"wxt": "^0.20.27"
+	}
 }

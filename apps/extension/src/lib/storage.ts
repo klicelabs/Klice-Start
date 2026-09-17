@@ -1,7 +1,10 @@
 import type { PersistStorage, StorageValue } from "zustand/middleware";
 import type {
+	AccentColor,
+	AppearanceMode,
 	BackgroundSettings,
 	Card,
+	ColorScheme,
 	CustomWallpaper,
 	Folder,
 	Setup,
@@ -9,6 +12,8 @@ import type {
 } from "../types";
 import { DEFAULT_SETUP, WALLPAPERS } from "./constants";
 import { getDescendantIds } from "./folder-tree";
+import { idbDelete, STORE_BG } from "./idb";
+import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
 
 /**
@@ -46,6 +51,13 @@ function normalizeFolders(rawFolders: Folder[]): Folder[] {
 const VALID_WALLPAPER_IDS = new Set(
 	WALLPAPERS.map((wallpaper) => wallpaper.id),
 );
+const VALID_ACCENT_COLORS: readonly AccentColor[] = [
+	"blue",
+	"yellow",
+	"green",
+	"purple",
+	"pink",
+];
 const VALID_FREQUENCIES: readonly WallpaperFrequency[] = [
 	"per-tab",
 	"hourly",
@@ -81,19 +93,136 @@ function normalizeId(value: unknown): string | null {
 	return id.length > 0 ? id : null;
 }
 
+function normalizeAppearanceMode(
+	value: unknown,
+	fallback: AppearanceMode,
+): AppearanceMode {
+	if (value === "liquid") return "liquid";
+	if (value === "classic" || value === "flat") return "classic";
+	return fallback;
+}
+
+function normalizeColorScheme(
+	value: unknown,
+	fallback: ColorScheme,
+): ColorScheme {
+	if (value === "auto" || value === "light" || value === "dark") {
+		return value;
+	}
+	return fallback;
+}
+
+function normalizeAccentColor(
+	value: unknown,
+	fallback: AccentColor,
+): AccentColor {
+	return typeof value === "string" &&
+		(VALID_ACCENT_COLORS as readonly string[]).includes(value)
+		? (value as AccentColor)
+		: fallback;
+}
+
+/** Clamp the Glass intensity slider to its 0…100 contract. */
+function normalizeGlassIntensity(value: unknown, fallback: number): number {
+	if (!isFiniteNumber(value)) return fallback;
+	return Math.min(100, Math.max(0, Math.round(value)));
+}
+
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
 	if (!Array.isArray(raw)) return [];
 	const seen = new Set<string>();
 	const normalized: CustomWallpaper[] = [];
 	for (const entry of raw) {
-		if (!isRecord(entry)) continue;
-		const id = normalizeId(entry.id);
-		const name = normalizeId(entry.name);
-		if (!id || !name || seen.has(id)) continue;
-		seen.add(id);
-		normalized.push({ id, name });
+		const wallpaper = normalizeCustomWallpaperEntry(entry);
+		if (!wallpaper || seen.has(wallpaper.id)) continue;
+		seen.add(wallpaper.id);
+		normalized.push(wallpaper);
 	}
 	return normalized;
+}
+
+function normalizeCustomWallpaperEntry(raw: unknown): CustomWallpaper | null {
+	if (!isRecord(raw)) return null;
+	const id = normalizeId(raw.id);
+	const name = normalizeId(raw.name);
+	return id && name ? { id, name } : null;
+}
+
+/**
+ * Read the new single-slot shape while keeping older array-based installs
+ * usable. The active legacy image wins when possible; otherwise the newest
+ * valid array entry becomes the slot.
+ */
+function normalizeCustomWallpaper(
+	raw: Record<string, unknown>,
+	activeImageId: string | null,
+): CustomWallpaper | null {
+	const hasSingleSlot = Object.hasOwn(raw, "customWallpaper");
+	const single = normalizeCustomWallpaperEntry(raw.customWallpaper);
+	if (single) return single;
+	if (hasSingleSlot && raw.customWallpaper === null) return null;
+
+	const legacy = normalizeCustomWallpapers(raw.customWallpapers);
+	return (
+		legacy.find((wallpaper) => wallpaper.id === activeImageId) ??
+		legacy.at(-1) ??
+		null
+	);
+}
+
+export interface CustomWallpaperMigration {
+	legacyIds: string[];
+	retainedId: string | null;
+}
+
+function getRawBackground(rawState: unknown): Record<string, unknown> | null {
+	if (!isRecord(rawState) || !isRecord(rawState.settings)) return null;
+	const background = rawState.settings.background;
+	return isRecord(background) ? background : null;
+}
+
+/** Describe legacy custom image keys so hydration/import can remove leftovers. */
+export function getCustomWallpaperMigration(
+	rawState: unknown,
+): CustomWallpaperMigration {
+	const raw = getRawBackground(rawState);
+	if (!raw) return { legacyIds: [], retainedId: null };
+
+	const legacy = normalizeCustomWallpapers(raw.customWallpapers);
+	const single = normalizeCustomWallpaperEntry(raw.customWallpaper);
+	const activeImageId = normalizeId(raw.imageId);
+	const retained = Object.hasOwn(raw, "customWallpaper")
+		? single
+		: (legacy.find((wallpaper) => wallpaper.id === activeImageId) ??
+			legacy.at(-1) ??
+			null);
+
+	return {
+		legacyIds: legacy.map((wallpaper) => wallpaper.id),
+		retainedId: retained?.id ?? null,
+	};
+}
+
+/**
+ * Remove image blobs that belonged to the old custom-wallpaper array. The
+ * retained slot is never touched, and cleanup is best-effort so a storage
+ * hiccup cannot prevent the user's settings from hydrating or importing.
+ */
+export async function cleanupLegacyCustomWallpaperImages(
+	rawState: unknown,
+): Promise<void> {
+	const { legacyIds, retainedId } = getCustomWallpaperMigration(rawState);
+	await Promise.all(
+		legacyIds
+			.filter((id) => id !== retainedId)
+			.map(async (id) => {
+				try {
+					await idbDelete(STORE_BG, id);
+				} catch {
+					// Cleanup is intentionally non-blocking; the normalized state is safe.
+				}
+			}),
+	);
 }
 
 function normalizeBackground(
@@ -121,6 +250,12 @@ function normalizeBackground(
 			: type;
 	const incompleteImage = normalizedType === "image" && !imageId;
 	const effectiveType = incompleteImage ? defaults.type : normalizedType;
+	const customWallpaper = normalizeCustomWallpaper(raw, imageId);
+	const effectiveCustomWallpaper =
+		customWallpaper ??
+		(effectiveType === "image" && imageId
+			? { id: imageId, name: "Uploaded wallpaper" }
+			: null);
 	const normalizedWallpaperId =
 		rawType === "wallpaper" &&
 		effectiveType === "wallpaper" &&
@@ -156,9 +291,12 @@ function normalizeBackground(
 		type: effectiveType,
 		color: typeof raw.color === "string" ? raw.color : defaults.color,
 		gradientId: normalizeId(raw.gradientId),
-		imageId: effectiveType === "image" ? imageId : null,
+		imageId:
+			effectiveType === "image"
+				? (effectiveCustomWallpaper?.id ?? imageId)
+				: null,
 		wallpaperId: normalizedWallpaperId,
-		customWallpapers: normalizeCustomWallpapers(raw.customWallpapers),
+		customWallpaper: effectiveCustomWallpaper,
 		blur: finiteOrDefault(raw.blur, defaults.blur, 0, 20),
 		brightness: finiteOrDefault(raw.brightness, defaults.brightness, 40, 140),
 		opacity: finiteOrDefault(raw.opacity, defaults.opacity, 20, 100),
@@ -204,6 +342,22 @@ export function normalizeState(
 		settings: {
 			...defaults.settings,
 			...sourceSettings,
+			appearanceMode: normalizeAppearanceMode(
+				sourceSettings?.appearanceMode,
+				defaults.settings.appearanceMode,
+			),
+			colorScheme: normalizeColorScheme(
+				sourceSettings?.colorScheme,
+				defaults.settings.colorScheme,
+			),
+			accentColor: normalizeAccentColor(
+				sourceSettings?.accentColor,
+				defaults.settings.accentColor,
+			),
+			glassIntensity: normalizeGlassIntensity(
+				sourceSettings?.glassIntensity,
+				defaults.settings.glassIntensity,
+			),
 			thumbnailCapture: {
 				...defaults.settings.thumbnailCapture,
 				...(sourceSettings?.thumbnailCapture ?? {}),
@@ -251,6 +405,14 @@ export function normalizeState(
 			}),
 		);
 
+	// Migrate to the unified item-order model. Legacy payloads have no
+	// `itemOrder`; backfill folders-first so existing installs see no change.
+	// Runs after card filtering so no key can dangle at a dropped card.
+	state.itemOrder =
+		source.itemOrder !== undefined
+			? repairItemOrder(source.itemOrder, state.folders, state.cards)
+			: buildItemOrder(state.folders, state.cards);
+
 	return state;
 }
 
@@ -270,7 +432,7 @@ function normalizeResetGeneration(value: unknown): number {
 let _resetGeneration = 0;
 let _resetGenerationLoaded = true;
 let _resetGenerationReady = Promise.resolve();
-if (typeof chrome !== "undefined") {
+if (typeof chrome !== "undefined" && chrome.storage?.local) {
 	_resetGenerationLoaded = false;
 	_resetGenerationReady = chrome.storage.local
 		.get(RESET_GENERATION_KEY)
@@ -281,7 +443,7 @@ if (typeof chrome !== "undefined") {
 		.finally(() => {
 			_resetGenerationLoaded = true;
 		});
-	chrome.storage.onChanged.addListener((changes, area) => {
+	chrome.storage.onChanged?.addListener((changes, area) => {
 		if (area !== "local") return;
 		const next = normalizeResetGeneration(
 			changes[RESET_GENERATION_KEY]?.newValue,
@@ -296,11 +458,43 @@ interface PendingSetItem {
 	generation: number;
 }
 
+interface PendingResolver {
+	resolve: () => void;
+	reject: (reason?: unknown) => void;
+}
+
 let _pendingSetItem: PendingSetItem | null = null;
-let _pendingResolvers: Array<() => void> = [];
+let _pendingResolvers: PendingResolver[] = [];
 let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
 let _inFlightWrite: Promise<void> | null = null;
 let _lastWrittenJSON: string | null = null;
+type PersistenceErrorListener = (error: unknown) => void;
+const _persistenceErrorListeners = new Set<PersistenceErrorListener>();
+
+/**
+ * Subscribe to persistence failures without coupling the storage layer to a
+ * particular UI. The app uses this for one restrained temporary toast.
+ */
+export function subscribeToPersistenceErrors(
+	listener: PersistenceErrorListener,
+): () => void {
+	_persistenceErrorListeners.add(listener);
+	return () => _persistenceErrorListeners.delete(listener);
+}
+
+function reportPersistenceError(error: unknown): void {
+	console.warn("[klice-start] persistence failed", error);
+	for (const listener of _persistenceErrorListeners) {
+		try {
+			listener(error);
+		} catch (listenerError) {
+			console.error(
+				"[klice-start] persistence error listener failed",
+				listenerError,
+			);
+		}
+	}
+}
 
 function _doWrite(
 	name: string,
@@ -317,6 +511,10 @@ function _doWrite(
 		.then(() => chrome.storage.local.set({ [name]: json }))
 		.then(() => {
 			_lastWrittenJSON = json;
+		})
+		.catch((error: unknown) => {
+			reportPersistenceError(error);
+			throw error;
 		});
 	const tracked = write.finally(() => {
 		if (_inFlightWrite === tracked) _inFlightWrite = null;
@@ -343,13 +541,13 @@ export function flushPersist(): Promise<void> {
 	const write = _doWrite(snap.name, snap.value, snap.generation);
 	write.then(
 		() => {
-			resolvers.forEach((resolve) => {
+			resolvers.forEach(({ resolve }) => {
 				resolve();
 			});
 		},
-		() => {
-			resolvers.forEach((resolve) => {
-				resolve();
+		(error) => {
+			resolvers.forEach(({ reject }) => {
+				reject(error);
 			});
 		},
 	);
@@ -366,7 +564,7 @@ export async function cancelPendingPersist(): Promise<void> {
 	_pendingSetItem = null;
 	const resolvers = _pendingResolvers;
 	_pendingResolvers = [];
-	resolvers.forEach((resolve) => {
+	resolvers.forEach(({ resolve }) => {
 		resolve();
 	});
 	while (_inFlightWrite) {
@@ -395,14 +593,46 @@ export function getLastWrittenJSON(): string | null {
 	return _lastWrittenJSON;
 }
 
+function hasCustomWallpaperMigration(rawState: unknown): boolean {
+	const raw = getRawBackground(rawState);
+	return Boolean(
+		raw &&
+			(Array.isArray(raw.customWallpapers) ||
+				!Object.hasOwn(raw, "customWallpaper")),
+	);
+}
+
+/** Persist the normalized shape once so the legacy array does not linger. */
+async function persistCustomWallpaperMigration(
+	name: string,
+	parsed: StorageValue<Setup>,
+	normalized: Setup,
+): Promise<void> {
+	const migrated = { ...parsed, state: normalized };
+	if (typeof chrome === "undefined" || !chrome.storage?.local) {
+		if (typeof localStorage !== "undefined") {
+			try {
+				localStorage.setItem(name, JSON.stringify(migrated));
+			} catch (error) {
+				reportPersistenceError(error);
+			}
+		}
+		return;
+	}
+	if (!_resetGenerationLoaded) await _resetGenerationReady;
+	await _doWrite(name, migrated, _resetGeneration);
+}
+
 // Flush pending writes before the tab closes or hides.
 if (typeof window !== "undefined") {
 	const onFlush = () => {
-		flushPersist();
+		void flushPersist().catch(() => undefined);
 	};
 	window.addEventListener("beforeunload", onFlush);
 	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState === "hidden") flushPersist();
+		if (document.visibilityState === "hidden") {
+			void flushPersist().catch(() => undefined);
+		}
 	});
 }
 
@@ -416,6 +646,25 @@ if (typeof window !== "undefined") {
  */
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			const raw =
+				typeof localStorage !== "undefined" ? localStorage.getItem(name) : null;
+			if (!raw) return null;
+			try {
+				const parsed = JSON.parse(raw) as StorageValue<Setup>;
+				const rawState = parsed.state;
+				const shouldMigrate = hasCustomWallpaperMigration(rawState);
+				const normalized = normalizeState(rawState as Partial<Setup>);
+				parsed.state = normalized;
+				await cleanupLegacyCustomWallpaperImages(rawState);
+				if (shouldMigrate) {
+					await persistCustomWallpaperMigration(name, parsed, normalized);
+				}
+				return parsed;
+			} catch {
+				return null;
+			}
+		}
 		const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
 		if (!data[name]) return null;
 		const resetGeneration = normalizeResetGeneration(
@@ -429,15 +678,41 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		);
 		if (persistedGeneration < resetGeneration) return null;
 		delete parsed[PERSIST_GENERATION_KEY];
-		parsed.state = normalizeState(parsed.state as Partial<Setup>);
+		const rawState = parsed.state;
+		const shouldMigrate = hasCustomWallpaperMigration(rawState);
+		const normalized = normalizeState(rawState as Partial<Setup>);
+		parsed.state = normalized;
+		await cleanupLegacyCustomWallpaperImages(rawState);
+		if (shouldMigrate) {
+			try {
+				await persistCustomWallpaperMigration(name, parsed, normalized);
+			} catch (error) {
+				reportPersistenceError(error);
+			}
+		}
 		return parsed;
 	},
 	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
-		await _resetGenerationReady;
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			if (typeof localStorage !== "undefined") {
+				try {
+					localStorage.setItem(name, JSON.stringify(value));
+				} catch (error) {
+					reportPersistenceError(error);
+				}
+			}
+			return;
+		}
+		if (!_resetGenerationLoaded) await _resetGenerationReady;
 		_pendingSetItem = { name, value, generation: _resetGeneration };
 		if (_setItemTimer) clearTimeout(_setItemTimer);
-		const { promise, resolve } = Promise.withResolvers<void>();
-		_pendingResolvers.push(resolve);
+		const { promise, resolve, reject } = Promise.withResolvers<void>();
+		// Zustand intentionally does not await storage writes. Keep the rejection
+		// observable to explicit callers such as flushPersist, while marking this
+		// background promise handled so a failed preference does not become an
+		// unhandled-rejection console error.
+		void promise.catch(() => undefined);
+		_pendingResolvers.push({ resolve, reject });
 		_setItemTimer = setTimeout(() => {
 			const snap = _pendingSetItem;
 			_pendingSetItem = null;
@@ -445,21 +720,20 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 			const resolvers = _pendingResolvers;
 			_pendingResolvers = [];
 			if (!snap) {
-				resolvers.forEach((pendingResolve) => {
-					pendingResolve();
+				resolvers.forEach(({ resolve }) => {
+					resolve();
 				});
 				return;
 			}
 			_doWrite(snap.name, snap.value, snap.generation).then(
 				() => {
-					resolvers.forEach((pendingResolve) => {
-						pendingResolve();
+					resolvers.forEach(({ resolve }) => {
+						resolve();
 					});
 				},
-				() => {
-					console.warn("[klice-start] chrome.storage.local.set failed");
-					resolvers.forEach((pendingResolve) => {
-						pendingResolve();
+				(error) => {
+					resolvers.forEach(({ reject }) => {
+						reject(error);
 					});
 				},
 			);
@@ -467,6 +741,12 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		return promise;
 	},
 	removeItem: async (name: string): Promise<void> => {
+		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+			if (typeof localStorage !== "undefined") {
+				localStorage.removeItem(name);
+			}
+			return;
+		}
 		await chrome.storage.local.remove(name);
 	},
 };

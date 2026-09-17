@@ -37,14 +37,15 @@ export function isValidUrl(rawUrl: string): boolean {
 }
 
 /**
- * Canonical form used for duplicate detection: lowercased host, no hash,
- * default ports stripped, no trailing slash. Returns null for non-http(s) URLs.
+ * Canonical form used for bookmark identity: browser URL parsing, lowercased
+ * host, default ports stripped, and a trailing path slash removed. Query
+ * parameters and hashes remain part of the identity because both can change
+ * the page a bookmark represents. Returns null for non-http(s) URLs.
  */
 export function canonicalUrl(rawUrl: string): string | null {
 	try {
 		const url = new URL(normalizeUrl(rawUrl));
 		if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-		url.hash = "";
 		url.hostname = url.hostname.toLowerCase();
 		if (
 			(url.protocol === "http:" && url.port === "80") ||
@@ -53,7 +54,11 @@ export function canonicalUrl(rawUrl: string): string | null {
 			url.port = "";
 		}
 		const text = url.toString();
-		return text.endsWith("/") ? text.slice(0, -1) : text;
+		const suffixLength = url.search.length + url.hash.length;
+		const base = text.slice(0, text.length - suffixLength);
+		return `${base.endsWith("/") ? base.slice(0, -1) : base}${text.slice(
+			text.length - suffixLength,
+		)}`;
 	} catch {
 		return null;
 	}
@@ -77,6 +82,30 @@ export function deriveTitleFromUrl(rawUrl: string): string {
 	if (!domain) return "";
 	const label = domain.split(".")[0] ?? domain;
 	return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+const ICON_BRAND_NAMES: Record<string, string> = {
+	figma: "Figma",
+	github: "GitHub",
+	linear: "Linear",
+	stackoverflow: "Stack Overflow",
+	vercel: "Vercel",
+	youtube: "YouTube",
+};
+
+/** Short, app-like label for Icon mode; Card mode keeps its saved title. */
+export function deriveIconLabel(rawUrl: string): string {
+	const domain = getDomain(rawUrl);
+	if (!domain) return "";
+	const identity = domain.split(".")[0] ?? domain;
+	return (
+		ICON_BRAND_NAMES[identity.toLowerCase()] ??
+		identity
+			.split(/[-_]+/)
+			.filter(Boolean)
+			.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+			.join(" ")
+	);
 }
 
 /** Google favicon service URL for a given site. Empty string when invalid. */

@@ -4,43 +4,68 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@klice-start/ui/components/context-menu";
+} from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import { type CSSProperties, useEffect, useState } from "react";
-import { glassCardFooter, glassDropdownItem } from "../../lib/glass";
-import { faviconUrl } from "../../lib/url";
+import { useEffect, useState } from "react";
+import type { GridItemDragProps } from "../../lib/dnd";
+import {
+	glassCardFooter,
+	glassCardMaterial,
+	glassDropdownItem,
+	glassDropRing,
+	glassFocusRing,
+	glassMenu,
+} from "../../lib/glass";
+import { deriveIconLabel, faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
+import { useMoveDialogStore } from "../../stores/move-dialog-store";
+import { useRenameStore } from "../../stores/rename-store";
+import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import type { Card } from "../../types";
+import { InlineRenameInput } from "../shared/inline-rename-input";
 import { useAppearance } from "./appearance-provider";
+import { IconAppTile } from "./icon-app-tile";
 
 interface DialCardProps {
 	card: Card;
-	onEdit: (id: string) => void;
 	onDelete: (id: string) => void;
-	dragProps?: Record<string, unknown>;
+	isSelected?: boolean;
+
+	onClick?: (e: React.MouseEvent) => void;
+	dragProps?: GridItemDragProps;
+	/** Live insertion marker drawn on the card's leading/trailing edge. */
+	insertion?: "before" | "after" | null;
+	/** Drop-onto highlight: this card is the combine target. */
+	combineActive?: boolean;
+	dragging?: boolean;
 	className?: string;
-	style?: CSSProperties;
 }
 
 export function DialCard({
 	card,
-	onEdit,
 	onDelete,
+	isSelected = false,
+	onClick,
 	dragProps,
+	insertion = null,
+	combineActive = false,
+	dragging = false,
 	className,
-	style,
 }: DialCardProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const getThumbnail = useImageStore((s) => s.getThumbnail);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
-	const showDelete = useSetupStore((s) => s.settings.showDeleteButton);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+
+	const editing = useRenameStore((s) => s.isEditing("card", card.id));
+	const beginRename = useRenameStore((s) => s.begin);
+	const cancelRename = useRenameStore((s) => s.cancel);
+	const openMoveDialog = useMoveDialogStore((s) => s.open);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -57,152 +82,239 @@ export function DialCard({
 	}, [card.thumbId, getThumbnail]);
 
 	const fallbackColor = softGradientFromString(card.url);
-	const initial = (card.title || card.url).trim().charAt(0).toUpperCase();
+	const faviconSrc = card.favicon || faviconUrl(card.url);
 	const label = card.title || card.url;
+	const iconLabel = deriveIconLabel(card.url) || label;
+	const accessibleLabel = dialLayout === "icon" ? iconLabel : label;
 
 	function handleOpenNewTab() {
 		window.open(card.url, "_blank");
 	}
 
+	function handleCommitRename(name: string) {
+		useSetupStore.getState().updateCard(card.id, { title: name });
+		cancelRename();
+	}
+
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger
-				data-local-context-menu
+				data-selected={isSelected ? "true" : undefined}
+				data-dragging={dragging ? "true" : undefined}
 				className={cn(
-					"dial-card squircle group relative isolate flex h-full w-full cursor-pointer flex-col overflow-hidden rounded-2xl bg-transparent p-0 shadow-none transition-transform duration-200 [--squircle-r:10px] hover:translate-y-[-1px] active:scale-[1.01]",
+					// Calm by default: no hover lift/translate/glow. The card's
+					// material stays local to its own rounded surface.
+					// `cursor-default` is explicit because the card renders as an
+					// <a href>, which the UA stylesheet would otherwise give a
+					// hand cursor — Klice Start uses the platform arrow.
+					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
+					dialLayout === "icon" &&
+						"dial-icon-item overflow-visible rounded-none",
+					// Screenshot/gradient content is already the bookmark body surface.
+					// Keep classic elevation, but avoid a second Liquid Glass backdrop
+					// layer behind that visual content. The footer remains materialized
+					// independently below.
+					dialLayout === "card" && !isLiquid && glassCardMaterial(false),
+					glassFocusRing(isLiquid),
+					insertion === "before" &&
+						dialLayout === "card" &&
+						"drop-insert-before",
+					insertion === "after" &&
+						dialLayout === "card" &&
+						"drop-insert-after",
+					combineActive &&
+						dialLayout === "card" &&
+						glassDropRing(isLiquid),
+					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
-				style={style}
-				render={
-					<a
-						href={card.url}
-						target={openInNewTab ? "_blank" : "_self"}
-						rel={openInNewTab ? "noopener noreferrer" : undefined}
-						aria-label={label}
-						{...dragProps}
-					/>
-				}
 			>
-				{dialLayout === "icon" ? (
-					<div className="flex flex-col items-center gap-1 p-2.5">
-						<img
-							src={card.favicon || faviconUrl(card.url)}
-							alt=""
-							className="h-9 w-9 shrink-0 rounded-full"
-							onError={(e) => {
-								(e.target as HTMLImageElement).onerror = null;
-								(e.target as HTMLImageElement).src = faviconUrl(card.url);
-							}}
-						/>
-						{iconShowLabel && (
-							<span className="max-w-full truncate text-center font-medium text-[11px] leading-tight">
-								{label}
-							</span>
-						)}
-					</div>
-				) : (
-					<>
-						{thumbUrl ? (
-							<img
-								src={thumbUrl}
-								alt=""
-								className="thumb block min-h-0 w-full flex-1 object-cover"
-								loading="lazy"
+				<a
+					data-local-context-menu
+					href={card.url}
+					target={openInNewTab ? "_blank" : "_self"}
+					rel={openInNewTab ? "noopener noreferrer" : undefined}
+					aria-label={
+						isSelected ? `${accessibleLabel}, selected` : accessibleLabel
+					}
+					title={dialLayout === "icon" ? `${iconLabel} · ${card.url}` : label}
+					onClick={onClick}
+					onKeyDown={(e) => {
+						// Space toggles selection while selection mode is
+						// active (Enter keeps opening the link natively).
+						if (e.key === " " && useSelectionStore.getState().scope !== null) {
+							e.preventDefault();
+							useSelectionStore.getState().toggle({
+								id: card.id,
+								kind: "card",
+								sourceId: card.folderId,
+							});
+						}
+					}}
+					draggable={editing ? false : (dragProps?.draggable ?? true)}
+					onDragStart={editing ? undefined : dragProps?.onDragStart}
+					onDragEnd={dragProps?.onDragEnd}
+					onDragOver={dragProps?.onDragOver}
+					onDragLeave={dragProps?.onDragLeave}
+					onDrop={dragProps?.onDrop}
+				>
+					{dialLayout === "icon" ? (
+						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center justify-center">
+							<IconAppTile
+								url={card.url}
+								favicon={faviconSrc}
+								className={cn(
+									combineActive && "icon-app-tile-drop-active",
+									dragging && "icon-app-tile-dragging",
+									insertion === "before" && "icon-drop-insert-before",
+									insertion === "after" && "icon-drop-insert-after",
+								)}
 							/>
-						) : (
+							{iconShowLabel &&
+								(editing ? (
+									<InlineRenameInput
+										value={card.title || card.url}
+										ariaLabel={`Rename ${iconLabel}`}
+										onCommit={handleCommitRename}
+										onCancel={cancelRename}
+										className="text-center"
+									/>
+								) : (
+									<span className="icon-label">{iconLabel}</span>
+								))}
+						</div>
+					) : (
+						<>
+							{/* Cover fills the bounded media box without stretching or letterbox
+							    bands. The fallback keeps its gradient behind the site's favicon. */}
 							<div
-								className="thumb-fallback flex min-h-0 flex-1 items-center justify-center font-semibold text-2xl text-white/60"
+								className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
 								style={{ background: fallbackColor }}
 							>
-								<span className="flex h-full w-full items-center justify-center">
-									{initial}
-								</span>
-							</div>
-						)}
-
-						{showTitle && (
-							<div
-								className={cn(
-									"card-footer flex shrink-0 items-center gap-1.5 rounded-b-2xl px-2",
-									glassCardFooter(isLiquid),
+								{thumbUrl ? (
+									<img
+										src={thumbUrl}
+										alt=""
+										className="absolute inset-0 size-full object-cover object-center"
+										loading="lazy"
+										draggable={false}
+									/>
+								) : (
+									<img
+										src={faviconSrc}
+										alt=""
+										draggable={false}
+										className="favicon size-10 shrink-0 rounded-full object-contain"
+										onError={(e) => {
+											(e.target as HTMLImageElement).onerror = null;
+											(e.target as HTMLImageElement).src = faviconUrl(card.url);
+										}}
+									/>
 								)}
-								style={{ height: "var(--card-footer-h, 30px)" }}
-							>
-								<img
-									src={card.favicon || faviconUrl(card.url)}
-									alt=""
-									className="favicon h-4 w-4 shrink-0 rounded-full"
-									onError={(e) => {
-										(e.target as HTMLImageElement).onerror = null;
-										(e.target as HTMLImageElement).src = faviconUrl(card.url);
-									}}
-								/>
-								<span className="title truncate font-medium text-[11px]">
-									{label}
-								</span>
 							</div>
-						)}
-					</>
-				)}
 
-				{showDelete && (
-					<button
-						type="button"
-						aria-label={`Remove ${label}`}
-						className="delete-btn absolute top-1.5 right-1.5 flex h-6 w-6 scale-75 items-center justify-center rounded-full bg-black/40 text-white/70 opacity-0 transition-all duration-150 hover:bg-red-500 hover:text-white group-hover:opacity-100"
-						onClick={(e) => {
-							e.preventDefault();
-							e.stopPropagation();
-							onDelete(card.id);
-						}}
-					>
-						<Icon name="x" size={13} />
-					</button>
-				)}
+							{(showTitle || editing) && (
+								<div
+									className={cn(
+										// Same squircle system as the outer card so the
+										// footer follows the card geometry in every
+										// browser (corner-shape aware or fallback).
+										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
+										glassCardFooter(isLiquid),
+									)}
+									style={{ height: "var(--card-footer-h, 30px)" }}
+								>
+									<img
+										src={faviconSrc}
+										alt=""
+										draggable={false}
+										className="favicon h-4 w-4 shrink-0 rounded-full"
+										onError={(e) => {
+											(e.target as HTMLImageElement).onerror = null;
+											(e.target as HTMLImageElement).src = faviconUrl(card.url);
+										}}
+									/>
+									{editing ? (
+										<InlineRenameInput
+											value={card.title || card.url}
+											ariaLabel={`Rename ${label}`}
+											onCommit={handleCommitRename}
+											onCancel={cancelRename}
+										/>
+									) : (
+										<span className="title truncate font-medium text-[11px]">
+											{label}
+										</span>
+									)}
+								</div>
+							)}
+						</>
+					)}
+
+					{isSelected && (
+						<div
+							aria-hidden="true"
+							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
+						>
+							<Icon name="check" size={11} strokeWidth={3} />
+						</div>
+					)}
+				</a>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent
-				className={cn(
-					"min-w-48",
-					isLiquid
-						? cn(
-								glassVariantStyles.liquid,
-								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
-								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
-							)
-						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
-				)}
-			>
+			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
-					onClick={handleOpenNewTab}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					onSelect={handleOpenNewTab}
 				>
-					<Icon name="globe" size={15} />
+					<Icon name="globe" size={14} />
 					Open in new tab
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
-					onClick={() => onEdit(card.id)}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					onSelect={() => beginRename({ kind: "card", id: card.id })}
 				>
-					<Icon name="pencil" size={15} />
+					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
-					onClick={() => onEdit(card.id)}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					onSelect={() =>
+						useSelectionStore
+							.getState()
+							.toggle({ id: card.id, kind: "card", sourceId: card.folderId })
+					}
 				>
-					<Icon name="globe" size={15} />
-					Edit URL
+					<Icon name="check-square" size={14} />
+					Select
 				</ContextMenuItem>
-				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
-				/>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid)}
-					variant="destructive"
-					onClick={() => onDelete(card.id)}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					onSelect={() => {
+						const selected = useSelectionStore.getState().selectedIds;
+						openMoveDialog(selected.includes(card.id) ? selected : [card.id]);
+					}}
 				>
-					<Icon name="trash" size={15} />
+					<Icon name="folder" size={14} />
+					Move to…
+				</ContextMenuItem>
+				<ContextMenuSeparator />
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					tone="destructive"
+					onSelect={() => onDelete(card.id)}
+				>
+					<Icon name="trash" size={14} />
 					Delete
 				</ContextMenuItem>
 			</ContextMenuContent>

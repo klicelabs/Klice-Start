@@ -4,27 +4,14 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
-} from "@klice-start/ui/components/context-menu";
-import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
-import {
-	Download,
-	Link,
-	Lock,
-	PlusCircle,
-	RefreshCw,
-	Sliders,
-	Unlock,
-} from "lucide-react";
-import {
-	type MouseEvent,
-	type ReactNode,
-	useCallback,
-	useRef,
-	useState,
-} from "react";
-import { glassDropdownItem } from "../../lib/glass";
+} from "@klice-start/ui/components/motion/context-menu";
+import { Icon } from "@klice-start/ui/icons/icon";
+import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
+import { isInsideSettingsScope } from "../../lib/context-scope";
+import { glassDropdownItem, glassMenu } from "../../lib/glass";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
+import { useHistoryStore } from "../../stores/history-store";
 import { useImageStore } from "../../stores/image-store";
 import { useSetupStore } from "../../stores/setup-store";
 import { useAppearance } from "./appearance-provider";
@@ -34,17 +21,26 @@ interface PageContextMenuProps {
 	onOpenBackgroundSettings: () => void;
 	onOpenShortcutSettings: () => void;
 	onAddQuickLink: () => void;
+	onAddFolder?: () => void;
+	onSelectAll?: () => void;
+	onOpenHistory?: () => void;
+	onOpenGeneralSettings?: () => void;
+	onEnterRestMode?: () => void;
+	enabled?: boolean;
 }
-
-const LOCAL_CONTEXT_SELECTOR = "[data-local-context-menu]";
 
 export function PageContextMenu({
 	children,
 	onOpenBackgroundSettings,
-	onOpenShortcutSettings,
 	onAddQuickLink,
+	onAddFolder,
+	onSelectAll,
+	onOpenHistory,
+	onOpenGeneralSettings,
+	onEnterRestMode,
+	enabled = true,
 }: PageContextMenuProps) {
-	const { isLiquid } = useAppearance();
+	const { isLiquid, resolvedDark } = useAppearance();
 	const bgType = useSetupStore((s) => s.settings.background.type);
 	const pexelsImageId = useSetupStore(
 		(s) => s.settings.background.pexelsImageId,
@@ -55,146 +51,200 @@ export function PageContextMenu({
 	const updateBackground = useSetupStore((s) => s.updateBackground);
 	const getBackgroundImage = useImageStore((s) => s.getBackgroundImage);
 	const [open, setOpen] = useState(false);
-	const suppressNextOpen = useRef(false);
 
 	const isPexels = bgType === "pexels";
 
 	const handleDownloadBackground = useCallback(async () => {
-		if (pexelsImageId) {
-			const dataUrl = await getBackgroundImage(pexelsImageId);
-			if (dataUrl) {
-				const a = document.createElement("a");
-				a.href = dataUrl;
-				a.download = `klice-start-wallpaper-${Date.now()}.jpg`;
-				a.click();
-			}
-		}
+		if (!pexelsImageId) return;
+		const dataUrl = await getBackgroundImage(pexelsImageId);
+		if (!dataUrl) return;
+		const a = document.createElement("a");
+		a.href = dataUrl;
+		a.download = `klice-start-wallpaper-${pexelsImageId}.jpg`;
+		a.click();
 	}, [pexelsImageId, getBackgroundImage]);
 
 	const handleToggleLock = useCallback(() => {
-		if (isPexels) {
-			const isLocked = pexelsFrequency === "locked";
+		if (!isPexels) return;
+		if (pexelsFrequency === "locked") {
+			const fallback =
+				useSetupStore.getState().settings.background.pexelsPreviousFrequency ||
+				"daily";
 			updateBackground({
-				pexelsFrequency: isLocked
-					? useSetupStore.getState().settings.background
-							.pexelsPreviousFrequency || "daily"
-					: "locked",
-				pexelsPreviousFrequency: isLocked ? null : pexelsFrequency,
+				pexelsFrequency: fallback,
+				pexelsPreviousFrequency: null,
 			});
-		} else {
-			updateBackground({ type: "pexels", pexelsFrequency: "per-tab" });
+			void refreshWallpaper(true);
+			return;
 		}
+		updateBackground({
+			pexelsFrequency: "locked",
+			pexelsPreviousFrequency: pexelsFrequency,
+		});
 	}, [isPexels, pexelsFrequency, updateBackground]);
 
 	const handleNextBackground = useCallback(async () => {
-		if (!isPexels) {
-			updateBackground({ type: "pexels", pexelsFrequency: "per-tab" });
-		}
+		if (!isPexels) return;
 		await refreshWallpaper(true);
-	}, [isPexels, updateBackground]);
+	}, [isPexels]);
 
 	function handleContextMenu(event: MouseEvent) {
-		const target = event.target as Element | null;
-		if (target?.closest(LOCAL_CONTEXT_SELECTOR)) {
-			suppressNextOpen.current = true;
-			setOpen(false);
+		// If clicking an interactive card/tab with its own context menu, skip
+		const target = event.target as HTMLElement | null;
+		if (target?.closest("[data-local-context-menu]")) {
+			event.preventDefault();
 			return;
 		}
-		suppressNextOpen.current = false;
-	}
-
-	function handleOpenChange(nextOpen: boolean) {
-		if (nextOpen && suppressNextOpen.current) {
-			setOpen(false);
-			suppressNextOpen.current = false;
+		// Settings is its own surface: never open the global Home menu there.
+		// This covers the panel itself plus settings-owned floating UI, which
+		// portals render outside the panel DOM (see `lib/context-scope`).
+		// The beUI trigger only stands down on defaultPrevented, so — exactly
+		// like the local-menu rule above — prevention here is what keeps the
+		// global menu closed. Everything else (clicks, keys, selection)
+		// passes through untouched.
+		if (isInsideSettingsScope(target)) {
+			event.preventDefault();
 			return;
 		}
-		setOpen(nextOpen);
 	}
 
-	const itemClassName = cn(
-		"cursor-pointer gap-3 rounded-xl px-3 py-2.5 text-[13px]",
-		glassDropdownItem(isLiquid),
-	);
-	const iconClassName = cn(
-		"size-4",
-		isLiquid ? "text-white/70" : "text-muted-foreground",
-	);
+	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true });
+	// Single persistent history entry: Undo/Redo live in the post-action
+	// toast, shortcuts and here — never as a duplicate direct item.
+	const hasHistory = useHistoryStore((s) => s.past.length + s.future.length) > 0;
+
+	if (!enabled) return children;
 
 	return (
-		<ContextMenu open={open} onOpenChange={handleOpenChange}>
-			{/* w-full, never a viewport-width unit: viewport units ignore the
-			    scrollbar gutter reserved by `scrollbar-gutter: stable` and overflow
-			    horizontally on Firefox/Zen (classic, non-overlay scrollbars). */}
-			<ContextMenuTrigger
-				className="block min-h-screen w-full"
-				onContextMenu={handleContextMenu}
-				render={<div />}
-			>
-				{children}
+		<ContextMenu open={open} onOpenChange={setOpen}>
+			<ContextMenuTrigger>
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: the page surface is the context-menu trigger and the beUI trigger adds keyboard handling. */}
+				<div
+					className="block min-h-screen w-full"
+					onContextMenu={handleContextMenu}
+				>
+					{children}
+				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent
-				className={cn(
-					"min-w-80 rounded-2xl p-1.5",
-					isLiquid
-						? cn(
-								glassVariantStyles.liquid,
-								"border-white/[0.16] bg-white/[0.11] text-white shadow-2xl shadow-black/25 backdrop-blur-md",
-								"[--liquid-glass-rim-dark:rgba(0,0,0,0.24)] [--liquid-glass-rim-light:rgba(255,255,255,0.45)] [--liquid-glass-rim-width:0.75px]",
-							)
-						: "border border-border bg-popover text-popover-foreground shadow-lg before:hidden",
+			<ContextMenuContent className={cn(glassMenu(isLiquid, resolvedDark), "min-w-48")}>
+				{onAddFolder && (
+					<ContextMenuItem className={itemClassName} onSelect={onAddFolder}>
+						<Icon name="folder-plus" size={14} />
+						New folder
+					</ContextMenuItem>
 				)}
-			>
-				<ContextMenuItem
-					className={itemClassName}
-					onClick={onOpenBackgroundSettings}
-				>
-					<Sliders className={iconClassName} />
-					Edit background settings
+				<ContextMenuItem className={itemClassName} onSelect={onAddQuickLink}>
+					<Icon name="plus" size={14} />
+					Add link
 				</ContextMenuItem>
-				<ContextMenuItem
-					className={itemClassName}
-					onClick={onOpenShortcutSettings}
-				>
-					<Link className={iconClassName} />
-					Edit shortcut settings
-				</ContextMenuItem>
-				<ContextMenuItem className={itemClassName} onClick={onAddQuickLink}>
-					<PlusCircle className={iconClassName} />
-					Add new quick link
-				</ContextMenuItem>
+				{onSelectAll && (
+					<ContextMenuItem className={itemClassName} onSelect={onSelectAll}>
+						<Icon name="check-square" size={14} />
+						Select all
+					</ContextMenuItem>
+				)}
+
+				{/* One separator per group boundary, each gated on its own
+				    group: adjacent separators can never render. */}
+				{onOpenHistory && hasHistory && (
+					<>
+						<ContextMenuSeparator
+							className={isLiquid ? "bg-foreground/10" : undefined}
+						/>
+						<ContextMenuItem className={itemClassName} onSelect={onOpenHistory}>
+							<Icon name="history" size={14} />
+							Recent actions
+						</ContextMenuItem>
+					</>
+				)}
+
 				<ContextMenuSeparator
-					className={isLiquid ? "bg-white/10" : undefined}
+					className={isLiquid ? "bg-foreground/10" : undefined}
 				/>
+
+				<ContextMenuItem
+					className={itemClassName}
+					onSelect={onOpenBackgroundSettings}
+				>
+					<Icon name="settings" size={14} />
+					Edit background
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={itemClassName}
+					onSelect={onOpenGeneralSettings ?? onOpenBackgroundSettings}
+				>
+					<Icon name="settings" size={14} />
+					Settings
+				</ContextMenuItem>
+				{onEnterRestMode && (
+					<ContextMenuItem className={itemClassName} onSelect={onEnterRestMode}>
+						<Icon name="clock" size={14} />
+						Enter Rest Mode
+					</ContextMenuItem>
+				)}
+
 				{isPexels && (
 					<>
+						<ContextMenuSeparator
+							className={isLiquid ? "bg-foreground/10" : undefined}
+						/>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleDownloadBackground}
+							onSelect={handleDownloadBackground}
 						>
-							<Download className={iconClassName} />
-							Download background
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+							</svg>
+							Download wallpaper
 						</ContextMenuItem>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleToggleLock}
+							onSelect={handleToggleLock}
 						>
-							{pexelsFrequency === "locked" ? (
-								<Unlock className={iconClassName} />
-							) : (
-								<Lock className={iconClassName} />
-							)}
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
+								{pexelsFrequency === "locked" ? (
+									<path d="M7 11V7a5 5 0 0 1 10 0v4M12 15v2M5 11h14v10H5z" />
+								) : (
+									<path d="M7 11V7a5 5 0 0 1 9.9-1M12 15v2M5 11h14v10H5z" />
+								)}
+							</svg>
 							{pexelsFrequency === "locked"
-								? "Unlock current background"
-								: "Lock current background"}
+								? "Unlock wallpaper"
+								: "Lock wallpaper"}
 						</ContextMenuItem>
 						<ContextMenuItem
 							className={itemClassName}
-							onClick={handleNextBackground}
+							onSelect={handleNextBackground}
 						>
-							<RefreshCw className={iconClassName} />
-							Next background
+							<svg
+								aria-hidden="true"
+								width="14"
+								height="14"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2"
+							>
+								<path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+							</svg>
+							Next wallpaper
 						</ContextMenuItem>
 					</>
 				)}

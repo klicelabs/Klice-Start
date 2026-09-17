@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { cn } from "@klice-start/ui/lib/utils";
+import { kliceShape, type KliceShapeName } from "@klice-start/ui/lib/shapes";
 
 type MapGeometry = {
   width: number; // element width, CSS px, integer
@@ -23,6 +24,10 @@ type MapGeometry = {
 
 const MAX_TEXTURE_SIZE = 480;
 const EDGE_TAPER_PX = 1.25;
+/** Keep every glasscn refraction surface inside the app's blur budget. */
+export const MAX_LIQUID_GLASS_BLUR = 12;
+/** Keep refraction visible but prevent extreme edge displacement on tiny UI. */
+export const MAX_LIQUID_GLASS_REFRACTION = 48;
 
 const displacementMapCache = new Map<string, string>();
 
@@ -124,7 +129,9 @@ function convexSquircle(x: number) {
 }
 
 export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
-  /** Extra blur mixed into the backdrop-filter after the SVG refraction. */
+	/** Disable the SVG lens while keeping the same mounted glass surface. */
+	refract?: boolean;
+	/** Extra blur mixed into the backdrop-filter after the SVG refraction. */
   blur?: number;
   /** SVG displacement strength. Higher values bend the sampled backdrop more. */
   refraction?: number;
@@ -137,15 +144,36 @@ export type LiquidGlassProps = HTMLAttributes<HTMLDivElement> & {
   bezel?: number;
   /** Backdrop saturation. */
   saturation?: number;
+  /**
+   * Backdrop brightness (standard CSS backdrop-filter). Dark-on-wallpaper
+   * heroes pull this below 1 for white-ink contrast; Light stays near 1.
+   * Clamped 0.5…1.2 at the material boundary.
+   */
+  brightness?: number;
+  /**
+   * Corner role for the glass surface. Defaults to the generic `surface`
+   * role, but a consumer that owns a stronger geometry contract (a toolbar
+   * capsule, an icon chip) must pass its own role here.
+   *
+   * This is a prop rather than something the consumer appends through
+   * `className` on purpose: the corner roles are plain CSS classes, so two of
+   * them landing on one element would both apply and only the stylesheet
+   * order would decide which one rendered. Passing the role in keeps exactly
+   * one shape on the surface. Use `"none"` for a caller that supplies its own.
+   */
+  shape?: KliceShapeName | "none";
 };
 
 export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function LiquidGlass(
-  {
-    blur = 2,
+	{
+		refract = true,
+	blur = 3,
     refraction = 15,
     mapSize: _mapSize,
     bezel = 0.34,
     saturation = 1.28,
+    brightness = 1,
+    shape = "surface",
     className,
     style,
     children,
@@ -155,6 +183,7 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
 ) {
   const rawId = useId();
   const filterId = useMemo(() => `liquid-glass-${rawId.replace(/:/g, "")}`, [rawId]);
+  const canUseSvgRefraction = useMemo(() => supportsSvgBackdropFilter(), []);
 
   // -------------------------------------------------------------------------
   // Ref merge — we need the DOM node to measure geometry while still
@@ -177,8 +206,9 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
 
   const [geometry, setGeometry] = useState<MapGeometry | null>(null);
 
-  useEffect(() => {
-    const el = localRef.current;
+	useEffect(() => {
+		if (!refract || !canUseSvgRefraction) return;
+		const el = localRef.current;
     if (!el) return;
     const measure = () => {
       const rect = el.getBoundingClientRect();
@@ -197,9 +227,12 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [bezel]);
+	}, [bezel, canUseSvgRefraction, refract]);
 
-  const mapUrl = useMemo(() => (geometry ? createDisplacementMap(geometry) : ""), [geometry]);
+	const mapUrl = useMemo(
+		() => (refract && geometry ? createDisplacementMap(geometry) : ""),
+		[geometry, refract],
+	);
 
   // -------------------------------------------------------------------------
   // Browser capability gate
@@ -211,29 +244,54 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
-    setSupported(supportsSvgBackdropFilter());
-  }, []);
+    if (!refract || !canUseSvgRefraction) return;
+    setSupported(true);
+  }, [canUseSvgRefraction, refract]);
 
-  const refractionActive = supported && mapUrl !== "";
-  const backdropFilter = refractionActive
-    ? `url(#${filterId}) blur(${blur}px) saturate(${saturation})`
-    : `blur(${blur + 2}px) saturate(${saturation})`;
+  // `blur` is public API, so clamp it at the material boundary rather than
+  // relying on every consumer to remember the performance budget. The
+  // fallback adds a small optical cushion, but must stay inside the same cap.
+	const effectiveBlur = Math.min(MAX_LIQUID_GLASS_BLUR, Math.max(0, blur));
+	const effectiveRefraction = Math.min(
+		MAX_LIQUID_GLASS_REFRACTION,
+		Math.max(0, refraction),
+	);
+	const effectiveBrightness = Math.min(1.2, Math.max(0.5, brightness));
+	const refractionActive = refract && supported && mapUrl !== "";
+	const backdropFilter = refractionActive
+		? `url(#${filterId}) blur(${effectiveBlur}px) saturate(${saturation}) brightness(${effectiveBrightness})`
+		: refract
+			? `blur(${Math.min(MAX_LIQUID_GLASS_BLUR, effectiveBlur + 2)}px) saturate(${saturation}) brightness(${effectiveBrightness})`
+			: undefined;
 
   return (
     <>
       <div
         ref={setRefs}
-        className={cn(
-          "relative overflow-hidden rounded-full bg-white/[0.08]",
+		className={cn(
+			"relative overflow-hidden bg-white/[0.04] text-[var(--klice-glass-foreground-primary)] dark:bg-black/[0.06]",
+          shape !== "none" && kliceShape(shape),
           className,
         )}
-        style={{ ...style, backdropFilter, WebkitBackdropFilter: backdropFilter } as CSSProperties}
+		style={
+			{
+				...style,
+				...(backdropFilter
+					? { backdropFilter, WebkitBackdropFilter: backdropFilter }
+					: {}),
+			} as CSSProperties
+		}
         {...props}
       >
         {children}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-[inherit]"
+          // `rounded-[inherit]` copies the radius, and `klice-corner-inherit`
+          // copies `corner-shape` (which is NOT an inherited property).
+          // Without the second one the hairline rim traces a circular arc while
+          // the surface itself is a squircle, and the control appears to have
+          // two different outlines.
+          className="klice-corner-inherit pointer-events-none absolute inset-0 rounded-[inherit]"
           style={{
             // Rim thickness, overridable per-consumer via --liquid-glass-rim-width.
             padding: "var(--liquid-glass-rim-width, 0.5px)",
@@ -256,13 +314,17 @@ export const LiquidGlass = forwardRef<HTMLDivElement, LiquidGlassProps>(function
       </div>
 
       {refractionActive && (
-        <svg className="absolute size-0 overflow-hidden" aria-hidden>
+        <svg
+          className="absolute size-0 overflow-hidden"
+          aria-hidden="true"
+          role="presentation"
+        >
           <filter id={filterId} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
             <feImage href={mapUrl} x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map" />
             <feDisplacementMap
               in="SourceGraphic"
               in2="map"
-              scale={refraction}
+				scale={effectiveRefraction}
               xChannelSelector="R"
               yChannelSelector="G"
               result="displaced"

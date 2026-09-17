@@ -2,16 +2,22 @@
 
 import { type HTMLAttributes, forwardRef } from "react";
 
-import { type FrostGlassVariant, glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import {
+  type FrostGlassVariant,
+  glassVariantStyles,
+} from "@klice-start/ui/lib/glass-variants";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { cn } from "@klice-start/ui/lib/utils";
 
+import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
+
 type GlassCardProps = HTMLAttributes<HTMLDivElement> & {
-  /**
-   * Material of the card surface. `liquid` uses glasscn's rich CSS glass
-   * material (backdrop blur + gradient sheen + ambient drift); `flat` falls
-   * back to an opaque shadcn card. Any other frost variant is honored too.
-   */
+  /** Material of the card surface. */
   variant?: FrostGlassVariant | "flat";
+  /** Props forwarded to the glasscn refractive surface. */
+  liquidProps?: Omit<LiquidGlassProps, "children">;
+  /** Classes applied to the outer glasscn surface. */
+  surfaceClassName?: string;
 };
 
 /**
@@ -24,20 +30,51 @@ type GlassCardProps = HTMLAttributes<HTMLDivElement> & {
  * user's configurable corner radius.
  */
 const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
-  { variant = "liquid", className, ...props },
+  {
+    // Cards are repeated/content-heavy surfaces. Hero callers opt into
+    // `liquid-refract` explicitly instead of making every card pay for the
+    // SVG lens by default.
+    variant = "liquid",
+    className,
+    liquidProps,
+    surfaceClassName,
+    ...props
+  },
   ref,
 ) {
-  const material =
-    variant === "flat"
-      ? "border border-border bg-card shadow-sm"
-      : glassVariantStyles[variant];
+  if (variant === "liquid-refract") {
+    return (
+      <LiquidGlass
+        {...liquidProps}
+        ref={ref}
+        className={cn(
+          kliceShape("surface"),
+          surfaceClassName,
+          liquidProps?.className,
+        )}
+      >
+        <div
+          data-slot="glass-card"
+          data-glass-variant={variant}
+          className={cn(
+				"relative overflow-hidden border-0 bg-transparent text-[var(--klice-glass-foreground-primary)] shadow-none",
+            kliceShape("surface"),
+            className,
+          )}
+          {...props}
+        />
+      </LiquidGlass>
+    );
+  }
+
+  const material = variant === "flat" ? "border border-border bg-card shadow-sm" : glassVariantStyles[variant];
 
   return (
     <div
       ref={ref}
       data-slot="glass-card"
       data-glass-variant={variant}
-      className={cn("relative overflow-hidden", material, className)}
+		className={cn("relative overflow-hidden text-[var(--klice-glass-foreground-primary)]", material, className)}
       {...props}
     />
   );

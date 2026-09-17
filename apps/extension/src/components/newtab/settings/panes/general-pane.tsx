@@ -1,0 +1,271 @@
+import { Input } from "@klice-start/ui/components/input";
+import { Switch } from "@klice-start/ui/components/switch";
+import type { IconName } from "@klice-start/ui/icons/icon";
+import { cn } from "../../../../lib/utils";
+import { useSetupStore } from "../../../../stores/setup-store";
+import type { CardAspect } from "../../../../types";
+import { SectionCard } from "../shared/section-card";
+import { SegmentedControl } from "../shared/segmented-control";
+import { SettingsExpandable } from "../shared/settings-expandable";
+import { SelectRow } from "../shared/select-row";
+import { SettingRow } from "../shared/setting-row";
+import {
+	SETTINGS_CONTROL_WIDTH,
+	SETTINGS_INPUT,
+	SETTINGS_PAGE,
+	SETTINGS_RADIUS,
+	SETTINGS_SWITCH,
+} from "../shared/settings-tokens";
+import { SliderRow } from "../shared/slider-row";
+
+const TILE_SIZE_OPTIONS = [
+	{ value: "small", label: "Small" },
+	{ value: "medium", label: "Medium" },
+	{ value: "large", label: "Large" },
+] as const;
+
+const COLUMN_OPTIONS = [4, 5, 6, 7, 8, 9, 10].map((n) => ({
+	value: String(n),
+	label: `${n} columns`,
+}));
+
+const LAYOUT_OPTIONS = [
+	{ value: "card", label: "Cards" },
+	{ value: "icon", label: "Icons" },
+] as const;
+
+const CARD_SHAPES: readonly {
+	value: CardAspect;
+	icon: IconName;
+	label: string;
+}[] = [
+	{ value: "vertical", icon: "rectangle-vertical", label: "Portrait" },
+	{ value: "horizontal", icon: "rectangle-horizontal", label: "Landscape" },
+	{ value: "square", icon: "square", label: "Square" },
+];
+
+const COMMON_TIMEZONES = [
+	{ value: "auto", label: "Automatic" },
+	{ value: "UTC", label: "UTC" },
+	{ value: "America/New_York", label: "New York" },
+	{ value: "America/Chicago", label: "Chicago" },
+	{ value: "America/Denver", label: "Denver" },
+	{ value: "America/Los_Angeles", label: "Los Angeles" },
+	{ value: "America/Sao_Paulo", label: "São Paulo" },
+	{ value: "Europe/London", label: "London" },
+	{ value: "Europe/Paris", label: "Paris / Berlin" },
+	{ value: "Asia/Tokyo", label: "Tokyo" },
+	{ value: "Asia/Shanghai", label: "Shanghai" },
+	{ value: "Australia/Sydney", label: "Sydney" },
+];
+
+/**
+ * General owns how the page is laid out and what it shows — the tiles, the
+ * grid, link behaviour, and the two widgets that live on the dashboard (clock
+ * and greeting). Keeping the widgets here means Appearance stays purely about
+ * colour and background, and no setting is split across two pages.
+ */
+export function GeneralPane() {
+	const tileSize = useSetupStore((s) => s.settings.tileSize);
+	const maxColumns = useSetupStore((s) => s.settings.maxColumns);
+	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
+	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
+	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
+	const showTitle = useSetupStore((s) => s.settings.showTitle);
+	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
+	const clock = useSetupStore((s) => s.settings.clock);
+	const greeting = useSetupStore((s) => s.settings.greeting);
+	const updateSettings = useSetupStore((s) => s.updateSettings);
+	const updateClock = useSetupStore((s) => s.updateClock);
+	const updateGreeting = useSetupStore((s) => s.updateGreeting);
+
+	return (
+		<div className={SETTINGS_PAGE}>
+			{/* How a tile looks and reads. */}
+			<SectionCard>
+				<SelectRow
+					label="Display style"
+					icon="layout"
+					value={dialLayout}
+					options={LAYOUT_OPTIONS}
+					onChange={(v) => updateSettings({ dialLayout: v as "card" | "icon" })}
+				/>
+
+				{dialLayout === "card" ? (
+					<SettingRow label="Card shape" icon="rectangle-horizontal">
+						<SegmentedControl
+							label="Card shape"
+							iconOnly
+							value={cardAspect}
+							options={CARD_SHAPES}
+							onChange={(value) => updateSettings({ cardAspect: value })}
+							className="w-[7.5rem]"
+						/>
+					</SettingRow>
+				) : (
+					<SettingRow label="Show labels" icon="text">
+						<Switch
+							className={SETTINGS_SWITCH}
+							aria-label="Show labels"
+							checked={iconShowLabel}
+							onCheckedChange={(checked: boolean) =>
+								updateSettings({ iconShowLabel: checked })
+							}
+						/>
+					</SettingRow>
+				)}
+
+				{dialLayout === "card" ? (
+					<SettingRow label="Show site titles" icon="text">
+						<Switch
+							className={SETTINGS_SWITCH}
+							aria-label="Show site titles"
+							checked={showTitle}
+							onCheckedChange={(checked: boolean) =>
+								updateSettings({ showTitle: checked })
+							}
+						/>
+					</SettingRow>
+				) : null}
+			</SectionCard>
+
+			{/* Grid density — one group, never split. */}
+			<SectionCard>
+				<SelectRow
+					label="Tile size"
+					icon="grid"
+					value={tileSize}
+					options={TILE_SIZE_OPTIONS}
+					onChange={(v) =>
+						updateSettings({ tileSize: v as "small" | "medium" | "large" })
+					}
+				/>
+
+				<SelectRow
+					label="Columns"
+					icon="columns"
+					value={String(maxColumns)}
+					options={COLUMN_OPTIONS}
+					onChange={(v) =>
+						updateSettings({ maxColumns: Number.parseInt(v, 10) })
+					}
+				/>
+			</SectionCard>
+
+			{/* What a click does. */}
+			<SectionCard>
+				<SettingRow
+					label="Open in new tab"
+					icon="external-link"
+					tooltip="Keep this page open when you click a tile."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Open in new tab"
+						checked={openInNewTab}
+						onCheckedChange={(checked: boolean) =>
+							updateSettings({ openInNewTab: checked })
+						}
+					/>
+				</SettingRow>
+			</SectionCard>
+
+			{/* Clock — the whole widget lives in one place. */}
+			<SectionCard>
+				<SettingRow label="Clock" icon="clock">
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Show clock"
+						checked={clock.enabled}
+						onCheckedChange={(checked: boolean) =>
+							updateClock({ enabled: checked })
+						}
+					/>
+				</SettingRow>
+
+				<SettingsExpandable expanded={clock.enabled} label="Clock options">
+					<SelectRow
+						label="Time zone"
+						icon="globe"
+						tooltip="Automatic follows your system time zone."
+						value={clock.timezone || "auto"}
+						options={COMMON_TIMEZONES}
+						onChange={(v) => updateClock({ timezone: v })}
+					/>
+
+					<SettingRow label="24-hour time" icon="timer">
+						<Switch
+							className={SETTINGS_SWITCH}
+							aria-label="Use 24-hour time"
+							checked={clock.format24}
+							onCheckedChange={(checked: boolean) =>
+								updateClock({ format24: checked })
+							}
+						/>
+					</SettingRow>
+
+					<SettingRow label="Show seconds" icon="hourglass">
+						<Switch
+							className={SETTINGS_SWITCH}
+							aria-label="Show seconds"
+							checked={clock.showSeconds}
+							onCheckedChange={(checked: boolean) =>
+								updateClock({ showSeconds: checked })
+							}
+						/>
+					</SettingRow>
+
+					<SliderRow
+						label="Clock size"
+						icon="text"
+						value={clock.size}
+						suffix="%"
+						min={60}
+						max={200}
+						step={10}
+						onChange={(v) => updateClock({ size: v })}
+					/>
+				</SettingsExpandable>
+			</SectionCard>
+
+			{/* Greeting — the other hero widget. */}
+			<SectionCard>
+				<SettingRow
+					label="Greeting"
+					icon="user"
+					tooltip="A short hello above your tiles. Independent from the clock."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Show greeting"
+						checked={greeting.enabled}
+						onCheckedChange={(checked: boolean) =>
+							updateGreeting({ enabled: checked })
+						}
+					/>
+				</SettingRow>
+
+				<SettingsExpandable
+					expanded={greeting.enabled}
+					label="Greeting options"
+				>
+					<SettingRow label="Your name" icon="pencil">
+						<Input
+							id="greeting-name-input"
+							aria-label="Your name"
+							placeholder="e.g. Alex"
+							value={greeting.name}
+							onChange={(e) => updateGreeting({ name: e.target.value })}
+							className={cn(
+								SETTINGS_CONTROL_WIDTH,
+								SETTINGS_RADIUS.control,
+								"h-9 px-3 text-sm",
+								SETTINGS_INPUT,
+							)}
+						/>
+					</SettingRow>
+				</SettingsExpandable>
+			</SectionCard>
+		</div>
+	);
+}

@@ -3,12 +3,21 @@
 import { type VariantProps, cva } from "class-variance-authority";
 
 import { type FrostGlassVariantProp, glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { cn } from "@klice-start/ui/lib/utils";
 
 import { LiquidGlass, type LiquidGlassProps } from "./liquid-glass";
 
+/**
+ * No cursor override: Klice Start uses the platform arrow cursor for normal
+ * clickable UI. This renders a `<button>`, which the UA stylesheet already
+ * gives an arrow, so nothing needs to be forced here.
+ */
 const glassIconVariants = cva(
-  "inline-flex shrink-0 items-center justify-center rounded-full text-foreground cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+  cn(
+    "inline-flex shrink-0 items-center justify-center text-[var(--klice-glass-foreground-primary)] select-none outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
+    kliceShape("toolbarIcon"),
+  ),
   {
     variants: {
       size: {
@@ -53,9 +62,11 @@ function GlassIcon({
     return (
       <LiquidGlass
         {...liquidProps}
+        // The chip owns its own corner role; passing it in keeps exactly one
+        // shape on the surface instead of relying on stylesheet order.
+        shape="toolbarIcon"
         className={cn(
-          "w-fit rounded-full transition-transform duration-150 active:scale-95 motion-reduce:transition-none",
-          "[--liquid-glass-rim-light:rgba(255,255,255,0.55)] [--liquid-glass-rim-width:1.5px] [--liquid-glass-rim-fade:8%]",
+          "w-fit transition-transform duration-150 active:scale-95 motion-reduce:transition-none",
           surfaceClassName,
           liquidProps?.className,
         )}

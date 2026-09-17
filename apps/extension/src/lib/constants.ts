@@ -63,63 +63,75 @@ export interface WallpaperDef {
 	id: string;
 	label: string;
 	src: string;
+	thumb: string;
 }
 
 export const WALLPAPERS: WallpaperDef[] = [
 	{
 		id: "alpine-lake-sunbeams",
 		label: "Alpine Lake Sunbeams",
-		src: "/wallpapers/alpine-lake-sunbeams.jpg",
+		src: "/wallpapers/alpine-lake-sunbeams.avif",
+		thumb: "/wallpapers/thumbs/alpine-lake-sunbeams.avif",
 	},
 	{
 		id: "matterhorn-at-dusk",
 		label: "Matterhorn at Dusk",
-		src: "/wallpapers/matterhorn-at-dusk.jpg",
+		src: "/wallpapers/matterhorn-at-dusk.avif",
+		thumb: "/wallpapers/thumbs/matterhorn-at-dusk.avif",
 	},
 	{
 		id: "purple-mountain-summit",
 		label: "Purple Mountain Summit",
-		src: "/wallpapers/purple-mountain-summit.jpg",
+		src: "/wallpapers/purple-mountain-summit.avif",
+		thumb: "/wallpapers/thumbs/purple-mountain-summit.avif",
 	},
 	{
 		id: "tokyo-skyline",
 		label: "Tokyo Skyline",
-		src: "/wallpapers/tokyo-skyline.jpg",
+		src: "/wallpapers/tokyo-skyline.avif",
+		thumb: "/wallpapers/thumbs/tokyo-skyline.avif",
 	},
 	{
 		id: "blue-moon-mountains",
 		label: "Blue Moon Mountains",
-		src: "/wallpapers/blue-moon-mountains.jpg",
+		src: "/wallpapers/blue-moon-mountains.avif",
+		thumb: "/wallpapers/thumbs/blue-moon-mountains.avif",
 	},
 	{
 		id: "red-sun-water",
 		label: "Red Sun Water",
-		src: "/wallpapers/red-sun-water.jpg",
+		src: "/wallpapers/red-sun-water.avif",
+		thumb: "/wallpapers/thumbs/red-sun-water.avif",
 	},
 	{
 		id: "turquoise-alpine-lake",
 		label: "Turquoise Alpine Lake",
-		src: "/wallpapers/turquoise-alpine-lake.jpg",
+		src: "/wallpapers/turquoise-alpine-lake.avif",
+		thumb: "/wallpapers/thumbs/turquoise-alpine-lake.avif",
 	},
 	{
 		id: "mountain-lake",
 		label: "Mountain Lake",
 		src: "/wallpapers/mountain-lake.avif",
+		thumb: "/wallpapers/thumbs/mountain-lake.avif",
 	},
 	{
 		id: "starry-night-sky",
 		label: "Starry Night Sky",
-		src: "/wallpapers/starry-night-sky.jpg",
+		src: "/wallpapers/starry-night-sky.avif",
+		thumb: "/wallpapers/thumbs/starry-night-sky.avif",
 	},
 	{
 		id: "violet-curves",
 		label: "Violet Curves",
-		src: "/wallpapers/violet-curves.png",
+		src: "/wallpapers/violet-curves.avif",
+		thumb: "/wallpapers/thumbs/violet-curves.avif",
 	},
 	{
 		id: "bonsai-rock-milky-way",
 		label: "Bonsai Rock Milky Way",
-		src: "/wallpapers/bonsai-rock-milky-way.jpg",
+		src: "/wallpapers/bonsai-rock-milky-way.avif",
+		thumb: "/wallpapers/thumbs/bonsai-rock-milky-way.avif",
 	},
 ];
 
@@ -171,7 +183,7 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 	gradientId: null,
 	imageId: null,
 	wallpaperId: "tokyo-skyline",
-	customWallpapers: [],
+	customWallpaper: null,
 	blur: 0,
 	brightness: 100,
 	opacity: 100,
@@ -187,10 +199,8 @@ export const DEFAULT_CLOCK: ClockSettings = {
 	enabled: true,
 	format24: true,
 	showSeconds: false,
-	analog: false,
 	size: 200,
 	timezone: "auto",
-	dateFormat: "auto",
 };
 
 export const DEFAULT_GREETING: GreetingSettings = {
@@ -253,7 +263,6 @@ export const DEFAULT_SETTINGS: Settings = {
 	showTitle: true,
 	showDeleteButton: true,
 	openInNewTab: false,
-	iconRadius: 14,
 	dialLayout: "card",
 	cardAspect: "vertical",
 	iconShowLabel: true,
@@ -263,6 +272,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	greeting: { ...DEFAULT_GREETING },
 	search: { ...DEFAULT_SEARCH },
 	appearanceMode: "liquid",
+	colorScheme: "auto",
+	accentColor: "blue",
+	/** Calibrated middle default: survives arbitrary wallpapers (see glass.ts). */
+	glassIntensity: 60,
 };
 
 export const DEFAULT_SETUP: Setup = {

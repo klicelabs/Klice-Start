@@ -1,70 +1,76 @@
+import { GlassIcon } from "@klice-start/ui/components/glass-icon";
 import { Icon } from "@klice-start/ui/icons/icon";
 import {
+	glassFocusRing,
+	glassForeground,
+	glassLensVeil,
+	glassLiquidProps,
+} from "../../../lib/glass";
+import {
 	TOOLBAR,
-	toolbarControlClassic,
-	toolbarControlLiquid,
+	TOOLBAR_ICON,
+	toolbarIconClass,
+	toolbarIconSize,
 } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
-import { useAppearance } from "../appearance-provider";
-import { GlassSurface } from "./glass-surface";
+import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface ToolbarActionsProps {
-	onSearch: () => void;
 	onSettings: () => void;
-	onAddFavorite: () => void;
 }
 
-/**
- * Trailing actions. Search + Add share one glass pill; Settings gets its own.
- * Both pills use the same inner padding, so every icon button is an identical
- * circle — no more undersized settings button.
- */
-export function ToolbarActions({
-	onSearch,
-	onSettings,
-	onAddFavorite,
-}: ToolbarActionsProps) {
-	const { isLiquid } = useAppearance();
-
-	function iconButton(active: boolean): string {
-		return cn(
-			TOOLBAR.controlHeight,
-			TOOLBAR.controlWidth,
-			TOOLBAR.radius,
-			"flex items-center justify-center",
-			isLiquid ? toolbarControlLiquid(active) : toolbarControlClassic(active),
-		);
-	}
+/** Settings remains the persistent app-level action when the sidebar is closed. */
+export function ToolbarActions({ onSettings }: ToolbarActionsProps) {
+	const { isLiquid, resolvedDark } = useAppearance();
+	const { glassParams } = useGlassAppearance();
+	const optics = glassLiquidProps(glassParams, "clear");
 
 	return (
-		<div className="flex items-center gap-1.5">
-			{/* Group 1: Search + Add */}
-			<GlassSurface className={TOOLBAR.groupPadding}>
-				<button
-					type="button"
-					className={iconButton(false)}
-					onClick={onSearch}
-					aria-label="Search"
+		<div className="relative flex items-center">
+			{isLiquid ? (
+				<GlassIcon
+					glassVariant="liquid-refract"
+					liquidProps={{
+						blur: optics.blur,
+						refraction: optics.refraction,
+						saturation: optics.saturation,
+						brightness: optics.brightness,
+						bezel: optics.bezel,
+					}}
+					surfaceClassName={glassLensVeil("toolbar", resolvedDark)}
+					onClick={onSettings}
+					aria-label="Settings"
+					aria-pressed={false}
+					aria-expanded={false}
+					aria-controls="settings-sidebar"
+					id="settings-trigger"
+					data-settings-ui="true"
+					className={cn(
+						TOOLBAR.standaloneSize,
+						"shrink-0 shadow-none transition-colors",
+						glassForeground(),
+						glassFocusRing(true),
+					)}
 				>
-					<Icon name="search" size={TOOLBAR.iconSize} />
-				</button>
-				<button
-					type="button"
-					className={iconButton(false)}
-					onClick={onAddFavorite}
-					aria-label="Add new"
-				>
-					<Icon name="plus" size={TOOLBAR.iconSize} />
-				</button>
-			</GlassSurface>
-
-			{/* Settings — standalone: the button itself is the glass circle */}
-			<ToolbarIconButton
-				icon="settings"
-				label="Open settings"
-				onClick={onSettings}
-			/>
+					<Icon
+						name="settings"
+						size={toolbarIconSize("settings")}
+						strokeWidth={TOOLBAR_ICON.strokeWidth}
+						className={toolbarIconClass("settings")}
+					/>
+				</GlassIcon>
+			) : (
+				<ToolbarIconButton
+					icon="settings"
+					label="Settings"
+					onClick={onSettings}
+					id="settings-trigger"
+					expanded={false}
+					controls="settings-sidebar"
+					dataSettingsUi
+				/>
+			)}
 		</div>
 	);
 }
