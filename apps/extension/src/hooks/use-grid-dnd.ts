@@ -32,7 +32,9 @@ export interface GridDndHandlers {
 	onBackgroundDrop: (dragged: ItemRef) => void;
 	/** Spring-loaded navigation into a folder. */
 	onOpenFolder: (id: string) => void;
-	/** Icon mode owns spring-loading on its stacked ninth preview slot. */
+	/** Spring-load on folder-center hover (default true). Icon mode keeps
+	 * its preview-stack spring alongside: the stack stops propagation, so
+	 * slot hover and body hover never double-fire. */
 	allowFolderSpringLoad?: boolean;
 	/** Preview reorder callbacks share the grid's active drag lifecycle. */
 	onPreviewLiveReorder?: (

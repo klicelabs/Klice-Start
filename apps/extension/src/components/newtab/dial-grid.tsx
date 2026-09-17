@@ -31,6 +31,7 @@ import {
 } from "../../lib/item-order";
 import { describeMoveGroup } from "../../lib/move-selection";
 import type { NavigationState } from "../../lib/navigation";
+import { cn } from "../../lib/utils";
 import { useSelectionStore } from "../../stores/selection-store";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
@@ -478,7 +479,11 @@ export function DialGrid({
 		onDropOnFolder: handleDropOnFolder,
 		onBackgroundDrop: handleBackgroundDrop,
 		onOpenFolder,
-		allowFolderSpringLoad: dialLayout !== "icon",
+		// Spring-open arms on every folder center in both layouts. In icon
+		// mode the stacked ninth preview slot owns its own spring and stops
+		// propagation, so the two never double-fire: slot hover opens via
+		// the stack, body hover via the grid — one coherent model.
+		allowFolderSpringLoad: true,
 		onPreviewLiveReorder: useCallback(
 			(
 				targetFolderId: string,
@@ -704,7 +709,21 @@ export function DialGrid({
 												key={folder.id}
 												layout
 												transition={reorderTransition}
-												className="dial-cell"
+												// The wrapper is the grid item: in icon mode it
+												// must also carry the 2×2 folder span, or the
+												// folder content overflows a 1×1 cell and stacks
+												// over its neighbours. State attributes ride
+												// along so the icon feedback selectors
+												// (class + attribute on one element) keep
+												// matching.
+												data-selected={isSelected ? "true" : undefined}
+												data-dragging={
+													dragGroupIds?.has(folder.id) ? "true" : undefined
+												}
+												className={cn(
+													"dial-cell",
+													dialLayout === "icon" && "dial-icon-folder-cell",
+												)}
 											>
 											<FolderPreviewCard
 												id={folder.id}

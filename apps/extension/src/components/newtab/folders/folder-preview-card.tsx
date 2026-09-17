@@ -135,10 +135,12 @@ export function FolderPreviewCard({
 					// The single wrapper child below owns the card box; the
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
-					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-					dialLayout === "card" && "overflow-hidden rounded-2xl",
-					dialLayout === "icon" &&
-						"dial-icon-folder-cell overflow-visible rounded-none",
+				"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
+				dialLayout === "card" && "overflow-hidden rounded-2xl",
+				// Sizing/span live on the grid-item wrapper (DialGrid); the
+				// inner card only fills it. Keeping the span class here would
+				// size a non-grid-item and overflow its cell.
+				dialLayout === "icon" && "overflow-visible rounded-none",
 					dialLayout === "card" && glassCardMaterial(isLiquid),
 					insertion === "before" &&
 						dialLayout === "card" &&
