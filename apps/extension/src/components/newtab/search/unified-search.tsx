@@ -338,6 +338,11 @@ export const UnifiedSearch = forwardRef<
 	function handleKeyDown(event: ReactKeyboardEvent<HTMLFormElement>) {
 		if (event.key === "Escape") {
 			event.preventDefault();
+			// M17: this Esc belongs to the search — without stopPropagation()
+			// it reaches the dial-grid window listener and clears the
+			// selection as a side effect (repo convention: Esc consumers
+			// stop their own event, see inline-rename-input.tsx).
+			event.stopPropagation();
 			close();
 			return;
 		}
@@ -402,7 +407,7 @@ export const UnifiedSearch = forwardRef<
 			key={key}
 			data-shared-bg-skip
 			className={cn(
-				"px-3 pt-2.5 pb-1 text-[12px] font-normal",
+				"px-3 pt-2.5 pb-1 font-normal text-[12px]",
 				glassText(isLiquid, "muted", resolvedDark),
 			)}
 		>
@@ -430,7 +435,7 @@ export const UnifiedSearch = forwardRef<
 				onClick={() => selectItem(item)}
 				className={cn(
 					"relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors duration-100",
-						selected
+					selected
 						? "text-[var(--klice-accent-foreground)]"
 						: isLiquid
 							? glassForeground()
@@ -457,7 +462,12 @@ export const UnifiedSearch = forwardRef<
 				<span className="block truncate font-normal text-[14px]">
 					{card.title || card.url}
 				</span>
-				<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
+				<span
+					className={cn(
+						"block truncate text-[11px]",
+						glassForeground("secondary"),
+					)}
+				>
 					{folderPathById.get(card.folderId) ?? ""}
 				</span>
 			</span>
@@ -483,7 +493,11 @@ export const UnifiedSearch = forwardRef<
 							source: suggestions.length > 0 ? "web" : "local",
 						},
 						<>
-							<Icon name="search" size={16} className={cn("shrink-0", glassForeground())} />
+							<Icon
+								name="search"
+								size={16}
+								className={cn("shrink-0", glassForeground())}
+							/>
 							<span className="truncate text-[14px]">{value}</span>
 						</>,
 					),
@@ -530,7 +544,11 @@ export const UnifiedSearch = forwardRef<
 							source: "web",
 						},
 						<>
-							<Icon name="search" size={16} className={cn("shrink-0", glassForeground())} />
+							<Icon
+								name="search"
+								size={16}
+								className={cn("shrink-0", glassForeground())}
+							/>
 							<span className="truncate text-[14px]">{value}</span>
 						</>,
 					),
@@ -545,12 +563,21 @@ export const UnifiedSearch = forwardRef<
 					option(
 						{ type: "folder", id: `folder:${folder.id}`, data: folder },
 						<>
-							<Icon name="folder" size={17} className={cn("shrink-0", glassForeground())} />
+							<Icon
+								name="folder"
+								size={17}
+								className={cn("shrink-0", glassForeground())}
+							/>
 							<span className="min-w-0 truncate">
 								<span className="block truncate font-normal text-[14px]">
 									{folder.name}
 								</span>
-								<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
+								<span
+									className={cn(
+										"block truncate text-[11px]",
+										glassForeground("secondary"),
+									)}
+								>
 									{folderPathById.get(folder.id) ?? ""}
 								</span>
 							</span>
@@ -573,12 +600,21 @@ export const UnifiedSearch = forwardRef<
 			option(
 				{ type: "web", id: "web-search", query: trimmedQuery },
 				<>
-					<Icon name="globe" size={16} className={cn("shrink-0", glassForeground())} />
+					<Icon
+						name="globe"
+						size={16}
+						className={cn("shrink-0", glassForeground())}
+					/>
 					<span className="min-w-0 truncate">
 						<span className="block truncate font-normal text-[14px]">
 							Search {engine.label} for “{trimmedQuery}”
 						</span>
-						<span className={cn("block truncate text-[11px]", glassForeground("secondary"))}>
+						<span
+							className={cn(
+								"block truncate text-[11px]",
+								glassForeground("secondary"),
+							)}
+						>
 							Open web search
 						</span>
 					</span>
@@ -608,9 +644,7 @@ export const UnifiedSearch = forwardRef<
 					// from the shape role (concentric with the toolbar system),
 					// never an inline radius.
 					height: open ? "auto" : 56,
-					maxHeight: open
-						? "min(504px, calc(100vh - 10rem))"
-						: 56,
+					maxHeight: open ? "min(504px, calc(100vh - 10rem))" : 56,
 					transition: reduceMotion ? "none" : SEARCH_GEOMETRY_CSS,
 				}}
 			>
@@ -653,7 +687,10 @@ export const UnifiedSearch = forwardRef<
 								? // Expanded search is a dense frosted surface and the
 									// collapsed hero floats on the wallpaper: both pair
 									// dark ink with Light, white ink with Dark.
-								cn(glassForeground(), "placeholder:text-[var(--klice-glass-foreground-secondary)]")
+									cn(
+										glassForeground(),
+										"placeholder:text-[var(--klice-glass-foreground-secondary)]",
+									)
 								: "text-foreground placeholder:text-muted-foreground",
 						)}
 						autoComplete="off"
@@ -699,10 +736,8 @@ export const UnifiedSearch = forwardRef<
 					aria-hidden={!open}
 					inert={!open}
 					className={cn(
-						"min-h-0 max-h-[min(28rem,calc(100vh-10rem-3.5rem))] overflow-y-auto border-t px-2 pt-1 pb-2",
-						isLiquid
-							? "border-foreground/10"
-							: "border-separator-groove",
+						"max-h-[min(28rem,calc(100vh-10rem-3.5rem))] min-h-0 overflow-y-auto border-t px-2 pt-1 pb-2",
+						isLiquid ? "border-foreground/10" : "border-separator-groove",
 					)}
 					style={{
 						pointerEvents: open ? "auto" : "none",

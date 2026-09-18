@@ -50,10 +50,17 @@ export function planBookmarkMerge(
 		if (!touched.includes(id)) touched.push(id);
 	};
 
+	// M8: BOTH sides of the match use the same key — NFC-normalized,
+	// trimmed, lowercased. The old map keyed on raw toLowerCase() while
+	// ensureFolder trimmed, so " Docs" (existing) and "Docs" (incoming)
+	// missed each other and duplicated the folder.
+	const folderNameKey = (name: string): string =>
+		name.normalize("NFC").trim().toLowerCase();
+
 	const folderByParentAndName = new Map<string, Folder>();
 	for (const f of folders) {
 		folderByParentAndName.set(
-			`${f.parentId ?? ""}\u0000${f.name.toLowerCase()}`,
+			`${f.parentId ?? ""}\u0000${folderNameKey(f.name)}`,
 			f,
 		);
 	}
@@ -78,7 +85,7 @@ export function planBookmarkMerge(
 
 	const ensureFolder = (name: string, parentId: string | null): Folder => {
 		const clean = name.trim() || "Untitled";
-		const key = `${parentId ?? ""}\u0000${clean.toLowerCase()}`;
+		const key = `${parentId ?? ""}\u0000${folderNameKey(clean)}`;
 		const existing = folderByParentAndName.get(key);
 		if (existing) return existing;
 		const folder: Folder = {

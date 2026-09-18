@@ -34,7 +34,11 @@ import {
 	normalizeUrl,
 } from "../../../../lib/url";
 import { cn } from "../../../../lib/utils";
-import { exportBackup, importBackup, preflightBackup } from "../../../../services/backup";
+import {
+	exportBackup,
+	importBackup,
+	preflightBackup,
+} from "../../../../services/backup";
 import {
 	type BookmarkTreeFolder,
 	exportBookmarksHtml,
@@ -191,11 +195,16 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		kind: "html" | "backup" | "browser";
 		fileName: string;
 		text?: string;
-		tree?: { rootFolders: BookmarkTreeFolder[]; rootLinks: { title: string; url: string }[] };
+		tree?: {
+			rootFolders: BookmarkTreeFolder[];
+			rootLinks: { title: string; url: string }[];
+		};
 		summary: string;
 		backupCounts?: { folders: number; cards: number };
 	}
-	const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+	const [pendingImport, setPendingImport] = useState<PendingImport | null>(
+		null,
+	);
 	const [importWantsReplace, setImportWantsReplace] = useState(false);
 	const [importConfirmReplace, setImportConfirmReplace] = useState(false);
 
@@ -469,12 +478,18 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setIsProcessingIo(true);
 		try {
 			const browser = await readBrowserBookmarks();
-			const tree = { rootFolders: browser.topFolders, rootLinks: browser.topLinks };
+			const tree = {
+				rootFolders: browser.topFolders,
+				rootLinks: browser.topLinks,
+			};
 			const summary = summarizeBookmarkTree(tree.rootFolders, tree.rootLinks);
 			if (libraryIsEmpty()) {
 				const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
 				toast.success("Import completed", {
-					description: importedSummary(result.foldersCreated, result.cardsCreated),
+					description: importedSummary(
+						result.foldersCreated,
+						result.cardsCreated,
+					),
 				});
 				revealImport(result.revealFolderId);
 				return;
@@ -495,14 +510,20 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		}
 	}
 
-	/** One picker for both formats — the file name decides how it is read. */
+	/** One picker for both formats — the file CONTENT decides how it is read. */
 	async function handleImportFile(e: ChangeEvent<HTMLInputElement>) {
 		const file = e.target.files?.[0];
 		if (!file) return;
-		const isBackup = /\.json$/i.test(file.name);
 		setIsProcessingIo(true);
 		try {
 			const text = await file.text();
+			// M7: a renamed file (HTML saved as .json or the reverse) used to
+			// be routed by extension and fail with a misleading parse error.
+			// JSON backups start with "{"; Netscape exports start with "<".
+			// The extension only breaks ties for content matching neither.
+			const head = text.trimStart().charAt(0);
+			const isBackup =
+				head === "{" ? true : head === "<" ? false : /\.json$/i.test(file.name);
 			if (isBackup) {
 				// Validate shape up front so malformed files fail here with a
 				// clear message instead of opening a dialog over garbage.
@@ -548,7 +569,10 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			if (libraryIsEmpty()) {
 				const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
 				toast.success("Import completed", {
-					description: importedSummary(result.foldersCreated, result.cardsCreated),
+					description: importedSummary(
+						result.foldersCreated,
+						result.cardsCreated,
+					),
 				});
 				revealImport(result.revealFolderId);
 				return;
@@ -583,14 +607,20 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			if (replace) {
 				const result = replaceBookmarkLibrary(tree.rootFolders, tree.rootLinks);
 				toast.success("Library replaced", {
-					description: importedSummary(result.foldersCreated, result.cardsCreated),
+					description: importedSummary(
+						result.foldersCreated,
+						result.cardsCreated,
+					),
 				});
 				// Replace already lands on the first folder; nothing to reveal.
 				return;
 			}
 			const result = mergeBookmarkTree(tree.rootFolders, tree.rootLinks);
 			toast.success("Import completed", {
-				description: importedSummary(result.foldersCreated, result.cardsCreated),
+				description: importedSummary(
+					result.foldersCreated,
+					result.cardsCreated,
+				),
 			});
 			revealImport(result.revealFolderId);
 		} catch (err) {
@@ -1151,14 +1181,14 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							{pendingImport?.kind === "backup" ? (
 								<>
 									&ldquo;{pendingImport.fileName}&rdquo; holds{" "}
-									{pendingImport.summary}. Restoring replaces the
-									current library.
+									{pendingImport.summary}. Restoring replaces the current
+									library.
 								</>
 							) : (
 								<>
 									&ldquo;{pendingImport?.fileName}&rdquo; holds{" "}
-									{pendingImport?.summary}. Duplicates already saved
-									here are skipped.
+									{pendingImport?.summary}. Duplicates already saved here are
+									skipped.
 								</>
 							)}
 						</DialogDescription>
@@ -1186,9 +1216,13 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 									onChange={() => setImportWantsReplace(false)}
 									className="sr-only"
 								/>
-								<span aria-hidden="true">{!importWantsReplace ? "●" : "○"}</span>
+								<span aria-hidden="true">
+									{!importWantsReplace ? "●" : "○"}
+								</span>
 								<span>
-									<span className="block font-medium">Keep current bookmarks</span>
+									<span className="block font-medium">
+										Keep current bookmarks
+									</span>
 									<span className="block text-[12px] opacity-70">
 										Add the new bookmarks and folders without deleting anything.
 									</span>
@@ -1212,7 +1246,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								/>
 								<span aria-hidden="true">{importWantsReplace ? "●" : "○"}</span>
 								<span>
-									<span className="block font-medium">Replace current bookmarks</span>
+									<span className="block font-medium">
+										Replace current bookmarks
+									</span>
 									<span className="block text-[12px] opacity-70">
 										Remove the existing library and use only the imported data.
 									</span>
@@ -1229,9 +1265,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 							{importConfirmReplace ? (
 								<>
 									This deletes {folders.length} folder
-									{folders.length === 1 ? "" : "s"} and {cards.length}{" "}
-									bookmark{cards.length === 1 ? "" : "s"}. This cannot be
-									undone from here.
+									{folders.length === 1 ? "" : "s"} and {cards.length} bookmark
+									{cards.length === 1 ? "" : "s"}. This cannot be undone from
+									here.
 								</>
 							) : (
 								"Replacing removes the existing library first."

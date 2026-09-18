@@ -49,6 +49,7 @@ import {
 import {
 	type HistorySummary,
 	historyContainerName,
+	isHistoryEditableTarget,
 } from "../../src/lib/history";
 import {
 	buildHistoryEntry,
@@ -334,25 +335,26 @@ export default function App() {
 	// Folder deletion, reset, and cross-tab repair can change the store's
 	// location without being navigation. Reconcile those changes without
 	// recording them, and prune deleted IDs from both session branches.
+	// M18: external location changes PRUNE the branches instead of resetting
+	// them — a valid Back stack survived this repair before; it was being
+	// wiped on every external repair. The (repaired) current location is
+	// dropped from both branches so Back/Forward never land on it, but every
+	// other valid entry is preserved.
 	useEffect(() => {
 		if (!navigationReadyRef.current) return;
 		const validFolderIds = new Set(folders.map((folder) => folder.id));
-		const repairedHistory = pruneNavigationHistory(
-			navigationHistoryRef.current,
-			validFolderIds,
-		);
 		if (
 			navigationLocationRef.current !== null &&
 			navigationLocationRef.current !== activeFolderId
 		) {
-			// Store-side repairs (for example deleting the active subtree or a
-			// cross-tab location change) are not a user traversal. Reset the
-			// session branches so they cannot point at the repaired location.
+			// Store-side repairs (for example deleting the active subtree or
+			// a cross-tab location change) are not a user traversal.
 			navigationLocationRef.current = activeFolderId;
-			commitNavigationHistory(createNavigationHistory());
-			return;
 		}
-		commitNavigationHistory(repairedHistory);
+		validFolderIds.delete(activeFolderId);
+		commitNavigationHistory(
+			pruneNavigationHistory(navigationHistoryRef.current, validFolderIds),
+		);
 	}, [activeFolderId, commitNavigationHistory, folders]);
 
 	// Item count per folder (cards only).
@@ -778,9 +780,12 @@ export default function App() {
 	);
 
 	// Keyboard shortcut: Ctrl+K / Cmd+K opens local search.
+	// M15: skipped while typing in an editable field (rename, search input,
+	// contenteditable) — the shortcut used to steal focus mid-typing.
 	useEffect(() => {
 		function handleKey(e: KeyboardEvent) {
 			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+				if (isHistoryEditableTarget(e.target)) return;
 				e.preventDefault();
 				handleOpenSearch();
 			}

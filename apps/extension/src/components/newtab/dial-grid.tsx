@@ -311,11 +311,15 @@ export function DialGrid({
 	);
 	const cardById = useMemo(() => new Map(cards.map((c) => [c.id, c])), [cards]);
 
-	// Clear selection on Escape
+	// Clear selection on Escape (M16: honors an earlier consumer's claim
+	// via defaultPrevented — settings/sidebar, search, history confirmation
+	// each own their Esc; a plain Esc here is the only one that clears).
 	useEffect(() => {
 		function onKeyDown(e: KeyboardEvent) {
 			if (e.key === "Escape") {
+				if (e.defaultPrevented) return;
 				clearSelection();
+				e.preventDefault();
 			}
 		}
 		window.addEventListener("keydown", onKeyDown);

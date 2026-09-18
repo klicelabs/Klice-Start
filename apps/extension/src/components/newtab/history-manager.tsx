@@ -7,8 +7,8 @@ import {
 	type HistoryEntry,
 	isHistoryEditableTarget,
 } from "../../lib/history";
-import { useRenameStore } from "../../stores/rename-store";
 import { useHistoryStore } from "../../stores/history-store";
+import { useRenameStore } from "../../stores/rename-store";
 
 const NOTICE_TOAST_ID = "history-notice";
 const CONFIRM_TOAST_ID = "history-confirm";
@@ -142,6 +142,12 @@ export function HistoryManager() {
 			if (e.key !== "Escape") return;
 			// Why: rename/search/drag own Esc first; only claim it otherwise.
 			if (isHistoryEditableTarget(e.target)) return;
+			// M16: mark the Esc as CLAIMED — this is the capture phase, so
+			// the sidebar (window bubble) and dial-grid (window bubble) read
+			// defaultPrevented afterwards and stand down. One physical Esc
+			// used to cancel the confirmation AND close settings AND clear
+			// the selection simultaneously.
+			e.preventDefault();
 			e.stopPropagation();
 			useHistoryStore.getState().cancelPending();
 		}

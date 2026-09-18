@@ -16,6 +16,7 @@ import {
 	glassShape,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
+import { useHistoryStore } from "../../../stores/history-store";
 import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
@@ -207,6 +208,11 @@ export function SettingsSidebar({
 			// A focused unified Search owns Escape first. Let it collapse its
 			// floating result surface without dismissing the sibling sidebar.
 			if (event.defaultPrevented) return;
+			// M16: an open history confirmation claimed this Esc in the
+			// capture phase (preventDefault + stopPropagation). Stand down —
+			// one physical Esc must never cancel the confirmation AND close
+			// settings together.
+			if (useHistoryStore.getState().pending) return;
 			event.preventDefault();
 			handleClose();
 		}
