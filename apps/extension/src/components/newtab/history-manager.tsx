@@ -52,6 +52,7 @@ function focusConfirmButton(title: string, label: string): void {
 export function HistoryManager() {
 	const notice = useHistoryStore((s) => s.notice);
 	const pending = useHistoryStore((s) => s.pending);
+	const deadIdNotice = useHistoryStore((s) => s.deadIdNotice);
 
 	// Post-action feedback: short-lived, Undo opens confirmation (never
 	// executes). Dismissal keeps the entry in history.
@@ -120,10 +121,9 @@ export function HistoryManager() {
 
 	// H1 residue: explain a dead undo/redo id (evicted by the 30-entry bound
 	// or a discarded redo branch) instead of leaving the click unanswered.
+	// Subscribe in the component body — calling a hook inside the effect
+	// crashes every mount (Invalid hook call) and blanks the page.
 	useEffect(() => {
-		const deadIdNotice = useHistoryStore((s) => s.deadIdNotice) as
-			| { direction: "undo" | "redo"; entryId: string }
-			| null;
 		if (!deadIdNotice) return;
 		const consumed = useHistoryStore.getState().consumeDeadIdNotice();
 		if (!consumed) return;
@@ -133,7 +133,7 @@ export function HistoryManager() {
 				: "That action is no longer redoable — history moved on",
 			{ id: NOTICE_TOAST_ID, duration: NOTICE_DURATION_MS },
 		);
-	}, []);
+	}, [deadIdNotice]);
 
 	// Esc cancels the active confirmation (never executes).
 	useEffect(() => {

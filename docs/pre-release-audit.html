@@ -423,6 +423,18 @@
 </dl>
 </div>
 
+<div class="finding">
+<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-fixed">Corrigido na onda 4</span></div>
+<h3>N4 — Hook chamado dentro de useEffect desmonta a árvore React inteira no primeiro mount (tela preta mesmo com dev server saudável)</h3>
+<dl>
+<dt>Sintoma real</dt><dd>Tela preta no newtab mesmo com o dev server íntegro (módulos 200). No console: <code>Error: Invalid hook call</code> em <code>history-manager.tsx</code>; o React desmonta a árvore inteira e o <code>body.dark</code> fica vazio.</dd>
+<dt>Causa raiz</dt><dd>Introduzido na onda 3 (resíduo do H1): o efeito que consome <code>deadIdNotice</code> chamava <code>useHistoryStore((s) =&gt; s.deadIdNotice)</code> <strong>dentro do <code>useEffect</code></strong> — hook em callback, violação das Rules of Hooks. Todo mount do <code>HistoryManager</code> crashava a renderização.</dd>
+<dt>Fix (onda 4)</dt><dd><code>history-manager.tsx</code>: a assinatura do store subiu para o corpo do componente (padrão dos efeitos irmãos) e o efeito apenas consome o valor já observado. Verificado em página real: console sem erros React, árvore montada com conteúdo completo.</dd>
+<dt>Regressão</dt><dd><code>verify-history-manager-mount.test.ts</code>: prova que o mount do <code>HistoryManager</code> não desmonta a árvore (replica o crash com <code>createRoot</code>/<code>act</code>) e que o aviso de id morto segue funcionando. Red-capable: com o bug reintroduzido, os 2 testes falham.</dd>
+<dt>Validação</dt><dd>Suíte 66/66; <code>tsc</code> limpo; builds chrome/firefox ✔.</dd>
+</dl>
+</div>
+
 <h2 id="decisoes">Decisões de produto</h2>
 <p class="meta" style="border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);border-radius:var(--radius);padding:12px 16px;">Decidido pelo mantenedor em 17/09/2026 — registrado abaixo como regra oficial. Resumo: <strong>P1 A · P2 A · P3 A · P4 A · P5 A primeiro · P6 B conservador · P7 A · NPD-1 bloquear Save até hidratar · NPD-2 pasta só no commit · NPD-3 conservador (reset/import limpam past+future; sync invalida future) · NPD-4 rejeitar cross-window DnD por ora · NPD-5 finalizar rename antes do undo</strong>.</p>
 <table>
@@ -448,7 +460,7 @@
 </table>
 
 <h2 id="onda4">Onda 4 — 17/09/2026 (diagnóstico em ambiente real do usuário)</h2>
-<p>Relato: <code>bun dev</code> com tela preta no newtab. Causa raiz confirmada (N3) e guardada com <code>strictPort</code>; nenhuma regressão das ondas 1–3 nos módulos tocados (smoke HTTP 200 em todos). <strong>Nenhuma correção de produção das ondas anteriores foi rebatida</strong> — o sistema de correração continua válido.</p>
+<p>Relato: <code>bun dev</code> com tela preta no newtab. Duas causas raiz independentes, ambas confirmadas e corrigidas: <strong>N3</strong> (HTML envenenado por instância duplicada do dev server — guardado com <code>strictPort</code>) e <strong>N4</strong> (hook dentro de <code>useEffect</code> no <code>HistoryManager</code>, introduzido na onda 3 — corrigido e coberto por teste red-capable). Nenhuma correção de produção das ondas 1–3 foi rebatida — exceto a regressão do N4, que nasceu dentro da própria onda 3 e já está curada.</p>
 
 <h2 id="navegadores">Achados por navegador</h2>
 <h3>Firefox / Zen</h3>
