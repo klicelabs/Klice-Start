@@ -187,6 +187,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	height: var(--icon-cell-h);
 	min-width: var(--icon-cell-w);
 	min-height: var(--icon-cell-h);
+	/* P4 (decision A, safe half): the browser skips layout/paint for cells
+	   outside the viewport — a pure win at any scale. Real virtualization
+	   (windowing the DOM above a threshold) stays deferred: framer-motion
+	   layout animations and DnD hover previews measure offscreen cells, and
+	   unmounting them regresses those features. Tracked as deferred work. */
+	content-visibility: auto;
+	contain-intrinsic-size: var(--icon-cell-w) var(--icon-cell-h);
 }
 
 .dial-grid[data-layout="icon"] .dial-icon-folder-cell {
@@ -692,6 +699,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
 	min-width: var(--tile-w);
 	min-height: calc(var(--tile-w) * var(--card-height-ratio, 1.12));
+	/* P4 (see icon-layout note): skip offscreen layout/paint; intrinsic
+	   size keeps scrollbar geometry stable before first paint. */
+	content-visibility: auto;
+	contain-intrinsic-size: var(--tile-w)
+		calc(var(--tile-w) * var(--card-height-ratio, 1.12));
 }
 
 /* Empty landing — unified stack entrance */

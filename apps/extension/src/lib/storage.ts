@@ -17,8 +17,8 @@ import {
 	MIN_COLUMNS,
 	WALLPAPERS,
 } from "./constants";
-import { getDescendantIds } from "./folder-tree";
 import { extApi } from "./extension-api";
+import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
@@ -448,7 +448,7 @@ function normalizeResetGeneration(value: unknown): number {
 let _resetGeneration = 0;
 let _resetGenerationLoaded = true;
 let _resetGenerationReady = Promise.resolve();
-if (!!extApi() && extApi().storage?.local) {
+if (extApi() && extApi().storage?.local) {
 	_resetGenerationLoaded = false;
 	_resetGenerationReady = chrome.storage.local
 		.get(RESET_GENERATION_KEY)
@@ -484,6 +484,8 @@ let _pendingResolvers: PendingResolver[] = [];
 let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
 let _inFlightWrite: Promise<void> | null = null;
 let _lastWrittenJSON: string | null = null;
+export type PersistHealth = "ok" | "unsaved" | "failed";
+
 type PersistenceErrorListener = (error: unknown) => void;
 const _persistenceErrorListeners = new Set<PersistenceErrorListener>();
 
@@ -491,15 +493,9 @@ const _persistenceErrorListeners = new Set<PersistenceErrorListener>();
  * Subscribe to persistence failures without coupling the storage layer to a
  * particular UI. The app uses this for one restrained temporary toast.
  */
-export function subscribeToPersistenceErrors(
-	listener: PersistenceErrorListener,
-): () => void {
-	_persistenceErrorListeners.add(listener);
-	return () => _persistenceErrorListeners.delete(listener);
-}
-
 function reportPersistenceError(error: unknown): void {
 	console.warn("[klice-start] persistence failed", error);
+	setPersistHealth("failed");
 	for (const listener of _persistenceErrorListeners) {
 		try {
 			listener(error);
@@ -510,6 +506,61 @@ function reportPersistenceError(error: unknown): void {
 			);
 		}
 	}
+}
+
+// P5-A (decision A): quota/persist health surface. A queued-but-unwritten
+// state is "unsaved" (the user's change exists only in memory); a rejected
+// write is "failed" (explicitly surfaced, never silent); a landed write is
+// "ok". Quota is preflighted BEFORE the write so a >95%-full store fails
+// with an explicit quota error instead of a truncated payload.
+type PersistHealthListener = (health: PersistHealth) => void;
+const _persistHealthListeners = new Set<PersistHealthListener>();
+
+export function subscribeToPersistHealth(
+	listener: PersistHealthListener,
+): () => void {
+	_persistHealthListeners.add(listener);
+	return () => _persistHealthListeners.delete(listener);
+}
+
+export function getPersistHealth(): PersistHealth {
+	return _persistHealth;
+}
+
+let _persistHealth: PersistHealth = "ok";
+
+function setPersistHealth(health: PersistHealth): void {
+	if (_persistHealth === health) return;
+	_persistHealth = health;
+	for (const listener of _persistHealthListeners) {
+		try {
+			listener(health);
+		} catch (listenerError) {
+			console.error(
+				"[klice-start] persist health listener failed",
+				listenerError,
+			);
+		}
+	}
+}
+
+/** Bytes-in-use preflight; null when the browser does not report usage. */
+async function quotaUsageBytes(): Promise<number | null> {
+	try {
+		const info = await extApi().storage.local.getBytesInUse?.(null);
+		return typeof info === "number" ? info : null;
+	} catch {
+		return null;
+	}
+}
+
+/** chrome.storage.local quota; navigator estimate as a coarse fallback. */
+const LOCAL_QUOTA_BYTES = 10 * 1024 * 1024; // 10 MiB per MV3 spec
+
+async function isQuotaExhausted(payloadBytes: number): Promise<boolean> {
+	const used = await quotaUsageBytes();
+	if (used === null) return false; // cannot know -> do not block writes
+	return used + payloadBytes > LOCAL_QUOTA_BYTES * 0.95;
 }
 
 function _doWrite(
@@ -524,9 +575,20 @@ function _doWrite(
 	const previous = _inFlightWrite ?? Promise.resolve();
 	const write = previous
 		.catch(() => undefined)
-		.then(() => extApi().storage.local.set({ [name]: json }))
+		.then(async () => {
+			// P5-A: fail explicitly on a nearly-full store instead of letting
+			// the write truncate/vanish silently inside the browser.
+			if (await isQuotaExhausted(json.length)) {
+				throw new DOMException(
+					"Storage quota nearly full — state not saved.",
+					"QuotaExceededError",
+				);
+			}
+			return extApi().storage.local.set({ [name]: json });
+		})
 		.then(() => {
 			_lastWrittenJSON = json;
+			setPersistHealth("ok");
 		})
 		.catch((error: unknown) => {
 			reportPersistenceError(error);
@@ -789,6 +851,8 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		// unhandled-rejection console error.
 		void promise.catch(() => undefined);
 		_pendingResolvers.push({ resolve, reject });
+		// P5-A: the change now exists only in memory (200ms coalesce + write).
+		setPersistHealth("unsaved");
 		_setItemTimer = setTimeout(() => {
 			const snap = _pendingSetItem;
 			_pendingSetItem = null;

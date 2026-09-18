@@ -462,8 +462,8 @@
 <tr><td>P1</td><td><strong>A</strong> — drop estrangeiro insere exatamente na posição indicada ("o que você vê é onde cai").</td><td><strong>0%</strong> — <code>use-grid-dnd.ts:435</code> ainda appenda (H9).</td></tr>
 <tr><td>P2</td><td><strong>A</strong> — bloquear combine com grupo &gt;1, com cue de recusa; grupo segue movível.</td><td><strong>0%</strong> — combine ignora o grupo (H7).</td></tr>
 <tr><td>P3</td><td><strong>A</strong> — tombstone de thumbnails; GC só na evicção do histórico.</td><td><strong>Feito (onda 5)</strong> — deletes tombstonam <code>entry.thumbnails</code> (nada é apagado no ato); GC único com live-check em todas as saídas de histórico; undo restaura bytes; sweep de órfãos pós-hidratação (H3).</td></tr>
-<tr><td>P4</td><td><strong>A</strong> — virtualização real acima de threshold; <code>content-visibility</code> como complemento.</td><td><strong>0%</strong> — sem virtualização nem <code>content-visibility</code> (grep vazio).</td></tr>
-<tr><td>P5</td><td><strong>A primeiro</strong> — preflight de quota + erro claro + estado "não salvo"; nunca falhar em silêncio.</td><td><strong>~20%</strong> — existe canal de erro de persistência + toast; sem preflight de quota e sem estado persistente "não salvo" (grep por quota/estimate vazio).</td></tr>
+<tr><td>P4</td><td><strong>A</strong> — virtualização real acima de threshold; <code>content-visibility</code> como complemento.</td><td><strong>Metade segura feita (onda 8)</strong> — <code>content-visibility: auto</code> + <code>contain-intrinsic-size</code> nas células dos dois layouts (o browser pula layout/paint fora da viewport, ganho em qualquer escala). Virtualização (windowing do DOM) <strong>documentada como adiada</strong>: framer-motion (layout animations) e os previews de DnD medem células fora da tela — desmontá-las regrediria H4/H10/H11. Trabalho futuro: windowing com medição preservada.</td></tr>
+<tr><td>P5</td><td><strong>A primeiro</strong> — preflight de quota + erro claro + estado "não salvo"; nunca falhar em silêncio.</td><td><strong>Feito (onda 8)</strong> — <code>PersistHealth</code> ("ok" | "unsaved" | "failed") com ciclo completo no adaptador: enqueue marca <code>unsaved</code>, escrita bem-sucedida marca <code>ok</code>, rejeição marca <code>failed</code> (nunca silencioso); preflight via <code>getBytesInUse</code> falha explicitamente com <code>QuotaExceededError</code> acima de 95% da cota de 10 MiB (sem relatório do browser, a escrita segue — não bloquear por ignorância). Toast agora é <em>sticky</em> em <code>failed</code> e se auto-demitir em <code>ok</code>.</td></tr>
 <tr><td>P6</td><td><strong>B conservador</strong> — normalizar só o comprovadamente seguro; preservar path/query/fragment; não remover <code>www</code>.</td><td><strong>Parcial "por omissão"</strong> — <code>canonicalUrl</code> (url.ts:45) já é conservador: host lowercased, portas default removidas, path/query/fragment preservados, sem strip de <code>www</code>. Falta o documento oficial de política + dedupe por id no normalize.</td></tr>
 <tr><td>P7</td><td><strong>A</strong> — renomear "Frequently visited" agora.</td><td><strong>Feito</strong> — "Suggested" (única ocorrência de UI). Comentário interno do arquivo ainda cita o nome antigo (cosmético).</td></tr>
 </table>
@@ -499,7 +499,7 @@
 </ul>
 
 <h2 id="performance">Performance / escala</h2>
-<p class="meta">Inalterado desde a 1ª passada (nenhum fix tocou hot paths). Confirmado por grep: sem virtualização, <code>previewCards</code> O(F·N) por mudança, busca sem debounce, <code>selectedIds.includes</code> por célula, snapshots de histórico por gesto, thumbs sem cache. P4/P5 sem implementação.</p>
+<p class="meta">Onda 8: P5-A implementado (health de persistência + preflight de quota, com regressão em <code>verify-persistence-protocol.test.ts</code>) e a metade segura do P4 (<code>content-visibility</code> nos dois layouts). Virtualização real segue adiada por conflito documentado com framer-motion/DnD. Sem alteração nos demais hot paths (previewCards O(F·N), debounce de busca, includes por célula) — registrados como risco residual conhecido.</p>
 <table>
 <tr><th>Carga</th><th>Risco atual</th></tr>
 <tr><td>50 itens</td><td>OK (hover reorder escreve O(n) por célula — aceitável).</td></tr>
@@ -517,7 +517,7 @@
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
 <li><strong>Decisões P1/P2 no DnD</strong> — <s>H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop)</s> <strong>todos resolvidos na onda 6</strong>, junto com L5, L8 e D4/NPD-4 (ver cards e tabela L).</li>
 <li><strong>Firefox</strong> — <s>resto do C4 + remapear atalho</s> <strong>resolvidos na onda 7</strong>; smoke real no Firefox segue como lacuna de validação (não executável neste ambiente).</li>
-<li><strong>Escala (P4/P5)</strong> — virtualização + preflight de quota + payload do persist.</li>
+<li><strong>Escala (P4/P5)</strong> — <s>preflight de quota + estado "não salvo"</s> <strong>resolvido na onda 8</strong>; <code>content-visibility</code> aplicado; virtualização real adiada com justificativa (conflito com framer-motion/DnD medindo células offscreen).</li>
 <li><strong>Polimento</strong> — M6–M10, M15–M19/N2, L1–L4 residuais; <s>L5, L8, D4/NPD-4</s> <strong>resolvidos na onda 6</strong>.</li>
 </ol>
 

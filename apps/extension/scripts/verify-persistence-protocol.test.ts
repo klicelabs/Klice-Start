@@ -72,6 +72,8 @@ const {
 	chromeStorageAdapter,
 	RESET_GENERATION_KEY,
 	PERSIST_GENERATION_KEY,
+	subscribeToPersistHealth,
+	getPersistHealth,
 } = await import("../src/lib/storage");
 
 function sampleSetup() {
@@ -136,4 +138,51 @@ test("D2: corrupt envelope is quarantined and reported, not silently absorbed", 
 	await writeSetupEnvelope("perch-setup", sampleSetup());
 	const readBack = await readSetupEnvelope("perch-setup");
 	expect(readBack?.folders[0]?.id).toBe("f1");
+});
+
+test("P5-A: persist health tracks queued, landed and failed writes", async () => {
+	mem.clear();
+	const events: string[] = [];
+	const unsubscribe = subscribeToPersistHealth((health) => events.push(health));
+
+	// A successful write passes through "unsaved" (queued in memory) to "ok".
+	const payload = (name: string) =>
+		({
+			state: {
+				folders: [{ id: "f1", name, order: 0, parentId: null }],
+				cards: [],
+				activeFolderId: "f1",
+				itemOrder: { f1: [] },
+				settings: {},
+			},
+			version: 0,
+		}) as never;
+	await chromeStorageAdapter.setItem("perch-setup", payload("Home"));
+	expect(events).toContain("unsaved");
+	expect(events[events.length - 1]).toBe("ok");
+	expect(getPersistHealth()).toBe("ok");
+
+	// A rejected write flips to "failed" — surfaced, never silent.
+	const area = (globalThis as Record<string, unknown>).chrome as {
+		storage: { local: { set: (items: unknown) => Promise<void> } };
+	};
+	const originalSet = area.storage.local.set.bind(area.storage.local);
+	area.storage.local.set = async () => {
+		throw new DOMException("quota full", "QuotaExceededError");
+	};
+	let rejected = false;
+	try {
+		await chromeStorageAdapter.setItem("perch-setup", payload("Home2"));
+	} catch {
+		rejected = true;
+	}
+	area.storage.local.set = originalSet as typeof area.storage.local.set;
+	expect(rejected).toBe(true);
+	expect(getPersistHealth()).toBe("failed");
+
+	// Recovery: the next landed write returns to "ok".
+	await chromeStorageAdapter.setItem("perch-setup", payload("Home3"));
+	expect(getPersistHealth()).toBe("ok");
+	expect(events[events.length - 1]).toBe("ok");
+	unsubscribe();
 });
