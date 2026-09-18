@@ -300,9 +300,12 @@ test("applies an edge reorder once per zone and settles on drop", async () => {
 		"card-b:before",
 	);
 
-	// Dropping on the same edge must not re-apply the decision.
+	// Dropping on the same edge must not re-apply the decision. The drop
+	// carries the pointer position (same as the last dragover, as in a real
+	// browser) — a synthetic drop at default coordinates would read a
+	// different zone and legitimately re-apply (H10).
 	await act(async () => {
-		dispatchDnd(b, "drop", dataTransfer);
+		dispatchDnd(b, "drop", dataTransfer, 10, 50);
 	});
 	expect(reorders).toHaveLength(1);
 	expect(document.querySelector('[data-testid="insertion"]')?.textContent).toBe("");

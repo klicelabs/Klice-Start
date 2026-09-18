@@ -96,7 +96,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		/* Interaction-safe overflow space for card grids (outlines, drop
 		   rings, shadows, small transforms). Mirrored by a negative stage
 		   margin so content alignment never shifts. */
-		--grid-safe-padding: 12px;		/* Uniform Speed-Dial footer height (favicon + name + breathing room). */
+		--grid-safe-padding: 12px; /* Uniform Speed-Dial footer height (favicon + name + breathing room). */
 		--card-footer-h: 30px;
 		/* Speed Dial composition rhythm. These tokens keep the ambient hero,
 		   navigation toolbar and grid in one spacing system. */
@@ -358,6 +358,23 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 .icon-folder-preview-link[data-preview-insertion="after"]::after {
 	bottom: -4px;
+}
+
+/* H7/P2 (decisão A): the folder preview refuses a multi-item group —
+   amber ring + stop cursor instead of a fake insertion cue. */
+.dial-card[data-group-refused] {
+	cursor: not-allowed;
+}
+
+.dial-card[data-group-refused]::after {
+	position: absolute;
+	inset: 0;
+	z-index: 25;
+	border-radius: inherit;
+	outline: 2px dashed var(--amber-9, #f5a623);
+	outline-offset: -3px;
+	content: "";
+	pointer-events: none;
 }
 
 .icon-folder-preview-empty,

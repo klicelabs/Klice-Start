@@ -60,6 +60,13 @@ export function isDragKind(e: DragEvent, kind: DragKind): boolean {
  */
 export interface GridItemDragProps {
 	draggable: boolean;
+	/**
+	 * H11: stable identity hooks for the autoscroll re-hit-test — the
+	 * pointer can hold still while the container scrolls, so the rehit
+	 * dispatches a synthetic dragover at the element now under it.
+	 */
+	"data-dnd-item"?: string;
+	"data-dnd-kind"?: DragKind;
 	onDragStart: (e: DragEvent) => void;
 	onDragEnd: (e: DragEvent) => void;
 	onDragOver: (e: DragEvent) => void;
@@ -83,6 +90,33 @@ export function insertPositionFor(
 	return e.clientX < rect.left + rect.width / 2 ? "before" : "after";
 }
 
+/**
+ * H11: after an autoscroll delta the content under a stationary pointer has
+ * moved. Re-hit-test and re-dispatch an item dragover there so the intent
+ * visual and the eventual drop position track the CONTENT, not the screen.
+ * Returns whether a dragover was re-dispatched.
+ */
+export function redispatchDragoverAt(
+	pointer: { x: number; y: number },
+	draggedId: string,
+	doc: Pick<Document, "elementFromPoint"> = document,
+): boolean {
+	if (typeof doc.elementFromPoint !== "function") return false;
+	const hit = doc.elementFromPoint(pointer.x, pointer.y);
+	const el = hit?.closest<HTMLElement>("[data-dnd-item]");
+	const id = el?.dataset.dndItem;
+	const kind = el?.dataset.dndKind;
+	if (!el || !id || (kind !== "card" && kind !== "folder")) return false;
+	if (id === draggedId) return false;
+	const event = new Event("dragover", { bubbles: true, cancelable: true });
+	Object.defineProperties(event, {
+		clientX: { value: pointer.x },
+		clientY: { value: pointer.y },
+	});
+	el.dispatchEvent(event);
+	return true;
+}
+
 export function dropZoneFor(e: DragEvent, el: HTMLElement): DropZone {
 	const rect = el.getBoundingClientRect();
 	// Y-aware zones for wrapping grids: a pointer clearly above/below the
@@ -95,8 +129,13 @@ export function dropZoneFor(e: DragEvent, el: HTMLElement): DropZone {
 	const ratioY = (e.clientY - rect.top) / Math.max(1, rect.height);
 	const isWide = rect.width > rect.height * 1.5;
 	if (!isWide) {
-		if (ratioY < 0.25 && ratioX < 0.72) return "before";
-		if (ratioY > 0.75 && ratioX > 0.28) return "after";
+		// L5: the Y bands are unconditional — the previous X guards created a
+		// corner inversion (top-right corner fell through to X>0.72 → "after"
+		// while the mirrored bottom-left said "before"). A pointer clearly in
+		// the top strip now ALWAYS inserts before, bottom strip always after,
+		// corners included; the middle band keeps the horizontal contract.
+		if (ratioY < 0.25) return "before";
+		if (ratioY > 0.75) return "after";
 	}
 	if (ratioX < 0.28) return "before";
 	if (ratioX > 0.72) return "after";

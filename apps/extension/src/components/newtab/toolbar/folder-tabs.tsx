@@ -19,20 +19,23 @@ import {
 	setActiveDrag,
 	setDragData,
 } from "../../../lib/dnd";
+import { resolveDragGroup } from "../../../lib/drag-group";
+import {
+	glassDropdownItem,
+	glassFocusRing,
+	glassForeground,
+	glassMenu,
+} from "../../../lib/glass";
 import {
 	beginGestureCapture,
 	buildRenameEntry,
+	clearFrozenDragGroup,
+	freezeDragGroup,
 } from "../../../lib/history-capture";
-import { useHistoryStore } from "../../../stores/history-store";
-import {
-	glassDropdownItem,
-	glassForeground,
-	glassFocusRing,
-	glassMenu,
-} from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import { TOOLBAR, TOOLBAR_ICON } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
+import { useHistoryStore } from "../../../stores/history-store";
 import { useMoveDialogStore } from "../../../stores/move-dialog-store";
 import { useRenameStore } from "../../../stores/rename-store";
 import { useSelectionStore } from "../../../stores/selection-store";
@@ -414,13 +417,9 @@ function FolderTab({
 		"pointer-events-none",
 		// Active tab keeps its face wash for hierarchy, but like every other
 		// toolbar control it carries no elevation shadow.
-		isLiquid
-			? "bg-foreground/10"
-			: "face-control shadow-none",
+		isLiquid ? "bg-foreground/10" : "face-control shadow-none",
 		dropActive &&
-			(isLiquid
-				? "ring-1 ring-foreground/30"
-				: "ring-1 ring-flat-edge-strong"),
+			(isLiquid ? "ring-1 ring-foreground/30" : "ring-1 ring-flat-edge-strong"),
 	);
 
 	if (editing) {
@@ -478,6 +477,17 @@ function FolderTab({
 									setup.folders,
 									setup.itemOrder,
 								);
+								// L8: freeze the drag group so a selection cleared
+								// mid-drag cannot shrink the tab drop.
+								freezeDragGroup(
+									resolveDragGroup(
+										{ kind: "folder", id: folder.id },
+										useSelectionStore.getState().items,
+										setup.cards,
+										setup.folders,
+										setup.itemOrder,
+									),
+								);
 								if (
 									!useSelectionStore.getState().selectedIds.includes(folder.id)
 								) {
@@ -491,6 +501,8 @@ function FolderTab({
 								setDropActive(false);
 								spring.cancel();
 								onInsertionChange(null);
+								// L8: gesture over — retire the frozen group.
+								clearFrozenDragGroup();
 							}}
 							onDragOver={handleDragOver}
 							onDragLeave={handleDragLeave}
@@ -507,7 +519,9 @@ function FolderTab({
 				    (identity by id, never by label) rather than disabling. */}
 				{!isActiveLocation && (
 					<ContextMenuItem
-						className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+						className={glassDropdownItem(isLiquid, resolvedDark, {
+							pillOwned: true,
+						})}
 						onSelect={() => onSelectFolder(folder.id)}
 					>
 						<Icon name="folder" size={14} />
@@ -515,28 +529,36 @@ function FolderTab({
 					</ContextMenuItem>
 				)}
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={onNewRootFolder}
 				>
 					<Icon name="folder-plus" size={14} />
 					New Folder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => onNewSubfolder?.(folder.id)}
 				>
 					<Icon name="folder-plus" size={14} />
 					New subfolder
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => beginRename({ kind: "folder", id: folder.id })}
 				>
 					<Icon name="pencil" size={14} />
 					Rename
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() =>
 						useSelectionStore
 							.getState()
@@ -547,7 +569,9 @@ function FolderTab({
 					Select
 				</ContextMenuItem>
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					onSelect={() => {
 						const selected = useSelectionStore.getState().selectedIds;
 						openMoveDialog(
@@ -560,7 +584,9 @@ function FolderTab({
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true })}
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
 					tone="destructive"
 					onSelect={() => onDeleteFolder?.(folder.id)}
 				>

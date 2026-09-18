@@ -1,4 +1,5 @@
 import type { Card, Folder } from "../types";
+import type { DragGroupMember } from "./drag-group";
 import type { HistoryEntry, HistorySnapshot, HistorySummary } from "./history";
 import type { ItemOrder } from "./item-order";
 
@@ -40,6 +41,27 @@ export function takeGestureCapture(): GestureCapture | null {
 
 export function clearGestureCapture(): void {
 	pending = null;
+}
+
+/**
+ * L8: the drag group is frozen at dragstart alongside the order capture.
+ * Drop sites consume this frozen payload instead of re-resolving the live
+ * selection, so clearing the selection mid-drag (tray close, hover commit,
+ * a stray clear) can no longer collapse the drag to its first member.
+ * The freeze is overwritten by every dragstart and cleared on dragend.
+ */
+let frozenDragGroup: DragGroupMember[] | null = null;
+
+export function freezeDragGroup(group: readonly DragGroupMember[]): void {
+	frozenDragGroup = [...group];
+}
+
+export function getFrozenDragGroup(): readonly DragGroupMember[] | null {
+	return frozenDragGroup;
+}
+
+export function clearFrozenDragGroup(): void {
+	frozenDragGroup = null;
 }
 
 export function snapshotSetup(
@@ -194,8 +216,12 @@ export function buildHistoryEntry(
 	// redo restores their full records. Deleted entities mirror that.
 	const beforeCards = new Map(capture.cards.map((c) => [c.id, c]));
 	const afterCards = new Map(cards.map((c) => [c.id, c]));
-	const undoPutCards = [...beforeCards.values()].filter((c) => !afterCards.has(c.id));
-	const redoPutCards = [...afterCards.values()].filter((c) => !beforeCards.has(c.id));
+	const undoPutCards = [...beforeCards.values()].filter(
+		(c) => !afterCards.has(c.id),
+	);
+	const redoPutCards = [...afterCards.values()].filter(
+		(c) => !beforeCards.has(c.id),
+	);
 	const beforeFolders = new Map(capture.folders.map((f) => [f.id, f]));
 	const afterFolders = new Map(folders.map((f) => [f.id, f]));
 	const undoPutFolders = [...beforeFolders.values()].filter(
@@ -235,4 +261,3 @@ export function buildHistoryEntry(
 	};
 	return { id: nextEntryId(), at: Date.now(), summary, undo, redo };
 }
-

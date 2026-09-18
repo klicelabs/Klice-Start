@@ -40,28 +40,28 @@ import { ToolbarActions } from "../../src/components/newtab/toolbar/toolbar-acti
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
 import { useCrossTabSync } from "../../src/hooks/use-cross-tab-sync";
 import { usePersistenceErrorToast } from "../../src/hooks/use-persistence-error-toast";
-import { orderGroupBySource } from "../../src/lib/drag-group";
+import { resolveFrozenDragGroup } from "../../src/lib/drag-group";
 import {
 	getBreadcrumb,
 	getChildren,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
-import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
+import {
+	type HistorySummary,
+	historyContainerName,
+} from "../../src/lib/history";
 import {
 	buildHistoryEntry,
 	clearGestureCapture,
+	type GestureCapture,
 	snapshotSetup,
 	takeGestureCapture,
-	type GestureCapture,
 } from "../../src/lib/history-capture";
+import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
 import {
-	historyContainerName,
-	type HistorySummary,
-} from "../../src/lib/history";
-import {
-	ROOT_CONTAINER,
 	getOrderedRefs,
 	type ItemRef,
+	ROOT_CONTAINER,
 } from "../../src/lib/item-order";
 import type {
 	NavigationHistory,
@@ -169,19 +169,13 @@ export default function App() {
 	// (reset/import/crash orphans) — best-effort, once per session.
 	const sweepOrphans = useCallback(() => {
 		const setup = useSetupStore.getState();
-		void useImageStore
-			.getState()
-			.sweepOrphanThumbnails(
-				setup.cards.map((c) => c.thumbId),
-				[
-					...useHistoryStore
-						.getState()
-						.past.flatMap((e) => e.thumbnails ?? []),
-					...useHistoryStore
-						.getState()
-						.future.flatMap((e) => e.thumbnails ?? []),
-				],
-			);
+		void useImageStore.getState().sweepOrphanThumbnails(
+			setup.cards.map((c) => c.thumbId),
+			[
+				...useHistoryStore.getState().past.flatMap((e) => e.thumbnails ?? []),
+				...useHistoryStore.getState().future.flatMap((e) => e.thumbnails ?? []),
+			],
+		);
 	}, []);
 
 	useEffect(() => {
@@ -597,10 +591,10 @@ export default function App() {
 		(draggedId: string, targetId: string) => {
 			const state = useSetupStore.getState();
 			const selection = useSelectionStore.getState().items;
-			const group = orderGroupBySource(
-				selection.some((item) => item.id === draggedId)
-					? selection.map((item) => item.id)
-					: [draggedId],
+			// L8: the frozen group survives a mid-drag selection clear.
+			const group = resolveFrozenDragGroup(
+				{ kind: "card", id: draggedId },
+				selection,
 				state.cards,
 				state.folders,
 				state.itemOrder,
@@ -609,8 +603,7 @@ export default function App() {
 				.filter(
 					(member) =>
 						member.kind === "card" &&
-						state.cards.find((c) => c.id === member.id)?.folderId !==
-							targetId,
+						state.cards.find((c) => c.id === member.id)?.folderId !== targetId,
 				)
 				.map((member) => member.id);
 			const folderIds = group
@@ -644,10 +637,11 @@ export default function App() {
 						dest,
 						label:
 							total === 1
-								? (cardIds.length === 1
-										? live.cards.find((c) => c.id === cardIds[0])?.title?.trim() ||
-											undefined
-										: live.folders.find((f) => f.id === folderIds[0])?.name)
+								? cardIds.length === 1
+									? live.cards
+											.find((c) => c.id === cardIds[0])
+											?.title?.trim() || undefined
+									: live.folders.find((f) => f.id === folderIds[0])?.name
 								: undefined,
 					},
 				);
@@ -703,7 +697,13 @@ export default function App() {
 			handleSelectFolder(parentId ?? id);
 			beginRename({ kind: "folder", id });
 		},
-		[addFolder, beginRename, handleSelectFolder, snapshotLiveSetup, commitManualHistory],
+		[
+			addFolder,
+			beginRename,
+			handleSelectFolder,
+			snapshotLiveSetup,
+			commitManualHistory,
+		],
 	);
 
 	// Drag a nested folder onto a tab edge: hoist it to root at that position.
@@ -1035,17 +1035,17 @@ export default function App() {
 												itemOrder={itemOrder}
 												cardCounts={cardCounts}
 												previewCards={previewCards}
-											onDelete={deleteCard}
-											onDeleteFolder={handleDeleteFolder}
-											onOpenFolder={handleSelectFolder}
+												onDelete={deleteCard}
+												onDeleteFolder={handleDeleteFolder}
+												onOpenFolder={handleSelectFolder}
 												onNewSubfolder={handleNewSubfolder}
 												onMoveItems={(cardIds, folderIds, targetId) =>
 													moveItemsToContainer(targetId, cardIds, folderIds)
 												}
-											onLiveReorder={handleLiveReorder}
-											onReorderGroup={handleReorderGroup}
-											onInsertCardsAt={handleInsertCardsAt}
-											onPreviewDrop={handlePreviewDrop}
+												onLiveReorder={handleLiveReorder}
+												onReorderGroup={handleReorderGroup}
+												onInsertCardsAt={handleInsertCardsAt}
+												onPreviewDrop={handlePreviewDrop}
 												onCombineCards={handleCombineCards}
 												canNestFolder={canNestFolder}
 												navigation={navigation}
@@ -1067,18 +1067,18 @@ export default function App() {
 										{/* Lightweight Move-to destination picker */}
 										<MoveToDialog />
 
-									{/* Floating multi-select transport tray */}
-									<SelectionTray
-										onNavigateFolder={handleSelectFolder}
-										pageIds={pageIds}
-										onSelectAll={handleSelectAll}
-									/>
-									{/* Command history: toasts, confirmation, shortcuts */}
-									<HistoryManager />
-									<HistoryDialog
-										open={historyOpen}
-										onOpenChange={setHistoryOpen}
-									/>
+										{/* Floating multi-select transport tray */}
+										<SelectionTray
+											onNavigateFolder={handleSelectFolder}
+											pageIds={pageIds}
+											onSelectAll={handleSelectAll}
+										/>
+										{/* Command history: toasts, confirmation, shortcuts */}
+										<HistoryManager />
+										<HistoryDialog
+											open={historyOpen}
+											onOpenChange={setHistoryOpen}
+										/>
 									</div>
 								</div>
 								{!restMode && (

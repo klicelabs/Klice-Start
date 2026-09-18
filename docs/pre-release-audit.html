@@ -285,42 +285,52 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>H7 — Combine com multisseleção move 2 e abandona o resto (P2 não implementada)</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>handleCombineCards</code> (App.tsx:489-516) combina <code>draggedCardId+targetCardId</code> sem olhar o tamanho do grupo; <code>use-grid-dnd</code> <code>:430-434</code> encaminha <code>onCombineCards</code> para qualquer card local, mesmo com grupo ativo; <code>settleMovedSelection</code> limpa a seleção inteira. Decisão P2 (A — bloquear combine com grupo &gt;1, com cue de recusa) 0% implementada.</dd>
+<dt>Fix (onda 6)</dt><dd>Decisão P2-A implementada: <code>use-grid-dnd</code> resolve o grupo real (<code>onResolveDragGroup</code>) no dragover e no drop de combine — grupo &gt;1 não combina. O hover mostra cue de recusa (<code>dropEffect: none</code>, sem <code>combineKey</code>) e o alvo ganha anel âmbar (<code>data-group-refused</code> em <code>tokens.css</code>); o drop re-checa e recusa. Caminhos local e estrangeiro cobertos.</dd>
+<dt>Validação</dt><dd><code>tsc</code> limpo; suíte 79/79; <code>verify-dnd-lifecycle.test.tsx</code> 5/5 (C3/D4/H10 intactos).</dd>
 </dl>
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>H8 — Preview drop move só cards, pastas ficam sem aviso</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>dial-grid.tsx</code> <code>onPreviewDrop</code> (~578): <code>group.filter((member) =&gt; member.kind === "card")</code> + comentário "a mixed selection moves its cards". Pastas do grupo ficam paradas sem feedback — exatamente o relatado.</dd>
+<dt>Fix (onda 6)</dt><dd>Decisão P2-A: grupo misto cujas pastas não podem aninhar no destino recusa INTEIRO com toast de aviso (<code>planGroupFolderDrop</code>, em <code>drag-group.ts</code>) — o destino dentro do próprio grupo nunca é recusado; grupos só de pastas movem as movíveis; cards-only silencioso deixou de existir. O caminho de preview já recusa grupos com pastas no hover (cue), desde a correção do H7.</dd>
+<dt>Validação</dt><dd><code>verify-dnd-group.test.ts</code> cobre recusa (refusedFolders) e destino-no-grupo; suíte 79/79.</dd>
 </dl>
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>H9 — Drop estrangeiro na borda descarta a posição (append) — P1 não implementada</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>use-grid-dnd.ts:435-439</code>: <code>if (!h.isInContainer(dragged)) { h.onBackgroundDrop(dragged); ... }</code> — append, sem usar a zona da borda. Decisão P1 (A — inserir exatamente na posição indicada) 0% implementada.</dd>
+<dt>Fix (onda 6)</dt><dd>Decisão P1-A: drop estrangeiro na borda insere exatamente na posição indicada — <code>onForeignEdgeDrop</code> substitui o append; centros continuam resolvendo combine/pasta/fundo. Preview e persistência compartilham a mesma zona (<code>dropZoneFor</code>).</dd>
+<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 (inclui drop em borda com as coordenadas do hover); suíte 79/79.</dd>
 </dl>
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Provável (sem reprodução em navegador)</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>H10 — Drop persiste borda diferente da previewada</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd>Mecanismo plausível e reforçado: além do recalculo de zona no drop contra rect movido, o drop de grupo usa <code>insertCardsBlock</code> enquanto hovers usam <code>insertCardAt</code> — com grupo &gt;1, mesmo o mesmo stamp aplica blocos diferentes. Sem run real de navegador nesta passada; segue "provável".</dd>
+<dt>Fix (onda 6)</dt><dd>O drop reutiliza o stamp do hover (<code>appliedStamp</code>): a geometria final só decide quando nenhum hover precedeu o drop — a posição persistida é exatamente a previewada. O teste de lifecycle foi corrigido para entregar no drop as coordenadas do hover (intenção original do teste preservada).</dd>
+<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 cobre drop com stamp igual e sem dragover prévio; suíte 79/79.</dd>
 </dl>
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>H11 — Autoscroll com ponteiro parado deixa hover obsoleto</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>use-grid-dnd</code> não registra <code>onScroll</code> do autoscroll (o hook suporta, o grid não usa — <code>autoscroll.ts:34,116</code>). Sem re-hit-test durante rolagem; drop usa a última posição de ponteiro.</dd>
+<dt>Fix (onda 6)</dt><dd>O grid registra <code>onScroll</code> no <code>useAutoscroll</code>: após cada delta, <code>redispatchDragoverAt</code> (helper puro em <code>dnd.ts</code>) re-hit-testa o elemento sob o ponteiro parado e re-dispacha o dragover — hover e drop seguem o CONTEÚDO durante a rolagem, não a tela.</dd>
+<dt>Validação</dt><dd><code>verify-dnd-group.test.ts</code>: 3 testes do helper (re-dispatch, mesmo item, nada hitável); suíte 79/79.</dd>
 </dl>
 </div>
 
@@ -370,10 +380,10 @@
 <tr><td>L2</td><td>Atalhos disparam atrás de modais abertos</td><td>Aberto (nuance)</td><td><code>Ctrl+A</code> tem guarda de <code>[role="dialog"]</code>; undo/redo não. Nuance: <code>document-level</code> com Dialogs nativos... sem reprodução em navegador nesta passada.</td></tr>
 <tr><td>L3</td><td>Commits rápidos colapsam notices (só último toast)</td><td>Aberto (confirmado)</td><td><code>notice: { entryId, seq }</code> único + <code>NOTICE_TOAST_ID</code> fixo no manager.</td></tr>
 <tr><td>L4</td><td>Containers vazios fantasmas no <code>itemOrder</code></td><td><strong>Resolvido (onda 3)</strong></td><td><code>deleteCard</code> poda containers não-raiz que ficaram vazios (o container <code>__root__</code> nunca é podado). Teste cobre container esvaziado e preservação da raiz.</td></tr>
-<tr><td>L5</td><td>Inversão de canto no <code>dropZoneFor</code></td><td>Aberto (confirmado)</td><td><code>dnd.ts:97-102</code>: canto sup. direito (Y&lt;0.25, X&gt;0.72) cai no <code>ratioX &gt; 0.72 → "after"</code>; espelho inferior-esquerdo idem. Diagnóstico original correto.</td></tr>
+<tr><td>L5</td><td>Inversão de canto no <code>dropZoneFor</code></td><td>Corrigido (onda 6)</td><td><code>dnd.ts:97-102</code>: canto sup. direito (Y&lt;0.25, X&gt;0.72) cai no <code>ratioX &gt; 0.72 → "after"</code>; espelho inferior-esquerdo idem. <strong>Fix (onda 6):</strong> zonas reescritas por metades verticais (esquerda → <code>before</code>, direita → <code>after</code>), simétricas nos 4 cantos; <code>verify-dnd-lifecycle.test.tsx</code> cobre as bordas.</td></tr>
 <tr><td>L6</td><td>Marquee: Esc no-op, fase trava até pointerup</td><td><strong>Achado incorreto</strong></td><td><code>use-marquee-selection.ts:345-359</code>: listener capture + <code>stopPropagation</code> + <code>settle(true)</code> já cancela e restaura. O comentário do código inclusive documenta a intenção. Não reproduzível como descrito.</td></tr>
 <tr><td>L7</td><td>Grid com <code>windowFallback</code> contra diretriz da lib</td><td><strong>Achado incorreto</strong> (substituído por D4)</td><td><code>windowFallback: true</code> é proposital (comentário: "fallback for drags that leave the scroll viewport") e o autoscroll é co-modal com marquee. O bug real do fallback é outro: drops cross-window sem protocolo de intenção — ver D4.</td></tr>
-<tr><td>L8</td><td>Tray drag colapsa se seleção for limpa mid-drag</td><td>Aberto (confirmado)</td><td><code>handleTrayDragStart</code> (selection-tray.tsx:271-283) congela capture e payload, mas resolução do grupo no drop depende da seleção <em>live</em>; limpeza mid-drag reduz para o primeiro membro.</td></tr>
+<tr><td>L8</td><td>Tray drag colapsa se seleção for limpa mid-drag</td><td>Corrigido (onda 6)</td><td><code>handleTrayDragStart</code> congela capture e payload, mas a resolução do grupo no drop dependia da seleção <em>live</em>. <strong>Fix (onda 6):</strong> o grupo é congelado no dragstart (<code>freezeDragGroup</code>, em <code>history-capture.ts</code>) e todo drop site consome o payload congelado (<code>resolveFrozenDragGroup</code>, em <code>drag-group.ts</code>) — limpar a seleção mid-drag não colapsa o arrasto; o congelamento é limpo em dragend/cancelo. <code>verify-dnd-group.test.ts</code> cobre o ciclo completo (red-capable).</td></tr>
 </table>
 
 <h2 id="novos">Novos achados (2ª passada)</h2>
@@ -409,12 +419,14 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-open">Novo (substitui L7)</span></div>
+<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
 <h3>D4 — Drop cross-window (fallback <code>dataTransfer</code>) commita sem protocolo de intenção</h3>
 <dl>
 <dt>Mecanismo</dt><dd><code>resolveDrag</code> aceita payload de outra janela (drag para a janela do newtab a partir de outra aba/janela). Os handlers de drop tratam como gesto local: commita <code>onBackgroundDrop</code>/<code>onDropOnFolder</code> no container atual sem capture de gesto consistente — histórico pode não registrar ou registrar errado.</dd>
 <dt>Relação</dt><dd>É a forma real do problema que o L7 original apontou de forma imprecisa.</dd>
 <dt>Decisão ligada</dt><dd>NPD-4 — decidida: rejeitar cross-window drops sem contexto de gesto confiável (ver Decisões).</dd>
+<dt>Fix (onda 6)</dt><dd>NPD-4 implementado: <code>__kliceDndGestureEpoch</code> global marca gestos same-document (dragstart incrementa, dragend zera). Os drop handlers recusam o payload quando o epoch está zerado (cross-window); guarda aplicada em grid, fundo, preview e tabs.</dd>
+<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 e suíte 79/79; builds Chromium e Firefox ✔.</dd>
 </dl>
 </div>
 
@@ -501,14 +513,14 @@
 <li><strong>Protocolo de escrita único</strong> — <s>N1 (generation stamp no background)</s> <strong>resolvido (onda 3: readSetupEnvelope/writeSetupEnvelope)</strong>; M13 pendente (aba morta repersistindo — mitiga-se com o mesmo protocolo, ver tabela); M20 <strong>resolvido</strong>; NPD-3 <strong>implementada</strong>; D2 <strong>resolvido (quarentena + report)</strong>.</li>
 <li><strong>Integridade de dados</strong> — <s>H5/M11 (remapear órfãos)</s> <strong>resolvido (onda 3)</strong>; <s>H12 (uuid)</s> <strong>resolvido (crypto.randomUUID)</strong>; <s>D2 (quarentena)</s> <strong>resolvido</strong>; M21/L4 <strong>resolvidos</strong>; H3/P3 (popular tombstones e adiar GC) pendente.</li>
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
-<li><strong>Decisões P1/P2 no DnD</strong> — H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop).</li>
+<li><strong>Decisões P1/P2 no DnD</strong> — <s>H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop)</s> <strong>todos resolvidos na onda 6</strong>, junto com L5, L8 e D4/NPD-4 (ver cards e tabela L).</li>
 <li><strong>Firefox</strong> — resto do C4 + remapear atalho + smoke real.</li>
 <li><strong>Escala (P4/P5)</strong> — virtualização + preflight de quota + payload do persist.</li>
-<li><strong>Polimento</strong> — M6–M10, M15–M19/N2, L1–L5, L8, D4/NPD-4 (decidida: rejeitar).</li>
+<li><strong>Polimento</strong> — M6–M10, M15–M19/N2, L1–L4 residuais; <s>L5, L8, D4/NPD-4</s> <strong>resolvidos na onda 6</strong>.</li>
 </ol>
 
 <footer>
-<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
+<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados. Onda 6 (17/09/2026): DnD completo — H7/H8 (P2-A: recusa com cue + toast), H9 (P1-A: inserção posicionada), H10 (stamp do hover vence), H11 (re-hit-test no autoscroll), L5 (simetria de cantos), L8 (grupo congelado no dragstart), D4 (epoch same-document). Suíte 79/79, <code>tsc</code> limpo, biome ok nos arquivos tocados, builds Chromium e Firefox ✔.</p>
 </footer>
 
 </main>

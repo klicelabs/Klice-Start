@@ -10,7 +10,6 @@ import { EASE_OUT } from "@klice-start/ui/lib/ease";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { GridItemDragProps } from "../../../lib/dnd";
-import { buildRenameEntry } from "../../../lib/history-capture";
 import {
 	glassCardFooter,
 	glassCardMaterial,
@@ -21,10 +20,11 @@ import {
 	glassMaterial,
 	glassMenu,
 } from "../../../lib/glass";
+import { buildRenameEntry } from "../../../lib/history-capture";
 import { iconFolderPreviewSlots } from "../../../lib/icon-layout";
 import { cn, softGradientFromString } from "../../../lib/utils";
-import { useImageStore } from "../../../stores/image-store";
 import { useHistoryStore } from "../../../stores/history-store";
+import { useImageStore } from "../../../stores/image-store";
 import { useMoveDialogStore } from "../../../stores/move-dialog-store";
 import { useRenameStore } from "../../../stores/rename-store";
 import { useSelectionStore } from "../../../stores/selection-store";
@@ -73,6 +73,11 @@ interface FolderPreviewCardProps {
 	insertion?: "before" | "after" | null;
 	/** Highlight: a dragged item hovers the body — drop moves it inside. */
 	dropActive?: boolean;
+	/**
+	 * H7/P2 (decisão A): the hovered preview refuses this drag — a
+	 * multi-item group cannot be positioned inside a folder preview.
+	 */
+	refuseGroup?: boolean;
 	className?: string;
 }
 
@@ -94,6 +99,7 @@ export function FolderPreviewCard({
 	previewInsertion,
 	insertion = null,
 	dropActive = false,
+	refuseGroup = false,
 	className,
 }: FolderPreviewCardProps) {
 	const { isLiquid, resolvedDark } = useAppearance();
@@ -137,26 +143,26 @@ export function FolderPreviewCard({
 				onDragOver={dialLayout === "icon" ? dragProps?.onDragOver : undefined}
 				onDragLeave={dialLayout === "icon" ? dragProps?.onDragLeave : undefined}
 				onDrop={dialLayout === "icon" ? dragProps?.onDrop : undefined}
+				aria-invalid={refuseGroup || undefined}
+				data-group-refused={refuseGroup || undefined}
 				className={cn(
 					// Calm by default: no hover lift/translate/glow — same rule
 					// as bookmark cards. Drop-target states are untouched.
 					// The single wrapper child below owns the card box; the
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
-				"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-				dialLayout === "card" && "overflow-hidden rounded-2xl",
-				// Sizing/span live on the grid-item wrapper (DialGrid); the
-				// inner card only fills it. Keeping the span class here would
-				// size a non-grid-item and overflow its cell.
-				dialLayout === "icon" && "overflow-visible rounded-none",
+					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
+					dialLayout === "card" && "overflow-hidden rounded-2xl",
+					// Sizing/span live on the grid-item wrapper (DialGrid); the
+					// inner card only fills it. Keeping the span class here would
+					// size a non-grid-item and overflow its cell.
+					dialLayout === "icon" && "overflow-visible rounded-none",
 					dialLayout === "card" && glassCardMaterial(isLiquid),
 					insertion === "before" &&
 						dialLayout === "card" &&
 						"drop-insert-before",
 					insertion === "after" && dialLayout === "card" && "drop-insert-after",
-					dropActive &&
-						dialLayout === "card" &&
-						glassDropRing(isLiquid),
+					dropActive && dialLayout === "card" && glassDropRing(isLiquid),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
@@ -166,8 +172,8 @@ export function FolderPreviewCard({
 						<IconFolderBody
 							id={id}
 							name={name}
-														previewCards={previewCards}
-														itemCount={itemCount}
+							previewCards={previewCards}
+							itemCount={itemCount}
 							isSelected={isSelected}
 							editing={editing}
 							showOpenAction={showOpenAction}
@@ -508,7 +514,7 @@ function IconFolderBody({
 											{...stackDragProps}
 										>
 											{slot.back ? (
-													<IconAppTile
+												<IconAppTile
 													url={slot.back.url}
 													favicon={slot.back.favicon}
 													mini
@@ -527,20 +533,20 @@ function IconFolderBody({
 												url={card.url}
 												favicon={card.favicon}
 												mini
-														className="icon-folder-stack-front-tile"
-													/>
-													{slot.back && overflowCount > 0 ? (
-														<span
-															aria-hidden="true"
-															className={cn(
-																"icon-folder-stack-count rounded-full px-1.5 text-[10px] font-semibold leading-none tabular-nums",
-																glassMaterial(isLiquid, "menu", "dense"),
-																isLiquid ? glassForeground() : "text-flat-ink",
-															)}
-														>
-															+{overflowCount}
-														</span>
-													) : null}
+												className="icon-folder-stack-front-tile"
+											/>
+											{slot.back && overflowCount > 0 ? (
+												<span
+													aria-hidden="true"
+													className={cn(
+														"icon-folder-stack-count rounded-full px-1.5 font-semibold text-[10px] tabular-nums leading-none",
+														glassMaterial(isLiquid, "menu", "dense"),
+														isLiquid ? glassForeground() : "text-flat-ink",
+													)}
+												>
+													+{overflowCount}
+												</span>
+											) : null}
 										</button>
 									</motion.div>
 								);

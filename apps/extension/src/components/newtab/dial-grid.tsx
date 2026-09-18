@@ -15,20 +15,25 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { useMarqueeSelection } from "../../hooks/use-marquee-selection";
 import { CARD_ASPECT_RATIO } from "../../lib/constants";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import {
+	planGroupFolderDrop,
 	resolveDragGroup,
+	resolveFrozenDragGroup,
 	splitGroupKinds,
 } from "../../lib/drag-group";
+import type { HistorySummary } from "../../lib/history";
 import {
 	beginGestureCapture,
 	buildHistoryEntry,
+	clearFrozenDragGroup,
+	freezeDragGroup,
 	takeGestureCapture,
 } from "../../lib/history-capture";
-import type { HistorySummary } from "../../lib/history";
 import { computeIconGridMaxWidth, iconGridConfig } from "../../lib/icon-layout";
 import {
 	getOrderedRefs,
@@ -36,8 +41,8 @@ import {
 	type ItemRef,
 } from "../../lib/item-order";
 import type { NavigationState } from "../../lib/navigation";
-import { useHistoryStore } from "../../stores/history-store";
 import { cn } from "../../lib/utils";
+import { useHistoryStore } from "../../stores/history-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { computeGridMaxWidth, useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
@@ -393,20 +398,33 @@ export function DialGrid({
 			const draggedKind = allCards.some((c) => c.id === draggedId)
 				? ("card" as const)
 				: ("folder" as const);
-			const group = resolveDragGroup(
+			// L8: consume the group frozen at dragstart — a selection cleared
+			// mid-drag must not shrink this drop to the first member.
+			const group = resolveFrozenDragGroup(
 				{ kind: draggedKind, id: draggedId },
 				useSelectionStore.getState().items,
 				allCards,
 				allFolders,
 				itemOrder,
 			);
-			const { cardIds, folderIds } = splitGroupKinds(group);
-			const movableCards = cardIds.filter(
-				(id) => allCards.find((c) => c.id === id)?.folderId !== targetFolderId,
-			);
-			const movableFolders = folderIds.filter((id) =>
-				canNestFolder(id, targetFolderId),
-			);
+			const { movableCards, movableFolders, refusedFolders } =
+				planGroupFolderDrop(
+					group,
+					targetFolderId,
+					(id) => allCards.find((c) => c.id === id)?.folderId,
+					canNestFolder,
+				);
+			// H8 (decisão P2-A): a mixed group whose folders cannot nest
+			// refuses WHOLE — a cards-only move would strand the folders
+			// silently. Feedback beats partial silence.
+			if (movableCards.length > 0 && refusedFolders.length > 0) {
+				toast.warning("Some folders can't go inside that folder", {
+					description:
+						"Drop them on the grid background or move them individually.",
+				});
+				clearFrozenDragGroup();
+				return;
+			}
 			if (movableCards.length > 0 || movableFolders.length > 0) {
 				onMoveItems(movableCards, movableFolders, targetFolderId);
 				const total = movableCards.length + movableFolders.length;
@@ -445,7 +463,8 @@ export function DialGrid({
 	// swap cannot split the move or leave half of the selection behind.
 	const handleBackgroundDrop = useCallback(
 		(dragged: ItemRef) => {
-			const group = resolveDragGroup(
+			// L8: frozen group wins over the live selection (mid-drag clears).
+			const group = resolveFrozenDragGroup(
 				dragged,
 				useSelectionStore.getState().items,
 				allCards,
@@ -504,17 +523,44 @@ export function DialGrid({
 			const store = useSelectionStore.getState();
 			if (!store.selectedIds.includes(ref.id)) {
 				store.clear();
+				// L8: freeze the single-item group — drop sites must never
+				// fall back to whatever selection existed at dragstart.
+				freezeDragGroup([
+					{
+						kind: ref.kind,
+						id: ref.id,
+						sourceId:
+							ref.kind === "card"
+								? (allCards.find((c) => c.id === ref.id)?.folderId ?? folderId)
+								: folderId,
+					},
+				]);
 				if (dialLayout === "icon") showGroupDragGhost(e, 1);
 				return;
 			}
 			const group = store.selectedIds;
+			// L8: freeze the full source-ordered group for every drop site.
+			freezeDragGroup(
+				resolveDragGroup(ref, store.items, allCards, allFolders, itemOrder),
+			);
 			if (group.length > 1) showGroupDragGhost(e, group.length);
 			else if (dialLayout === "icon") showGroupDragGhost(e, 1);
 		},
-		[dialLayout, allCards, allFolders, itemOrder],
+		[dialLayout, allCards, allFolders, itemOrder, folderId],
 	);
 
 	const dnd = useGridDnd({
+		onResolveDragGroup: useCallback(
+			(dragged: ItemRef) =>
+				resolveDragGroup(
+					dragged,
+					useSelectionStore.getState().items,
+					allCards,
+					allFolders,
+					itemOrder,
+				),
+			[allCards, allFolders, itemOrder],
+		),
 		onLiveReorder: useCallback(
 			(dragged: ItemRef, target: ItemRef, position: "before" | "after") => {
 				// One drag operation → one group insertion: when the grabbed
@@ -539,7 +585,14 @@ export function DialGrid({
 				}
 				onLiveReorder(folderId, dragged, target, position);
 			},
-			[onLiveReorder, onReorderGroup, folderId, allCards, allFolders, itemOrder],
+			[
+				onLiveReorder,
+				onReorderGroup,
+				folderId,
+				allCards,
+				allFolders,
+				itemOrder,
+			],
 		),
 		onCombineCards,
 		onDropOnFolder: handleDropOnFolder,
@@ -578,7 +631,8 @@ export function DialGrid({
 				// Preview drops commit the selected card block once, in source
 				// order, instead of once per member. Folders cannot be
 				// preview-represented, so a mixed selection moves its cards.
-				const group = resolveDragGroup(
+				// L8: the frozen group survives a mid-drag selection clear.
+				const group = resolveFrozenDragGroup(
 					{ kind: "card", id: draggedCardId },
 					useSelectionStore.getState().items,
 					allCards,
@@ -634,16 +688,18 @@ export function DialGrid({
 		// a same-container reorder — or a no-op drop, which diffs to nothing.
 		onDropSettled: useCallback(
 			(dragged: ItemRef) => {
-				const group = resolveDragGroup(
+				// L8: settle against the frozen group, then retire it — the
+				// gesture is over and a stale freeze must not leak into the
+				// next unrelated drop.
+				const group = resolveFrozenDragGroup(
 					dragged,
 					useSelectionStore.getState().items,
 					allCards,
 					allFolders,
 					itemOrder,
 				);
-				const local = group.filter(
-					(member) => member.sourceId === folderId,
-				);
+				clearFrozenDragGroup();
+				const local = group.filter((member) => member.sourceId === folderId);
 				commitGestureHistory({
 					kind: "reorder",
 					total: local.length > 0 ? local.length : 1,
@@ -834,9 +890,9 @@ export function DialGrid({
 										["--icon-column-gap" as string]: `${iconGrid.columnGap}px`,
 										["--icon-row-gap" as string]: `${iconGrid.rowGap}px`,
 										["--icon-label-gap" as string]: `${iconGrid.labelGap}px`,
-									["--icon-folder-span" as string]: iconGrid.folderSpan,
-									["--icon-radius" as string]: `${iconGrid.radius}px`,
-									["--icon-safe-padding" as string]: `${iconGrid.safePadding}px`,
+										["--icon-folder-span" as string]: iconGrid.folderSpan,
+										["--icon-radius" as string]: `${iconGrid.radius}px`,
+										["--icon-safe-padding" as string]: `${iconGrid.safePadding}px`,
 									}
 								: {}),
 							...cellAspectStyle,
@@ -871,48 +927,50 @@ export function DialGrid({
 													dialLayout === "icon" && "dial-icon-folder-cell",
 												)}
 											>
-											<FolderPreviewCard
-												id={folder.id}
-												name={folder.name}
-												itemCount={cardCounts[folder.id] ?? 0}
-											previewCards={previewCards[folder.id] ?? []}
-											dragging={dragGroupIds?.has(folder.id) ?? false}
-												isSelected={isSelected}
-												showOpenAction={selectedIds.length > 0}
-												insertion={
-													dnd.insertion?.key === folder.id
-														? dnd.insertion.position
-														: null
-												}
-												dropActive={dnd.nestId === folder.id}
-												onClick={(e) =>
-													handleFolderClick(e, folder.id, () =>
-														onOpenFolder(folder.id),
-													)
-												}
-												onOpen={onOpenFolder}
-												onNewSubfolder={onNewSubfolder}
-												onDelete={onDeleteFolder}
-												getPreviewDragProps={(cardId) =>
-													dnd.getPreviewItemDragProps(folder.id, cardId)
-												}
-												stackDragProps={dnd.getFolderStackDragProps(
-													folder.id,
-													previewCards[folder.id]?.[8]?.id,
-												)}
-												previewInsertion={
-													dnd.previewInsertion?.folderId === folder.id
-														? {
-																targetCardId: dnd.previewInsertion.targetCardId,
-																position: dnd.previewInsertion.position,
-															}
-														: null
-												}
-												dragProps={dnd.getItemDragProps({
-													kind: "folder",
-													id: folder.id,
-												})}
-											/>
+												<FolderPreviewCard
+													id={folder.id}
+													name={folder.name}
+													itemCount={cardCounts[folder.id] ?? 0}
+													previewCards={previewCards[folder.id] ?? []}
+													dragging={dragGroupIds?.has(folder.id) ?? false}
+													isSelected={isSelected}
+													showOpenAction={selectedIds.length > 0}
+													insertion={
+														dnd.insertion?.key === folder.id
+															? dnd.insertion.position
+															: null
+													}
+													dropActive={dnd.nestId === folder.id}
+													onClick={(e) =>
+														handleFolderClick(e, folder.id, () =>
+															onOpenFolder(folder.id),
+														)
+													}
+													onOpen={onOpenFolder}
+													onNewSubfolder={onNewSubfolder}
+													onDelete={onDeleteFolder}
+													getPreviewDragProps={(cardId) =>
+														dnd.getPreviewItemDragProps(folder.id, cardId)
+													}
+													stackDragProps={dnd.getFolderStackDragProps(
+														folder.id,
+														previewCards[folder.id]?.[8]?.id,
+													)}
+													previewInsertion={
+														dnd.previewInsertion?.folderId === folder.id
+															? {
+																	targetCardId:
+																		dnd.previewInsertion.targetCardId,
+																	position: dnd.previewInsertion.position,
+																}
+															: null
+													}
+													refuseGroup={dnd.refuseGroup === folder.id}
+													dragProps={dnd.getItemDragProps({
+														kind: "folder",
+														id: folder.id,
+													})}
+												/>
 											</motion.div>
 										);
 									}
@@ -927,23 +985,23 @@ export function DialGrid({
 											className="dial-cell"
 											data-marquee-id={card.id}
 										>
-										<DialCard
-											card={card}
-											onDelete={onDelete}
-											isSelected={isSelected}
-											onClick={(e) => handleCardClick(e, card.id)}
-											dragProps={dnd.getItemDragProps({
-												kind: "card",
-												id: card.id,
-											})}
-											insertion={
-												dnd.insertion?.key === card.id
-													? dnd.insertion.position
-													: null
-											}
-										combineActive={dnd.combineKey === card.id}
-										dragging={dragGroupIds?.has(card.id) ?? false}
-										/>
+											<DialCard
+												card={card}
+												onDelete={onDelete}
+												isSelected={isSelected}
+												onClick={(e) => handleCardClick(e, card.id)}
+												dragProps={dnd.getItemDragProps({
+													kind: "card",
+													id: card.id,
+												})}
+												insertion={
+													dnd.insertion?.key === card.id
+														? dnd.insertion.position
+														: null
+												}
+												combineActive={dnd.combineKey === card.id}
+												dragging={dragGroupIds?.has(card.id) ?? false}
+											/>
 										</motion.div>
 									);
 								})}

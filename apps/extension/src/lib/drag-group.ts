@@ -1,5 +1,6 @@
 import type { SelectionItem } from "../stores/selection-store";
 import type { Card, Folder } from "../types";
+import { getFrozenDragGroup } from "./history-capture";
 import {
 	containerKeyOf,
 	type ItemOrder,
@@ -120,4 +121,66 @@ export function splitGroupKinds(group: readonly DragGroupMember[]): {
 		else folderIds.push(member.id);
 	}
 	return { cardIds, folderIds };
+}
+
+/**
+ * L8: resolve the gesture's drag group — the group frozen at dragstart when
+ * it carries the grabbed item, the live selection otherwise (direct drags
+ * that never went through a freezing dragstart, e.g. foreign payloads).
+ * Drop sites use this so a selection cleared mid-drag cannot shrink the
+ * operation to its first member.
+ */
+export function resolveFrozenDragGroup(
+	dragged: ItemRef,
+	selection: readonly SelectionItem[],
+	cards: readonly Card[],
+	folders: readonly Folder[],
+	itemOrder: ItemOrder | null | undefined,
+): DragGroupMember[] {
+	const frozen = getFrozenDragGroup();
+	if (
+		frozen &&
+		frozen.length > 0 &&
+		frozen.some((member) => member.id === dragged.id)
+	) {
+		return [...frozen];
+	}
+	return resolveDragGroup(dragged, selection, cards, folders, itemOrder);
+}
+
+export interface FolderDropPlan {
+	/** Cards that would actually move (not already inside the target). */
+	movableCards: string[];
+	/** Folders that would actually move (nestable into the target). */
+	movableFolders: string[];
+	/** Folders of the group the target cannot take (H8 refusal). */
+	refusedFolders: string[];
+}
+
+/**
+ * H8 (decisão P2-A): plan a group drop onto a folder. Callers refuse the
+ * WHOLE drop when cards would move but folders would be stranded — a
+ * cards-only partial move silently abandons the folders.
+ */
+export function planGroupFolderDrop(
+	group: readonly DragGroupMember[],
+	targetFolderId: string,
+	cardLocationOf: (cardId: string) => string | undefined,
+	canNest: (folderId: string, targetFolderId: string) => boolean,
+): FolderDropPlan {
+	const { cardIds, folderIds } = splitGroupKinds(group);
+	// The destination folder may itself ride in the group (dragging a
+	// selection onto one of its own members). It is the target, not a
+	// candidate — it can neither move nor be "refused".
+	const candidateFolders = folderIds.filter((id) => id !== targetFolderId);
+	const movableCards = cardIds.filter(
+		(id) => cardLocationOf(id) !== targetFolderId,
+	);
+	const movableFolders = candidateFolders.filter((id) =>
+		canNest(id, targetFolderId),
+	);
+	const refusedFolders = candidateFolders.filter(
+		(id) => !movableFolders.includes(id),
+	);
+	return { movableCards, movableFolders, refusedFolders };
 }

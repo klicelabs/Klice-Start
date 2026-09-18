@@ -13,11 +13,6 @@ import { toast } from "sonner";
 import { setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { orderGroupBySource } from "../../lib/drag-group";
-import {
-	buildHistoryEntry,
-	snapshotSetup,
-	beginGestureCapture,
-} from "../../lib/history-capture";
 import { wouldCreateCycle } from "../../lib/folder-tree";
 import {
 	glassDropdownItem,
@@ -26,10 +21,16 @@ import {
 	glassMenu,
 	glassShape,
 } from "../../lib/glass";
+import {
+	beginGestureCapture,
+	buildHistoryEntry,
+	freezeDragGroup,
+	snapshotSetup,
+} from "../../lib/history-capture";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
 import { cn } from "../../lib/utils";
-import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useHistoryStore } from "../../stores/history-store";
+import { useMoveDialogStore } from "../../stores/move-dialog-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
@@ -249,10 +250,11 @@ export function SelectionTray({
 				dest: destName,
 				label:
 					move.movable === 1
-						? (move.cardIds.length === 1
-								? live.cards.find((c) => c.id === move.cardIds[0])?.title?.trim() ||
-									undefined
-								: live.folders.find((f) => f.id === move.folderIds[0])?.name)
+						? move.cardIds.length === 1
+							? live.cards
+									.find((c) => c.id === move.cardIds[0])
+									?.title?.trim() || undefined
+							: live.folders.find((f) => f.id === move.folderIds[0])?.name
 						: undefined,
 			},
 		);
@@ -276,6 +278,15 @@ export function SelectionTray({
 		}
 		// Freeze order for history so tab drops diff to one entry.
 		beginGestureCapture(cards, folders, itemOrder);
+		// L8: freeze the whole source-ordered group — the tray's drag outlives
+		// any selection clear (a mid-drag commit used to collapse the drop
+		// to the first member).
+		freezeDragGroup(ordered);
+		// D4/NPD-4: mark the gesture as same-document so grid drop sites can
+		// refuse cross-window payloads.
+		(globalThis as { __kliceDndGestureEpoch?: number }).__kliceDndGestureEpoch =
+			((globalThis as { __kliceDndGestureEpoch?: number })
+				.__kliceDndGestureEpoch ?? 0) + 1;
 		e.dataTransfer.effectAllowed = "move";
 		setDragData(e, first.kind, first.id);
 		if (total > 1) showGroupDragGhost(e, total);
@@ -492,10 +503,9 @@ export function SelectionTray({
 												if (pageComplete) {
 													// True inverse of local Select all: drop
 													// this page's members, keep the rest.
-													const remaining =
-														useSelectionStore
-															.getState()
-															.items.filter((item) => !pageSet.has(item.id));
+													const remaining = useSelectionStore
+														.getState()
+														.items.filter((item) => !pageSet.has(item.id));
 													if (remaining.length === 0) clearSelection();
 													else
 														useSelectionStore.getState().selectAll(remaining);

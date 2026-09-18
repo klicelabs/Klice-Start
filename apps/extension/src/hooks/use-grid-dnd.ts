@@ -5,18 +5,22 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useAutoscroll } from "../lib/autoscroll";
 import {
 	clearActiveDrag,
 	dropZoneFor,
-	insertPositionFor,
 	type GridItemDragProps,
+	insertPositionFor,
+	redispatchDragoverAt,
 	resolveDragRef,
 	setDragData,
 } from "../lib/dnd";
-import { clearGestureCapture } from "../lib/history-capture";
 import { sweepDragGhosts } from "../lib/drag-ghost";
+import {
+	clearFrozenDragGroup,
+	clearGestureCapture,
+} from "../lib/history-capture";
 import type { ItemOrder, ItemRef } from "../lib/item-order";
-import { useAutoscroll } from "../lib/autoscroll";
 import { useSpringLoad } from "./use-spring-load";
 
 export interface GridDndHandlers {
@@ -32,6 +36,17 @@ export interface GridDndHandlers {
 	onDropOnFolder: (draggedId: string, folderId: string) => void;
 	/** Drop onto empty grid background. */
 	onBackgroundDrop: (dragged: ItemRef) => void;
+	/**
+	 * H9/P1: a foreign item (not a member of this container) dropped on a
+	 * card/folder EDGE lands exactly at the previewed position — the owner
+	 * inserts a block at that edge instead of appending. Center zones never
+	 * reach this (folder-nest/combine paths run first).
+	 */
+	onForeignEdgeDrop?: (
+		dragged: ItemRef,
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
 	/** Spring-loaded navigation into a folder. */
 	onOpenFolder: (id: string) => void;
 	/** Spring-load on folder-center hover (default true). Icon mode keeps
@@ -51,6 +66,12 @@ export interface GridDndHandlers {
 		targetCardId: string,
 		position: "before" | "after",
 	) => void;
+	/**
+	 * H7/P2: resolve the drag group for a preview hover — a length > 1
+	 * group is refused by preview cells (folders cannot be positioned
+	 * there), with a refusal cue rendered by the owner.
+	 */
+	onResolveDragGroup?: (dragged: ItemRef) => readonly unknown[];
 	/** Cycle guard for folder-in-folder drops. */
 	canNest: (folderId: string, targetFolderId: string) => boolean;
 	/** True when the ref belongs to this grid's container. */
@@ -128,8 +149,27 @@ function isValidItemDrop(
  * Spring-load only arms on folder-center hover, never on reorder edges, and
  * the drop always persists its move — navigation is never a substitute.
  */
+/**
+ * D4/NPD-4: same-document gesture epoch. Every local dragstart bumps it;
+ * cross-window drops carry no epoch, so a zero epoch at a drop handler
+ * means the payload came from another window — refuse (decisão NPD-4:
+ * melhor recusar do que aceitar silenciosamente com histórico errado).
+ */
+declare global {
+	// eslint-disable-next-line no-var
+	var __kliceDndGestureEpoch: number | undefined;
+}
+
 export function useGridDnd(handlers: GridDndHandlers) {
 	const [drag, setDrag] = useState<ItemRef | null>(null);
+	// H7/P2 (decisão A): a folder-preview cell refuses a multi-item group —
+	// previews cannot position folders, and a cards-only silent move would
+	// abandon the rest of the selection. The refusal cue renders on the
+	// hovered cell so feedback is immediate.
+	const [refuseGroup, setRefuseGroup] = useState<string | null>(null);
+	// H11: last pointer position, so the autoscroll onScroll callback can
+	// re-hit-test what is under a stationary pointer while the page scrolls.
+	const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
 	const [insertion, setInsertion] = useState<{
 		key: string;
 		position: "before" | "after";
@@ -171,12 +211,25 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	// (dragover writes the pointer) is decoupled from scrolling (a rAF loop
 	// owns all scrollTop writes and keeps running with a static pointer
 	// inside the edge zone).
-	const autoscroll = useAutoscroll({ windowFallback: true });
+	const autoscroll = useAutoscroll({
+		windowFallback: true,
+		// H11: native dragover stalls while the pointer holds still, but the
+		// time-driven scroll loop keeps moving content under it — hovers go
+		// stale. After every applied scroll delta, re-hit-test the element now
+		// under the pointer and re-dispatch its dragover so the intent visual
+		// and the eventual drop position track the CONTENT, not the screen.
+		onScroll: () => {
+			const point = lastPointerRef.current;
+			if (!point || !dragRef.current || gestureRef.current.cancelled) return;
+			redispatchDragoverAt(point, dragRef.current.id);
+		},
+	});
 	const stopAutoscroll = autoscroll.stop;
 
 	/** Record the pointer and ensure the scroll loop is running. */
 	const feedAutoscroll = useCallback(
 		(e: DragEvent) => {
+			lastPointerRef.current = { x: e.clientX, y: e.clientY };
 			autoscroll.feed({ x: e.clientX, y: e.clientY });
 		},
 		[autoscroll],
@@ -196,6 +249,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		setNestId(null);
 		setPreviewInsertion(null);
 		previewInsertionRef.current = null;
+		setRefuseGroup(null);
 	}, []);
 
 	// Clear the rendered intent without clearing the native payload. A
@@ -234,6 +288,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		gestureRef.current.cancelled = true;
 		resetDrag();
 		clearGestureCapture();
+		clearFrozenDragGroup();
 	}, [resetDrag]);
 
 	/** Restore the pre-drag order (Escape cancellation). */
@@ -256,6 +311,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	const handleItemDragStart = useCallback(
 		(ref: ItemRef) => (e: DragEvent) => {
 			handlersRef.current.onItemDragStart?.(ref, e);
+			globalThis.__kliceDndGestureEpoch =
+				(globalThis.__kliceDndGestureEpoch ?? 0) + 1;
 			dragRef.current = ref;
 			// Fresh gesture: any stale cancel from a previous drag is void.
 			gestureRef.current = { id: gestureRef.current.id + 1, cancelled: false };
@@ -264,8 +321,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			sweepDragGhosts();
 			// Snapshot the persisted order before hover-applied live reorders
 			// mutate it, so Escape can return to a stable pre-drag state.
-			orderSnapshot.current =
-				handlersRef.current.onSnapshotOrder?.() ?? null;
+			orderSnapshot.current = handlersRef.current.onSnapshotOrder?.() ?? null;
 			setDragData(e, ref.kind, ref.id);
 			// Defer source dimming one frame so the browser captures a
 			// full-opacity drag image.
@@ -278,6 +334,9 @@ export function useGridDnd(handlers: GridDndHandlers) {
 
 	const handleItemDragEnd = useCallback(() => {
 		resetDrag();
+		// L8: the gesture is over — a stale frozen group must not survive
+		// into the next unrelated drop.
+		clearFrozenDragGroup();
 	}, [resetDrag]);
 
 	// Native dragend can arrive after its source node has been removed (for
@@ -297,7 +356,14 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				resetDragCancelled();
 			}
 		};
-		const handleDragEnd = () => resetDragCancelled();
+		const handleDragEnd = () => {
+			// D4/NPD-4: the gesture ended — cross-window drops arriving now
+			// carry a stale payload this document never started.
+			globalThis.__kliceDndGestureEpoch = 0;
+			resetDragCancelled();
+			// L8: window-level backstop for the frozen group as well.
+			clearFrozenDragGroup();
+		};
 		window.addEventListener("keydown", handleKeyDown);
 		window.addEventListener("dragend", handleDragEnd);
 		return () => {
@@ -373,6 +439,18 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			if (zone === "center") {
 				// Only card-on-card combines; a folder cannot nest into a card.
 				if (dragged.kind !== "card" || foreign) return;
+				// H7/P2 (decisão A): a multi-item selection never combines —
+				// merging one member would strand the rest of the selection.
+				// Refuse with a cue instead of silently moving two items.
+				if ((h.onResolveDragGroup?.(dragged).length ?? 1) > 1) {
+					e.preventDefault();
+					e.dataTransfer.dropEffect = "none";
+					setInsertion((prev) => (prev === null ? prev : null));
+					setCombineKey((prev) => (prev === null ? prev : null));
+					setRefuseGroup((prev) => (prev === ref.id ? prev : ref.id));
+					return;
+				}
+				setRefuseGroup((prev) => (prev === null ? prev : null));
 				e.preventDefault();
 				e.dataTransfer.dropEffect = "move";
 				feedAutoscroll(e);
@@ -404,7 +482,13 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			);
 			applyLiveReorder(dragged, ref, zone);
 		},
-		[springStart, springRestart, springCancel, applyLiveReorder, feedAutoscroll],
+		[
+			springStart,
+			springRestart,
+			springCancel,
+			applyLiveReorder,
+			feedAutoscroll,
+		],
 	);
 
 	const handleItemDragLeave = useCallback(
@@ -419,6 +503,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			}
 			setInsertion((prev) => (prev?.key === ref.id ? null : prev));
 			setCombineKey((prev) => (prev === ref.id ? null : prev));
+			setRefuseGroup((prev) => (prev === ref.id ? null : prev));
 			setNestId((prev) => {
 				if (prev === ref.id) {
 					springCancel();
@@ -442,7 +527,11 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			// fallback — check BEFORE the resolveDrag path (dragRef is already
 			// null after cancel; the payload is not).
 			const isLiveGesture = !gestureRef.current.cancelled;
-			const dragged = dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
+			// D4/NPD-4: a zero epoch means no live same-document gesture —
+			// this payload arrived from another window; refuse.
+			if (!globalThis.__kliceDndGestureEpoch) return;
+			const dragged =
+				dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
 			// Preserve the hover stamp until the final edge decision. Clearing it
 			// before reading it made every edge drop invoke reorder twice.
 			const appliedStamp = lastApplied.current;
@@ -458,25 +547,62 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			if (!isValidItemDrop(dragged, ref, zone, h)) return;
 
 			if (ref.kind === "folder" && zone === "center") {
+				// H8: drop sites expand the drag group upstream (the owner
+				// resolves the full selection) — this hook hands over the
+				// grabbed ref; nothing is moved twice.
 				h.onDropOnFolder(dragged.id, ref.id);
 				h.onDropSettled?.(dragged);
 				return;
 			}
 			if (ref.kind === "card" && dragged.kind === "card" && zone === "center") {
+				// H7/P2: the refusal seen on hover holds at drop — a
+				// multi-item group never combines (decisão A).
+				if ((h.onResolveDragGroup?.(dragged).length ?? 1) > 1) return;
 				h.onCombineCards(dragged.id, ref.id);
 				h.onDropSettled?.(dragged);
 				return;
 			}
 			if (!h.isInContainer(dragged)) {
-				// Foreign item dropped on an edge: append to this container.
-				h.onBackgroundDrop(dragged);
+				// H9/P1 (decisão A): a foreign item dropped on an edge lands
+				// EXACTLY at the indicated edge — the previewed position is the
+				// persisted one. Append (the old behavior) discarded the edge.
+				if (ref.kind === "folder" && zone === "center") {
+					h.onDropOnFolder(dragged.id, ref.id);
+					h.onDropSettled?.(dragged);
+					return;
+				}
+				if (
+					ref.kind === "card" &&
+					dragged.kind === "card" &&
+					zone === "center"
+				) {
+					// H7/P2: multi-item groups never combine (decisão A).
+					if ((h.onResolveDragGroup?.(dragged).length ?? 1) > 1) return;
+					h.onCombineCards(dragged.id, ref.id);
+					h.onDropSettled?.(dragged);
+					return;
+				}
+				if (zone === "center") {
+					// Unreachable in practice (centers settle above); the append
+					// fallback keeps any residual case landing safely.
+					h.onBackgroundDrop(dragged);
+					h.onDropSettled?.(dragged);
+					return;
+				}
+				h.onForeignEdgeDrop?.(dragged, ref, zone);
 				h.onDropSettled?.(dragged);
 				return;
 			}
 			// Edge drop: live reorder already applied on hover; ensure the
 			// final position in case drop fired without a preceding over.
+			// (All center-zone cases settled above, so only edges remain.)
+			if (zone === "center") return;
 			const stamp = `${dragged.kind}:${dragged.id}|${ref.kind}:${ref.id}|${zone}`;
-			if (appliedStamp !== stamp && zone !== "center") {
+			// H10: the previewed intent wins — reuse the hover stamp even when
+			// the final pointer geometry resolves differently, so the persisted
+			// position is exactly the one the user saw. Geometry only fills in
+			// when no hover preceded the drop.
+			if (appliedStamp !== stamp) {
 				h.onLiveReorder(dragged, ref, zone);
 			}
 			h.onDropSettled?.(dragged);
@@ -502,7 +628,10 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			// resolveDrag fallback so a drop after Esc (delivered) or dragend
 			// cannot resurrect a cancelled gesture from the dataTransfer payload.
 			const isLiveGesture = !gestureRef.current.cancelled;
-			const dragged = dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
+			// D4/NPD-4: refuse cross-window payloads (no same-document epoch).
+			if (!globalThis.__kliceDndGestureEpoch) return;
+			const dragged =
+				dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
 			// Same full settle as item drops (see handleItemDrop).
 			resetDrag();
 			if (!dragged || !dragged.id) return;
@@ -515,6 +644,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 	const getItemDragProps = useCallback(
 		(ref: ItemRef): GridItemDragProps => ({
 			draggable: true,
+			"data-dnd-item": ref.id,
+			"data-dnd-kind": ref.kind,
 			onDragStart: handleItemDragStart(ref),
 			onDragEnd: handleItemDragEnd,
 			onDragOver: handleItemDragOver(ref),
@@ -535,6 +666,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			const ref: ItemRef = { kind: "card", id: cardId };
 			return {
 				draggable: true,
+				"data-dnd-item": cardId,
+				"data-dnd-kind": "card",
 				onDragStart: (e) => {
 					e.stopPropagation();
 					handlersRef.current.onItemDragStart?.(ref, e);
@@ -546,6 +679,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 						id: gestureRef.current.id + 1,
 						cancelled: false,
 					};
+					globalThis.__kliceDndGestureEpoch =
+						(globalThis.__kliceDndGestureEpoch ?? 0) + 1;
 					dragRef.current = ref;
 					lastApplied.current = null;
 					autoscroll.setContainer(undefined);
@@ -565,6 +700,18 @@ export function useGridDnd(handlers: GridDndHandlers) {
 					const dragged = dragRef.current ?? resolveDrag(e);
 					if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
 						return;
+					// H7/P2: resolve the real drag group — a multi-item selection
+					// cannot be preview-inserted (folders have no position).
+					const groupSize =
+						handlersRef.current.onResolveDragGroup?.(dragged).length ?? 1;
+					if (groupSize > 1) {
+						e.preventDefault();
+						e.dataTransfer.dropEffect = "none";
+						setPreviewInsertion((prev) => (prev === null ? prev : null));
+						setRefuseGroup((prev) => (prev === folderId ? prev : folderId));
+						return;
+					}
+					setRefuseGroup((prev) => (prev === null ? prev : null));
 					const target = e.currentTarget;
 					if (!(target instanceof HTMLElement)) return;
 					const position = insertPositionFor(e, target);
@@ -613,13 +760,21 @@ export function useGridDnd(handlers: GridDndHandlers) {
 							: current,
 					);
 				},
-			onDrop: (e) => {
-				// C3: same cancelled-gesture guard as the grid drop handlers.
-				const isLiveGesture = !gestureRef.current.cancelled;
-				const dragged =
-					dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
-				if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
-					return;
+				onDrop: (e) => {
+					// C3: same cancelled-gesture guard as the grid drop handlers.
+					const isLiveGesture = !gestureRef.current.cancelled;
+					const dragged =
+						dragRef.current ?? (isLiveGesture ? resolveDrag(e) : null);
+					if (!dragged || dragged.kind !== "card" || dragged.id === cardId)
+						return;
+					// H7/P2: the refusal seen on hover holds at drop — a multi-item
+					// group never preview-inserts (decisão A: recusar com cue).
+					if (refuseGroup === folderId) {
+						e.preventDefault();
+						e.stopPropagation();
+						resetDrag();
+						return;
+					}
 					const target = e.currentTarget;
 					if (!(target instanceof HTMLElement)) return;
 					const live = previewInsertionRef.current;
@@ -639,7 +794,7 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				},
 			};
 		},
-		[resetDrag, feedAutoscroll, autoscroll],
+		[resetDrag, feedAutoscroll, autoscroll, refuseGroup],
 	);
 
 	const getFolderStackDragProps = useCallback(
@@ -694,6 +849,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 		combineKey,
 		nestId,
 		previewInsertion,
+		/** H7/P2: folder id currently refusing a multi-item group. */
+		refuseGroup,
 		/** Settle a stale gesture (e.g. the container swapped mid-drag). */
 		reset: resetDrag,
 		/** Clear hover visuals while preserving the native drag payload. */
