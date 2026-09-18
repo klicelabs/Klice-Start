@@ -14,6 +14,7 @@ import {
 	type BookmarkTreeFolder,
 	planBookmarkMerge,
 } from "../lib/bookmark-merge";
+import { extApi } from "../lib/extension-api";
 import { repairItemOrder } from "../lib/item-order";
 import { isAbsoluteHttpUrl } from "../lib/url";
 import { useSetupStore } from "../stores/setup-store";
@@ -366,13 +367,13 @@ export async function readBrowserBookmarks(): Promise<{
 	topFolders: BookmarkTreeFolder[];
 	topLinks: { title: string; url: string }[];
 }> {
-	if (typeof chrome === "undefined" || !chrome.bookmarks?.getTree) {
+	if (!extApi() || !extApi().bookmarks?.getTree) {
 		throw new Error("Bookmark import is not supported in this browser.");
 	}
 
 	let tree: chrome.bookmarks.BookmarkTreeNode[];
 	try {
-		tree = await chrome.bookmarks.getTree();
+		tree = await extApi().bookmarks.getTree();
 	} catch (err) {
 		throw new Error(
 			"Could not read browser bookmarks. Check the extension permissions.",

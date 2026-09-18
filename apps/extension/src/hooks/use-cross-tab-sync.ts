@@ -1,3 +1,4 @@
+import type { Browser } from "wxt/browser";
 import { useEffect } from "react";
 import {
 	getLastWrittenJSON,
@@ -5,6 +6,7 @@ import {
 	normalizeState,
 	PERSIST_GENERATION_KEY,
 } from "../lib/storage";
+import { extApi } from "../lib/extension-api";
 import { useHistoryStore } from "../stores/history-store";
 import { useSetupStore } from "../stores/setup-store";
 import type { Setup } from "../types";
@@ -20,11 +22,11 @@ import type { Setup } from "../types";
  */
 export function useCrossTabSync() {
 	useEffect(() => {
-		if (typeof chrome === "undefined" || !chrome.storage?.onChanged) return;
-		const handler = (
-			changes: Record<string, chrome.storage.StorageChange>,
-			area: string,
-		) => {
+		if (!extApi() || !extApi().storage?.onChanged) return;
+		type OnChangedCb = Parameters<
+			(typeof Browser.storage.onChanged)["addListener"]
+		>[0];
+		const handler: OnChangedCb = (changes, area) => {
 			// "perch-setup" is the legacy persist name; kept for data continuity.
 			if (area !== "local" || !changes["perch-setup"]) return;
 
@@ -76,9 +78,9 @@ export function useCrossTabSync() {
 			}
 		};
 
-		chrome.storage.onChanged.addListener(handler);
+		extApi().storage.onChanged.addListener(handler);
 		return () => {
-			chrome.storage.onChanged.removeListener(handler);
+			extApi().storage.onChanged.removeListener(handler);
 		};
 	}, []);
 }

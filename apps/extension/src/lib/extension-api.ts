@@ -37,3 +37,16 @@ const scope = globalThis as unknown as {
 
 export const ext: typeof Browser =
 	scope.browser ?? (scope.chrome as typeof Browser);
+
+/**
+ * Late-binding variant: resolves the namespace at CALL time. Use this in
+ * modules whose unit tests install the `chrome` shim after imports evaluate
+ * (the direct `chrome.*` code paths this seam replaced were call-time
+ * checks, so the migration must not tighten them into import-time ones).
+ * In a real extension context both resolve to the same object.
+ */
+export function extApi(): typeof Browser {
+	// chrome-first mirrors the direct `chrome.*` reads these callers had
+	// before the migration — same global, same call-time resolution.
+	return (scope.chrome as typeof Browser) ?? scope.browser ?? ext;
+}

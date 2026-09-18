@@ -30,7 +30,10 @@ export default defineConfig({
 		host_permissions: ["http://*/*", "https://*/*"],
 		commands: {
 			"add-current-page": {
-				suggested_key: { default: "Ctrl+Shift+D", mac: "Command+Shift+D" },
+				// Ctrl+Shift+D is Chrome's native "Bookmark all tabs" — it used
+				// to fire both actions. Alt+Shift+D is unclaimed in Chromium
+				// and Firefox defaults.
+				suggested_key: { default: "Alt+Shift+D", mac: "Command+Shift+D" },
 				description: "Save current page to Klice Start",
 			},
 		},

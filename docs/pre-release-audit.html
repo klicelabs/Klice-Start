@@ -219,13 +219,15 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High (rebaixado de Critical)</span><span class="badge st-part">Resolvido parcialmente (R1 resolvido na onda 3)</span></div>
+<div class="badges"><span class="badge sev-High">High (rebaixado de Critical)</span><span class="badge st-fixed">Corrigido na onda 7 (exceto smoke real)</span></div>
 <h3>C4 — Split <code>chrome.*</code> vs <code>browser.*</code> ameaça o Firefox</h3>
 <dl>
 <dt>Original</dt><dd>Popup/storage/sync/bookmarks usam <code>chrome.*</code> promise-style; background usa <code>browser.*</code>; no Firefox o split ameaça quick-save, sync e import.</dd>
 <dt>Rebaixamento</dt><dd>Crítico→Alto: o helper <code>ext</code> cobre <code>background.ts</code> e <code>popup/App.tsx</code> (as duas superfícies de quick-save); storage/sync continuam em <code>chrome.*</code>, mas <code>chrome.storage</code> promise-style é justamente a área onde o Firefox mantém compatibilidade razoável — o risco concreto restante é médio-alto, não crítico. (A quebra real hoje é R1, não o Firefox.)</dd>
 <dt>Feito</dt><dd><code>src/lib/extension-api.ts</code> (<code>ext = browser ?? chrome</code>); <code>background.ts</code> 100% migrado; <code>popup/App.tsx</code> migrado. Manifest Firefox confere (<code>permissions</code>, gecko id). Builds dos dois targets OK.</dd>
-<dt>Falta</dt><dd>Migrar <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code> (o próprio comentário do arquivo lista isso); resolver R1; smoke test real no Firefox continua inexistente.</dd>
+<dt>Falta</dt><dd><s>Migrar <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code></s> (feito na onda 7); <s>resolver R1</s> (resolvido na onda 3); smoke test real no Firefox continua inexistente (lacuna de ambiente).</dd>
+<dt>Fix (onda 7)</dt><dd>Os três módulos restantes migrados para o seam: <code>extApi()</code> — variante <em>late-binding</em> que resolve o namespace na chamada, preservando a semântica call-time que os testes e o código original dependiam (checagem <code>typeof</code> viva). <code>ext</code> (binding eager) mantido para background/popup. Chamadores: <code>storage.ts</code> (protocolo de geração N1, quarentena D2, adaptador zustand), <code>use-cross-tab-sync.ts</code> (listener tipado via <code>typeof Browser.storage.onChanged</code>), <code>bookmarks-html.ts</code> (<code>getTree</code>).</dd>
+<dt>Validação</dt><dd>Suíte 79/79 incluindo <code>verify-persistence-protocol.test.ts</code> (N1/D2) contra shim in-memory — a migração é transparente para o protocolo de geração; <code>tsc</code> limpo; builds Chromium e Firefox OK.</dd>
 </dl>
 </div>
 
@@ -486,8 +488,8 @@
 <h2 id="navegadores">Achados por navegador</h2>
 <h3>Firefox / Zen</h3>
 <ul>
-<li>C4 restante: <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code> ainda em <code>chrome.*</code>; sem smoke real no Firefox (não executável neste ambiente — registrado como lacuna de validação, não como bug confirmado).</li>
-<li><code>Ctrl+Shift+D</code> continua igual a "Bookmark all tabs" (wxt.config.ts:23) — remapear (ex.: <code>Alt+Shift+D</code>).</li>
+<li><s>C4 restante: <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code> ainda em <code>chrome.*</code></s> — migrados na onda 7 via <code>extApi()</code> (late-binding); sem smoke real no Firefox (não executável neste ambiente — registrado como lacuna de validação, não como bug confirmado).</li>
+<li><s><code>Ctrl+Shift+D</code> continua igual a "Bookmark all tabs" (wxt.config.ts:23) — remapear (ex.: <code>Alt+Shift+D</code>)</s> — remapeado na onda 7 para <code>Alt+Shift+D</code> (mac mantém <code>Command+Shift+D</code>).</li>
 <li>Manifest confere (gecko id, permissões <code>storage/activeTab/tabs/contextMenus/bookmarks</code>, background event-page com scripts).</li>
 </ul>
 <h3>Chromium</h3>
@@ -514,13 +516,13 @@
 <li><strong>Integridade de dados</strong> — <s>H5/M11 (remapear órfãos)</s> <strong>resolvido (onda 3)</strong>; <s>H12 (uuid)</s> <strong>resolvido (crypto.randomUUID)</strong>; <s>D2 (quarentena)</s> <strong>resolvido</strong>; M21/L4 <strong>resolvidos</strong>; H3/P3 (popular tombstones e adiar GC) pendente.</li>
 <li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
 <li><strong>Decisões P1/P2 no DnD</strong> — <s>H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop)</s> <strong>todos resolvidos na onda 6</strong>, junto com L5, L8 e D4/NPD-4 (ver cards e tabela L).</li>
-<li><strong>Firefox</strong> — resto do C4 + remapear atalho + smoke real.</li>
+<li><strong>Firefox</strong> — <s>resto do C4 + remapear atalho</s> <strong>resolvidos na onda 7</strong>; smoke real no Firefox segue como lacuna de validação (não executável neste ambiente).</li>
 <li><strong>Escala (P4/P5)</strong> — virtualização + preflight de quota + payload do persist.</li>
 <li><strong>Polimento</strong> — M6–M10, M15–M19/N2, L1–L4 residuais; <s>L5, L8, D4/NPD-4</s> <strong>resolvidos na onda 6</strong>.</li>
 </ol>
 
 <footer>
-<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados. Onda 6 (17/09/2026): DnD completo — H7/H8 (P2-A: recusa com cue + toast), H9 (P1-A: inserção posicionada), H10 (stamp do hover vence), H11 (re-hit-test no autoscroll), L5 (simetria de cantos), L8 (grupo congelado no dragstart), D4 (epoch same-document). Suíte 79/79, <code>tsc</code> limpo, biome ok nos arquivos tocados, builds Chromium e Firefox ✔.</p>
+<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados. Onda 6 (17/09/2026): DnD completo — H7/H8 (P2-A: recusa com cue + toast), H9 (P1-A: inserção posicionada), H10 (stamp do hover vence), H11 (re-hit-test no autoscroll), L5 (simetria de cantos), L8 (grupo congelado no dragstart), D4 (epoch same-document). Suíte 79/79, <code>tsc</code> limpo, biome ok nos arquivos tocados, builds Chromium e Firefox ✔. Onda 7 (17/09/2026): C4 concluído — <code>extApi()</code> late-binding em storage/sync/bookmarks-html (chrome-first, igualando a semântica call-time original), atalho <code>add-current-page</code> remapeado para <code>Alt+Shift+D</code>. Suíte 79/79, <code>tsc</code> limpo, builds Chromium e Firefox OK.</p>
 </footer>
 
 </main>

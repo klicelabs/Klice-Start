@@ -18,6 +18,7 @@ import {
 	WALLPAPERS,
 } from "./constants";
 import { getDescendantIds } from "./folder-tree";
+import { extApi } from "./extension-api";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
@@ -447,7 +448,7 @@ function normalizeResetGeneration(value: unknown): number {
 let _resetGeneration = 0;
 let _resetGenerationLoaded = true;
 let _resetGenerationReady = Promise.resolve();
-if (typeof chrome !== "undefined" && chrome.storage?.local) {
+if (!!extApi() && extApi().storage?.local) {
 	_resetGenerationLoaded = false;
 	_resetGenerationReady = chrome.storage.local
 		.get(RESET_GENERATION_KEY)
@@ -458,7 +459,7 @@ if (typeof chrome !== "undefined" && chrome.storage?.local) {
 		.finally(() => {
 			_resetGenerationLoaded = true;
 		});
-	chrome.storage.onChanged?.addListener((changes, area) => {
+	extApi().storage.onChanged?.addListener((changes, area) => {
 		if (area !== "local") return;
 		const next = normalizeResetGeneration(
 			changes[RESET_GENERATION_KEY]?.newValue,
@@ -523,7 +524,7 @@ function _doWrite(
 	const previous = _inFlightWrite ?? Promise.resolve();
 	const write = previous
 		.catch(() => undefined)
-		.then(() => chrome.storage.local.set({ [name]: json }))
+		.then(() => extApi().storage.local.set({ [name]: json }))
 		.then(() => {
 			_lastWrittenJSON = json;
 		})
@@ -592,7 +593,7 @@ export async function cancelPendingPersist(): Promise<void> {
 export async function beginReset(): Promise<void> {
 	await _resetGenerationReady;
 	const next = _resetGeneration + 1;
-	await chrome.storage.local.set({ [RESET_GENERATION_KEY]: next });
+	await extApi().storage.local.set({ [RESET_GENERATION_KEY]: next });
 	_resetGeneration = next;
 }
 
@@ -608,9 +609,9 @@ export function getResetGeneration(): number {
  * never resurrect dead state.
  */
 export async function readSetupEnvelope(name: string): Promise<Setup | null> {
-	if (typeof chrome === "undefined" || !chrome.storage?.local) return null;
+	if (!extApi() || !extApi().storage?.local) return null;
 	if (!_resetGenerationLoaded) await _resetGenerationReady;
-	const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
+	const data = await extApi().storage.local.get([name, RESET_GENERATION_KEY]);
 	if (!data[name]) return null;
 	const resetGeneration = normalizeResetGeneration(data[RESET_GENERATION_KEY]);
 	_resetGeneration = Math.max(_resetGeneration, resetGeneration);
@@ -638,7 +639,7 @@ export async function writeSetupEnvelope(
 	name: string,
 	setup: Setup,
 ): Promise<void> {
-	if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+	if (!extApi() || !extApi().storage?.local) return;
 	if (!_resetGenerationLoaded) await _resetGenerationReady;
 	const value: StorageValue<Setup> = { state: setup };
 	await _doWrite(name, value, _resetGeneration);
@@ -668,7 +669,7 @@ async function persistCustomWallpaperMigration(
 	normalized: Setup,
 ): Promise<void> {
 	const migrated = { ...parsed, state: normalized };
-	if (typeof chrome === "undefined" || !chrome.storage?.local) {
+	if (!extApi() || !extApi().storage?.local) {
 		if (typeof localStorage !== "undefined") {
 			try {
 				localStorage.setItem(name, JSON.stringify(migrated));
@@ -696,7 +697,7 @@ if (typeof window !== "undefined") {
 }
 
 /**
- * Zustand persist storage adapter backed by chrome.storage.local.
+ * Zustand persist storage adapter backed by extApi().storage.local.
  * Uses chrome.* API directly since it's always available in extension pages.
  *
  * Writes are coalesced — rapid setItem calls are debounced so only the
@@ -705,7 +706,7 @@ if (typeof window !== "undefined") {
  */
 export const chromeStorageAdapter: PersistStorage<Setup> = {
 	getItem: async (name: string): Promise<StorageValue<Setup> | null> => {
-		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+		if (!extApi() || !extApi().storage?.local) {
 			const raw =
 				typeof localStorage !== "undefined" ? localStorage.getItem(name) : null;
 			if (!raw) return null;
@@ -724,7 +725,7 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 				return null;
 			}
 		}
-		const data = await chrome.storage.local.get([name, RESET_GENERATION_KEY]);
+		const data = await extApi().storage.local.get([name, RESET_GENERATION_KEY]);
 		if (!data[name]) return null;
 		const resetGeneration = normalizeResetGeneration(
 			data[RESET_GENERATION_KEY],
@@ -742,7 +743,7 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		} catch (error) {
 			reportPersistenceError(error);
 			try {
-				await chrome.storage.local.remove(name);
+				await extApi().storage.local.remove(name);
 			} catch {
 				// Quarantine is best-effort; the null return still applies.
 			}
@@ -768,7 +769,7 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		return parsed;
 	},
 	setItem: async (name: string, value: StorageValue<Setup>): Promise<void> => {
-		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+		if (!extApi() || !extApi().storage?.local) {
 			if (typeof localStorage !== "undefined") {
 				try {
 					localStorage.setItem(name, JSON.stringify(value));
@@ -816,12 +817,12 @@ export const chromeStorageAdapter: PersistStorage<Setup> = {
 		return promise;
 	},
 	removeItem: async (name: string): Promise<void> => {
-		if (typeof chrome === "undefined" || !chrome.storage?.local) {
+		if (!extApi() || !extApi().storage?.local) {
 			if (typeof localStorage !== "undefined") {
 				localStorage.removeItem(name);
 			}
 			return;
 		}
-		await chrome.storage.local.remove(name);
+		await extApi().storage.local.remove(name);
 	},
 };
