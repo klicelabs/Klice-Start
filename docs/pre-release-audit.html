@@ -412,6 +412,17 @@
 </dl>
 </div>
 
+<div class="finding">
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Novo — confirmado por rastreio (onda 4)</span></div>
+<h3>N3 — Concorrência de dev servers envenena o HTML carregado: porta vira fantasma e o newtab/popup ficam pretos</h3>
+<dl>
+<dt>Sintoma real</dt><dd>Usuário rodou <code>bun dev</code> e o newtab abriu em tela preta (só o fundo <code>dark</code>; nenhum conteúdo React).</dd>
+<dt>Mecanismo</dt><dd>O <code>"dev": "wxt --port 5555"</code> não fixava a porta: com a 5555 ocupada por uma instância anterior, o WXT silenciosamente escolheu outra (ex.: 50368) e <strong>gravou a URL dela dentro de <code>.output/*-mv3-dev/*.html</code></strong>. O HTML da extensão é estático no disco — quando o servidor daquela porta morre (ou quando a instância que o gerou não é a mesma carregada no navegador), nenhum módulo carrega, o React nunca monta e a página fica vazia/preta. Confirmado por rastreio: dois processos WXT simultâneos; HTML apontando para a porta da instância morta; todos os módulos respondendo 200 na porta do servidor vivo.</dd>
+<dt>Fix (onda 4)</dt><dd><code>wxt.config.ts</code>: <code>dev.server.port = 5555</code> + <code>strictPort: true</code> — um segundo <code>bun dev</code> agora falha ruidosamente em vez de reescrever o HTML para uma porta fantasma. Para recuperar uma sessão envenenada: fechar instâncias duplicadas, reiniciar <code>bun dev</code> e recarregar a extensão (<code>chrome://extensions</code> → reload).</dd>
+<dt>Validação</dt><dd>Build de produção ✔ com o novo config; <code>tsc</code> limpo; suíte 64/64. Smoke por HTTP contra o dev server vivo: <code>/entrypoints/newtab/main.tsx</code>, <code>/entrypoints/newtab/App.tsx</code> e todos os módulos tocados pelas ondas 3/4 respondem 200.</dd>
+</dl>
+</div>
+
 <h2 id="decisoes">Decisões de produto</h2>
 <p class="meta" style="border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);border-radius:var(--radius);padding:12px 16px;">Decidido pelo mantenedor em 17/09/2026 — registrado abaixo como regra oficial. Resumo: <strong>P1 A · P2 A · P3 A · P4 A · P5 A primeiro · P6 B conservador · P7 A · NPD-1 bloquear Save até hidratar · NPD-2 pasta só no commit · NPD-3 conservador (reset/import limpam past+future; sync invalida future) · NPD-4 rejeitar cross-window DnD por ora · NPD-5 finalizar rename antes do undo</strong>.</p>
 <table>
@@ -435,6 +446,9 @@
 <tr><td>NPD-4</td><td>Drop cross-window (D4): aceitar com confirmação/feedback, aceitar silenciosamente como hoje, ou rejeitar payloads sem contexto de gesto?</td><td><strong>Rejeitar por ora.</strong> Sem contexto de gesto confiável, o drop cross-window é recusado — melhor não aceitar do que aceitar silenciosamente com histórico incorreto. Depois pode virar feature intencional, com protocolo próprio.</td></tr>
 <tr><td>NPD-5</td><td>Política de concorrência rename × undo (M1/M3): undo durante rename cancela o rename, é bloqueado, ou o rename vira entrada à parte encadeada?</td><td><strong>Finalizar antes.</strong> Com rename ativo, o undo cancela/finaliza explicitamente o rename antes de aplicar; os dois estados nunca coexistem. Simples e previsível.</td></tr>
 </table>
+
+<h2 id="onda4">Onda 4 — 17/09/2026 (diagnóstico em ambiente real do usuário)</h2>
+<p>Relato: <code>bun dev</code> com tela preta no newtab. Causa raiz confirmada (N3) e guardada com <code>strictPort</code>; nenhuma regressão das ondas 1–3 nos módulos tocados (smoke HTTP 200 em todos). <strong>Nenhuma correção de produção das ondas anteriores foi rebatida</strong> — o sistema de correração continua válido.</p>
 
 <h2 id="navegadores">Achados por navegador</h2>
 <h3>Firefox / Zen</h3>
@@ -473,7 +487,7 @@
 </ol>
 
 <footer>
-<p>2ª passada independente sobre <code>a14b754</code> + working tree não commitado; remediação em andamento (onda 3): R1 e C3 resolvidos e validados, suíte 52/52, <code>tsc</code> limpo, builds chrome/firefox ✔. Loops executáveis: <code>scripts/zz-audit-harness.test.mts</code> (5 verdes), <code>scripts/zz-audit-c3-esc-drop.test.tsx</code> (verde — agora teste de regressão do C3). Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
+<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados.</p>
 </footer>
 
 </main>

@@ -4,6 +4,16 @@ import { defineConfig } from "wxt";
 export default defineConfig({
 	modules: ["@wxt-dev/module-react"],
 	manifestVersion: 3,
+	dev: {
+		server: {
+			// The dev server URL is baked into .output/*-mv3-dev/*.html. If a second
+			// instance silently fails over to another port (or the server dies), the
+			// loaded extension keeps requesting scripts from a dead port and the
+			// newtab/popup render as an empty dark screen. Fail fast instead.
+			port: 5555,
+			strictPort: true,
+		},
+	},
 	manifest: {
 		name: "Klice Start",
 		// Firefox MV3 requires an explicit extension ID.
