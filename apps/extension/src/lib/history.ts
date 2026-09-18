@@ -129,6 +129,11 @@ export function describeHistoryPast(summary: HistorySummary): string {
 		return `Renamed “${summary.label}” to “${summary.newName}”`;
 	}
 	if (summary.kind === "delete") {
+		if (summary.folderCount === 0) {
+			return summary.total === 1
+				? `Deleted bookmark “${summary.label ?? ""}”`
+				: `Deleted ${summary.total} bookmarks`;
+		}
 		return `Deleted folder “${summary.label}”${deletedWith(summary)}`;
 	}
 	const dest = summary.dest ?? "another folder";
@@ -156,6 +161,11 @@ export function describeHistoryGerund(summary: HistorySummary): string {
 		return `renaming “${summary.label}” to “${summary.newName}”`;
 	}
 	if (summary.kind === "delete") {
+		if (summary.folderCount === 0) {
+			return summary.total === 1
+				? `deleting bookmark “${summary.label ?? ""}”`
+				: `deleting ${summary.total} bookmarks`;
+		}
 		return `deleting folder “${summary.label}”${deletedWith(summary)}`;
 	}
 	const dest = summary.dest ?? "another folder";
@@ -180,6 +190,11 @@ export function describeHistoryAction(summary: HistorySummary): string {
 		return `Rename “${summary.label}” to “${summary.newName}”`;
 	}
 	if (summary.kind === "delete") {
+		if (summary.folderCount === 0) {
+			return summary.total === 1
+				? `Delete bookmark “${summary.label ?? ""}”`
+				: `Delete ${summary.total} items`;
+		}
 		return `Delete folder “${summary.label}”${deletedWith(summary)}`;
 	}
 	const dest = summary.dest ?? "another folder";
@@ -274,6 +289,32 @@ export function stagedThumbnailIds(
 		if (entry.thumbnails) ids.push(...entry.thumbnails);
 	}
 	return ids;
+}
+
+/** Minimal card shape the GC needs to decide if bytes are still referenced. */
+type GcCard = { thumbId?: string | null };
+
+/**
+ * Thumbnail ids safe to delete for good: staged ids on entries leaving the
+ * history (past overflow, discarded redo branch, pruned/cleared stacks)
+ * MINUS every id still referenced by a live card.
+ *
+ * Why the live check: an undone delete keeps its bytes referenced through
+ * the restored cards, so a redo-branch discard must not GC them. A pure
+ * filter covering ALL discard paths at once — no path-specific reasoning —
+ * ids referenced by nothing (true garbage) are always collected, ids any
+ * live card may still render are always kept.
+ */
+export function collectGcableThumbnailIds(
+	entries: readonly Pick<HistoryEntry, "thumbnails">[],
+	liveCards: readonly GcCard[],
+): string[] {
+	const referenced = new Set(
+		liveCards
+			.map((c) => c.thumbId)
+			.filter((t): t is string => Boolean(t)),
+	);
+	return stagedThumbnailIds(entries).filter((id) => !referenced.has(id));
 }
 
 /**

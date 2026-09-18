@@ -111,6 +111,19 @@ export async function idbDelete(
 	return promise;
 }
 
+/** List every stored key (used by the hydration orphan sweep for thumbs). */
+export async function idbGetAllKeys(
+	store: ImageStoreName,
+): Promise<IDBValidKey[]> {
+	const db = await openIDB();
+	const { promise, resolve, reject } = Promise.withResolvers<IDBValidKey[]>();
+	const tx = db.transaction(store, "readonly");
+	const req = tx.objectStore(store).getAllKeys();
+	tx.oncomplete = () => resolve(req.result);
+	tx.onerror = () => reject(tx.error);
+	return promise;
+}
+
 export async function idbClearStores(stores: ImageStoreName[]): Promise<void> {
 	const db = await openIDB();
 	const tx = db.transaction(stores, "readwrite");

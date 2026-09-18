@@ -8,7 +8,7 @@ import {
 	TILE_SIZE_DIMENSIONS,
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
-import type { HistorySnapshot } from "../lib/history";
+import type { HistoryEntry, HistorySnapshot } from "../lib/history";
 import { ROOT_CONTAINER } from "../lib/item-order";
 import {
 	containerKeyOf,
@@ -30,6 +30,7 @@ import {
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
 import type { Card, Settings, Setup } from "../types";
 import { useImageStore } from "./image-store";
+import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
 import { useHistoryStore } from "./history-store";
 
 export type InsertPosition = "before" | "after";
@@ -392,11 +393,61 @@ export const useSetupStore = create<SetupStore>()(
 						return {};
 
 					const removedFolderIds = new Set(getSubtreeIds(s.folders, id));
-					for (const c of s.cards) {
-						if (removedFolderIds.has(c.folderId) && c.thumbId) {
-							useImageStore.getState().deleteThumbnail(c.thumbId);
+					const removedCards = s.cards.filter((c) =>
+						removedFolderIds.has(c.folderId),
+					);
+					const removedCount = removedCards.length;
+					const folderCount = removedFolderIds.size - 1;
+					// H2: capture the full inverse BEFORE mutating. Gesture-scoped
+					// captures belong to the DnD layer, so manual deletes build the
+					// equivalent diff deltas by hand (same vocabulary as
+					// buildHistoryEntry: touched containers/parents + full records).
+					const base = s.itemOrder ?? {};
+					const undoContainers: Record<string, string[]> = {};
+					const redoContainers: Record<string, string[]> = {};
+					const touchedContainers = new Set([
+						...Object.keys(base),
+						...removedFolderIds,
+						]);
+					for (const container of touchedContainers) {
+						const before = base[container] ?? [];
+						if (removedFolderIds.has(container)) {
+							// The whole container record disappears.
+							if (before.length > 0) undoContainers[container] = [...before];
+							continue;
+						}
+						const after = before.filter((k) => {
+							const ref = parseItemKey(k);
+							if (!ref) return false;
+							return ref.kind === "folder"
+								? !removedFolderIds.has(ref.id)
+								: !removedFolderIds.has(
+										s.cards.find((c) => c.id === ref.id)?.folderId ?? ""
+									);
+						});
+						if (!sameKeys(before, after)) {
+							undoContainers[container] = [...before];
+							redoContainers[container] = after;
 						}
 					}
+					const undoCards: Record<string, string> = {};
+					const redoCards: Record<string, string> = {};
+					const undoFolders: Record<string, string | null> = {};
+					const redoFolders: Record<string, string | null> = {};
+					const undoPutCards = removedCards.map((c) => ({ ...c }));
+					const undoPutFolders = s.folders
+						.filter((f) => removedFolderIds.has(f.id))
+						.map((f) => ({ ...f }));
+					// P3 (decisão A): bytes are tombstoned on the entry, NOT deleted
+					// at the act — an undo must find every thumbnail back.
+					const thumbIds = [
+						...new Set(
+							removedCards
+								.map((c) => c.thumbId)
+								.filter((t): t is string => Boolean(t)),
+						),
+					];
+					const entryId = nextHistoryEntryId();
 					const remainingFolders = s.folders.filter(
 						(f) => !removedFolderIds.has(f.id),
 					);
@@ -430,6 +481,40 @@ export const useSetupStore = create<SetupStore>()(
 						remainingCards,
 						itemOrder,
 					);
+					// H2: stage one atomic delete entry in the history store. The
+					// entry carries the full subtree (containers, parents, records)
+					// so undo restores exactly what the user saw before deleting.
+					const entry: HistoryEntry = {
+						id: entryId,
+						at: Date.now(),
+						summary: {
+							kind: "delete" as const,
+							total: 1,
+							cardCount: removedCount,
+							folderCount,
+							label: target.name,
+						},
+						undo: {
+							containers: undoContainers,
+							cards: undoCards,
+							folders: undoFolders,
+							putCards: undoPutCards,
+							putFolders: undoPutFolders,
+							delCardIds: [],
+							delFolderIds: [],
+						},
+						redo: {
+							containers: redoContainers,
+							cards: redoCards,
+							folders: redoFolders,
+							putCards: [],
+							putFolders: [],
+							delCardIds: removedCards.map((c) => c.id),
+							delFolderIds: [...removedFolderIds],
+						},
+					};
+					if (thumbIds.length > 0) entry.thumbnails = thumbIds;
+					useHistoryStore.getState().commit(entry);
 					return { ...reindexed, itemOrder, activeFolderId: nextActive };
 				}),
 
@@ -630,14 +715,17 @@ export const useSetupStore = create<SetupStore>()(
 			deleteCard: (id) =>
 				set((s) => {
 					const card = s.cards.find((c) => c.id === id);
-					if (card?.thumbId)
-						useImageStore.getState().deleteThumbnail(card.thumbId);
+					if (!card) return {};
 					const key = itemKey("card", id);
 					const base = s.itemOrder ?? {};
 					const itemOrder: ItemOrder = { ...base };
+					const undoContainers: Record<string, string[]> = {};
+					const redoContainers: Record<string, string[]> = {};
 					for (const [container, keys] of Object.entries(itemOrder)) {
 						if (keys.includes(key)) {
+							undoContainers[container] = [...keys];
 							itemOrder[container] = keys.filter((k) => k !== key);
+							redoContainers[container] = [...itemOrder[container]]; 
 						}
 					}
 					// L4: a folder emptied by this delete leaves a ghost container
@@ -647,6 +735,39 @@ export const useSetupStore = create<SetupStore>()(
 							delete itemOrder[container];
 						}
 					}
+					// H2: single-bookmark delete now reverses too. Tombstone the
+					// thumb id on the entry (P3): bytes stay while undoable.
+					const entry: HistoryEntry = {
+						id: nextHistoryEntryId(),
+						at: Date.now(),
+						summary: {
+							kind: "delete" as const,
+							total: 1,
+							cardCount: 1,
+							folderCount: 0,
+							label: card.title || card.url,
+						},
+						undo: {
+							containers: undoContainers,
+							cards: {},
+							folders: {},
+							putCards: [{ ...card }],
+							putFolders: [],
+							delCardIds: [],
+							delFolderIds: [],
+						},
+						redo: {
+							containers: redoContainers,
+							cards: {},
+							folders: {},
+							putCards: [],
+							putFolders: [],
+							delCardIds: [id],
+							delFolderIds: [],
+						},
+					};
+					if (card.thumbId) entry.thumbnails = [card.thumbId];
+					useHistoryStore.getState().commit(entry);
 					return {
 						cards: s.cards.filter((c) => c.id !== id),
 						itemOrder,

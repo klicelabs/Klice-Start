@@ -242,19 +242,25 @@
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Parcialmente resolvido (onda 5)</span></div>
 <h3>H2 — Deletes de cards e mutações de Settings sem histórico</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>deleteCard</code>/<code>deleteFolder</code> no setup-store não gravam entrada nem limpam <code>future</code>; <code>updateCard/addCard</code>, ops de Settings e <code>replaceSetup/resetAll</code> idem. Grep global: nenhuma entrada <code>kind:"delete"</code> em todo o app. Chamadas diretas em <code>App.tsx:1032</code> e <code>bookmarks-pane.tsx:917/1118</code>.</dd>
 <dt>Risco</dt><dd>Delete irreversível (adjacente a data loss) + redo obsoleto re jogando sobre estado mutado externamente.</dd>
+<dt>Fix (onda 5)</dt><dd>A captura migrou para DENTRO das ações do store (autoridade única, cobre grade + painel de settings + qualquer chamador futuro): <code>deleteCard</code> e <code>deleteFolder</code> constroem a entrada atômica <code>kind:"delete"</code> (deltas de container/parentezcos + registros completos no <code>undo</code>, ids no <code>redo</code>) e commitam via <code>useHistoryStore</code>. <code>handleDeleteFolder</code> no App virou só o roteador do id (sem dupla captura). Add/reset/import seguem fora do histórico por design (undo global de criação foi avaliado e mantido fora — NPD-3 cobre reset/import limpando as pilhas).</dd>
+<dt>Residual documentado</dt><dd>Mutações de Settings (<code>updateCard</code> — edição de título/URL no painel) continuam sem entrada de histórico; a copy <code>"rename"</code> atual é orientada a pastas e mentiria em edição de URL. Registrado como trabalho da onda de Medium/Low.</dd>
+<dt>Validação</dt><dd><code>verify-delete-history.test.ts</code>: undo de card restaura registro + slot exato; undo de pasta restaura subpasta, cards e arrays de container; último root protegido (no-op sem entrada). Red-capable (commit removido → 3 falhas). Suíte 71/71; <code>tsc</code> limpo.</dd>
 </dl>
 </div>
 
 <div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Ainda aberto</span></div>
+<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 5)</span></div>
 <h3>H3 — Undo de delete perde thumbnails (bytes destruídos no ato)</h3>
 <dl>
 <dt>Evidência passada 2</dt><dd><code>deleteCard</code> (setup-store ~616) e <code>deleteFolder</code> (~371) chamam <code>useImageStore.deleteThumbnail(c.thumbId)</code> imediatamente. O diff da onda anterior tocou <code>image-store</code> e <code>history</code>, mas <strong>nenhum caminho popula <code>entry.thumbnails</code></strong> e nenhum caminho adia o delete. Decisão P3 (A — tombstone, GC só na evicção) não implementada de ponta a ponta; a infraestrutura de evicção criada é pré-requisito correto, porém inerte.</dd>
+<dt>Causa raiz confirmada</dt><dd>Dois defeitos de posse: (1) os deletes destruíam bytes no ato — antes de qualquer chance de undo; (2) o GC existente em <code>commit()</code> considerava o descarte da branch de redo como "evicção", mas entradas em <code>future</code> foram DESFEITAS — os cards restaurados estão vivos e referenciam esses bytes; apagá-los no descarte perderia as thumbnails no próximo undo.</dd>
+<dt>Fix (onda 5)</dt><dd>Tombstone de ponta a ponta (P3-A): deletes embutem os thumbIds em <code>entry.thumbnails</code> e NÃO apagam bytes; undo/redo só movem entradas entre pilhas (bytes sobrevivem naturalmente); GC único em <code>collectGcableThumbnailIds</code> — ids staged em entradas que saem do histórico MENOS todo id ainda referenciado por card vivo (live-check puro cobre overflow de <code>past</code>, descarte de redo, prune de sync e <code>clearHistory</code> com uma regra só); <code>clearHistory</code> GCa o residente de <code>past</code>; <code>sweepOrphanThumbnails</code> (nova, idb <code>getAllKeys</code>) varre órfãos de reset/import/crash uma vez por sessão após a hidratação.</dd>
+<dt>Validação</dt><dd><code>verify-delete-history.test.ts</code>: bytes intactos no ato e após undo/redo/descarte de redo; coletados na evicção quando nenhum card vivo referencia; <code>clearHistory</code> GCa o residente de <code>past</code> e preserva o de <code>future</code>. Suíte 71/71; <code>tsc</code> limpo; builds chrome/firefox ✔.</dd>
 </dl>
 </div>
 
@@ -441,7 +447,7 @@
 <tr><th>#</th><th>Decisão registrada</th><th>Implementação no código atual</th></tr>
 <tr><td>P1</td><td><strong>A</strong> — drop estrangeiro insere exatamente na posição indicada ("o que você vê é onde cai").</td><td><strong>0%</strong> — <code>use-grid-dnd.ts:435</code> ainda appenda (H9).</td></tr>
 <tr><td>P2</td><td><strong>A</strong> — bloquear combine com grupo &gt;1, com cue de recusa; grupo segue movível.</td><td><strong>0%</strong> — combine ignora o grupo (H7).</td></tr>
-<tr><td>P3</td><td><strong>A</strong> — tombstone de thumbnails; GC só na evicção do histórico.</td><td><strong>~30%</strong> — evicção/flatten prontos e testados; nada popula <code>entry.thumbnails</code> e os deletes imediatos continuam (H3).</td></tr>
+<tr><td>P3</td><td><strong>A</strong> — tombstone de thumbnails; GC só na evicção do histórico.</td><td><strong>Feito (onda 5)</strong> — deletes tombstonam <code>entry.thumbnails</code> (nada é apagado no ato); GC único com live-check em todas as saídas de histórico; undo restaura bytes; sweep de órfãos pós-hidratação (H3).</td></tr>
 <tr><td>P4</td><td><strong>A</strong> — virtualização real acima de threshold; <code>content-visibility</code> como complemento.</td><td><strong>0%</strong> — sem virtualização nem <code>content-visibility</code> (grep vazio).</td></tr>
 <tr><td>P5</td><td><strong>A primeiro</strong> — preflight de quota + erro claro + estado "não salvo"; nunca falhar em silêncio.</td><td><strong>~20%</strong> — existe canal de erro de persistência + toast; sem preflight de quota e sem estado persistente "não salvo" (grep por quota/estimate vazio).</td></tr>
 <tr><td>P6</td><td><strong>B conservador</strong> — normalizar só o comprovadamente seguro; preservar path/query/fragment; não remover <code>www</code>.</td><td><strong>Parcial "por omissão"</strong> — <code>canonicalUrl</code> (url.ts:45) já é conservador: host lowercased, portas default removidas, path/query/fragment preservados, sem strip de <code>www</code>. Falta o documento oficial de política + dedupe por id no normalize.</td></tr>
@@ -461,6 +467,9 @@
 
 <h2 id="onda4">Onda 4 — 17/09/2026 (diagnóstico em ambiente real do usuário)</h2>
 <p>Relato: <code>bun dev</code> com tela preta no newtab. Duas causas raiz independentes, ambas confirmadas e corrigidas: <strong>N3</strong> (HTML envenenado por instância duplicada do dev server — guardado com <code>strictPort</code>) e <strong>N4</strong> (hook dentro de <code>useEffect</code> no <code>HistoryManager</code>, introduzido na onda 3 — corrigido e coberto por teste red-capable). Nenhuma correção de produção das ondas 1–3 foi rebatida — exceto a regressão do N4, que nasceu dentro da própria onda 3 e já está curada.</p>
+
+<h2 id="onda5">Onda 5 — 17/09/2026 (cobertura de histórico de deletes + tombstone de thumbnails)</h2>
+<p>H2 (parcial — deletes resolvidos no store; settings documentado como residual), H3/P3 resolvido de ponta a ponta com modelo de posse de bytes corrigido (live-check no GC). Suíte 71/71, <code>tsc</code> limpo, builds chrome/firefox ✔. Onda red-capable: remover o commit do delete reproduz 3 falhas.</p>
 
 <h2 id="navegadores">Achados por navegador</h2>
 <h3>Firefox / Zen</h3>

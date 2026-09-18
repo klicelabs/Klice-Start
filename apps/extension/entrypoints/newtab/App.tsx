@@ -44,7 +44,6 @@ import { orderGroupBySource } from "../../src/lib/drag-group";
 import {
 	getBreadcrumb,
 	getChildren,
-	getSubtreeIds,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
 import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
@@ -79,6 +78,7 @@ import {
 import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useHistoryStore } from "../../src/stores/history-store";
+import { useImageStore } from "../../src/stores/image-store";
 import { useRenameStore } from "../../src/stores/rename-store";
 import { useSelectionStore } from "../../src/stores/selection-store";
 import { useSetupStore } from "../../src/stores/setup-store";
@@ -165,6 +165,25 @@ export default function App() {
 
 	// Persisted activeFolderId is the starting location only. Hydration marks
 	// the session boundary so restoring it never creates a Back entry.
+	// P3 hygiene: once hydrated, sweep thumbnail bytes nothing references
+	// (reset/import/crash orphans) — best-effort, once per session.
+	const sweepOrphans = useCallback(() => {
+		const setup = useSetupStore.getState();
+		void useImageStore
+			.getState()
+			.sweepOrphanThumbnails(
+				setup.cards.map((c) => c.thumbId),
+				[
+					...useHistoryStore
+						.getState()
+						.past.flatMap((e) => e.thumbnails ?? []),
+					...useHistoryStore
+						.getState()
+						.future.flatMap((e) => e.thumbnails ?? []),
+				],
+			);
+	}, []);
+
 	useEffect(() => {
 		const initializeNavigation = () => {
 			navigationLocationRef.current = useSetupStore.getState().activeFolderId;
@@ -173,10 +192,14 @@ export default function App() {
 
 		if (useSetupStore.persist.hasHydrated()) {
 			initializeNavigation();
+			sweepOrphans();
 			return;
 		}
 
-		return useSetupStore.persist.onFinishHydration(initializeNavigation);
+		return useSetupStore.persist.onFinishHydration(() => {
+			initializeNavigation();
+			sweepOrphans();
+		});
 	}, []);
 
 	// Navigation always settles any stray rename session first (an input
@@ -721,30 +744,15 @@ export default function App() {
 		[previewReorderItems],
 	);
 
-	// Folder deletion restores atomically on undo: the folder record, its
-	// exact position, nested subfolders, bookmarks, ordering and metadata —
-	// all from this one entry. Thumbnail bytes are already reclaimed by the
-	// store on delete, so restored cards fall back to favicon/gradient art.
+	// Folder deletion captures its atomic restore INSIDE the store action
+	// (H2), so every path — grid, settings pane, future callers — gets the
+	// same one-entry history and P3 tombstoned thumbnails. This handler only
+	// routes the id.
 	const handleDeleteFolder = useCallback(
 		(id: string) => {
-			const state = useSetupStore.getState();
-			const target = state.folders.find((f) => f.id === id);
-			if (!target) return;
-			const subtree = new Set(getSubtreeIds(state.folders, id));
-			const containedCards = state.cards.filter((c) =>
-				subtree.has(c.folderId),
-			).length;
-			const before = snapshotSetup(state.cards, state.folders, state.itemOrder);
 			deleteFolder(id);
-			commitManualHistory(before, {
-				kind: "delete",
-				total: 1,
-				cardCount: containedCards,
-				folderCount: subtree.size - 1,
-				label: target.name,
-			});
 		},
-		[deleteFolder, commitManualHistory],
+		[deleteFolder],
 	);
 
 	// Overflow "add folder" row: same reversible create as any other entry.

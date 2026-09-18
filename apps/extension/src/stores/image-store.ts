@@ -3,6 +3,7 @@ import {
 	idbClearStores,
 	idbDelete,
 	idbGet,
+	idbGetAllKeys,
 	STORE_BG,
 	STORE_THUMBS,
 	saveBackground,
@@ -22,6 +23,16 @@ interface ImageStoreState {
 	saveBackgroundImage: (dataUrl: string) => Promise<string>;
 	deleteBackgroundImage: (id: string) => Promise<void>;
 	clearAll: () => Promise<void>;
+	/**
+	 * P3 hygiene: delete thumbnail bytes whose ids no live card references
+	 * and that are not staged on any history entry. Runs once per session,
+	 * right after hydration, so bytes orphaned by resets/import/crashes do
+	 * not accumulate forever.
+	 */
+	sweepOrphanThumbnails: (
+		referencedIds: readonly (string | null | undefined)[],
+		stagedIds: readonly (string | null | undefined)[],
+	) => Promise<void>;
 }
 
 export const useImageStore = create<ImageStoreState>()((set) => ({
@@ -55,5 +66,26 @@ export const useImageStore = create<ImageStoreState>()((set) => ({
 	clearAll: async () => {
 		await idbClearStores([STORE_THUMBS, STORE_BG]);
 		set({ previewBackgroundImage: null });
+	},
+	sweepOrphanThumbnails: async (referencedIds, stagedIds) => {
+		// Why defensive filters: id guards against empty-string deletes.
+		const live = new Set(
+			referencedIds.filter((id): id is string => Boolean(id)),
+		);
+		for (const id of stagedIds) {
+			if (typeof id === "string" && id) live.add(id);
+		}
+		let keys: IDBValidKey[] = [];
+		try {
+			keys = await idbGetAllKeys(STORE_THUMBS);
+		} catch {
+			// Best-effort hygiene: a failed sweep must never block startup.
+			return;
+		}
+		const orphans = keys
+			.map(String)
+			.filter((key) => !live.has(key));
+		if (orphans.length === 0) return;
+		await useImageStore.getState().deleteThumbnails(orphans);
 	},
 }));

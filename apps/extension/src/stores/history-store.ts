@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import {
+	collectGcableThumbnailIds,
 	commitToStacks,
 	type HistoryEntry,
 	type PendingConfirmation,
 	popRedoIds,
 	popUndoIds,
-	stagedThumbnailIds,
 } from "../lib/history";
 import { useImageStore } from "./image-store";
 import { useRenameStore } from "./rename-store";
@@ -117,16 +117,25 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 			{ past: state.past, future: state.future },
 			entry,
 		);
+		// collectGcableThumbnailIds filters ids live cards still reference, so
+		// both discard paths (past overflow + redo-branch discard) are safe
+		// with one rule — undone deletes keep their bytes through the restored
+		// cards, true garbage goes.
 		const seq = state.noticeSeq + 1;
 		set({
 			...stacks,
 			notice: opts?.silent ? state.notice : { entryId: entry.id, seq },
 			noticeSeq: seq,
 		});
-		// Why here: evicted entries (past overflow + discarded redo branch)
-		// are no longer undoable, so their staged thumbnail bytes can go.
-		// Best-effort, never blocks the commit.
-		const thumbIds = stagedThumbnailIds(evicted);
+		// Why here: entries leaving the history (past overflow + discarded
+		// redo branch) no longer have an undo path, so their staged thumbnail
+		// bytes can go — EXCEPT ids still referenced by live cards: an undone
+		// delete keeps its bytes alive through the restored cards, so a
+		// redo-branch discard must not GC them. Best-effort, never blocks.
+		const thumbIds = collectGcableThumbnailIds(
+			evicted,
+			useSetupStore.getState().cards,
+		);
 		if (thumbIds.length > 0) {
 			void useImageStore.getState().deleteThumbnails(thumbIds);
 		}
@@ -227,6 +236,8 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 				return null;
 			}
 			for (const entry of entries) applySnapshot(entry.undo);
+			// P3: entries moved past→future keep their staged bytes alive —
+			// the undo snapshot may restore cards whose thumbs reference them.
 			set({ ...stacks, pending: null });
 			return { direction: "undo", entries };
 		}
@@ -239,13 +250,27 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 			return null;
 		}
 		for (const entry of entries) applySnapshot(entry.redo);
+		// P3: redo keeps staged bytes — the (re-)deleted cards reference them
+		// and the entry is undoable again from here.
 		set({ ...stacks, pending: null });
 		return { direction: "redo", entries };
 	},
 
 	clearHistory: () => {
-		if (get().past.length > 0 || get().future.length > 0 || get().pending) {
+		const state = get();
+		if (state.past.length > 0 || state.future.length > 0 || state.pending) {
+			// Past-resident entries are dropping out of the undo branch: their
+			// staged bytes become garbage (the external replacement is the new
+			// truth). Redo-branch entries keep theirs — restored cards may
+				// still reference them; orphans are swept at hydration.
+			const thumbIds = collectGcableThumbnailIds(
+				state.past,
+				useSetupStore.getState().cards,
+			);
 			set({ past: [], future: [], pending: null });
+			if (thumbIds.length > 0) {
+				void useImageStore.getState().deleteThumbnails(thumbIds);
+			}
 		}
 	},
 
@@ -257,6 +282,13 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 		const changed =
 			alive.length !== state.past.length || state.future.length > 0;
 		if (!changed) return;
+		// Pruned past entries drop out of the undo branch — collect their
+		// staged bytes (P3); surviving entries keep theirs.
+		const pruned = state.past.filter((entry) => !alive.includes(entry));
+		const thumbIds = collectGcableThumbnailIds(
+			pruned,
+			useSetupStore.getState().cards,
+		);
 		set({
 			past: alive,
 			future: [],
@@ -264,6 +296,9 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 				? state.pending
 				: null,
 		});
+		if (thumbIds.length > 0) {
+			void useImageStore.getState().deleteThumbnails(thumbIds);
+		}
 	},
 
 	consumeDeadIdNotice: () => {

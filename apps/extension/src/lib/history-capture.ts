@@ -67,7 +67,7 @@ export function snapshotSetup(
 	};
 }
 
-function sameKeys(a: string[], b: string[]): boolean {
+export function sameKeys(a: string[], b: string[]): boolean {
 	return a.length === b.length && a.every((key, i) => key === b[i]);
 }
 
@@ -76,6 +76,14 @@ let entrySeq = 0;
 function nextEntryId(): string {
 	entrySeq += 1;
 	return `h${Date.now().toString(36)}${entrySeq}`;
+}
+
+/**
+ * Shared entry-id source so store-built entries (H2 deletes) use the same
+ * id vocabulary as gesture-diff entries.
+ */
+export function nextHistoryEntryId(): string {
+	return nextEntryId();
 }
 
 /**
@@ -227,3 +235,4 @@ export function buildHistoryEntry(
 	};
 	return { id: nextEntryId(), at: Date.now(), summary, undo, redo };
 }
+
