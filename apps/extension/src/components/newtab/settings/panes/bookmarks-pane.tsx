@@ -21,12 +21,17 @@ import { toast } from "sonner";
 import { findBookmarkInFolder } from "../../../../lib/bookmark-match";
 import { summarizeBookmarkTree } from "../../../../lib/bookmark-merge";
 import { SETTINGS_SCOPE_CLASS } from "../../../../lib/context-scope";
+import { extApi } from "../../../../lib/extension-api";
 import {
 	getBreadcrumb,
 	getDescendantIds,
 	getSubtreeIds,
 	wouldCreateCycle,
 } from "../../../../lib/folder-tree";
+import {
+	hasThumbnailCapturePermission,
+	requestThumbnailCapturePermission,
+} from "../../../../lib/thumbnail-permission";
 import {
 	deriveTitleFromUrl,
 	faviconUrl,
@@ -88,6 +93,43 @@ const FIELD_LABEL =
 export function BookmarkPreviewSettings() {
 	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
+	const [capturePermission, setCapturePermission] = useState<
+		"checking" | "granted" | "missing"
+	>("checking");
+
+	useEffect(() => {
+		let mounted = true;
+		const refresh = () => {
+			void hasThumbnailCapturePermission()
+				.then((granted) => {
+					if (mounted) setCapturePermission(granted ? "granted" : "missing");
+				})
+				.catch(() => {
+					if (mounted) setCapturePermission("missing");
+				});
+		};
+		const permissions = extApi().permissions;
+		permissions.onAdded.addListener(refresh);
+		permissions.onRemoved.addListener(refresh);
+		refresh();
+		return () => {
+			mounted = false;
+			permissions.onAdded.removeListener(refresh);
+			permissions.onRemoved.removeListener(refresh);
+		};
+	}, []);
+
+	const allowCapture = async () => {
+		try {
+			const granted = await requestThumbnailCapturePermission();
+			setCapturePermission(granted ? "granted" : "missing");
+			if (!granted)
+				toast.error("Site access is needed for automatic captures.");
+		} catch {
+			setCapturePermission("missing");
+			toast.error("Could not request site access. Try again in Settings.");
+		}
+	};
 
 	return (
 		<SectionCard>
@@ -105,6 +147,17 @@ export function BookmarkPreviewSettings() {
 					}
 				/>
 			</SettingRow>
+			{thumbnailCapture.enabled && capturePermission === "missing" && (
+				<SettingRow
+					label="Site access required"
+					icon="globe"
+					tooltip="The browser requires access to all sites to capture a visited page automatically. Only bookmarked pages without a thumbnail are captured."
+				>
+					<SettingsAction onClick={() => void allowCapture()}>
+						Allow access
+					</SettingsAction>
+				</SettingRow>
+			)}
 
 			<SettingsExpandable
 				expanded={thumbnailCapture.enabled}

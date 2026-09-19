@@ -19,6 +19,7 @@ import {
 	readSetupEnvelope,
 	writeSetupEnvelope,
 } from "../src/lib/storage";
+import { hasThumbnailCapturePermission } from "../src/lib/thumbnail-permission";
 import { canonicalUrl, isAbsoluteHttpUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
 import type { Folder, Setup } from "../src/types";
@@ -623,6 +624,10 @@ async function captureMissingThumbnail(
 	try {
 		const state = await readSetup();
 		if (!state?.settings.thumbnailCapture?.enabled) return;
+		// An automatic background capture has no activeTab user gesture. Missing
+		// optional access must not start a failure cooldown: granting access in
+		// Settings should allow the next visit to capture immediately.
+		if (!(await hasThumbnailCapturePermission())) return;
 
 		let tab = await ext.tabs.get(tabId);
 		if (!tabCanBeCaptured(tab, tabId, navigationGeneration)) return;
@@ -659,7 +664,6 @@ async function captureMissingThumbnail(
 			beforeCaptureUrl,
 		]);
 		if (matches.length === 0) return;
-
 		const dataUrl = await captureVisible(tab.windowId, 82);
 		thumbId = await saveThumbnail(dataUrl);
 		const capturedAt = Date.now();

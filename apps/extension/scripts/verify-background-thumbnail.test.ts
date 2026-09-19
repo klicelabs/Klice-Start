@@ -105,6 +105,8 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const onUpdated = createEvent();
 	const onActivated = createEvent();
 	const onRemoved = createEvent();
+	const onPermissionAdded = createEvent();
+	const onPermissionRemoved = createEvent();
 	let storedSetup = createSetup();
 	const tab = {
 		id: 7,
@@ -117,6 +119,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	};
 	let captureCount = 0;
 	let captureShouldFail = false;
+	let capturePermissionGranted = false;
 
 	const storageLocal = {
 		async get(key: string | string[]) {
@@ -139,6 +142,15 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 		},
 	};
 	const fakeBrowser = {
+		permissions: {
+			onAdded: onPermissionAdded,
+			onRemoved: onPermissionRemoved,
+			contains: async ({ origins }: { origins: string[] }) => {
+				expect(origins).toEqual(["<all_urls>"]);
+				return capturePermissionGranted;
+			},
+			request: async () => capturePermissionGranted,
+		},
 		runtime: {
 			onInstalled,
 			onStartup,
@@ -159,6 +171,10 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 			get: async () => tab,
 			query: async () => [tab],
 			captureVisibleTab: async () => {
+				if (!capturePermissionGranted)
+					throw new Error(
+						"Either the '<all_urls>' or 'activeTab' permission is required.",
+					);
 				captureCount += 1;
 				if (captureShouldFail) throw new Error("capture denied");
 				return "data:image/jpeg;base64,captured";
@@ -193,6 +209,15 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const activation = onActivated.emit({ tabId: tab.id })[0];
 	await activation;
 	tab.status = "complete";
+	await new Promise((resolve) => setTimeout(resolve, 1350));
+	expect(captureCount).toBe(0);
+	expect(storedSetup.cards[0]?.thumbId).toBeNull();
+
+	// A manual bookmark remains eligible after the user grants optional site
+	// access. The denied visit must not have started a failure cooldown.
+	capturePermissionGranted = true;
+	onPermissionAdded.emit({ origins: ["<all_urls>"] });
+	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
 	await new Promise((resolve) => setTimeout(resolve, 1350));
 
 	expect(captureCount).toBe(1);

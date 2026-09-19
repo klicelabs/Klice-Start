@@ -28,6 +28,7 @@ export default defineConfig({
 		description: "A personal browser dashboard for your new tab.",
 		permissions: ["storage", "activeTab", "tabs", "contextMenus", "bookmarks"],
 		host_permissions: ["http://*/*", "https://*/*"],
+		optional_host_permissions: ["<all_urls>"],
 		commands: {
 			"add-current-page": {
 				// Ctrl+Shift+D is Chrome's native "Bookmark all tabs" — it used
