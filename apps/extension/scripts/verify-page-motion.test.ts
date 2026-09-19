@@ -65,3 +65,30 @@ test("Settings keeps the Home frame in the inset state through close motion", ()
 	expect(tokens).not.toContain("--workspace-home-scale");
 	expect(tokens).not.toContain("transform: scale(var(--workspace-home-scale))");
 });
+
+test("Settings toolbar shares Home toolbar geometry", () => {
+	const sidebar = readFileSync(
+		new URL(
+			"../src/components/newtab/settings/settings-sidebar.tsx",
+			import.meta.url,
+		),
+		"utf8",
+	);
+	const settingsTokens = readFileSync(
+		new URL(
+			"../src/components/newtab/settings/shared/settings-tokens.ts",
+			import.meta.url,
+		),
+		"utf8",
+	);
+
+	expect(settingsTokens).toContain(
+		'export const SETTINGS_HEADER_HEIGHT = "h-14"',
+	);
+	expect(settingsTokens).toContain(
+		'export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]"',
+	);
+	expect(sidebar).toContain("SETTINGS_HEADER_HEIGHT,");
+	expect(sidebar).toContain("SETTINGS_HEADER_INSET,");
+	expect(sidebar).toContain('"flex shrink-0 items-center gap-3",');
+});

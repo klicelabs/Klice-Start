@@ -44,11 +44,13 @@ export const SETTINGS_ROW = "min-h-12 gap-x-3 px-1.5 py-2.5";
 export const SETTINGS_CONTENT_PADDING = "p-4";
 
 /**
- * Header padding follows the workspace gutter at the sidebar boundary. That
- * keeps the leading back control and trailing close control on the same axes
- * as the sidebar content frame.
+ * The Settings header is the sidebar's counterpart to the Home toolbar. It
+ * therefore uses the same responsive height and horizontal gutter instead of
+ * the narrower content-frame inset. This keeps both toolbars on one optical
+ * grid while the Settings body remains aligned to its own inset frame.
  */
-export const SETTINGS_HEADER_INSET = "px-[var(--workspace-gutter)]";
+export const SETTINGS_HEADER_HEIGHT = "h-14";
+export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]";
 
 /**
  * Type roles. Light-first with dark overrides — the panel follows the app

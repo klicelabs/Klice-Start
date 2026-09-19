@@ -42,6 +42,7 @@ import {
 	SETTINGS_CONTENT_PADDING,
 	SETTINGS_FOCUS_RING,
 	SETTINGS_HEADER_CONTROL,
+	SETTINGS_HEADER_HEIGHT,
 	SETTINGS_HEADER_INSET,
 	SETTINGS_SIDEBAR_SHELL,
 } from "./shared/settings-tokens";
@@ -279,7 +280,8 @@ export function SettingsSidebar({
 				<SidebarHeader className="p-0">
 					<header
 						className={cn(
-							"flex h-12 shrink-0 items-center gap-3",
+							"flex shrink-0 items-center gap-3",
+							SETTINGS_HEADER_HEIGHT,
 							SETTINGS_HEADER_INSET,
 						)}
 					>
