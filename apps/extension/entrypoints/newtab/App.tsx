@@ -1154,7 +1154,7 @@ export default function App() {
 									wakeActive && "klice-wake",
 								)}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-settings-open={settingsLayoutOpen ? "true" : "false"}
+								data-settings-open={showSettings ? "true" : "false"}
 								data-compact-search={compactSearch ? "true" : "false"}
 								data-active-folder-id={activeFolderId}
 								data-folder-depth={breadcrumb.length}
