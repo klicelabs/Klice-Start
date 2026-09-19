@@ -24,6 +24,7 @@ import { GoToTopButton } from "../../src/components/newtab/go-to-top";
 import { HistoryDialog } from "../../src/components/newtab/history-dialog";
 import { HistoryManager } from "../../src/components/newtab/history-manager";
 import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
+import { QuickLinks } from "../../src/components/newtab/quick-links";
 import { RestMode } from "../../src/components/newtab/rest-mode";
 import {
 	UnifiedSearch,
@@ -985,6 +986,8 @@ export default function App() {
 												/>
 											</div>
 										</main>
+
+										<QuickLinks />
 
 										<div className="speed-dial-grid-region">
 											<DialGrid

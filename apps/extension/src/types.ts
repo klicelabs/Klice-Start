@@ -122,6 +122,19 @@ export type DialLayout = "card" | "icon";
 /** Card shape in card layout. Vertical is taller than wide (Vivaldi-style). */
 export type CardAspect = "square" | "horizontal" | "vertical";
 
+/** A small, ordered destination shown above the bookmark library. */
+export interface QuickLink {
+	id: string;
+	label: string;
+	url: string;
+}
+
+/** Quick Links stay grouped so future editing/reordering needs no schema split. */
+export interface QuickLinksSettings {
+	enabled: boolean;
+	items: QuickLink[];
+}
+
 export interface Settings {
 	tileSize: "small" | "medium" | "large";
 	maxColumns: number;
@@ -145,6 +158,7 @@ export interface Settings {
 	clock: ClockSettings;
 	greeting: GreetingSettings;
 	search: SearchSettings;
+	quickLinks: QuickLinksSettings;
 	appearanceMode: AppearanceMode;
 	colorScheme: ColorScheme;
 	accentColor: AccentColor;

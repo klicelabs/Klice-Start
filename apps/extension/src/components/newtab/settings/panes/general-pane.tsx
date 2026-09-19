@@ -81,108 +81,148 @@ export function GeneralPane() {
 	);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
+	const quickLinksEnabled = useSetupStore((s) => s.settings.quickLinks.enabled);
 	const clock = useSetupStore((s) => s.settings.clock);
 	const greeting = useSetupStore((s) => s.settings.greeting);
 	const updateSettings = useSetupStore((s) => s.updateSettings);
 	const updateClock = useSetupStore((s) => s.updateClock);
 	const updateGreeting = useSetupStore((s) => s.updateGreeting);
+	const updateQuickLinks = useSetupStore((s) => s.updateQuickLinks);
 
 	return (
 		<div className={SETTINGS_PAGE}>
-			{/* How a tile looks and reads. */}
+			{/* Bookmark appearance, density and click behavior share one scan path. */}
 			<SectionCard>
-				<SelectRow
-					label="Display style"
-					icon="layout"
-					value={dialLayout}
-					options={LAYOUT_OPTIONS}
-					onChange={(v) => updateSettings({ dialLayout: v as "card" | "icon" })}
-				/>
+				<fieldset className="m-0 border-0 p-0" aria-label="Bookmark appearance">
+					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
+						Bookmark appearance
+					</legend>
+					<SelectRow
+						label="Display style"
+						icon="layout"
+						value={dialLayout}
+						options={LAYOUT_OPTIONS}
+						onChange={(v) =>
+							updateSettings({ dialLayout: v as "card" | "icon" })
+						}
+					/>
 
-				{dialLayout === "card" ? (
-					<SettingRow label="Card shape" icon="rectangle-horizontal">
-						<SegmentedControl
-							label="Card shape"
-							iconOnly
-							value={cardAspect}
-							options={CARD_SHAPES}
-							onChange={(value) => updateSettings({ cardAspect: value })}
-							className="w-[7.5rem]"
-						/>
-					</SettingRow>
-				) : (
-					<SettingRow label="Show labels" icon="text">
+					{dialLayout === "card" ? (
+						<SettingRow label="Card shape" icon="rectangle-horizontal">
+							<SegmentedControl
+								label="Card shape"
+								iconOnly
+								value={cardAspect}
+								options={CARD_SHAPES}
+								onChange={(value) => updateSettings({ cardAspect: value })}
+								className="w-[7.5rem]"
+							/>
+						</SettingRow>
+					) : (
+						<SettingRow label="Show labels" icon="text">
+							<Switch
+								className={SETTINGS_SWITCH}
+								aria-label="Show labels"
+								checked={iconShowLabel}
+								onCheckedChange={(checked: boolean) =>
+									updateSettings({ iconShowLabel: checked })
+								}
+							/>
+						</SettingRow>
+					)}
+
+					{dialLayout === "card" ? (
+						<SettingRow label="Show site titles" icon="text">
+							<Switch
+								className={SETTINGS_SWITCH}
+								aria-label="Show site titles"
+								checked={showTitle}
+								onCheckedChange={(checked: boolean) =>
+									updateSettings({ showTitle: checked })
+								}
+							/>
+						</SettingRow>
+					) : null}
+					<SelectRow
+						label="Default title source"
+						icon="text"
+						description="Applies to bookmarks without their own title source."
+						value={defaultTitleSource}
+						options={TITLE_SOURCE_OPTIONS}
+						onChange={(value) =>
+							updateSettings({ defaultTitleSource: value as TitleSource })
+						}
+					/>
+				</fieldset>
+
+				<div className="mx-1.5 border-black/[0.06] border-t dark:border-white/[0.08]" />
+
+				<fieldset
+					className="m-0 border-0 p-0"
+					aria-label="Bookmark grid density"
+				>
+					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
+						Grid density
+					</legend>
+					<SelectRow
+						label="Tile size"
+						icon="grid"
+						value={tileSize}
+						options={TILE_SIZE_OPTIONS}
+						onChange={(v) =>
+							updateSettings({ tileSize: v as "small" | "medium" | "large" })
+						}
+					/>
+
+					<SelectRow
+						label="Columns"
+						icon="columns"
+						value={String(maxColumns)}
+						options={COLUMN_OPTIONS}
+						onChange={(v) =>
+							updateSettings({ maxColumns: Number.parseInt(v, 10) })
+						}
+					/>
+				</fieldset>
+
+				<div className="mx-1.5 border-black/[0.06] border-t dark:border-white/[0.08]" />
+
+				<fieldset
+					className="m-0 border-0 p-0"
+					aria-label="Bookmark click behavior"
+				>
+					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
+						Click behavior
+					</legend>
+					<SettingRow
+						label="Open in new tab"
+						icon="external-link"
+						tooltip="Keep this page open when you click a tile."
+					>
 						<Switch
 							className={SETTINGS_SWITCH}
-							aria-label="Show labels"
-							checked={iconShowLabel}
+							aria-label="Open in new tab"
+							checked={openInNewTab}
 							onCheckedChange={(checked: boolean) =>
-								updateSettings({ iconShowLabel: checked })
+								updateSettings({ openInNewTab: checked })
 							}
 						/>
 					</SettingRow>
-				)}
-
-				{dialLayout === "card" ? (
-					<SettingRow label="Show site titles" icon="text">
-						<Switch
-							className={SETTINGS_SWITCH}
-							aria-label="Show site titles"
-							checked={showTitle}
-							onCheckedChange={(checked: boolean) =>
-								updateSettings({ showTitle: checked })
-							}
-						/>
-					</SettingRow>
-				) : null}
-				<SelectRow
-					label="Default title source"
-					icon="text"
-					description="Applies to bookmarks without their own title source."
-					value={defaultTitleSource}
-					options={TITLE_SOURCE_OPTIONS}
-					onChange={(value) =>
-						updateSettings({ defaultTitleSource: value as TitleSource })
-					}
-				/>
+				</fieldset>
 			</SectionCard>
 
-			{/* Grid density — one group, never split. */}
-			<SectionCard>
-				<SelectRow
-					label="Tile size"
-					icon="grid"
-					value={tileSize}
-					options={TILE_SIZE_OPTIONS}
-					onChange={(v) =>
-						updateSettings({ tileSize: v as "small" | "medium" | "large" })
-					}
-				/>
-
-				<SelectRow
-					label="Columns"
-					icon="columns"
-					value={String(maxColumns)}
-					options={COLUMN_OPTIONS}
-					onChange={(v) =>
-						updateSettings({ maxColumns: Number.parseInt(v, 10) })
-					}
-				/>
-			</SectionCard>
-
-			{/* What a click does. */}
 			<SectionCard>
 				<SettingRow
-					label="Open in new tab"
-					icon="external-link"
-					tooltip="Keep this page open when you click a tile."
+					label="Quick links"
+					icon="link"
+					description="Show common destinations above your bookmarks."
 				>
 					<Switch
 						className={SETTINGS_SWITCH}
-						aria-label="Open in new tab"
-						checked={openInNewTab}
-						onCheckedChange={(checked: boolean) =>
-							updateSettings({ openInNewTab: checked })
+						aria-label="Show quick links"
+						checked={quickLinksEnabled}
+						onCheckedChange={(enabled: boolean) =>
+							updateQuickLinks({ enabled })
 						}
 					/>
 				</SettingRow>

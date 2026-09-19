@@ -2,6 +2,7 @@ import type {
 	BackgroundSettings,
 	ClockSettings,
 	GreetingSettings,
+	QuickLink,
 	SearchSettings,
 	Settings,
 	Setup,
@@ -268,6 +269,18 @@ export const DEFAULT_SEARCH: SearchSettings = {
 	width: DEFAULT_SEARCH_WIDTH,
 };
 
+/** Common destinations shown to first-time users above their bookmark grid. */
+export const DEFAULT_QUICK_LINKS: readonly QuickLink[] = [
+	{ id: "google", label: "Google", url: "https://www.google.com" },
+	{ id: "youtube", label: "YouTube", url: "https://www.youtube.com" },
+	{ id: "gmail", label: "Gmail", url: "https://mail.google.com" },
+	{ id: "github", label: "GitHub", url: "https://github.com" },
+	{ id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com" },
+	{ id: "wikipedia", label: "Wikipedia", url: "https://www.wikipedia.org" },
+	{ id: "spotify", label: "Spotify", url: "https://open.spotify.com" },
+	{ id: "reddit", label: "Reddit", url: "https://www.reddit.com" },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
 	tileSize: "medium",
 	maxColumns: 7,
@@ -278,6 +291,10 @@ export const DEFAULT_SETTINGS: Settings = {
 	cardAspect: "vertical",
 	iconShowLabel: true,
 	defaultTitleSource: "saved",
+	quickLinks: {
+		enabled: true,
+		items: DEFAULT_QUICK_LINKS.map((link) => ({ ...link })),
+	},
 	thumbnailCapture: { ...DEFAULT_THUMBNAIL_CAPTURE },
 	background: { ...DEFAULT_BACKGROUND },
 	clock: { ...DEFAULT_CLOCK },

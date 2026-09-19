@@ -9,10 +9,14 @@ test("visual preference updates retain Home's content and order references", () 
 	before.updateBackground({ blur: 16 });
 	before.updateClock({ size: 120 });
 	before.updateGreeting({ size: 120 });
+	const quickLinkItems = before.settings.quickLinks.items;
+	before.updateQuickLinks({ enabled: false });
 	const after = useSetupStore.getState();
 	expect(after.folders).toBe(before.folders);
 	expect(after.cards).toBe(before.cards);
 	expect(after.itemOrder).toBe(before.itemOrder);
+	expect(after.settings.quickLinks.items).toBe(quickLinkItems);
+	after.updateQuickLinks({ enabled: true });
 });
 
 test("external settings-only update preserves Home references and location", () => {

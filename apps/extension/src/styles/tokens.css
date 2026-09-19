@@ -1127,6 +1127,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding: 0;
 }
 
+/* Quick Links are a quiet launch rail, not a second bookmark grid. Pull the
+   compact row into the hero/grid rhythm without changing either surface. */
+.speed-dial-quick-links {
+	display: flex;
+	width: 100%;
+	justify-content: center;
+	margin-top: clamp(-28px, -2.6vh, -18px);
+	margin-bottom: clamp(-24px, -2.2vh, -14px);
+	padding-inline: var(--speed-dial-content-gutter);
+}
+
 /* The wrap is the full-bleed interaction surface: it owns the vertical
    rhythm (previously the region's padding) so presses and drags work
    anywhere in the blue content area. Track width/centering live on the

@@ -7,11 +7,13 @@ import type {
 	ColorScheme,
 	CustomWallpaper,
 	Folder,
+	QuickLink,
 	Setup,
 	TitleSource,
 	WallpaperFrequency,
 } from "../types";
 import {
+	DEFAULT_QUICK_LINKS,
 	DEFAULT_SEARCH,
 	DEFAULT_SETUP,
 	MAX_COLUMNS,
@@ -170,6 +172,30 @@ function normalizeString(value: unknown, fallback: string): string {
 	return typeof value === "string" ? value : fallback;
 }
 
+function cloneQuickLinks(items: readonly QuickLink[]): QuickLink[] {
+	return items.map((item) => ({ ...item }));
+}
+
+/** Keep Quick Links ordered and future-editable while rejecting corrupt rows. */
+function normalizeQuickLinks(
+	rawValue: unknown,
+	defaults: readonly QuickLink[],
+): QuickLink[] {
+	if (!Array.isArray(rawValue)) return cloneQuickLinks(defaults);
+	const seen = new Set<string>();
+	const items: QuickLink[] = [];
+	for (const value of rawValue) {
+		if (!isRecord(value)) continue;
+		const id = normalizeId(value.id);
+		const label = normalizeId(value.label);
+		const url = typeof value.url === "string" ? value.url.trim() : "";
+		if (!id || !label || !isAbsoluteHttpUrl(url) || seen.has(id)) continue;
+		seen.add(id);
+		items.push({ id, label, url });
+	}
+	return items.length > 0 ? items : cloneQuickLinks(defaults);
+}
+
 function normalizeSettings(
 	rawValue: unknown,
 	defaults: Setup["settings"],
@@ -179,6 +205,7 @@ function normalizeSettings(
 	const clock = isRecord(raw.clock) ? raw.clock : {};
 	const greeting = isRecord(raw.greeting) ? raw.greeting : {};
 	const search = isRecord(raw.search) ? raw.search : {};
+	const quickLinks = isRecord(raw.quickLinks) ? raw.quickLinks : {};
 	return {
 		tileSize:
 			raw.tileSize === "small" ||
@@ -276,6 +303,18 @@ function normalizeSettings(
 				DEFAULT_SEARCH.width,
 				SEARCH_WIDTH_MIN,
 				SEARCH_WIDTH_MAX,
+			),
+		},
+		quickLinks: {
+			enabled: normalizeBoolean(
+				quickLinks.enabled,
+				defaults.quickLinks.enabled,
+			),
+			items: normalizeQuickLinks(
+				quickLinks.items,
+				defaults.quickLinks.items.length > 0
+					? defaults.quickLinks.items
+					: DEFAULT_QUICK_LINKS,
 			),
 		},
 		appearanceMode: normalizeAppearanceMode(
