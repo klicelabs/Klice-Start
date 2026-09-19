@@ -88,7 +88,11 @@ test("Settings toolbar shares Home toolbar geometry", () => {
 	expect(settingsTokens).toContain(
 		'export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]"',
 	);
+	expect(settingsTokens).toContain(
+		'export const SETTINGS_HEADER_CONTROL_ALIGNMENT = "self-start"',
+	);
 	expect(sidebar).toContain("SETTINGS_HEADER_HEIGHT,");
 	expect(sidebar).toContain("SETTINGS_HEADER_INSET,");
+	expect(sidebar).toContain("SETTINGS_HEADER_CONTROL_ALIGNMENT,");
 	expect(sidebar).toContain('"flex shrink-0 items-center gap-3",');
 });

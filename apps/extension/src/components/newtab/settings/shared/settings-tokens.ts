@@ -52,6 +52,8 @@ export const SETTINGS_CONTENT_PADDING = "p-4";
  */
 export const SETTINGS_HEADER_HEIGHT = TOOLBAR.height;
 export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]";
+/** Header chrome sits on the Home frame's top edge in the framed workspace. */
+export const SETTINGS_HEADER_CONTROL_ALIGNMENT = "self-start";
 
 /**
  * Type roles. Light-first with dark overrides — the panel follows the app
