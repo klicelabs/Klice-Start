@@ -86,13 +86,13 @@ test("Settings toolbar shares Home toolbar geometry", () => {
 		'export const SETTINGS_HEADER_HEIGHT = "h-12"',
 	);
 	expect(settingsTokens).toContain(
-		'export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]"',
+		'export const SETTINGS_FRAME_INSET = "px-[var(--workspace-gutter)]"',
 	);
 	expect(settingsTokens).toContain(
-		'export const SETTINGS_HEADER_CONTROL_ALIGNMENT = "self-start"',
+		"export const SETTINGS_HEADER_INSET = SETTINGS_FRAME_INSET",
 	);
 	expect(sidebar).toContain("SETTINGS_HEADER_HEIGHT,");
 	expect(sidebar).toContain("SETTINGS_HEADER_INSET,");
-	expect(sidebar).toContain("SETTINGS_HEADER_CONTROL_ALIGNMENT,");
+	expect(sidebar).toContain("SETTINGS_FRAME_INSET,");
 	expect(sidebar).toContain('"flex shrink-0 items-center gap-3",');
 });

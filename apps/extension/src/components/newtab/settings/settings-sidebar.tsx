@@ -41,8 +41,8 @@ import {
 	SETTINGS_CONTENT_FRAME,
 	SETTINGS_CONTENT_PADDING,
 	SETTINGS_FOCUS_RING,
+	SETTINGS_FRAME_INSET,
 	SETTINGS_HEADER_CONTROL,
-	SETTINGS_HEADER_CONTROL_ALIGNMENT,
 	SETTINGS_HEADER_HEIGHT,
 	SETTINGS_HEADER_INSET,
 	SETTINGS_SIDEBAR_SHELL,
@@ -90,7 +90,6 @@ function SettingsChromeButton({
 				shape="toolbarIcon"
 				className={cn(
 					"size-[34px] shrink-0",
-					SETTINGS_HEADER_CONTROL_ALIGNMENT,
 					glassLensVeil("hero", resolvedDark),
 				)}
 			>
@@ -122,7 +121,6 @@ function SettingsChromeButton({
 				"size-[34px]",
 				SETTINGS_HEADER_CONTROL,
 				SETTINGS_FOCUS_RING,
-				SETTINGS_HEADER_CONTROL_ALIGNMENT,
 			)}
 			onClick={onClick}
 			aria-label={label}
@@ -316,7 +314,12 @@ export function SettingsSidebar({
 					</header>
 				</SidebarHeader>
 
-				<SidebarContent className="min-h-0 overflow-hidden px-[var(--workspace-gutter)] pt-1 pb-0">
+				<SidebarContent
+					className={cn(
+						"min-h-0 overflow-hidden pt-1 pb-0",
+						SETTINGS_FRAME_INSET,
+					)}
+				>
 					<div
 						className={cn(
 							"flex min-h-0 flex-1 flex-col overflow-hidden",

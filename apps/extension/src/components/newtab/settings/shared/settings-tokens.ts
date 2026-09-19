@@ -51,9 +51,9 @@ export const SETTINGS_CONTENT_PADDING = "p-4";
  */
 /** Compact header band keeps the title and content frame on one short rhythm. */
 export const SETTINGS_HEADER_HEIGHT = "h-12";
-export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]";
-/** Header chrome sits on the Home frame's top edge in the framed workspace. */
-export const SETTINGS_HEADER_CONTROL_ALIGNMENT = "self-start";
+/** One horizontal grid for header chrome and the content frame below it. */
+export const SETTINGS_FRAME_INSET = "px-[var(--workspace-gutter)]";
+export const SETTINGS_HEADER_INSET = SETTINGS_FRAME_INSET;
 
 /**
  * Type roles. Light-first with dark overrides — the panel follows the app
