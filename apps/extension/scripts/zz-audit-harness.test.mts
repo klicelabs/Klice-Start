@@ -128,10 +128,9 @@ test("eviction reports staged thumbnails for cleanup", () => {
  * M5 companion evidence: buildHistoryEntry snapshots container arrays
  * verbatim, so undo/redo replays exactly what it captured — including keys
  * that reference entities deleted after the capture. applyHistorySnapshot
- * writes those arrays back without pruning, so dead keys can re-enter
- * itemOrder (the original M5 mechanism, still present in the store applier).
+ * the store applier must repair those arrays against live entities.
  */
-test("M5 replay of a stale snapshot re-arms pre-existing container keys", () => {
+test("M5 history capture retains stale input for the applier to repair", () => {
 	beginGestureCapture(
 		[card("k1", "f"), card("k2", "f")],
 		[folder("f", "F", null)],
@@ -148,7 +147,7 @@ test("M5 replay of a stale snapshot re-arms pre-existing container keys", () => 
 	const liveOrder = { f: ["card:k1"] };
 	// An unrelated later move commits a fresh entry whose containers only
 	// reference k1. But undoing a hypothetical older entry captured BEFORE
-	// the delete replays containers with card:k2 — the applier restores it.
+	// the delete replays containers with card:k2 — the applier repairs it.
 	const entryOld = buildHistoryEntry(
 		capture,
 		liveCards,
@@ -158,7 +157,7 @@ test("M5 replay of a stale snapshot re-arms pre-existing container keys", () => 
 	);
 	// The stale capture still carries card:k2 on the UNDO side; redo carries
 	// the live post-delete order. applyHistorySnapshot writes containers
-	// verbatim, so undoing re-arms card:k2 in itemOrder (M5 mechanism).
+	// verbatim; the store applier removes the dead key before commit.
 	expect(entryOld?.undo.containers.f).toEqual(["card:k1", "card:k2"]);
 	expect(entryOld?.redo.containers.f).toEqual(["card:k1"]);
 });

@@ -1,4 +1,5 @@
 import type { Card, Folder, Setup } from "../types";
+import { isAbsoluteHttpUrl } from "./url";
 
 export const MAX_BACKUP_INPUT_LENGTH = 50 * 1024 * 1024;
 export const MAX_BACKUP_IMAGE_ENTRIES = 1000;
@@ -7,6 +8,9 @@ export const MAX_BACKUP_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024;
 export interface BackupPreflight {
 	folders: number;
 	cards: number;
+	/** Records rejected by normalization; imports never silently drop these. */
+	invalidFolders?: number;
+	invalidCards?: number;
 }
 
 export interface ImageBudget {
@@ -112,8 +116,52 @@ export function preflightBackup(fileText: string): BackupPreflight {
 		throw new Error("That file is not a valid Klice backup.");
 	}
 	const setup = validateSetupShape(parsed);
+	const invalidFolders = countInvalidFolders(setup.folders as unknown[]);
+	const invalidCards = countInvalidCards(setup.cards as unknown[]);
+	if (invalidFolders > 0 || invalidCards > 0) {
+		const parts: string[] = [];
+		if (invalidFolders > 0) parts.push(`${invalidFolders} invalid folder${invalidFolders === 1 ? "" : "s"}`);
+		if (invalidCards > 0) parts.push(`${invalidCards} invalid bookmark${invalidCards === 1 ? "" : "s"}`);
+		throw new Error(`Backup contains ${parts.join(" and ")} and cannot be restored.`);
+	}
 	const budget: ImageBudget = { entries: 0, bytes: 0 };
 	preflightImageMap(parsed.thumbnails, "thumbnails", budget);
 	preflightImageMap(parsed.backgrounds, "backgrounds", budget);
 	return { folders: setup.folders.length, cards: setup.cards.length };
+}
+
+function countInvalidFolders(values: unknown[]): number {
+	const ids = new Set<string>();
+	let invalid = 0;
+	for (const value of values) {
+		if (!isRecord(value) || typeof value.id !== "string" || value.id.trim() === "") {
+			invalid += 1;
+			continue;
+		}
+		if (ids.has(value.id.trim())) invalid += 1;
+		ids.add(value.id.trim());
+	}
+	return invalid;
+}
+
+function countInvalidCards(values: unknown[]): number {
+	const ids = new Set<string>();
+	let invalid = 0;
+	for (const value of values) {
+		if (
+			!isRecord(value) ||
+			typeof value.id !== "string" ||
+			value.id.trim() === "" ||
+			typeof value.folderId !== "string" ||
+			value.folderId.trim() === "" ||
+			typeof value.url !== "string" ||
+			!isAbsoluteHttpUrl(value.url)
+		) {
+			invalid += 1;
+			continue;
+		}
+		if (ids.has(value.id.trim())) invalid += 1;
+		ids.add(value.id.trim());
+	}
+	return invalid;
 }

@@ -13,6 +13,9 @@ import type {
 } from "../types";
 import {
 	DEFAULT_SETUP,
+	DEFAULT_SEARCH,
+	MAX_COLUMNS,
+	MIN_COLUMNS,
 	SEARCH_WIDTH_MAX,
 	SEARCH_WIDTH_MIN,
 	WALLPAPERS,
@@ -30,13 +33,21 @@ import { isAbsoluteHttpUrl } from "./url";
  * drop parent references that point to missing folders (orphans become roots),
  * and break any cycles so tree traversal always terminates.
  */
-function normalizeFolders(rawFolders: Folder[]): Folder[] {
-	const folders: Folder[] = rawFolders.map((f, i) => ({
-		id: f.id,
-		name: f.name,
-		order: typeof f.order === "number" ? f.order : i,
-		parentId: (f as Partial<Folder>).parentId ?? null,
-	}));
+function normalizeFolders(rawFolders: unknown[]): Folder[] {
+	const seen = new Set<string>();
+	const folders: Folder[] = [];
+	for (const [index, value] of rawFolders.entries()) {
+		if (!isRecord(value)) continue;
+		const id = normalizeId(value.id);
+		if (!id || seen.has(id)) continue;
+		seen.add(id);
+		folders.push({
+			id,
+			name: typeof value.name === "string" ? value.name : "Untitled folder",
+			order: isFiniteNumber(value.order) ? value.order : index,
+			parentId: normalizeId(value.parentId),
+		});
+	}
 
 	const ids = new Set(folders.map((f) => f.id));
 
@@ -149,6 +160,129 @@ function normalizeBoundedNumber(
 ): number {
 	if (!isFiniteNumber(value)) return fallback;
 	return Math.min(max, Math.max(min, value));
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function normalizeString(value: unknown, fallback: string): string {
+	return typeof value === "string" ? value : fallback;
+}
+
+function normalizeSettings(
+	rawValue: unknown,
+	defaults: Setup["settings"],
+): Setup["settings"] {
+	const raw = isRecord(rawValue) ? rawValue : {};
+	const thumbnail = isRecord(raw.thumbnailCapture) ? raw.thumbnailCapture : {};
+	const clock = isRecord(raw.clock) ? raw.clock : {};
+	const greeting = isRecord(raw.greeting) ? raw.greeting : {};
+	const search = isRecord(raw.search) ? raw.search : {};
+	return {
+		tileSize:
+			raw.tileSize === "small" ||
+			raw.tileSize === "medium" ||
+			raw.tileSize === "large"
+				? raw.tileSize
+				: defaults.tileSize,
+		maxColumns: normalizeBoundedNumber(
+			raw.maxColumns,
+			defaults.maxColumns,
+			MIN_COLUMNS,
+			MAX_COLUMNS,
+		),
+		showTitle: normalizeBoolean(raw.showTitle, defaults.showTitle),
+		showDeleteButton: normalizeBoolean(
+			raw.showDeleteButton,
+			defaults.showDeleteButton,
+		),
+		openInNewTab: normalizeBoolean(raw.openInNewTab, defaults.openInNewTab),
+		dialLayout:
+			raw.dialLayout === "icon" || raw.dialLayout === "card"
+				? raw.dialLayout
+				: defaults.dialLayout,
+		cardAspect:
+			raw.cardAspect === "square" ||
+			raw.cardAspect === "horizontal" ||
+			raw.cardAspect === "vertical"
+				? raw.cardAspect
+				: defaults.cardAspect,
+		iconShowLabel: normalizeBoolean(raw.iconShowLabel, defaults.iconShowLabel),
+		defaultTitleSource:
+			normalizeTitleSource(raw.defaultTitleSource) ??
+			defaults.defaultTitleSource,
+		thumbnailCapture: {
+			enabled: normalizeBoolean(thumbnail.enabled, defaults.thumbnailCapture.enabled),
+			delayMs: normalizeBoundedNumber(
+				thumbnail.delayMs,
+				defaults.thumbnailCapture.delayMs,
+				100,
+				10_000,
+			),
+		},
+		background: normalizeBackground(raw.background, defaults.background),
+		clock: {
+			enabled: normalizeBoolean(clock.enabled, defaults.clock.enabled),
+			dateEnabled:
+				typeof clock.dateEnabled === "boolean"
+					? clock.dateEnabled
+					: normalizeBoolean(clock.enabled, defaults.clock.dateEnabled),
+			format24: normalizeBoolean(clock.format24, defaults.clock.format24),
+			showSeconds: normalizeBoolean(clock.showSeconds, defaults.clock.showSeconds),
+			size: normalizeBoundedNumber(
+				clock.size,
+				defaults.clock.size,
+				WIDGET_SIZE_MIN,
+				WIDGET_SIZE_MAX,
+			),
+			dateSize: normalizeBoundedNumber(
+				clock.dateSize,
+				defaults.clock.dateSize,
+				WIDGET_SIZE_MIN,
+				WIDGET_SIZE_MAX,
+			),
+			timezone: normalizeString(clock.timezone, defaults.clock.timezone),
+		},
+		greeting: {
+			enabled: normalizeBoolean(greeting.enabled, defaults.greeting.enabled),
+			name: normalizeString(greeting.name, defaults.greeting.name),
+			size: normalizeBoundedNumber(
+				greeting.size,
+				defaults.greeting.size,
+				WIDGET_SIZE_MIN,
+				WIDGET_SIZE_MAX,
+			),
+		},
+		search: {
+			enabled: normalizeBoolean(search.enabled, DEFAULT_SEARCH.enabled),
+			engine: normalizeString(search.engine, DEFAULT_SEARCH.engine),
+			placeholder: normalizeString(
+				search.placeholder,
+				DEFAULT_SEARCH.placeholder,
+			),
+			iconMode:
+				search.iconMode === "search" || search.iconMode === "engine"
+					? search.iconMode
+					: DEFAULT_SEARCH.iconMode,
+			width: normalizeBoundedNumber(
+				search.width,
+				DEFAULT_SEARCH.width,
+				SEARCH_WIDTH_MIN,
+				SEARCH_WIDTH_MAX,
+			),
+		},
+		appearanceMode: normalizeAppearanceMode(
+			raw.appearanceMode,
+			defaults.appearanceMode,
+		),
+		colorScheme: normalizeColorScheme(raw.colorScheme, defaults.colorScheme),
+		accentColor: normalizeAccentColor(raw.accentColor, defaults.accentColor),
+		glassIntensity: normalizeGlassIntensity(
+			raw.glassIntensity,
+			defaults.glassIntensity,
+		),
+	};
 }
 
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
@@ -348,110 +482,63 @@ export function normalizeState(
 	const source: Partial<Setup> = isRecord(rawState)
 		? (rawState as Partial<Setup>)
 		: {};
-	const sourceSettings = isRecord(source.settings as unknown)
-		? (source.settings as Partial<typeof DEFAULT_SETUP.settings>)
-		: undefined;
-	const sourceClock = isRecord(sourceSettings?.clock)
-		? sourceSettings.clock
-		: undefined;
-	const sourceGreeting = isRecord(sourceSettings?.greeting)
-		? sourceSettings.greeting
-		: undefined;
-	const sourceSearch = isRecord(sourceSettings?.search)
-		? sourceSettings.search
-		: undefined;
 
 	const defaults = structuredClone(DEFAULT_SETUP);
+	const normalizedFolders =
+		Array.isArray(source.folders) && source.folders.length > 0
+			? normalizeFolders(source.folders)
+			: [];
 
 	const state: Setup = {
 		...defaults,
 		...source,
 		folders:
-			Array.isArray(source.folders) && source.folders.length > 0
-				? normalizeFolders(source.folders)
+			normalizedFolders.length > 0
+				? normalizedFolders
 				: structuredClone(defaults.folders),
-		cards: Array.isArray(source.cards) ? source.cards : [],
-		settings: {
-			...defaults.settings,
-			...sourceSettings,
-			defaultTitleSource:
-				normalizeTitleSource(sourceSettings?.defaultTitleSource) ??
-				defaults.settings.defaultTitleSource,
-			appearanceMode: normalizeAppearanceMode(
-				sourceSettings?.appearanceMode,
-				defaults.settings.appearanceMode,
-			),
-			colorScheme: normalizeColorScheme(
-				sourceSettings?.colorScheme,
-				defaults.settings.colorScheme,
-			),
-			accentColor: normalizeAccentColor(
-				sourceSettings?.accentColor,
-				defaults.settings.accentColor,
-			),
-			glassIntensity: normalizeGlassIntensity(
-				sourceSettings?.glassIntensity,
-				defaults.settings.glassIntensity,
-			),
-			thumbnailCapture: {
-				...defaults.settings.thumbnailCapture,
-				...(sourceSettings?.thumbnailCapture ?? {}),
-			},
-			background: normalizeBackground(
-				sourceSettings?.background,
-				defaults.settings.background,
-			),
-			clock: {
-				...defaults.settings.clock,
-				...(sourceSettings?.clock ?? {}),
-				// Before dateEnabled existed, enabled controlled both readouts. Keep
-				// that visibility choice when hydrating an older install.
-				dateEnabled:
-					typeof sourceClock?.dateEnabled === "boolean"
-						? sourceClock.dateEnabled
-						: typeof sourceClock?.enabled === "boolean"
-							? sourceClock.enabled
-							: defaults.settings.clock.dateEnabled,
-				size: normalizeBoundedNumber(
-					sourceClock?.size,
-					defaults.settings.clock.size,
-					WIDGET_SIZE_MIN,
-					WIDGET_SIZE_MAX,
-				),
-				dateSize: normalizeBoundedNumber(
-					sourceClock?.dateSize,
-					defaults.settings.clock.dateSize,
-					WIDGET_SIZE_MIN,
-					WIDGET_SIZE_MAX,
-				),
-			},
-			greeting: {
-				...defaults.settings.greeting,
-				...(sourceSettings?.greeting ?? {}),
-				size: normalizeBoundedNumber(
-					sourceGreeting?.size,
-					defaults.settings.greeting.size,
-					WIDGET_SIZE_MIN,
-					WIDGET_SIZE_MAX,
-				),
-			},
-			search: {
-				...defaults.settings.search,
-				...(sourceSettings?.search ?? {}),
-				width: normalizeBoundedNumber(
-					sourceSearch?.width,
-					defaults.settings.search.width,
-					SEARCH_WIDTH_MIN,
-					SEARCH_WIDTH_MAX,
-				),
-			},
-		},
+		cards: [],
+		settings: normalizeSettings(source.settings, defaults.settings),
 	};
 
 	// Ensure activeFolderId is valid
 	if (!state.folders.find((f) => f.id === state.activeFolderId)) {
 		state.activeFolderId = state.folders[0]?.id || "default";
 	}
+
+	// Cards are untrusted persisted data too. Normalize their identity before
+	// repairing parents/order: duplicate ids would make React keys and item
+	// order references ambiguous (P6), while malformed records used to survive
+	// until a later property access.
+	const seenCardIds = new Set<string>();
+	const rawCards = Array.isArray(source.cards) ? source.cards : [];
+	state.cards = rawCards.flatMap((raw, index): Card[] => {
+		if (!isRecord(raw)) return [];
+		const id = normalizeId(raw.id);
+		const folderId = normalizeId(raw.folderId);
+		const url = typeof raw.url === "string" ? raw.url : "";
+		if (!id || !folderId || seenCardIds.has(id) || !isAbsoluteHttpUrl(url)) {
+			return [];
+		}
+		seenCardIds.add(id);
+		const origin = raw.origin === "browser" ? "browser" : "local";
+		return [
+			{
+				id,
+				folderId,
+				title: typeof raw.title === "string" ? raw.title : url,
+				url,
+				favicon: typeof raw.favicon === "string" ? raw.favicon : null,
+				thumbId: normalizeId(raw.thumbId),
+				order: isFiniteNumber(raw.order) ? raw.order : index,
+				titleSource: normalizeTitleSource(raw.titleSource),
+				origin,
+				capturedAt:
+					isFiniteNumber(raw.capturedAt) && raw.capturedAt >= 0
+						? raw.capturedAt
+						: null,
+			},
+		];
+	});
 
 	// H5/M11: cards pointing at missing folders are invisible in the grid
 	// (nothing renders a container that does not exist) yet survive into
@@ -461,28 +548,6 @@ export function normalizeState(
 		if (folderIds.has(card.folderId)) return card;
 		return { ...card, folderId: state.activeFolderId };
 	});
-
-	// Migrate cards to include origin/capturedAt fields
-	state.cards = state.cards
-		.filter(
-			(card) =>
-				isRecord(card) &&
-				typeof card.url === "string" &&
-				isAbsoluteHttpUrl(card.url),
-		)
-		.map(
-			(card): Card => ({
-				...card,
-				titleSource: normalizeTitleSource(
-					(card as Card & Record<string, unknown>).titleSource,
-				),
-				origin:
-					(card as Card & Record<string, unknown>).origin ?? ("local" as const),
-				capturedAt:
-					(card as Card & Record<string, unknown>).capturedAt ??
-					(null as number | null),
-			}),
-		);
 
 	// Migrate to the unified item-order model. Legacy payloads have no
 	// `itemOrder`; backfill folders-first so existing installs see no change.
@@ -836,6 +901,7 @@ if (typeof window !== "undefined") {
 		void flushPersist().catch(() => undefined);
 	};
 	window.addEventListener("beforeunload", onFlush);
+	window.addEventListener("pagehide", onFlush);
 	document.addEventListener("visibilitychange", () => {
 		if (document.visibilityState === "hidden") {
 			void flushPersist().catch(() => undefined);

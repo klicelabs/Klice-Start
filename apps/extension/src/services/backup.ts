@@ -3,6 +3,8 @@ import {
 	type ImageBudget,
 	isRecord,
 	MAX_BACKUP_INPUT_LENGTH,
+	MAX_BACKUP_IMAGE_ENTRIES,
+	MAX_BACKUP_TOTAL_IMAGE_BYTES,
 	preflightBackup,
 	preflightImageMap,
 	validateSetupShape,
@@ -30,8 +32,10 @@ export async function buildBackup(): Promise<BackupPayload> {
 	for (const card of state.cards) {
 		if (card.thumbId) thumbIds.add(card.thumbId);
 	}
-	for (const id of thumbIds) {
-		const dataUrl = await images.getThumbnail(id);
+	const thumbnailEntries = await Promise.all(
+		[...thumbIds].map(async (id) => [id, await images.getThumbnail(id)] as const),
+	);
+	for (const [id, dataUrl] of thumbnailEntries) {
 		if (dataUrl) thumbnails[id] = dataUrl;
 	}
 
@@ -42,12 +46,14 @@ export async function buildBackup(): Promise<BackupPayload> {
 	if (bg.type === "pexels" && bg.pexelsImageId)
 		backgroundIds.add(bg.pexelsImageId);
 	if (bg.customWallpaper?.id) backgroundIds.add(bg.customWallpaper.id);
-	for (const id of backgroundIds) {
-		const dataUrl = await images.getBackgroundImage(id);
+	const backgroundEntries = await Promise.all(
+		[...backgroundIds].map(async (id) => [id, await images.getBackgroundImage(id)] as const),
+	);
+	for (const [id, dataUrl] of backgroundEntries) {
 		if (dataUrl) backgrounds[id] = dataUrl;
 	}
 
-	return {
+	const payload: BackupPayload = {
 		folders: state.folders,
 		cards: state.cards,
 		activeFolderId: state.activeFolderId,
@@ -56,6 +62,32 @@ export async function buildBackup(): Promise<BackupPayload> {
 		thumbnails,
 		backgrounds,
 	};
+	assertBackupBudget(payload);
+	return payload;
+}
+
+function assertBackupBudget(payload: BackupPayload): void {
+	const imageValues = [
+		...Object.values(payload.thumbnails),
+		...Object.values(payload.backgrounds),
+	];
+	if (imageValues.length > MAX_BACKUP_IMAGE_ENTRIES) {
+		throw new Error(
+			`Backup exceeds maximum image entries (${MAX_BACKUP_IMAGE_ENTRIES}).`,
+		);
+	}
+	const imageBytes = imageValues.reduce((total, value) => total + value.length, 0);
+	if (imageBytes > MAX_BACKUP_TOTAL_IMAGE_BYTES) {
+		throw new Error(
+			`Backup exceeds maximum total image size (${MAX_BACKUP_TOTAL_IMAGE_BYTES / 1024 / 1024} MB).`,
+		);
+	}
+	const serialized = JSON.stringify(payload);
+	if (serialized.length > MAX_BACKUP_INPUT_LENGTH) {
+		throw new Error(
+			`Backup exceeds maximum input length (${MAX_BACKUP_INPUT_LENGTH} characters).`,
+		);
+	}
 }
 
 /** Trigger a download of the current setup as a JSON file. */

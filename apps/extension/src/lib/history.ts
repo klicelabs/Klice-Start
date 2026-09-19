@@ -22,7 +22,14 @@ export function historyContainerName(
 /** Recent-operation bound. Session-scoped; old entries fall off the top. */
 export const HISTORY_LIMIT = 30;
 
-export type HistoryKind = "move" | "reorder" | "combine" | "create" | "rename" | "delete";
+export type HistoryKind =
+	| "move"
+	| "reorder"
+	| "combine"
+	| "create"
+	| "rename"
+	| "update"
+	| "delete";
 
 /**
  * What happened, in UI words. `dest` is the destination folder name (moves);
@@ -64,6 +71,8 @@ export interface HistorySnapshot {
 	 * backward compatibility.
 	 */
 	nameOnlyIds?: string[];
+	/** Field-level card patches for metadata edits (H2). */
+	cardPatches?: Record<string, Partial<Card>>;
 }
 
 export interface HistoryEntry {
@@ -128,6 +137,9 @@ export function describeHistoryPast(summary: HistorySummary): string {
 	if (summary.kind === "rename") {
 		return `Renamed “${summary.label}” to “${summary.newName}”`;
 	}
+	if (summary.kind === "update") {
+		return `Updated bookmark “${summary.label ?? ""}”`;
+	}
 	if (summary.kind === "delete") {
 		if (summary.folderCount === 0) {
 			return summary.total === 1
@@ -160,6 +172,9 @@ export function describeHistoryGerund(summary: HistorySummary): string {
 	if (summary.kind === "rename") {
 		return `renaming “${summary.label}” to “${summary.newName}”`;
 	}
+	if (summary.kind === "update") {
+		return `updating bookmark “${summary.label ?? ""}”`;
+	}
 	if (summary.kind === "delete") {
 		if (summary.folderCount === 0) {
 			return summary.total === 1
@@ -188,6 +203,9 @@ export function describeHistoryAction(summary: HistorySummary): string {
 	}
 	if (summary.kind === "rename") {
 		return `Rename “${summary.label}” to “${summary.newName}”`;
+	}
+	if (summary.kind === "update") {
+		return `Update bookmark “${summary.label ?? ""}”`;
 	}
 	if (summary.kind === "delete") {
 		if (summary.folderCount === 0) {
@@ -232,13 +250,13 @@ function deletedWith(summary: HistorySummary): string {
 
 /**
  * Native text editing wins: history shortcuts stay out of inputs,
- * textareas, contenteditables, selects and rename/search fields.
+ * textareas, contenteditables, selects and open dialogs.
  */
 export function isHistoryEditableTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false;
 	return Boolean(
 		target.closest(
-			'input, textarea, select, [contenteditable="true"], [data-rename-field], [data-search-input]',
+			'input, textarea, select, [contenteditable="true"], [role="dialog"], dialog',
 		),
 	);
 }

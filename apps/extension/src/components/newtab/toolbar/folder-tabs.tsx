@@ -11,7 +11,7 @@ import {
 	TabsTrigger,
 } from "@klice-start/ui/components/motion/tabs";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { type DragEvent, useRef, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
 import {
 	dropZoneFor,
@@ -44,6 +44,7 @@ import {
 	useSetupStore,
 } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
+import type { ItemOrder } from "../../../lib/item-order";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabsOverflow } from "./folder-tabs-overflow";
@@ -79,6 +80,14 @@ interface FolderTabsProps {
 	) => void;
 	isRootFolder?: (id: string) => boolean;
 	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
+}
+
+function cloneItemOrder(order: ItemOrder | undefined): ItemOrder {
+	const copy: ItemOrder = {};
+	for (const [container, keys] of Object.entries(order ?? {})) {
+		copy[container] = [...keys];
+	}
+	return copy;
 }
 
 /**
@@ -270,6 +279,26 @@ function FolderTab({
 	const [dropActive, setDropActive] = useState(false);
 	const spring = useSpringLoad(() => onSelectFolder(folder.id));
 	const lastApplied = useRef<string | null>(null);
+	const tabDragSnapshot = useRef<ItemOrder | null>(null);
+	const tabDragActive = useRef(false);
+
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || !tabDragActive.current) return;
+			event.preventDefault();
+			event.stopPropagation();
+			const snapshot = tabDragSnapshot.current;
+			tabDragSnapshot.current = null;
+			tabDragActive.current = false;
+			if (snapshot) useSetupStore.getState().restoreItemOrder(snapshot);
+			lastApplied.current = null;
+			setDropActive(false);
+			spring.cancel();
+			onInsertionChange(null);
+		};
+		window.addEventListener("keydown", onKeyDown, true);
+		return () => window.removeEventListener("keydown", onKeyDown, true);
+	}, [onInsertionChange, spring]);
 
 	const editing = useRenameStore((s) => s.isEditing("folder", folder.id));
 	const beginRename = useRenameStore((s) => s.begin);
@@ -469,6 +498,10 @@ function FolderTab({
 							}}
 							onDragStart={(e) => {
 								lastApplied.current = null;
+								tabDragSnapshot.current = cloneItemOrder(
+									useSetupStore.getState().itemOrder,
+								);
+								tabDragActive.current = true;
 								// Freeze order for history: hover writes mutate it and
 								// the drop diffs back to this capture (one entry).
 								const setup = useSetupStore.getState();
@@ -496,6 +529,8 @@ function FolderTab({
 								setDragData(e, "folder", folder.id);
 							}}
 							onDragEnd={() => {
+								tabDragSnapshot.current = null;
+								tabDragActive.current = false;
 								lastApplied.current = null;
 								setActiveDrag(null);
 								setDropActive(false);

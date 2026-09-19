@@ -343,7 +343,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 					linkTitleSource === "inherit" ? undefined : linkTitleSource,
 				url: normalized,
 				favicon: finalFavicon,
-			});
+			}, { history: true });
 			const current = cards.find((c) => c.id === editingCardId);
 			if (current && current.folderId !== linkFolderId) {
 				moveCard(editingCardId, linkFolderId);
@@ -357,7 +357,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 						linkTitleSource === "inherit" ? undefined : linkTitleSource,
 					url: normalized,
 					favicon: finalFavicon,
-				});
+				}, { history: true });
 			} else {
 				addCard({
 					folderId: linkFolderId,

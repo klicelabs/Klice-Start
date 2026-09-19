@@ -91,7 +91,7 @@ test("M1: rename undo merges only the name, leaving concurrent reparent intact",
 	S().deleteFolder(pid);
 });
 
-test("M1: applier still replaces whole records for non-rename snapshots", () => {
+test("M5: non-rename restores repair legacy order fields", () => {
 	const fid = S().addFolder("Keep", null);
 	// Non-rename snapshot: full record restore (e.g. deleted folder revival).
 	const snapshot = {
@@ -110,7 +110,7 @@ test("M1: applier still replaces whole records for non-rename snapshots", () => 
 	expect(revived).toEqual({
 		id: fid,
 		name: "Revived",
-		order: 7,
+		order: 1,
 		parentId: null,
 	});
 });

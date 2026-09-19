@@ -64,6 +64,9 @@ export default function App() {
 	const [newFolderName, setNewFolderName] = useState("");
 	const [pendingNameError, setPendingNameError] = useState(false);
 	const [parentFolderId, setParentFolderId] = useState<string | null>(null);
+	const [hasHydrated, setHasHydrated] = useState(() =>
+		useSetupStore.persist.hasHydrated(),
+	);
 	const titleRef = useRef<HTMLInputElement>(null);
 	const pendingNameRef = useRef<HTMLInputElement>(null);
 
@@ -72,6 +75,14 @@ export default function App() {
 	const saveThumbnail = useImageStore((s) => s.saveThumbnail);
 	const getThumbnail = useImageStore((s) => s.getThumbnail);
 	const deleteThumbnail = useImageStore((s) => s.deleteThumbnail);
+
+	useEffect(() => {
+		if (useSetupStore.persist.hasHydrated()) {
+			setHasHydrated(true);
+			return;
+		}
+		return useSetupStore.persist.onFinishHydration(() => setHasHydrated(true));
+	}, []);
 
 	const [folderId, setFolderId] = useState(activeFolderId);
 	// The picker mounts pre-hydration with the store default. Sync the
@@ -178,7 +189,7 @@ export default function App() {
 	}
 
 	async function handlePendingCreate() {
-		if (!pendingRecord || pendingState !== "ready") return;
+		if (!hasHydrated || !pendingRecord || pendingState !== "ready") return;
 		const name = newFolderName.trim();
 		if (!name) {
 			setPendingNameError(true);
@@ -235,7 +246,7 @@ export default function App() {
 	}
 
 	async function handleSave() {
-		if (!tabInfo || saveState === "saving") return;
+		if (!hasHydrated || !tabInfo || saveState === "saving") return;
 
 		setSaveState("saving");
 		let thumbId: string | null = null;
@@ -257,7 +268,7 @@ export default function App() {
 					...(tabInfo.favicon ? { favicon: tabInfo.favicon } : {}),
 					...(thumbId ? { thumbId } : {}),
 				};
-				store.updateCard(existing.id, changes);
+				store.updateCard(existing.id, changes, { history: true });
 				await flushPersist();
 				persisted = true;
 				if (thumbId && previousThumbId && previousThumbId !== thumbId) {
@@ -425,7 +436,7 @@ export default function App() {
 							<Button
 								type="button"
 								onClick={handlePendingCreate}
-								disabled={pendingState === "saving"}
+													disabled={!hasHydrated || pendingState === "saving"}
 								className="h-8 flex-[2] rounded-md font-medium text-xs shadow-xs"
 							>
 								{pendingState === "saving" ? "Saving…" : "Create folder & save"}
@@ -542,6 +553,7 @@ export default function App() {
 						size="sm"
 						onClick={handleSave}
 						disabled={
+							!hasHydrated ||
 							saveState === "saving" ||
 							saveState === "saved" ||
 							saveState === "updated"

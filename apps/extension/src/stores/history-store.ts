@@ -54,6 +54,8 @@ interface HistoryStoreState {
 	pending: PendingConfirmation | null;
 	/** Post-action toast trigger, consumed by the history manager. */
 	notice: HistoryNotice | null;
+	/** FIFO queue so rapid commits never overwrite a toast trigger. */
+	notices: HistoryNotice[];
 	noticeSeq: number;
 	/** H1 residue: last dead-id request, consumed by the manager. */
 	deadIdNotice: DeadIdNotice | null;
@@ -107,6 +109,7 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 	future: [],
 	pending: null,
 	notice: null,
+	notices: [],
 	noticeSeq: 0,
 	deadIdNotice: null,
 
@@ -122,9 +125,13 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 		// with one rule — undone deletes keep their bytes through the restored
 		// cards, true garbage goes.
 		const seq = state.noticeSeq + 1;
+		const nextNotice = opts?.silent ? state.notice : { entryId: entry.id, seq };
 		set({
 			...stacks,
-			notice: opts?.silent ? state.notice : { entryId: entry.id, seq },
+			notice: nextNotice,
+			notices: opts?.silent
+				? state.notices
+				: [...state.notices, nextNotice as HistoryNotice],
 			noticeSeq: seq,
 		});
 		// Why here: entries leaving the history (past overflow + discarded
@@ -142,7 +149,9 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 	},
 
 	consumeNotice: () => {
-		if (get().notice) set({ notice: null });
+		const notices = get().notices;
+		if (notices.length === 0) return;
+		set({ notices: notices.slice(1), notice: notices[1] ?? null });
 	},
 
 	requestUndo: (entryId) => {

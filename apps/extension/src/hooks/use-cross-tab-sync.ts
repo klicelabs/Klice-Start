@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { Browser } from "wxt/browser";
 import { extApi } from "../lib/extension-api";
-import { mergeExternalSetup } from "../lib/merge-external-setup";
+import { mergeConcurrentSetup } from "../lib/merge-external-setup";
 import {
 	consumeOwnWriteEcho,
 	getResetGeneration,
@@ -20,6 +20,7 @@ import type { Setup } from "../types";
  * value prevents our own write from replacing the live arrays and grid.
  */
 export function useCrossTabSync() {
+	const lastCommonSetup = useRef<Setup | null>(null);
 	useEffect(() => {
 		if (!extApi() || !extApi().storage?.onChanged) return;
 		type OnChangedCb = Parameters<
@@ -35,7 +36,10 @@ export function useCrossTabSync() {
 			const raw =
 				typeof newValue === "string" ? newValue : JSON.stringify(newValue);
 
-			if (consumeOwnWriteEcho(raw)) return;
+			if (consumeOwnWriteEcho(raw)) {
+				lastCommonSetup.current = useSetupStore.getState();
+				return;
+			}
 
 			try {
 				const parsed =
@@ -58,8 +62,10 @@ export function useCrossTabSync() {
 				const current = useSetupStore.getState();
 				const incoming = normalizeState(parsed.state as Partial<Setup>);
 
-				const update = mergeExternalSetup(current, incoming);
+				const base = lastCommonSetup.current ?? current;
+				const update = mergeConcurrentSetup(base, current, incoming);
 				if (update) useSetupStore.setState(update);
+				lastCommonSetup.current = update ? { ...current, ...update } : current;
 
 				// M4/NPD-3: external state arrived. Invalidate the redo branch and
 				// prune undo entries whose snapshots no longer match live state —

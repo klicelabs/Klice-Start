@@ -19,6 +19,7 @@ import {
 	parseItemKey,
 	reindexOrders,
 	reorderGroupKeys,
+	repairItemOrder,
 } from "../lib/item-order";
 import {
 	beginReset,
@@ -56,7 +57,11 @@ interface SetupActions {
 	addCard: (
 		card: Omit<Card, "id" | "order" | "origin" | "capturedAt">,
 	) => string;
-	updateCard: (id: string, changes: Partial<Card>) => void;
+	updateCard: (
+		id: string,
+		changes: Partial<Card>,
+		options?: { history?: boolean },
+	) => void;
 	moveCard: (id: string, folderId: string) => void;
 	/** Atomically insert a card before/after a card in a target folder. */
 	insertCardAt: (
@@ -572,10 +577,58 @@ export const useSetupStore = create<SetupStore>()(
 				return id;
 			},
 
-			updateCard: (id, changes) =>
-				set((s) => ({
-					cards: s.cards.map((c) => (c.id === id ? { ...c, ...changes } : c)),
-				})),
+			updateCard: (id, changes, options) =>
+				set((s) => {
+					const before = s.cards.find((card) => card.id === id);
+					if (!before) return {};
+					const after = { ...before, ...changes };
+					const changedKeys = (Object.keys(changes) as Array<keyof Card>).filter(
+						(key) => before[key] !== after[key],
+					);
+					if (changedKeys.length === 0) return {};
+					if (options?.history) {
+						const beforePatch: Partial<Card> = {};
+						const afterPatch: Partial<Card> = {};
+						for (const key of changedKeys) {
+							(beforePatch as Record<string, unknown>)[key] = before[key];
+							(afterPatch as Record<string, unknown>)[key] = after[key];
+						}
+						useHistoryStore.getState().commit({
+							id: nextHistoryEntryId(),
+							at: Date.now(),
+							summary: {
+								kind: "update",
+								total: 1,
+								cardCount: 1,
+								folderCount: 0,
+								label: before.title || before.url,
+							},
+							undo: {
+								containers: {},
+								cards: {},
+								folders: {},
+								putCards: [],
+								putFolders: [],
+								delCardIds: [],
+								delFolderIds: [],
+								cardPatches: { [id]: beforePatch },
+							},
+							redo: {
+								containers: {},
+								cards: {},
+								folders: {},
+								putCards: [],
+								putFolders: [],
+								delCardIds: [],
+								delFolderIds: [],
+								cardPatches: { [id]: afterPatch },
+							},
+						});
+					}
+					return {
+						cards: s.cards.map((card) => (card.id === id ? after : card)),
+					};
+				}),
 
 			moveCard: (id, folderId) =>
 				set((s) => {
@@ -943,6 +996,11 @@ export const useSetupStore = create<SetupStore>()(
 							? { ...c, folderId }
 							: c;
 					});
+					for (const [id, patch] of Object.entries(snapshot.cardPatches ?? {})) {
+						cards = cards.map((card) =>
+							card.id === id ? { ...card, ...patch } : card,
+						);
+					}
 					folders = folders.map((f) => {
 						if (!(f.id in snapshot.folders)) return f;
 						const parentId = snapshot.folders[f.id] ?? null;
@@ -950,9 +1008,13 @@ export const useSetupStore = create<SetupStore>()(
 							? { ...f, parentId }
 							: f;
 					});
+					// History snapshots can come from an older live state. Repair the
+					// container map before reindexing so deleted ids can never be
+					// resurrected by undo/redo (M5).
+					const repairedOrder = repairItemOrder(itemOrder, folders, cards);
 					return {
-						...reindexOrders(folders, cards, itemOrder),
-						itemOrder,
+						...reindexOrders(folders, cards, repairedOrder),
+						itemOrder: repairedOrder,
 					};
 				}),
 

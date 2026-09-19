@@ -121,6 +121,32 @@ test("H2: deleteCard commits one entry and undo restores the exact slot", () => 
 	expect(byteDeletes).toEqual([]);
 });
 
+test("H2: user bookmark metadata updates are reversible field patches", () => {
+	const fid = S().addFolder("D", null);
+	const cid = S().addCard({
+		folderId: fid,
+		title: "Before",
+		url: "https://example.com/before",
+		favicon: null,
+		thumbId: null,
+	});
+	H().clearHistory();
+	S().updateCard(cid, { title: "After", url: "https://example.com/after" }, { history: true });
+	const entry = H().past.at(-1)!;
+	expect(entry.summary.kind).toBe("update");
+	expect(S().cards.find((card) => card.id === cid)?.title).toBe("After");
+	S().applyHistorySnapshot(entry.undo);
+	expect(S().cards.find((card) => card.id === cid)).toMatchObject({
+		title: "Before",
+		url: "https://example.com/before",
+	});
+	S().applyHistorySnapshot(entry.redo);
+	expect(S().cards.find((card) => card.id === cid)).toMatchObject({
+		title: "After",
+		url: "https://example.com/after",
+	});
+});
+
 test("H2: deleteFolder commits one entry and undo restores the whole subtree", () => {
 	spyBytes();
 	const { fid } = seed();

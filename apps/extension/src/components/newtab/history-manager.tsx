@@ -50,27 +50,28 @@ function focusConfirmButton(title: string, label: string): void {
  * copy stays centralized.
  */
 export function HistoryManager() {
-	const notice = useHistoryStore((s) => s.notice);
+	const notices = useHistoryStore((s) => s.notices);
 	const pending = useHistoryStore((s) => s.pending);
 	const deadIdNotice = useHistoryStore((s) => s.deadIdNotice);
 
 	// Post-action feedback: short-lived, Undo opens confirmation (never
 	// executes). Dismissal keeps the entry in history.
 	useEffect(() => {
+		const notice = notices[0];
 		if (!notice) return;
 		const state = useHistoryStore.getState();
 		const entry = findEntry(state.past, notice.entryId);
 		state.consumeNotice();
 		if (!entry) return;
 		toast.success(describeHistoryPast(entry.summary), {
-			id: NOTICE_TOAST_ID,
+			id: `${NOTICE_TOAST_ID}-${notice.seq}`,
 			duration: NOTICE_DURATION_MS,
 			action: {
 				label: "Undo",
 				onClick: () => useHistoryStore.getState().requestUndo(entry.id),
 			},
 		});
-	}, [notice]);
+	}, [notices]);
 
 	// Single confirmation surface. Replaces any previous confirmation;
 	// cleared the moment pending resolves (confirm or cancel).
