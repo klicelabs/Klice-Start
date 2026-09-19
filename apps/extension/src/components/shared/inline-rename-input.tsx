@@ -7,6 +7,8 @@ interface InlineRenameInputProps {
 	value: string;
 	/** Commit a trimmed, non-empty name. */
 	onCommit: (name: string) => void;
+	/** Commit an unchanged value when accepting the editor changes its source. */
+	commitOnSame?: boolean;
 	/** Revert to the previous value. */
 	onCancel: () => void;
 	className?: string;
@@ -24,6 +26,7 @@ interface InlineRenameInputProps {
 export function InlineRenameInput({
 	value,
 	onCommit,
+	commitOnSame = false,
 	onCancel,
 	className,
 	ariaLabel = "Rename",
@@ -46,7 +49,7 @@ export function InlineRenameInput({
 		doneRef.current = true;
 		if (commit) {
 			const name = draft.trim();
-			if (name.length > 0 && name !== value) onCommit(name);
+			if (name.length > 0 && (name !== value || commitOnSame)) onCommit(name);
 			else onCancel();
 		} else {
 			onCancel();

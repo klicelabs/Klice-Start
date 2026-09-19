@@ -93,7 +93,7 @@ const ICON_BRAND_NAMES: Record<string, string> = {
 	youtube: "YouTube",
 };
 
-/** Short, app-like label for Icon mode; Card mode keeps its saved title. */
+/** Short site name inferred from the URL for the optional site-title source. */
 export function deriveIconLabel(rawUrl: string): string {
 	const domain = getDomain(rawUrl);
 	if (!domain) return "";

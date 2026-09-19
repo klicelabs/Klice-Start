@@ -8,6 +8,7 @@ import type {
 	CustomWallpaper,
 	Folder,
 	Setup,
+	TitleSource,
 	WallpaperFrequency,
 } from "../types";
 import {
@@ -55,6 +56,10 @@ function normalizeFolders(rawFolders: Folder[]): Folder[] {
 	}
 
 	return folders;
+}
+
+function normalizeTitleSource(value: unknown): TitleSource | undefined {
+	return value === "saved" || value === "site" ? value : undefined;
 }
 const VALID_WALLPAPER_IDS = new Set(
 	WALLPAPERS.map((wallpaper) => wallpaper.id),
@@ -369,6 +374,9 @@ export function normalizeState(
 		settings: {
 			...defaults.settings,
 			...sourceSettings,
+			defaultTitleSource:
+				normalizeTitleSource(sourceSettings?.defaultTitleSource) ??
+				defaults.settings.defaultTitleSource,
 			appearanceMode: normalizeAppearanceMode(
 				sourceSettings?.appearanceMode,
 				defaults.settings.appearanceMode,
@@ -465,6 +473,9 @@ export function normalizeState(
 		.map(
 			(card): Card => ({
 				...card,
+				titleSource: normalizeTitleSource(
+					(card as Card & Record<string, unknown>).titleSource,
+				),
 				origin:
 					(card as Card & Record<string, unknown>).origin ?? ("local" as const),
 				capturedAt:
@@ -536,6 +547,22 @@ let _pendingResolvers: PendingResolver[] = [];
 let _setItemTimer: ReturnType<typeof setTimeout> | null = null;
 let _inFlightWrite: Promise<void> | null = null;
 let _lastWrittenJSON: string | null = null;
+// storage.onChanged can fire before storage.local.set resolves. Register each
+// outgoing value before calling set, and consume its echo in the page listener.
+// A count handles repeated writes of identical snapshots.
+const _ownWriteEchoes = new Map<string, number>();
+
+export function consumeOwnWriteEcho(raw: string): boolean {
+	const count = _ownWriteEchoes.get(raw);
+	if (!count) return false;
+	if (count === 1) _ownWriteEchoes.delete(raw);
+	else _ownWriteEchoes.set(raw, count - 1);
+	return true;
+}
+
+function discardOwnWriteEcho(raw: string): void {
+	consumeOwnWriteEcho(raw);
+}
 export type PersistHealth = "ok" | "unsaved" | "failed";
 
 type PersistenceErrorListener = (error: unknown) => void;
@@ -636,7 +663,13 @@ function _doWrite(
 					"QuotaExceededError",
 				);
 			}
-			return extApi().storage.local.set({ [name]: json });
+			_ownWriteEchoes.set(json, (_ownWriteEchoes.get(json) ?? 0) + 1);
+			try {
+				await extApi().storage.local.set({ [name]: json });
+			} catch (error) {
+				discardOwnWriteEcho(json);
+				throw error;
+			}
 		})
 		.then(() => {
 			_lastWrittenJSON = json;

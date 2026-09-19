@@ -11,6 +11,8 @@ export interface Card {
 	id: string;
 	folderId: string;
 	title: string;
+	/** Optional override; omitted cards follow the global title source. */
+	titleSource?: TitleSource;
 	url: string;
 	favicon: string | null;
 	thumbId: string | null;
@@ -20,6 +22,9 @@ export interface Card {
 	/** Timestamp (ms) when thumbnail was captured by background script. */
 	capturedAt?: number | null;
 }
+
+/** Saved bookmark title or a short site name derived from its URL. */
+export type TitleSource = "saved" | "site";
 
 export interface ThumbnailCaptureSettings {
 	enabled: boolean;
@@ -133,6 +138,8 @@ export interface Settings {
 	cardAspect: CardAspect;
 	/** Show the site title under the icon in icon layout. */
 	iconShowLabel: boolean;
+	/** Default display title source in both Card and Icon layouts. */
+	defaultTitleSource: TitleSource;
 	thumbnailCapture: ThumbnailCaptureSettings;
 	background: BackgroundSettings;
 	clock: ClockSettings;

@@ -277,6 +277,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	dialLayout: "card",
 	cardAspect: "vertical",
 	iconShowLabel: true,
+	defaultTitleSource: "saved",
 	thumbnailCapture: { ...DEFAULT_THUMBNAIL_CAPTURE },
 	background: { ...DEFAULT_BACKGROUND },
 	clock: { ...DEFAULT_CLOCK },

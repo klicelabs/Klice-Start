@@ -46,6 +46,7 @@ interface FolderPreviewCardProps {
 	name: string;
 	itemCount: number;
 	previewCards: FolderPreviewItem[];
+	reordering?: boolean;
 	dragging?: boolean;
 	isSelected?: boolean;
 	/**
@@ -86,6 +87,7 @@ export function FolderPreviewCard({
 	name,
 	itemCount,
 	previewCards,
+	reordering = false,
 	dragging,
 	isSelected = false,
 	showOpenAction = false,
@@ -173,6 +175,7 @@ export function FolderPreviewCard({
 							id={id}
 							name={name}
 							previewCards={previewCards}
+							reordering={reordering}
 							itemCount={itemCount}
 							isSelected={isSelected}
 							editing={editing}
@@ -408,6 +411,7 @@ interface IconFolderBodyProps {
 	id: string;
 	name: string;
 	previewCards: FolderPreviewItem[];
+	reordering: boolean;
 	itemCount: number;
 	isSelected: boolean;
 	editing: boolean;
@@ -435,6 +439,7 @@ function IconFolderBody({
 	id,
 	name,
 	previewCards,
+	reordering,
 	itemCount,
 	isSelected,
 	editing,
@@ -500,7 +505,7 @@ function IconFolderBody({
 								return (
 									<motion.div
 										key={card.id}
-										layout="position"
+										layout={reordering ? "position" : false}
 										transition={{ duration: 0.2, ease: EASE_OUT }}
 										className="icon-folder-preview-motion-cell"
 									>
@@ -567,7 +572,7 @@ function IconFolderBody({
 							return (
 								<motion.div
 									key={card.id}
-									layout="position"
+									layout={reordering ? "position" : false}
 									transition={{ duration: 0.2, ease: EASE_OUT }}
 									className="icon-folder-preview-motion-cell"
 								>

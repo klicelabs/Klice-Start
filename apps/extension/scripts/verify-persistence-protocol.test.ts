@@ -74,6 +74,8 @@ const {
 	PERSIST_GENERATION_KEY,
 	subscribeToPersistHealth,
 	getPersistHealth,
+	consumeOwnWriteEcho,
+	getLastWrittenJSON,
 } = await import("../src/lib/storage");
 
 function sampleSetup() {
@@ -185,4 +187,34 @@ test("P5-A: persist health tracks queued, landed and failed writes", async () =>
 	expect(getPersistHealth()).toBe("ok");
 	expect(events[events.length - 1]).toBe("ok");
 	unsubscribe();
+});
+
+test("own storage change is recognized before the write promise resolves", async () => {
+	const area = (globalThis as Record<string, unknown>).chrome as {
+		storage: {
+			local: { set: (items: Record<string, unknown>) => Promise<void> };
+		};
+	};
+	const originalSet = area.storage.local.set.bind(area.storage.local);
+	let observedEarlyEcho = false;
+	area.storage.local.set = async (items) => {
+		const raw = items["perch-setup"];
+		if (typeof raw === "string") {
+			// Chrome may deliver onChanged while set() is still pending. The old
+			// completed-write guard does not recognize this value yet.
+			expect(getLastWrittenJSON()).not.toBe(raw);
+			observedEarlyEcho = consumeOwnWriteEcho(raw);
+			expect(consumeOwnWriteEcho(raw)).toBe(false);
+		}
+		await originalSet(items);
+	};
+	try {
+		await writeSetupEnvelope("perch-setup", {
+			...sampleSetup(),
+			folders: [{ id: "f1", name: "Early echo", order: 0, parentId: null }],
+		});
+	} finally {
+		area.storage.local.set = originalSet;
+	}
+	expect(observedEarlyEcho).toBe(true);
 });

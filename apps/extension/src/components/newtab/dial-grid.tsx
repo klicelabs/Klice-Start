@@ -784,7 +784,7 @@ export function DialGrid({
 										return (
 											<motion.div
 												key={folder.id}
-												layout
+												layout={Boolean(dnd.drag)}
 												transition={reorderTransition}
 												// The wrapper is the grid item: in icon mode it
 												// must also carry the 2×2 folder span, or the
@@ -808,6 +808,7 @@ export function DialGrid({
 													name={folder.name}
 													itemCount={cardCounts[folder.id] ?? 0}
 													previewCards={previewCards[folder.id] ?? []}
+													reordering={Boolean(dnd.drag)}
 													dragging={dragGroupIds?.has(folder.id) ?? false}
 													isSelected={isSelected}
 													showOpenAction={selectedIds.length > 0}
@@ -857,7 +858,7 @@ export function DialGrid({
 									return (
 										<motion.div
 											key={card.id}
-											layout
+											layout={Boolean(dnd.drag)}
 											transition={reorderTransition}
 											className="dial-cell"
 											data-marquee-id={card.id}

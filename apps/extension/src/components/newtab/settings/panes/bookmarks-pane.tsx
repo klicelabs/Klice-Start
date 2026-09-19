@@ -48,10 +48,11 @@ import {
 	replaceBookmarkLibrary,
 } from "../../../../services/bookmarks-html";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type { Card } from "../../../../types";
+import type { Card, TitleSource } from "../../../../types";
 import { FolderTreePicker } from "../../../shared/folder-tree-picker";
 import { useAppearance } from "../../appearance-provider";
 import { SectionCard } from "../shared/section-card";
+import { SelectRow } from "../shared/select-row";
 import { SettingRow } from "../shared/setting-row";
 import { SettingsAction, SettingsIconButton } from "../shared/settings-action";
 import { SettingsExpandable } from "../shared/settings-expandable";
@@ -167,6 +168,9 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 	const [editingCardId, setEditingCardId] = useState<string | null>(null);
 	const [linkUrl, setLinkUrl] = useState("");
 	const [linkTitle, setLinkTitle] = useState("");
+	const [linkTitleSource, setLinkTitleSource] = useState<
+		TitleSource | "inherit"
+	>("inherit");
 	const [linkFolderId, setLinkFolderId] = useState(selectedFolderId);
 	const [titleTouched, setTitleTouched] = useState(false);
 
@@ -235,6 +239,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			setLinkFolderId(initialAction.folderId || selectedFolderId);
 			setLinkUrl("");
 			setLinkTitle("");
+			setLinkTitleSource("inherit");
 			setTitleTouched(false);
 			setEditingCardId(null);
 			setIsAddingLink(true);
@@ -244,6 +249,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				setEditingCardId(card.id);
 				setLinkUrl(card.url);
 				setLinkTitle(card.title);
+				setLinkTitleSource(card.titleSource ?? "inherit");
 				setLinkFolderId(card.folderId);
 				setSelectedFolderId(card.folderId);
 				setTitleTouched(true);
@@ -333,6 +339,8 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		if (editingCardId) {
 			updateCard(editingCardId, {
 				title: finalTitle,
+				titleSource:
+					linkTitleSource === "inherit" ? undefined : linkTitleSource,
 				url: normalized,
 				favicon: finalFavicon,
 			});
@@ -345,6 +353,8 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 			if (existing) {
 				updateCard(existing.id, {
 					title: finalTitle,
+					titleSource:
+						linkTitleSource === "inherit" ? undefined : linkTitleSource,
 					url: normalized,
 					favicon: finalFavicon,
 				});
@@ -352,6 +362,8 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				addCard({
 					folderId: linkFolderId,
 					title: finalTitle,
+					titleSource:
+						linkTitleSource === "inherit" ? undefined : linkTitleSource,
 					url: normalized,
 					favicon: finalFavicon,
 					thumbId: null,
@@ -363,6 +375,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setEditingCardId(null);
 		setLinkUrl("");
 		setLinkTitle("");
+		setLinkTitleSource("inherit");
 		setTitleTouched(false);
 	}
 
@@ -370,6 +383,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setEditingCardId(null);
 		setLinkUrl("");
 		setLinkTitle("");
+		setLinkTitleSource("inherit");
 		setTitleTouched(false);
 		setLinkFolderId(selectedFolderId);
 		setIsAddingLink(true);
@@ -379,6 +393,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setEditingCardId(card.id);
 		setLinkUrl(card.url);
 		setLinkTitle(card.title);
+		setLinkTitleSource(card.titleSource ?? "inherit");
 		setLinkFolderId(card.folderId);
 		setTitleTouched(true);
 		setIsAddingLink(true);
@@ -389,6 +404,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		setEditingCardId(null);
 		setLinkUrl("");
 		setLinkTitle("");
+		setLinkTitleSource("inherit");
 		setTitleTouched(false);
 	}
 
@@ -860,6 +876,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								onChange={(e) => {
 									setTitleTouched(true);
 									setLinkTitle(e.target.value);
+									setLinkTitleSource("saved");
 								}}
 								className={cn(
 									cn("h-9 w-full px-3 text-sm", SETTINGS_RADIUS.control),
@@ -867,6 +884,16 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 								)}
 							/>
 						</div>
+						<SelectRow
+							label="Display title from"
+							value={linkTitleSource}
+							options={[
+								{ value: "inherit", label: "Default setting" },
+								{ value: "saved", label: "Saved title" },
+								{ value: "site", label: "Site name from URL" },
+							]}
+							onChange={setLinkTitleSource}
+						/>
 
 						<div className="flex flex-col gap-1.5">
 							<span className={FIELD_LABEL}>Folder</span>

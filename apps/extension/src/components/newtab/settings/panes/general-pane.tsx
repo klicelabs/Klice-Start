@@ -3,7 +3,7 @@ import { Switch } from "@klice-start/ui/components/switch";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type { CardAspect } from "../../../../types";
+import type { CardAspect, TitleSource } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
 import { SegmentedControl } from "../shared/segmented-control";
 import { SelectRow } from "../shared/select-row";
@@ -32,6 +32,11 @@ const COLUMN_OPTIONS = [4, 5, 6, 7, 8, 9, 10].map((n) => ({
 const LAYOUT_OPTIONS = [
 	{ value: "card", label: "Cards" },
 	{ value: "icon", label: "Icons" },
+] as const;
+
+const TITLE_SOURCE_OPTIONS = [
+	{ value: "saved", label: "Saved title" },
+	{ value: "site", label: "Site name from URL" },
 ] as const;
 
 const CARD_SHAPES: readonly {
@@ -71,6 +76,9 @@ export function GeneralPane() {
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
+	const defaultTitleSource = useSetupStore(
+		(s) => s.settings.defaultTitleSource,
+	);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const clock = useSetupStore((s) => s.settings.clock);
@@ -127,6 +135,16 @@ export function GeneralPane() {
 						/>
 					</SettingRow>
 				) : null}
+				<SelectRow
+					label="Default title source"
+					icon="text"
+					description="Applies to bookmarks without their own title source."
+					value={defaultTitleSource}
+					options={TITLE_SOURCE_OPTIONS}
+					onChange={(value) =>
+						updateSettings({ defaultTitleSource: value as TitleSource })
+					}
+				/>
 			</SectionCard>
 
 			{/* Grid density — one group, never split. */}

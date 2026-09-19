@@ -1,12 +1,13 @@
-import type { Browser } from "wxt/browser";
 import { useEffect } from "react";
+import type { Browser } from "wxt/browser";
+import { extApi } from "../lib/extension-api";
+import { mergeExternalSetup } from "../lib/merge-external-setup";
 import {
-	getLastWrittenJSON,
+	consumeOwnWriteEcho,
 	getResetGeneration,
 	normalizeState,
 	PERSIST_GENERATION_KEY,
 } from "../lib/storage";
-import { extApi } from "../lib/extension-api";
 import { useHistoryStore } from "../stores/history-store";
 import { useSetupStore } from "../stores/setup-store";
 import type { Setup } from "../types";
@@ -14,11 +15,9 @@ import type { Setup } from "../types";
 /**
  * Listen for storage changes from other tabs and update the store.
  *
- * Echo guard: compares the raw incoming JSON against the last successfully
- * written JSON string from the storage adapter. If they match exactly, the
- * change was written by this tab — skip it. This prevents the classic
- * out-of-order write race (write A completes → onChanged fires with A →
- * store gets overwritten with stale value).
+ * The storage adapter records outgoing snapshots before storage.local.set.
+ * onChanged may fire before that promise resolves; consuming the registered
+ * value prevents our own write from replacing the live arrays and grid.
  */
 export function useCrossTabSync() {
 	useEffect(() => {
@@ -36,8 +35,7 @@ export function useCrossTabSync() {
 			const raw =
 				typeof newValue === "string" ? newValue : JSON.stringify(newValue);
 
-			// Our own echo — skip
-			if (raw === getLastWrittenJSON()) return;
+			if (consumeOwnWriteEcho(raw)) return;
 
 			try {
 				const parsed =
@@ -60,12 +58,8 @@ export function useCrossTabSync() {
 				const current = useSetupStore.getState();
 				const incoming = normalizeState(parsed.state as Partial<Setup>);
 
-				// Apply incoming state, keeping the active folder if it still exists
-				const keepActive = current.activeFolderId;
-				useSetupStore.setState(incoming);
-				if (keepActive && incoming.folders.some((f) => f.id === keepActive)) {
-					useSetupStore.setState({ activeFolderId: keepActive });
-				}
+				const update = mergeExternalSetup(current, incoming);
+				if (update) useSetupStore.setState(update);
 
 				// M4/NPD-3: external state arrived. Invalidate the redo branch and
 				// prune undo entries whose snapshots no longer match live state —

@@ -7,6 +7,7 @@ import {
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useEffect, useState } from "react";
+import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
 import type { GridItemDragProps } from "../../lib/dnd";
 import {
 	glassCardFooter,
@@ -16,7 +17,7 @@ import {
 	glassFocusRing,
 	glassMenu,
 } from "../../lib/glass";
-import { deriveIconLabel, faviconUrl } from "../../lib/url";
+import { faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -60,6 +61,9 @@ export function DialCard({
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
+	const defaultTitleSource = useSetupStore(
+		(s) => s.settings.defaultTitleSource,
+	);
 	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
 	const editing = useRenameStore((s) => s.isEditing("card", card.id));
@@ -83,16 +87,15 @@ export function DialCard({
 
 	const fallbackColor = softGradientFromString(card.url);
 	const faviconSrc = card.favicon || faviconUrl(card.url);
-	const label = card.title || card.url;
-	const iconLabel = deriveIconLabel(card.url) || label;
-	const accessibleLabel = dialLayout === "icon" ? iconLabel : label;
+	const label = resolveCardTitle(card, defaultTitleSource);
+	const savedTitle = card.title || card.url;
 
 	function handleOpenNewTab() {
 		window.open(card.url, "_blank");
 	}
 
 	function handleCommitRename(name: string) {
-		useSetupStore.getState().updateCard(card.id, { title: name });
+		useSetupStore.getState().updateCard(card.id, renameCardTitle(name));
 		cancelRename();
 	}
 
@@ -119,12 +122,8 @@ export function DialCard({
 					insertion === "before" &&
 						dialLayout === "card" &&
 						"drop-insert-before",
-					insertion === "after" &&
-						dialLayout === "card" &&
-						"drop-insert-after",
-					combineActive &&
-						dialLayout === "card" &&
-						glassDropRing(isLiquid),
+					insertion === "after" && dialLayout === "card" && "drop-insert-after",
+					combineActive && dialLayout === "card" && glassDropRing(isLiquid),
 					dragging && "scale-[0.985] opacity-40",
 					className,
 				)}
@@ -134,10 +133,8 @@ export function DialCard({
 					href={card.url}
 					target={openInNewTab ? "_blank" : "_self"}
 					rel={openInNewTab ? "noopener noreferrer" : undefined}
-					aria-label={
-						isSelected ? `${accessibleLabel}, selected` : accessibleLabel
-					}
-					title={dialLayout === "icon" ? `${iconLabel} · ${card.url}` : label}
+					aria-label={isSelected ? `${label}, selected` : label}
+					title={dialLayout === "icon" ? `${label} · ${card.url}` : label}
 					onClick={onClick}
 					onKeyDown={(e) => {
 						// Space toggles selection while selection mode is
@@ -170,17 +167,20 @@ export function DialCard({
 									insertion === "after" && "icon-drop-insert-after",
 								)}
 							/>
-							{iconShowLabel &&
+							{(iconShowLabel || editing) &&
 								(editing ? (
 									<InlineRenameInput
-										value={card.title || card.url}
-										ariaLabel={`Rename ${iconLabel}`}
+										value={savedTitle}
+										commitOnSame={
+											(card.titleSource ?? defaultTitleSource) !== "saved"
+										}
+										ariaLabel={`Rename ${label}`}
 										onCommit={handleCommitRename}
 										onCancel={cancelRename}
-										className="text-center"
+										className="w-full flex-none text-center"
 									/>
 								) : (
-									<span className="icon-label">{iconLabel}</span>
+									<span className="icon-label">{label}</span>
 								))}
 						</div>
 					) : (
@@ -236,7 +236,10 @@ export function DialCard({
 									/>
 									{editing ? (
 										<InlineRenameInput
-											value={card.title || card.url}
+											value={savedTitle}
+											commitOnSame={
+												(card.titleSource ?? defaultTitleSource) !== "saved"
+											}
 											ariaLabel={`Rename ${label}`}
 											onCommit={handleCommitRename}
 											onCancel={cancelRename}
