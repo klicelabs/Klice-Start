@@ -1,9 +1,9 @@
 /** Regression seams for the final pre-release residuals. */
 import { expect, test } from "bun:test";
 import { preflightBackup } from "../src/lib/backup-format";
+import { DEFAULT_SETUP } from "../src/lib/constants";
 import { mergeConcurrentSetup } from "../src/lib/merge-external-setup";
 import { normalizeState } from "../src/lib/storage";
-import { DEFAULT_SETUP } from "../src/lib/constants";
 import type { Setup } from "../src/types";
 
 function setup(): Setup {
@@ -49,9 +49,15 @@ test("M10/P6: normalization rejects duplicate identities and corrupt settings", 
 	expect(normalized.folders).toHaveLength(1);
 	expect(normalized.cards).toHaveLength(1);
 	expect(normalized.settings.tileSize).toBe(DEFAULT_SETUP.settings.tileSize);
-	expect(normalized.settings.maxColumns).toBe(DEFAULT_SETUP.settings.maxColumns);
-	expect(normalized.settings.clock.size).toBe(DEFAULT_SETUP.settings.clock.size);
-	expect(normalized.settings.search.width).toBe(DEFAULT_SETUP.settings.search.width);
+	expect(normalized.settings.maxColumns).toBe(
+		DEFAULT_SETUP.settings.maxColumns,
+	);
+	expect(normalized.settings.clock.size).toBe(
+		DEFAULT_SETUP.settings.clock.size,
+	);
+	expect(normalized.settings.search.width).toBe(
+		DEFAULT_SETUP.settings.search.width,
+	);
 });
 
 test("M6: backup preflight refuses records that normalization would drop", () => {
@@ -79,7 +85,8 @@ test("M12: concurrent settings edits merge independent fields", () => {
 	local.settings.glassIntensity = 80;
 	const incoming = structuredClone(base);
 	incoming.settings.search.width = 700;
-	const merged = mergeConcurrentSetup(base, local, incoming)!;
+	const merged = mergeConcurrentSetup(base, local, incoming);
+	expect(merged).not.toBeNull();
 	expect(merged.settings?.glassIntensity).toBe(80);
 	expect(merged.settings?.search.width).toBe(700);
 });

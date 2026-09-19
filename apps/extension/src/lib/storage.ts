@@ -12,8 +12,8 @@ import type {
 	WallpaperFrequency,
 } from "../types";
 import {
-	DEFAULT_SETUP,
 	DEFAULT_SEARCH,
+	DEFAULT_SETUP,
 	MAX_COLUMNS,
 	MIN_COLUMNS,
 	SEARCH_WIDTH_MAX,
@@ -213,7 +213,10 @@ function normalizeSettings(
 			normalizeTitleSource(raw.defaultTitleSource) ??
 			defaults.defaultTitleSource,
 		thumbnailCapture: {
-			enabled: normalizeBoolean(thumbnail.enabled, defaults.thumbnailCapture.enabled),
+			enabled: normalizeBoolean(
+				thumbnail.enabled,
+				defaults.thumbnailCapture.enabled,
+			),
 			delayMs: normalizeBoundedNumber(
 				thumbnail.delayMs,
 				defaults.thumbnailCapture.delayMs,
@@ -229,7 +232,10 @@ function normalizeSettings(
 					? clock.dateEnabled
 					: normalizeBoolean(clock.enabled, defaults.clock.dateEnabled),
 			format24: normalizeBoolean(clock.format24, defaults.clock.format24),
-			showSeconds: normalizeBoolean(clock.showSeconds, defaults.clock.showSeconds),
+			showSeconds: normalizeBoolean(
+				clock.showSeconds,
+				defaults.clock.showSeconds,
+			),
 			size: normalizeBoundedNumber(
 				clock.size,
 				defaults.clock.size,

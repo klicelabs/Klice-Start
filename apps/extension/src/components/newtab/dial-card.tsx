@@ -95,7 +95,9 @@ export function DialCard({
 	}
 
 	function handleCommitRename(name: string) {
-		useSetupStore.getState().updateCard(card.id, renameCardTitle(name), { history: true });
+		useSetupStore
+			.getState()
+			.updateCard(card.id, renameCardTitle(name), { history: true });
 		cancelRename();
 	}
 

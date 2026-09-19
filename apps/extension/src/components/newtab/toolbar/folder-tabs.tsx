@@ -32,6 +32,7 @@ import {
 	clearFrozenDragGroup,
 	freezeDragGroup,
 } from "../../../lib/history-capture";
+import type { ItemOrder } from "../../../lib/item-order";
 import type { NavigationDirection } from "../../../lib/navigation";
 import { TOOLBAR, TOOLBAR_ICON } from "../../../lib/toolbar-tokens";
 import { cn } from "../../../lib/utils";
@@ -44,7 +45,6 @@ import {
 	useSetupStore,
 } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
-import type { ItemOrder } from "../../../lib/item-order";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { FolderTabsOverflow } from "./folder-tabs-overflow";

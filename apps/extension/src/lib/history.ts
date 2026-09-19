@@ -283,7 +283,8 @@ export function commitToStacks(
 ): HistoryStacks & { evicted: HistoryEntry[] } {
 	const past = [...stacks.past, entry].slice(-HISTORY_LIMIT);
 	const droppedCount = stacks.past.length + 1 - past.length;
-	const evictedPast = droppedCount > 0 ? stacks.past.slice(0, droppedCount) : [];
+	const evictedPast =
+		droppedCount > 0 ? stacks.past.slice(0, droppedCount) : [];
 	return {
 		past,
 		future: [],
@@ -328,9 +329,7 @@ export function collectGcableThumbnailIds(
 	liveCards: readonly GcCard[],
 ): string[] {
 	const referenced = new Set(
-		liveCards
-			.map((c) => c.thumbId)
-			.filter((t): t is string => Boolean(t)),
+		liveCards.map((c) => c.thumbId).filter((t): t is string => Boolean(t)),
 	);
 	return stagedThumbnailIds(entries).filter((id) => !referenced.has(id));
 }

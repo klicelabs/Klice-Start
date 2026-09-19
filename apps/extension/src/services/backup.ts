@@ -2,8 +2,8 @@ import {
 	type BackupPreflight,
 	type ImageBudget,
 	isRecord,
-	MAX_BACKUP_INPUT_LENGTH,
 	MAX_BACKUP_IMAGE_ENTRIES,
+	MAX_BACKUP_INPUT_LENGTH,
 	MAX_BACKUP_TOTAL_IMAGE_BYTES,
 	preflightBackup,
 	preflightImageMap,
@@ -33,7 +33,9 @@ export async function buildBackup(): Promise<BackupPayload> {
 		if (card.thumbId) thumbIds.add(card.thumbId);
 	}
 	const thumbnailEntries = await Promise.all(
-		[...thumbIds].map(async (id) => [id, await images.getThumbnail(id)] as const),
+		[...thumbIds].map(
+			async (id) => [id, await images.getThumbnail(id)] as const,
+		),
 	);
 	for (const [id, dataUrl] of thumbnailEntries) {
 		if (dataUrl) thumbnails[id] = dataUrl;
@@ -47,7 +49,9 @@ export async function buildBackup(): Promise<BackupPayload> {
 		backgroundIds.add(bg.pexelsImageId);
 	if (bg.customWallpaper?.id) backgroundIds.add(bg.customWallpaper.id);
 	const backgroundEntries = await Promise.all(
-		[...backgroundIds].map(async (id) => [id, await images.getBackgroundImage(id)] as const),
+		[...backgroundIds].map(
+			async (id) => [id, await images.getBackgroundImage(id)] as const,
+		),
 	);
 	for (const [id, dataUrl] of backgroundEntries) {
 		if (dataUrl) backgrounds[id] = dataUrl;
@@ -76,7 +80,10 @@ function assertBackupBudget(payload: BackupPayload): void {
 			`Backup exceeds maximum image entries (${MAX_BACKUP_IMAGE_ENTRIES}).`,
 		);
 	}
-	const imageBytes = imageValues.reduce((total, value) => total + value.length, 0);
+	const imageBytes = imageValues.reduce(
+		(total, value) => total + value.length,
+		0,
+	);
 	if (imageBytes > MAX_BACKUP_TOTAL_IMAGE_BYTES) {
 		throw new Error(
 			`Backup exceeds maximum total image size (${MAX_BACKUP_TOTAL_IMAGE_BYTES / 1024 / 1024} MB).`,

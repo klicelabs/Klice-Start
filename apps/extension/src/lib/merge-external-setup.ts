@@ -48,8 +48,16 @@ export function mergeConcurrentSetup(
 ): Partial<Setup> | null {
 	const folders = mergeEntities(base.folders, local.folders, incoming.folders);
 	const cards = mergeEntities(base.cards, local.cards, incoming.cards);
-	const itemOrder = mergeItemOrder(base.itemOrder, local.itemOrder, incoming.itemOrder);
-	const settings = mergeRecord(base.settings, local.settings, incoming.settings);
+	const itemOrder = mergeItemOrder(
+		base.itemOrder,
+		local.itemOrder,
+		incoming.itemOrder,
+	);
+	const settings = mergeRecord(
+		base.settings,
+		local.settings,
+		incoming.settings,
+	);
 	const activeFolderId = mergeScalar(
 		base.activeFolderId,
 		local.activeFolderId,
@@ -71,11 +79,7 @@ function mergeScalar<T>(base: T, local: T, incoming: T): T {
 	return local;
 }
 
-function mergeRecord<T extends object>(
-	base: T,
-	local: T,
-	incoming: T,
-): T {
+function mergeRecord<T extends object>(base: T, local: T, incoming: T): T {
 	const result: Record<string, unknown> = {};
 	const baseRecord = base as Record<string, unknown>;
 	const localRecord = local as Record<string, unknown>;
@@ -116,7 +120,8 @@ function mergeEntities<T extends { id: string }>(
 		const right = incomingById.get(id);
 		if (!left && !right) continue;
 		if (!before) {
-			result.push(left ?? right!);
+			if (left) result.push(left);
+			else if (right) result.push(right);
 			continue;
 		}
 		if (!left) {
@@ -130,10 +135,18 @@ function mergeEntities<T extends { id: string }>(
 			result.push(left);
 			continue;
 		}
-		result.push(mergeRecord(before as T & Record<string, unknown>, left as T & Record<string, unknown>, right as T & Record<string, unknown>) as T);
+		result.push(
+			mergeRecord(
+				before as T & Record<string, unknown>,
+				left as T & Record<string, unknown>,
+				right as T & Record<string, unknown>,
+			) as T,
+		);
 	}
 	const order = new Map(local.map((entry) => [entry.id, entry]));
-	return result.sort((a, b) => (order.has(a.id) ? 0 : 1) - (order.has(b.id) ? 0 : 1));
+	return result.sort(
+		(a, b) => (order.has(a.id) ? 0 : 1) - (order.has(b.id) ? 0 : 1),
+	);
 }
 
 function mergeItemOrder(

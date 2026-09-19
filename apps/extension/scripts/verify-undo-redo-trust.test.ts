@@ -30,26 +30,12 @@ const mem = new Map<string, string>();
 };
 
 import { expect, test } from "bun:test";
-import { useSetupStore } from "../src/stores/setup-store";
-import { useHistoryStore } from "../src/stores/history-store";
 import { buildRenameEntry } from "../src/lib/history-capture";
+import { useHistoryStore } from "../src/stores/history-store";
+import { useSetupStore } from "../src/stores/setup-store";
 
 const S = () => useSetupStore.getState();
 const H = () => useHistoryStore.getState();
-
-function card(id: string, folderId: string) {
-	return {
-		id,
-		folderId,
-		title: `C-${id}`,
-		url: `https://example.com/${id}`,
-		favicon: null,
-		thumbId: null,
-		order: 0,
-		origin: "local" as const,
-		capturedAt: null,
-	};
-}
 
 function folder(id: string, name: string, parentId: string | null) {
 	return { id, name, order: 0, parentId };
@@ -70,19 +56,22 @@ test("M1: rename undo merges only the name, leaving concurrent reparent intact",
 		folder(fid, "New", null),
 	);
 	expect(entry).not.toBeNull();
+	if (!entry) throw new Error("expected rename history entry");
 	// Concurrent external mutation between commit and undo: the folder was
 	// moved under a new parent. The stale full record in the entry still has
 	// parentId null — a wholesale replace would clobber it.
 	const pid = S().addFolder("Parent", null);
 	S().moveFolder(fid, pid);
 	// Apply the rename UNDO snapshot (this is what confirmPending does).
-	S().applyHistorySnapshot(entry!.undo);
-	const after = S().folders.find((f) => f.id === fid)!;
+	S().applyHistorySnapshot(entry.undo);
+	const after = S().folders.find((f) => f.id === fid);
+	if (!after) throw new Error("expected folder after undo");
 	expect(after.name).toBe("Old Name"); // rename reverted
 	expect(after.parentId).toBe(pid); // concurrent reparent NOT clobbered
 	// Redo merges only the new name too.
-	S().applyHistorySnapshot(entry!.redo);
-	const redone = S().folders.find((f) => f.id === fid)!;
+	S().applyHistorySnapshot(entry.redo);
+	const redone = S().folders.find((f) => f.id === fid);
+	if (!redone) throw new Error("expected folder after redo");
 	expect(redone.name).toBe("New");
 	expect(redone.parentId).toBe(pid);
 	// Cleanup so other tests start clean.
@@ -154,11 +143,13 @@ const matchingLive = () => ({
 test("M4/NPD-3: invalidateForExternalSync prunes entries whose redo drifted", () => {
 	H().clearHistory();
 	// Matching external state -> the entry stays undoable.
-	H().commit(makeEntry("h-m4-a", {
-		...emptyRedo(),
-		containers: { f1: ["card:c1"] },
-		cards: { c1: "f1" },
-	}));
+	H().commit(
+		makeEntry("h-m4-a", {
+			...emptyRedo(),
+			containers: { f1: ["card:c1"] },
+			cards: { c1: "f1" },
+		}),
+	);
 	H().invalidateForExternalSync(matchingLive());
 	expect(H().past.map((e) => e.id)).toEqual(["h-m4-a"]);
 	// A reordered container in the external write kills the entry.
@@ -168,20 +159,24 @@ test("M4/NPD-3: invalidateForExternalSync prunes entries whose redo drifted", ()
 	});
 	expect(H().past).toHaveLength(0);
 	// A card moved by the external write kills the entry.
-	H().commit(makeEntry("h-m4-b", {
-		...emptyRedo(),
-		cards: { c1: "f1" },
-	}));
+	H().commit(
+		makeEntry("h-m4-b", {
+			...emptyRedo(),
+			cards: { c1: "f1" },
+		}),
+	);
 	H().invalidateForExternalSync({
 		...matchingLive(),
 		cards: new Map([["c1", "f2"]]),
 	});
 	expect(H().past).toHaveLength(0);
 	// A container removed by the external write kills the entry.
-	H().commit(makeEntry("h-m4-c", {
-		...emptyRedo(),
-		containers: { gone: [] },
-	}));
+	H().commit(
+		makeEntry("h-m4-c", {
+			...emptyRedo(),
+			containers: { gone: [] },
+		}),
+	);
 	H().invalidateForExternalSync(matchingLive());
 	expect(H().past).toHaveLength(0);
 	// The redo branch is ALWAYS invalidated (NPD-3, conservative).

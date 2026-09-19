@@ -8,16 +8,16 @@
  */
 import { expect, test } from "bun:test";
 import {
-	beginGestureCapture,
-	buildHistoryEntry,
-	snapshotSetup,
-} from "../src/lib/history-capture";
-import {
 	commitToStacks,
 	popRedoIds,
 	popUndoIds,
 	stagedThumbnailIds,
 } from "../src/lib/history";
+import {
+	beginGestureCapture,
+	buildHistoryEntry,
+	snapshotSetup,
+} from "../src/lib/history-capture";
 import { ROOT_CONTAINER } from "../src/lib/item-order";
 import type { Card, Folder } from "../src/types";
 

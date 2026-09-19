@@ -436,7 +436,7 @@ export default function App() {
 							<Button
 								type="button"
 								onClick={handlePendingCreate}
-													disabled={!hasHydrated || pendingState === "saving"}
+								disabled={!hasHydrated || pendingState === "saving"}
 								className="h-8 flex-[2] rounded-md font-medium text-xs shadow-xs"
 							>
 								{pendingState === "saving" ? "Saving…" : "Create folder & save"}
@@ -513,11 +513,11 @@ export default function App() {
 						<select
 							id="folder-select-input"
 							value={folderId}
-						onChange={(e) => {
-							folderTouchedRef.current = true;
-							setFolderId(e.target.value);
-							if (saveState !== "idle") setSaveState("idle");
-						}}
+							onChange={(e) => {
+								folderTouchedRef.current = true;
+								setFolderId(e.target.value);
+								if (saveState !== "idle") setSaveState("idle");
+							}}
 							className="w-full rounded-md border border-white/10 bg-white/5 px-2 py-1.5 font-medium text-white text-xs outline-none focus:border-white/30"
 						>
 							{folderOptions.map((opt) => (

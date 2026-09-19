@@ -31,10 +31,10 @@ const mem = new Map<string, string>();
 };
 
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { useSetupStore } from "../src/stores/setup-store";
+import { ROOT_CONTAINER } from "../src/lib/item-order";
 import { useHistoryStore } from "../src/stores/history-store";
 import { useImageStore } from "../src/stores/image-store";
-import { ROOT_CONTAINER } from "../src/lib/item-order";
+import { useSetupStore } from "../src/stores/setup-store";
 
 const S = () => useSetupStore.getState();
 const H = () => useHistoryStore.getState();
@@ -51,7 +51,9 @@ const realGetState = useImageStore.getState.bind(useImageStore);
 let byteDeletes: string[][] = [];
 function spyBytes(): void {
 	byteDeletes = [];
-	type Patchable = { getState: () => ReturnType<typeof useImageStore.getState> };
+	type Patchable = {
+		getState: () => ReturnType<typeof useImageStore.getState>;
+	};
 	(useImageStore as unknown as Patchable).getState = () => ({
 		...realGetState(),
 		deleteThumbnail: async (id: string) => {
@@ -63,7 +65,9 @@ function spyBytes(): void {
 	});
 }
 function unspyBytes(): void {
-	type Patchable = { getState: () => ReturnType<typeof useImageStore.getState> };
+	type Patchable = {
+		getState: () => ReturnType<typeof useImageStore.getState>;
+	};
 	(useImageStore as unknown as Patchable).getState = realGetState;
 }
 afterEach(() => {
@@ -108,10 +112,7 @@ test("H2: deleteCard commits one entry and undo restores the exact slot", () => 
 	H().requestUndo();
 	expect(H().confirmPending()).not.toBeNull();
 	expect(S().cards.some((c) => c.id === c1)).toBe(true);
-	expect(S().itemOrder[fid]).toEqual([
-		`card:${c1}`,
-		`card:${c2}`,
-	]);
+	expect(S().itemOrder[fid]).toEqual([`card:${c1}`, `card:${c2}`]);
 	// Redo deletes again via the entry's redo snapshot.
 	H().requestRedo();
 	expect(H().confirmPending()).not.toBeNull();
@@ -131,9 +132,14 @@ test("H2: user bookmark metadata updates are reversible field patches", () => {
 		thumbId: null,
 	});
 	H().clearHistory();
-	S().updateCard(cid, { title: "After", url: "https://example.com/after" }, { history: true });
-	const entry = H().past.at(-1)!;
-	expect(entry.summary.kind).toBe("update");
+	S().updateCard(
+		cid,
+		{ title: "After", url: "https://example.com/after" },
+		{ history: true },
+	);
+	const entry = H().past.at(-1);
+	expect(entry).toBeDefined();
+	expect(entry?.summary.kind).toBe("update");
 	expect(S().cards.find((card) => card.id === cid)?.title).toBe("After");
 	S().applyHistorySnapshot(entry.undo);
 	expect(S().cards.find((card) => card.id === cid)).toMatchObject({
@@ -161,7 +167,10 @@ test("H2: deleteFolder commits one entry and undo restores the whole subtree", (
 	// The two addFolder/addCard ops before the delete are 2 entries; drop
 	// them to isolate the delete entry.
 	useHistoryStore.setState({ past: [], future: [], pending: null });
-	const subCard = S().cards.find((c) => c.folderId === sub)!.id;
+	const subCardRecord = S().cards.find((c) => c.folderId === sub);
+	expect(subCardRecord).toBeDefined();
+	if (!subCardRecord) throw new Error("expected deep card");
+	const subCard = subCardRecord.id;
 	S().deleteFolder(fid);
 	const past = H().past;
 	expect(past).toHaveLength(1);
@@ -169,11 +178,7 @@ test("H2: deleteFolder commits one entry and undo restores the whole subtree", (
 	expect(entry.summary.kind).toBe("delete");
 	expect(entry.summary.folderCount).toBe(1); // Sub
 	expect(entry.summary.cardCount).toBe(3); // One, Two, Deep
-	expect(entry.thumbnails).toEqual([
-		"thumb_one",
-		"thumb_two",
-		"thumb_deep",
-	]);
+	expect(entry.thumbnails).toEqual(["thumb_one", "thumb_two", "thumb_deep"]);
 	expect(byteDeletes).toEqual([]);
 	// Undo restores folder, subfolder, cards and container arrays.
 	H().requestUndo();

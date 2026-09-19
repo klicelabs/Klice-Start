@@ -271,7 +271,7 @@ export const useHistoryStore = create<HistoryStoreState>()((set, get) => ({
 			// Past-resident entries are dropping out of the undo branch: their
 			// staged bytes become garbage (the external replacement is the new
 			// truth). Redo-branch entries keep theirs — restored cards may
-				// still reference them; orphans are swept at hydration.
+			// still reference them; orphans are swept at hydration.
 			const thumbIds = collectGcableThumbnailIds(
 				state.past,
 				useSetupStore.getState().cards,

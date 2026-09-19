@@ -120,9 +120,17 @@ export function preflightBackup(fileText: string): BackupPreflight {
 	const invalidCards = countInvalidCards(setup.cards as unknown[]);
 	if (invalidFolders > 0 || invalidCards > 0) {
 		const parts: string[] = [];
-		if (invalidFolders > 0) parts.push(`${invalidFolders} invalid folder${invalidFolders === 1 ? "" : "s"}`);
-		if (invalidCards > 0) parts.push(`${invalidCards} invalid bookmark${invalidCards === 1 ? "" : "s"}`);
-		throw new Error(`Backup contains ${parts.join(" and ")} and cannot be restored.`);
+		if (invalidFolders > 0)
+			parts.push(
+				`${invalidFolders} invalid folder${invalidFolders === 1 ? "" : "s"}`,
+			);
+		if (invalidCards > 0)
+			parts.push(
+				`${invalidCards} invalid bookmark${invalidCards === 1 ? "" : "s"}`,
+			);
+		throw new Error(
+			`Backup contains ${parts.join(" and ")} and cannot be restored.`,
+		);
 	}
 	const budget: ImageBudget = { entries: 0, bytes: 0 };
 	preflightImageMap(parsed.thumbnails, "thumbnails", budget);
@@ -134,7 +142,11 @@ function countInvalidFolders(values: unknown[]): number {
 	const ids = new Set<string>();
 	let invalid = 0;
 	for (const value of values) {
-		if (!isRecord(value) || typeof value.id !== "string" || value.id.trim() === "") {
+		if (
+			!isRecord(value) ||
+			typeof value.id !== "string" ||
+			value.id.trim() === ""
+		) {
 			invalid += 1;
 			continue;
 		}

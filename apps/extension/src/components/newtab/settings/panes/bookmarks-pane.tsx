@@ -337,13 +337,17 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		const finalFavicon = faviconUrl(normalized);
 
 		if (editingCardId) {
-			updateCard(editingCardId, {
-				title: finalTitle,
-				titleSource:
-					linkTitleSource === "inherit" ? undefined : linkTitleSource,
-				url: normalized,
-				favicon: finalFavicon,
-			}, { history: true });
+			updateCard(
+				editingCardId,
+				{
+					title: finalTitle,
+					titleSource:
+						linkTitleSource === "inherit" ? undefined : linkTitleSource,
+					url: normalized,
+					favicon: finalFavicon,
+				},
+				{ history: true },
+			);
 			const current = cards.find((c) => c.id === editingCardId);
 			if (current && current.folderId !== linkFolderId) {
 				moveCard(editingCardId, linkFolderId);
@@ -351,13 +355,17 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 		} else {
 			const existing = findBookmarkInFolder(cards, linkFolderId, normalized);
 			if (existing) {
-				updateCard(existing.id, {
-					title: finalTitle,
-					titleSource:
-						linkTitleSource === "inherit" ? undefined : linkTitleSource,
-					url: normalized,
-					favicon: finalFavicon,
-				}, { history: true });
+				updateCard(
+					existing.id,
+					{
+						title: finalTitle,
+						titleSource:
+							linkTitleSource === "inherit" ? undefined : linkTitleSource,
+						url: normalized,
+						favicon: finalFavicon,
+					},
+					{ history: true },
+				);
 			} else {
 				addCard({
 					folderId: linkFolderId,

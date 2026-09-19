@@ -9,7 +9,7 @@ import {
 } from "../lib/constants";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
 import type { HistoryEntry, HistorySnapshot } from "../lib/history";
-import { ROOT_CONTAINER } from "../lib/item-order";
+import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
 import {
 	containerKeyOf,
 	type ItemOrder,
@@ -17,6 +17,7 @@ import {
 	insertCardsBlock,
 	itemKey,
 	parseItemKey,
+	ROOT_CONTAINER,
 	reindexOrders,
 	reorderGroupKeys,
 	repairItemOrder,
@@ -30,9 +31,8 @@ import {
 } from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
 import type { Card, Settings, Setup } from "../types";
-import { useImageStore } from "./image-store";
-import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
 import { useHistoryStore } from "./history-store";
+import { useImageStore } from "./image-store";
 
 export type InsertPosition = "before" | "after";
 
@@ -413,7 +413,7 @@ export const useSetupStore = create<SetupStore>()(
 					const touchedContainers = new Set([
 						...Object.keys(base),
 						...removedFolderIds,
-						]);
+					]);
 					for (const container of touchedContainers) {
 						const before = base[container] ?? [];
 						if (removedFolderIds.has(container)) {
@@ -427,7 +427,7 @@ export const useSetupStore = create<SetupStore>()(
 							return ref.kind === "folder"
 								? !removedFolderIds.has(ref.id)
 								: !removedFolderIds.has(
-										s.cards.find((c) => c.id === ref.id)?.folderId ?? ""
+										s.cards.find((c) => c.id === ref.id)?.folderId ?? "",
 									);
 						});
 						if (!sameKeys(before, after)) {
@@ -582,9 +582,9 @@ export const useSetupStore = create<SetupStore>()(
 					const before = s.cards.find((card) => card.id === id);
 					if (!before) return {};
 					const after = { ...before, ...changes };
-					const changedKeys = (Object.keys(changes) as Array<keyof Card>).filter(
-						(key) => before[key] !== after[key],
-					);
+					const changedKeys = (
+						Object.keys(changes) as Array<keyof Card>
+					).filter((key) => before[key] !== after[key]);
 					if (changedKeys.length === 0) return {};
 					if (options?.history) {
 						const beforePatch: Partial<Card> = {};
@@ -778,7 +778,7 @@ export const useSetupStore = create<SetupStore>()(
 						if (keys.includes(key)) {
 							undoContainers[container] = [...keys];
 							itemOrder[container] = keys.filter((k) => k !== key);
-							redoContainers[container] = [...itemOrder[container]]; 
+							redoContainers[container] = [...itemOrder[container]];
 						}
 					}
 					// L4: a folder emptied by this delete leaves a ghost container
@@ -899,12 +899,8 @@ export const useSetupStore = create<SetupStore>()(
 					const base = s.itemOrder ?? {};
 					const keys = base[container];
 					if (!keys) return {};
-					const cardIds = new Set(
-						s.cards.map((c) => c.id),
-					);
-					const folderIds = new Set(
-						s.folders.map((f) => f.id),
-					);
+					const cardIds = new Set(s.cards.map((c) => c.id));
+					const folderIds = new Set(s.folders.map((f) => f.id));
 					const draggedKeys = groupIds.flatMap((id) => {
 						if (cardIds.has(id)) return [itemKey("card", id)];
 						if (folderIds.has(id)) return [itemKey("folder", id)];
@@ -958,9 +954,7 @@ export const useSetupStore = create<SetupStore>()(
 				set((s) => {
 					const base = s.itemOrder ?? {};
 					const itemOrder: ItemOrder = { ...base };
-					for (const [container, keys] of Object.entries(
-						snapshot.containers,
-					)) {
+					for (const [container, keys] of Object.entries(snapshot.containers)) {
 						itemOrder[container] = [...keys];
 					}
 					const delCards = new Set(snapshot.delCardIds ?? []);
@@ -996,7 +990,9 @@ export const useSetupStore = create<SetupStore>()(
 							? { ...c, folderId }
 							: c;
 					});
-					for (const [id, patch] of Object.entries(snapshot.cardPatches ?? {})) {
+					for (const [id, patch] of Object.entries(
+						snapshot.cardPatches ?? {},
+					)) {
 						cards = cards.map((card) =>
 							card.id === id ? { ...card, ...patch } : card,
 						);
@@ -1150,20 +1146,20 @@ export const useSetupStore = create<SetupStore>()(
 					// NPD-3: reset clears past+future — undoing into the pre-reset
 					// world (M20) must be impossible after a confirmed wipe.
 					useHistoryStore.getState().clearHistory();
-			} catch (error) {
-				set({
-					folders: previous.folders,
-					cards: previous.cards,
-					activeFolderId: previous.activeFolderId,
-					settings: previous.settings,
-					// M21: a partial reset must restore the WHOLE pre-reset state —
-					// without itemOrder the grid falls back to legacy-order reads
-					// and the user's arrangement is scrambled.
-					itemOrder: previous.itemOrder,
-				});
-				await flushPersist().catch(() => undefined);
-				throw error;
-			}
+				} catch (error) {
+					set({
+						folders: previous.folders,
+						cards: previous.cards,
+						activeFolderId: previous.activeFolderId,
+						settings: previous.settings,
+						// M21: a partial reset must restore the WHOLE pre-reset state —
+						// without itemOrder the grid falls back to legacy-order reads
+						// and the user's arrangement is scrambled.
+						itemOrder: previous.itemOrder,
+					});
+					await flushPersist().catch(() => undefined);
+					throw error;
+				}
 			},
 		}),
 		{
