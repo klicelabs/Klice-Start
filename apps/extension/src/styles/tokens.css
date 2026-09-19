@@ -893,35 +893,25 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    trackpad, keyboard and touch scrolling all still work, and
    `overscroll-behavior` keeps a scroll from escaping the inner frame. */
 .settings-workspace {
-	position: relative;
 	--settings-sidebar-width: clamp(320px, 29vw, 408px);
 	--workspace-gutter: 8px;
-	/* One authored moment for both surfaces. The curve starts immediately and
-	   settles without the sluggish tail of a generic ease-in-out. */
-	--workspace-motion-duration: 240ms;
+	/* Match the sidebar and Home zoom without animating their flex geometry. */
+	--workspace-motion-duration: 220ms;
 	--workspace-motion-ease: var(--ease-out);
 	/* Home gives the Settings surface visual room without animating its flex
 	   footprint or forcing the grid to remeasure on every frame. */
 	--workspace-home-scale: 0.965;
 }
 
-/* The panel is an overlay. Keeping it out of the flex row means opening
-   Settings never changes Home's measured width, so the grid does not reflow
-   underneath the zoom transition. */
+/* The slot owns the sidebar's structural footprint. It includes the
+   inter-panel gutter, so the closed layout has no phantom gap. Its width is a
+   discrete layout commit; animating it would reflow the Home grid every frame.
+   The already-mounted panel moves below on the compositor instead. */
 [data-settings-sidebar-slot] {
-	position: absolute;
-	top: 0;
-	right: 0;
-	bottom: 0;
 	width: 0;
-	pointer-events: none;
 }
 [data-settings-sidebar-slot][data-settings-layout-open="true"] {
-	top: var(--workspace-gutter);
-	right: var(--workspace-gutter);
-	bottom: var(--workspace-gutter);
-	width: var(--settings-sidebar-width);
-	pointer-events: auto;
+	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
 }
 
 /* Geometry settles once at the start/end of the workspace transition. Only
@@ -942,16 +932,14 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    corner-shape:squircle. */
 [data-speed-dial-frame] {
 	border-radius: 0;
-	transform: translate3d(0, 0, 0) scale(1);
+	transform: scale(1);
 	transform-origin: center center;
 	transition: transform var(--workspace-motion-duration)
 		var(--workspace-motion-ease);
-	/* Promote the large Home surface once; only transform is animated. */
-	will-change: transform;
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: 24px;
-	transform: translate3d(0, 0, 0) scale(var(--workspace-home-scale));
+	transform: scale(var(--workspace-home-scale));
 }
 @supports not (corner-shape: squircle) {
 	[data-speed-dial-frame].squircle[data-settings-open="true"] {
