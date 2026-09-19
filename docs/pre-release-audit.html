@@ -38,8 +38,8 @@
     <h1>Complete pre-release audit</h1>
     <p class="status">PASS — no unresolved actionable Critical, High, Medium or Low findings in the current branch.</p>
     <p class="meta"><strong>Branch:</strong> <code>audit/pre-release-reliability</code></p>
-    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence/icon-menu behavior, Settings hierarchy cleanup, shared Home rhythm, and Card-mode footer treatment.</p>
-    <p class="meta"><strong>Implementation commit:</strong> <code>3de161b</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
+    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence/icon-menu behavior, Settings hierarchy cleanup, shared Home rhythm, Card-mode footer treatment, and Settings workspace motion/fullscreen behavior.</p>
+    <p class="meta"><strong>Implementation commit:</strong> <code>9b1a255</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
     <p class="meta"><strong>Working-tree note:</strong> the private user export <code>favoritos_17_09_2026.html</code> and pre-existing <code>.freebuff/</code> remain untracked and were not staged, printed or modified.</p>
   </section>
 
@@ -158,6 +158,7 @@
     <tr><td>Settings label hierarchy</td><td class="result">IMPLEMENTED</td><td>Setting rows no longer render permanent secondary copy. Legacy descriptions resolve through the existing help tooltip, and Settings navigation rows now keep only the title and control/chevron. Empty-state and dialog copy remains outside the row label anatomy.</td></tr>
     <tr><td>Home vertical rhythm</td><td class="result">IMPLEMENTED</td><td>Search, Quick Links and the bookmark grid now share one responsive <code>speed-dial-home-stack</code> gap token. Negative Quick Links margins and the separate grid-top magic number were removed, so Card and Icon modes use the same stack rhythm.</td></tr>
     <tr><td>Card-mode title footer</td><td class="result">IMPLEMENTED</td><td>Card-mode bookmark and folder footers are real overlays inside the card, with a subtle black-only fade strongest at the bottom and transparent toward the thumbnail. The established Liquid Glass implementation remains available through <code>cardFooterMaterial("glass")</code>; Icon mode has no fade marker.</td></tr>
+    <tr><td>Settings workspace fullscreen and motion</td><td class="result">IMPLEMENTED</td><td>Closed Home runs edge-to-edge with no workspace gutter or frame. The inset is committed only while the Settings layout footprint is open; closing keeps that footprint until the panel's transform transition ends, then releases it completely. Settings-only toggles no longer re-render the memoized Home surface, and the sidebar width is no longer animated, so the grid avoids per-frame layout reflow.</td></tr>
   </tbody></table>
 
   <h2>Browser bookmark hierarchy sweep</h2>
