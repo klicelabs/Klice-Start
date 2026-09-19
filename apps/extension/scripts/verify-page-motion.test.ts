@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { type PageMotionContext, pageMotion } from "../src/lib/page-motion";
 
 function offset(
@@ -41,4 +42,17 @@ test("page motion is bounded, quick, and removes travel for reduced motion", () 
 			"translate3d(0px, 0, 0)",
 		);
 	}
+});
+
+test("Settings keeps the Home frame in the inset state through close motion", () => {
+	const app = readFileSync(
+		new URL("../entrypoints/newtab/App.tsx", import.meta.url),
+		"utf8",
+	);
+	expect(app).toContain(
+		'data-settings-open={settingsLayoutOpen ? "true" : "false"}',
+	);
+	expect(app).not.toContain(
+		'data-settings-open={showSettings ? "true" : "false"}',
+	);
 });
