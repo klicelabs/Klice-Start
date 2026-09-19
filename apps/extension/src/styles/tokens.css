@@ -898,6 +898,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	/* One authored moment for the compositor-only panel transition. */
 	--workspace-motion-duration: 220ms;
 	--workspace-motion-ease: var(--ease-out-expo, var(--ease-out));
+	/* Home gives the Settings surface visual room without animating its flex
+	   footprint or forcing the grid to remeasure on every frame. */
+	--workspace-home-scale: 0.965;
 }
 
 /* The slot owns the sidebar's structural footprint. It includes the
@@ -929,9 +932,15 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    corner-shape:squircle. */
 [data-speed-dial-frame] {
 	border-radius: 0;
+	transform: scale(1);
+	transform-origin: center center;
+	transition:
+		transform var(--workspace-motion-duration) var(--workspace-motion-ease),
+		border-radius var(--workspace-motion-duration) var(--workspace-motion-ease);
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: 24px;
+	transform: scale(var(--workspace-home-scale));
 }
 @supports not (corner-shape: squircle) {
 	[data-speed-dial-frame].squircle[data-settings-open="true"] {
@@ -945,6 +954,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	[data-speed-dial-frame],
 	[data-settings-sidebar-slot] > [data-slot="sidebar"] {
 		transition: none;
+		transform: none;
 	}
 }
 
