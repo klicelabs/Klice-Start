@@ -38,8 +38,8 @@
     <h1>Complete pre-release audit</h1>
     <p class="status">PASS — no unresolved actionable Critical, High, Medium or Low findings in the current branch.</p>
     <p class="meta"><strong>Branch:</strong> <code>audit/pre-release-reliability</code></p>
-    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence, and bookmark appearance grouping.</p>
-    <p class="meta"><strong>Implementation commit:</strong> <code>3fe8b82</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
+    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence/icon-menu behavior, and bookmark appearance grouping.</p>
+    <p class="meta"><strong>Implementation commit:</strong> <code>a84e1de</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
     <p class="meta"><strong>Working-tree note:</strong> the private user export <code>favoritos_17_09_2026.html</code> and pre-existing <code>.freebuff/</code> remain untracked and were not staged, printed or modified.</p>
   </section>
 
@@ -151,8 +151,9 @@
 
   <h2>Feature follow-up</h2>
   <table><thead><tr><th>Area</th><th>Status</th><th>Current verification</th></tr></thead><tbody>
-    <tr><td>Quick Links Home rail</td><td class="result">IMPLEMENTED</td><td>Eight curated icon-only destinations render between the hero/search region and bookmark grid. Stable link IDs, responsive horizontal overflow, existing favicon/Icon mode surfaces, keyboard labels and the existing Open in new tab preference keep the rail compact and quiet.</td></tr>
-    <tr><td>Quick Links settings and persistence</td><td class="result">IMPLEMENTED</td><td><code>Settings.quickLinks</code> groups <code>enabled</code> and ordered <code>items</code>; defaults are enabled for new installs, normalization rejects invalid/duplicate URLs and preserves valid custom order, and the Settings switch updates only that nested branch. Covered by <code>verify-quick-links.test.ts</code> and settings reference-preservation regression.</td></tr>
+    <tr><td>Quick Links Home rail</td><td class="result">IMPLEMENTED</td><td>Eight curated icon-only destinations render between the hero/search region and bookmark grid. <code>IconModeTile</code> and <code>IconAppTile</code> are shared with bookmark Icon mode, including squircle geometry, favicon fallback, sizing tokens, focus, hover shadows and active states; only the rail size tokens are compacted.</td></tr>
+    <tr><td>Quick Links context menu</td><td class="result">IMPLEMENTED</td><td>Each item owns the existing motion context-menu pattern and marks its anchor as a local menu surface, so the page menu stands down. Open link, edit/replace (validated URL dialog) and remove actions update the ordered settings branch through dedicated store actions.</td></tr>
+    <tr><td>Quick Links settings and persistence</td><td class="result">IMPLEMENTED</td><td><code>Settings.quickLinks</code> groups <code>enabled</code> and ordered <code>items</code>; defaults are enabled for new installs, normalization rejects invalid/duplicate URLs, preserves valid custom order and keeps an explicit empty list empty after reload. Covered by <code>verify-quick-links.test.ts</code> and settings reference-preservation regression.</td></tr>
     <tr><td>Bookmark appearance hierarchy</td><td class="result">IMPLEMENTED</td><td>Display style, card shape/labels, site titles, title source, tile size, columns and open-in-new-tab now share one Settings card with semantic Appearance, Grid density and Click behavior fieldsets. Existing Settings primitives and visual language remain unchanged.</td></tr>
   </tbody></table>
 
@@ -161,10 +162,10 @@
 
   <h2>Validation record</h2>
   <table><thead><tr><th>Gate</th><th>Result</th><th>Notes</th></tr></thead><tbody>
-    <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>118 tests, 0 failures after Quick Links defaults, persistence and settings grouping regressions. The history-manager mount harness prints React <code>act(...)</code> diagnostics, and persistence tests print the expected corrupt/quota error paths; neither is a failing assertion.</td></tr>
+    <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>120 tests, 0 failures after shared Icon mode tile, Quick Links menu/edit/remove, empty-list persistence and settings grouping regressions. The history-manager mount harness prints React <code>act(...)</code> diagnostics, and persistence tests print the expected corrupt/quota error paths; neither is a failing assertion.</td></tr>
     <tr><td><code>npm run compile</code> in <code>apps/extension</code></td><td class="result">PASS</td><td>TypeScript no-emit clean.</td></tr>
     <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
-    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Feature-scope Biome check passes on all 9 changed implementation/test TS and TSX files; the 7 remaining notices are non-blocking pre-existing dependency guidance. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
+    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Feature-scope Biome check passes on the changed implementation/test TS and TSX files; the 7 remaining notices are non-blocking pre-existing dependency guidance in the storage seam. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
     <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
     <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>; WXT emits its existing advisory for the 647 kB newtab chunk, but the build completes successfully.</td></tr>
     <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>; the same non-blocking chunk-size advisory is emitted.</td></tr>
