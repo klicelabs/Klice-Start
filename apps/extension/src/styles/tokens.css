@@ -619,9 +619,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding: 0 10px 8px;
 	background: linear-gradient(
 		to top,
-		rgb(0 0 0 / 0.78) 0%,
-		rgb(0 0 0 / 0.52) 40%,
-		rgb(0 0 0 / 0.18) 72%,
+		rgb(0 0 0 / 0.58) 0%,
+		rgb(0 0 0 / 0.34) 40%,
+		rgb(0 0 0 / 0.1) 72%,
 		rgb(0 0 0 / 0) 100%
 	);
 	color: #fff;
@@ -629,7 +629,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 .dial-card[data-card-footer="fade"] .card-footer-fade .title {
 	color: #fff;
-	text-shadow: 0 1px 3px rgb(0 0 0 / 0.42);
+	text-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
 }
 
 .dial-card[data-card-footer="fade"] .card-footer-fade.pr-8 {
