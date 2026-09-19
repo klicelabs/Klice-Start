@@ -382,7 +382,6 @@ export default function App() {
 	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
 	const [historyOpen, setHistoryOpen] = useState(false);
-	const [settingsLayoutOpen, setSettingsLayoutOpen] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
 		useState<SettingsSidebarProps["initialAction"]>(undefined);
@@ -431,21 +430,12 @@ export default function App() {
 	// Open Settings window with optional pane & action deep-linking
 	const handleOpenSettings = useCallback(
 		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
-			setSettingsLayoutOpen(true);
 			setSettingsPane(pane);
 			setSettingsAction(action);
 			setShowSettings(true);
 		},
 		[],
 	);
-
-	useEffect(() => {
-		if (showSettings) setSettingsLayoutOpen(true);
-	}, [showSettings]);
-
-	const handleSettingsLayoutTransitionEnd = useCallback(() => {
-		if (!showSettings) setSettingsLayoutOpen(false);
-	}, [showSettings]);
 
 	const handleToggleSettings = useCallback(() => {
 		if (showSettings) {
@@ -906,7 +896,7 @@ export default function App() {
 					}
 					className={cn(
 						"settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]",
-						settingsLayoutOpen && "p-[var(--workspace-gutter)]",
+						"p-[var(--workspace-gutter)]",
 					)}
 				>
 					<div
@@ -923,7 +913,7 @@ export default function App() {
 									wakeActive && "klice-wake",
 								)}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-settings-open={settingsLayoutOpen ? "true" : "false"}
+								data-settings-open={showSettings ? "true" : "false"}
 								data-compact-search={compactSearch ? "true" : "false"}
 								data-active-folder-id={activeFolderId}
 								data-folder-depth={breadcrumb.length}
@@ -999,7 +989,6 @@ export default function App() {
 										<div className="speed-dial-grid-region">
 											<DialGrid
 												folderId={activeFolderId}
-												layoutOpen={settingsLayoutOpen}
 												cards={cards}
 												subfolders={subfolders}
 												allCards={allCards}
@@ -1064,9 +1053,7 @@ export default function App() {
 
 						<SettingsSidebar
 							open={showSettings}
-							layoutOpen={settingsLayoutOpen}
 							onClose={() => setShowSettings(false)}
-							onLayoutTransitionEnd={handleSettingsLayoutTransitionEnd}
 							initialPane={settingsPane}
 							initialAction={settingsAction}
 						/>

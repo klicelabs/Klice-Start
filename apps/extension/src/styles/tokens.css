@@ -600,6 +600,11 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	min-width: 0;
 }
 
+/* Departing and arriving pages occupy the same track while they cross. */
+.dial-grid-stage > .dial-grid {
+	grid-area: 1 / 1;
+}
+
 /* Card grids gain the same breathing room icon grids already own
    (--icon-safe-padding): selection/drop outlines, shadows and small
    transforms render inside the padding instead of clipping at the stage
@@ -813,7 +818,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	--workspace-gutter: 8px;
 	/* One authored moment for the complete push transition. */
 	--workspace-motion-duration: 220ms;
-	--workspace-motion-ease: var(--ease-drawer);
+	--workspace-motion-ease: var(--ease-out-expo, var(--ease-out));
 }
 
 /* The slot owns the sidebar's structural footprint. It includes the
@@ -821,6 +826,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    settles atomically; only the already-mounted panel moves below. */
 [data-settings-sidebar-slot] {
 	width: 0;
+	transition: width var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
 }
 [data-settings-sidebar-slot][data-settings-layout-open="true"] {
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));

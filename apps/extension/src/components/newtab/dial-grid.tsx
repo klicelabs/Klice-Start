@@ -1,20 +1,6 @@
-import {
-	EASE_OUT,
-	REORDER_TWEEN,
-	SPRING_DEPTH,
-	SPRING_SEGMENT,
-} from "@klice-start/ui/lib/ease";
-import type { Variants } from "motion/react";
+import { REORDER_TWEEN } from "@klice-start/ui/lib/ease";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import {
-	type ReactNode,
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { useGridDnd } from "../../hooks/use-grid-dnd";
 import { useMarqueeSelection } from "../../hooks/use-marquee-selection";
@@ -41,6 +27,7 @@ import {
 	type ItemRef,
 } from "../../lib/item-order";
 import type { NavigationState } from "../../lib/navigation";
+import { PAGE_VARIANTS, type PageMotionContext } from "../../lib/page-motion";
 import { selectedAncestorOf } from "../../lib/selection-model";
 import { cn } from "../../lib/utils";
 import { useHistoryStore } from "../../stores/history-store";
@@ -53,91 +40,11 @@ import {
 	type FolderPreviewItem,
 } from "./folders/folder-preview-card";
 
-type GridMotionContext = NavigationState & {
-	stageWidth: number;
-	depthTravel: number;
-	reduceMotion: boolean;
-};
-
-const REDUCED_GRID_TRANSITION = { duration: 0.08, ease: EASE_OUT } as const;
-
-function gridTransition(context: GridMotionContext) {
-	if (context.reduceMotion) return REDUCED_GRID_TRANSITION;
-	return context.kind === "depth" ? SPRING_DEPTH : SPRING_SEGMENT;
-}
-
-const GRID_VARIANTS: Variants = {
-	initial: (context: GridMotionContext) => {
-		if (context.kind === "root") {
-			const offset =
-				context.direction === "forward"
-					? context.stageWidth
-					: -context.stageWidth;
-			return {
-				transform: `translate3d(${offset}px, 0, 0)`,
-				transition: gridTransition(context),
-			};
-		}
-
-		return context.direction === "forward"
-			? {
-					opacity: 0.96,
-					transform: `translate3d(0, ${context.depthTravel}px, 0) scale(0.985)`,
-					transition: gridTransition(context),
-				}
-			: {
-					opacity: 0.96,
-					transform: `translate3d(0, -${context.depthTravel}px, 0) scale(0.985)`,
-					transition: gridTransition(context),
-				};
-	},
-	animate: (context: GridMotionContext) =>
-		context.kind === "root"
-			? {
-					transform: "translate3d(0, 0, 0)",
-					transition: gridTransition(context),
-				}
-			: {
-					transform: "translate3d(0, 0, 0)",
-					opacity: 1,
-					transition: gridTransition(context),
-				},
-	exit: (context: GridMotionContext) => {
-		if (context.kind === "root") {
-			const offset =
-				context.direction === "forward"
-					? -context.stageWidth
-					: context.stageWidth;
-			return {
-				transform: `translate3d(${offset}px, 0, 0)`,
-				transition: gridTransition(context),
-			};
-		}
-
-		return context.direction === "forward"
-			? {
-					opacity: 0.88,
-					transform: `translate3d(0, -${context.depthTravel}px, 0) scale(0.985)`,
-					transition: gridTransition(context),
-				}
-			: {
-					opacity: 0.88,
-					transform: `translate3d(0, ${context.depthTravel}px, 0) scale(0.985)`,
-					transition: gridTransition(context),
-				};
-	},
-	"reduced-exit": {
-		opacity: 0,
-		transform: "translate3d(0, 0, 0)",
-		transition: REDUCED_GRID_TRANSITION,
-	},
-};
+const REDUCED_GRID_TRANSITION = { duration: 0.08 } as const;
 
 interface DialGridProps {
 	/** Item-order container being rendered (the active folder id). */
 	folderId: string;
-	/** Layout commit signal used to refresh the navigation travel distance. */
-	layoutOpen?: boolean;
 	cards: Card[];
 	subfolders: Folder[];
 	allCards: Card[];
@@ -189,7 +96,6 @@ interface DialGridProps {
 
 export function DialGrid({
 	folderId,
-	layoutOpen = false,
 	cards,
 	subfolders,
 	allCards,
@@ -221,73 +127,7 @@ export function DialGrid({
 			? computeIconGridMaxWidth(tileSize, maxColumns)
 			: computeGridMaxWidth(tileSize, maxColumns);
 	const reduceMotion = useReducedMotion() ?? false;
-	const stageRef = useRef<HTMLDivElement>(null);
-	const [stageWidth, setStageWidth] = useState(0);
-	// Depth-travel distance for folder navigation entrances, measured against
-	// the visible scroll viewport (never the full grid height). Hoisted out of
-	// render: measuring getBoundingClientRect during render forces a sync
-	// layout on every hover setState during drags.
-	const [depthTravel, setDepthTravel] = useState(96);
-
-	useLayoutEffect(() => {
-		const stage = stageRef.current;
-		if (!stage) return;
-
-		const updateStageWidth = () => {
-			const width = stage.getBoundingClientRect().width;
-			setStageWidth((currentWidth) =>
-				currentWidth === width ? currentWidth : width,
-			);
-		};
-
-		updateStageWidth();
-		const layoutFrame = layoutOpen
-			? requestAnimationFrame(updateStageWidth)
-			: 0;
-		window.addEventListener("resize", updateStageWidth);
-		return () => {
-			if (layoutFrame !== 0) cancelAnimationFrame(layoutFrame);
-			window.removeEventListener("resize", updateStageWidth);
-		};
-	}, [layoutOpen]);
-
-	// biome-ignore lint/correctness/useExhaustiveDependencies: folderId/navigation are intentional re-measure triggers.
-	useLayoutEffect(() => {
-		const stage = stageRef.current;
-		if (!stage) return;
-		const scrollContainer = stage.closest<HTMLElement>(
-			"[data-speed-dial-scroll]",
-		);
-		const measure = () => {
-			if (!scrollContainer) {
-				setDepthTravel((prev) => (prev === 96 ? prev : 96));
-				return;
-			}
-			const stageRect = stage.getBoundingClientRect();
-			const scrollRect = scrollContainer.getBoundingClientRect();
-			const next = Math.max(96, Math.round(scrollRect.bottom - stageRect.top));
-			setDepthTravel((prev) => (prev === next ? prev : next));
-		};
-		measure();
-		const raf = requestAnimationFrame(measure);
-		window.addEventListener("resize", measure);
-		scrollContainer?.addEventListener("scroll", measure, { passive: true });
-		return () => {
-			cancelAnimationFrame(raf);
-			window.removeEventListener("resize", measure);
-			scrollContainer?.removeEventListener("scroll", measure);
-		};
-	}, [layoutOpen, folderId, navigation]);
-
-	const motionContext: GridMotionContext = useMemo(
-		() => ({
-			...navigation,
-			stageWidth,
-			depthTravel,
-			reduceMotion,
-		}),
-		[navigation, stageWidth, depthTravel, reduceMotion],
-	);
+	const motionContext: PageMotionContext = { ...navigation, reduceMotion };
 
 	// Sibling displacement during live reorder: an interruptible ease-out
 	// tween (<300ms). Springs stay reserved for hierarchy travel.
@@ -871,7 +711,6 @@ export function DialGrid({
 				/>
 			)}
 			<div
-				ref={stageRef}
 				// Both layouts clip identically: transitions slide inside the
 				// stage, while outlines/shadows/feedback live in the safe
 				// padding (12px card, 24px icon) and never touch the edge.
@@ -891,14 +730,10 @@ export function DialGrid({
 				<AnimatePresence initial={false} mode="sync" custom={motionContext}>
 					<motion.div
 						key={folderId}
-						initial={
-							reduceMotion || (navigation.kind === "root" && stageWidth <= 0)
-								? false
-								: "initial"
-						}
+						initial="initial"
 						animate="animate"
-						exit={reduceMotion ? "reduced-exit" : "exit"}
-						variants={GRID_VARIANTS}
+						exit="exit"
+						variants={PAGE_VARIANTS}
 						custom={motionContext}
 						className="dial-grid"
 						data-tile={tileSize}

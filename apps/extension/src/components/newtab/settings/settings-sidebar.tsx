@@ -6,7 +6,6 @@ import {
 } from "@klice-start/ui/components/sidebar";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -15,6 +14,10 @@ import {
 	glassLiquidProps,
 	glassShape,
 } from "../../../lib/glass";
+import {
+	PAGE_VARIANTS,
+	type PageMotionContext,
+} from "../../../lib/page-motion";
 import { cn } from "../../../lib/utils";
 import { useHistoryStore } from "../../../stores/history-store";
 import { useAppearance, useGlassAppearance } from "../appearance-provider";
@@ -128,9 +131,7 @@ function SettingsChromeButton({
 }
 export function SettingsSidebar({
 	open,
-	layoutOpen = open,
 	onClose,
-	onLayoutTransitionEnd,
 	initialPane,
 	initialAction,
 }: SettingsSidebarProps) {
@@ -139,6 +140,11 @@ export function SettingsSidebar({
 	);
 	const [paneDirection, setPaneDirection] = useState<1 | -1>(1);
 	const reduceMotion = useReducedMotion() ?? false;
+	const paneMotionContext: PageMotionContext = {
+		direction: paneDirection === 1 ? "forward" : "back",
+		kind: "settings",
+		reduceMotion,
+	};
 	const contentRef = useRef<HTMLElement>(null);
 	const rootScrollTopRef = useRef(0);
 	const closeControlRef = useRef<HTMLButtonElement>(null);
@@ -236,27 +242,11 @@ export function SettingsSidebar({
 		return () => cancelAnimationFrame(frame);
 	}, [activePane, showRoot]);
 
-	const handleLayoutTransitionEnd = useCallback(
-		(event: React.TransitionEvent<HTMLElement>) => {
-			if (
-				event.target === event.currentTarget &&
-				event.propertyName === "transform"
-			) {
-				onLayoutTransitionEnd?.();
-			}
-		},
-		[onLayoutTransitionEnd],
-	);
-
-	useEffect(() => {
-		if (!open && reduceMotion) onLayoutTransitionEnd?.();
-	}, [onLayoutTransitionEnd, open, reduceMotion]);
-
 	return (
 		<div
 			className="flex h-full min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
 			data-settings-open={open ? "true" : "false"}
-			data-settings-layout-open={layoutOpen ? "true" : "false"}
+			data-settings-layout-open={open ? "true" : "false"}
 			data-settings-sidebar-slot="true"
 			aria-hidden={!open}
 			inert={!open}
@@ -268,7 +258,6 @@ export function SettingsSidebar({
 				id="settings-sidebar"
 				aria-label="Settings"
 				data-settings-panel="true"
-				onTransitionEnd={handleLayoutTransitionEnd}
 				className={cn("h-full min-w-0 shrink-0", SETTINGS_SIDEBAR_SHELL)}
 			>
 				<SidebarHeader className="p-0">
@@ -328,27 +317,16 @@ export function SettingsSidebar({
 								<AnimatePresence
 									initial={false}
 									mode="popLayout"
-									custom={paneDirection}
+									custom={paneMotionContext}
 								>
 									{showRoot ? (
 										<motion.div
 											key="settings-root"
-											initial={
-												reduceMotion
-													? { opacity: 0 }
-													: { opacity: 0, x: paneDirection * 16 }
-											}
-											animate={{ opacity: 1, x: 0 }}
-											exit={
-												reduceMotion
-													? { opacity: 0 }
-													: { opacity: 0, x: paneDirection * -12 }
-											}
-											transition={
-												reduceMotion
-													? { duration: DURATION.instant }
-													: { duration: DURATION.navigation, ease: EASE.out }
-											}
+											initial="initial"
+											animate="animate"
+											exit="exit"
+											variants={PAGE_VARIANTS}
+											custom={paneMotionContext}
 											className="w-full [grid-area:1/1]"
 											data-settings-root="true"
 										>
@@ -357,22 +335,11 @@ export function SettingsSidebar({
 									) : (
 										<motion.div
 											key={activePane}
-											initial={
-												reduceMotion
-													? { opacity: 0 }
-													: { opacity: 0, x: paneDirection * 16 }
-											}
-											animate={{ opacity: 1, x: 0 }}
-											exit={
-												reduceMotion
-													? { opacity: 0 }
-													: { opacity: 0, x: paneDirection * -12 }
-											}
-											transition={
-												reduceMotion
-													? { duration: DURATION.instant }
-													: { duration: DURATION.navigation, ease: EASE.out }
-											}
+											initial="initial"
+											animate="animate"
+											exit="exit"
+											variants={PAGE_VARIANTS}
+											custom={paneMotionContext}
 											className="w-full [grid-area:1/1]"
 										>
 											{activePane === "general" && <GeneralPane />}
