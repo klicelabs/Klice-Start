@@ -92,13 +92,13 @@ export function BookmarkPreviewSettings() {
 	return (
 		<SectionCard>
 			<SettingRow
-				label="Screenshot previews"
+				label="Automatically capture missing thumbnails"
 				icon="camera"
-				tooltip="Capture a preview of each site automatically."
+				tooltip="Capture the visible page once when a bookmark has no thumbnail."
 			>
 				<Switch
 					className={SETTINGS_SWITCH}
-					aria-label="Screenshot previews"
+					aria-label="Automatically capture missing thumbnails"
 					checked={thumbnailCapture.enabled}
 					onCheckedChange={(enabled: boolean) =>
 						updateThumbnailCapture({ enabled })

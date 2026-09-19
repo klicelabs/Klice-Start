@@ -1,5 +1,4 @@
 import { expect, mock, test } from "bun:test";
-import type { Card, Setup } from "../src/types";
 // Static import resolves BEFORE mock.module registers, so the spread below
 // carries the REAL module surface (idbGet, idbPut, putImages, …). bun's
 // module mocks are global across the whole test run: an incomplete mock
@@ -7,6 +6,7 @@ import type { Card, Setup } from "../src/types";
 // (setup-store → image-store → idb) with a misleading
 // "Export named 'idbGet' not found".
 import * as realIdb from "../src/lib/idb";
+import type { Card, Setup } from "../src/types";
 
 mock.module("../src/lib/idb", () => ({
 	...realIdb,
@@ -94,7 +94,9 @@ function createSetup(): Setup {
 	};
 }
 
-test("auto-captures a manually added screenshotless bookmark after navigation settles", async () => {
+test("auto-captures any missing-thumbnail bookmark after navigation settles", {
+	timeout: 15_000,
+}, async () => {
 	const onInstalled = createEvent();
 	const onStartup = createEvent();
 	const onStorageChanged = createEvent();
@@ -114,6 +116,7 @@ test("auto-captures a manually added screenshotless bookmark after navigation se
 		favIconUrl: "https://example.com/favicon.ico",
 	};
 	let captureCount = 0;
+	let captureShouldFail = false;
 
 	const storageLocal = {
 		async get(key: string | string[]) {
@@ -157,6 +160,7 @@ test("auto-captures a manually added screenshotless bookmark after navigation se
 			query: async () => [tab],
 			captureVisibleTab: async () => {
 				captureCount += 1;
+				if (captureShouldFail) throw new Error("capture denied");
 				return "data:image/jpeg;base64,captured";
 			},
 		},
@@ -193,6 +197,7 @@ test("auto-captures a manually added screenshotless bookmark after navigation se
 
 	expect(captureCount).toBe(1);
 	expect(storedSetup.cards[0]?.thumbId).toBe("thumb-captured");
+	expect(storedSetup.cards[0]?.capturedAt).toEqual(expect.any(Number));
 
 	onUpdated.emit(
 		tab.id,
@@ -203,4 +208,53 @@ test("auto-captures a manually added screenshotless bookmark after navigation se
 	await new Promise((resolve) => setTimeout(resolve, 1350));
 
 	expect(captureCount).toBe(1);
+
+	// Browser UI and extension URLs are never capture candidates.
+	tab.url = "chrome://settings";
+	tab.active = true;
+	tab.status = "complete";
+	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
+	onActivated.emit({ tabId: tab.id });
+	await new Promise((resolve) => setTimeout(resolve, 1300));
+	expect(captureCount).toBe(1);
+
+	// The user-facing setting gates queued work before the expensive API call.
+	const disabledCard = {
+		...createSetup().cards[0],
+		id: "disabled-card",
+		url: "https://disabled.example",
+	};
+	storedSetup.cards = [disabledCard];
+	storedSetup.settings.thumbnailCapture.enabled = false;
+	tab.url = disabledCard.url;
+	tab.active = true;
+	tab.status = "complete";
+	onUpdated.emit(tab.id, { status: "loading", url: tab.url }, { ...tab });
+	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
+	await new Promise((resolve) => setTimeout(resolve, 1300));
+	expect(captureCount).toBe(1);
+	expect(storedSetup.cards[0]?.thumbId).toBeNull();
+
+	// A failed capture leaves the card untouched and duplicate events do not
+	// immediately retry the same URL.
+	const failedCard = {
+		...disabledCard,
+		id: "failed-card",
+		url: "https://failed.example",
+	};
+	storedSetup.cards = [failedCard];
+	storedSetup.settings.thumbnailCapture.enabled = true;
+	captureShouldFail = true;
+	tab.url = failedCard.url;
+	onUpdated.emit(tab.id, { status: "loading", url: tab.url }, { ...tab });
+	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
+	onActivated.emit({ tabId: tab.id });
+	await new Promise((resolve) => setTimeout(resolve, 1350));
+	expect(captureCount).toBe(2);
+	expect(storedSetup.cards[0]?.thumbId).toBeNull();
+	expect(storedSetup.cards[0]?.capturedAt).toBeNull();
+	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
+	onActivated.emit({ tabId: tab.id });
+	await new Promise((resolve) => setTimeout(resolve, 1300));
+	expect(captureCount).toBe(2);
 });

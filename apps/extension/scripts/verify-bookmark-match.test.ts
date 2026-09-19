@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
 	findBookmarkInFolder,
 	findBookmarksWithoutScreenshot,
+	isThumbnailCaptureUrl,
 } from "../src/lib/bookmark-match";
 import type { Card } from "../src/types";
 
@@ -79,4 +80,19 @@ test("navigation matching ignores cards that already have a screenshot", () => {
 			["https://example.com/", "https://example.com/home"],
 		).map((item) => item.id),
 	).toEqual(["missing"]);
+});
+
+test("automatic thumbnail capture accepts only ordinary web URLs", () => {
+	expect(isThumbnailCaptureUrl("https://example.com/path")).toBe(true);
+	expect(isThumbnailCaptureUrl("http://example.com")).toBe(true);
+	for (const url of [
+		"chrome://settings",
+		"about:blank",
+		"moz-extension://abc/newtab.html",
+		"data:text/html,hello",
+		"file:///tmp/example.html",
+		"not-a-url",
+	]) {
+		expect(isThumbnailCaptureUrl(url)).toBe(false);
+	}
 });

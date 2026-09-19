@@ -43,3 +43,20 @@ test("preserves a legacy hidden clock as a hidden date", () => {
 
 	expect(normalized.settings.clock.dateEnabled).toBe(false);
 });
+
+test("enables automatic missing-thumbnail capture by default and preserves opt-out", () => {
+	const defaults = normalizeState(null);
+	expect(defaults.settings.thumbnailCapture.enabled).toBe(true);
+
+	const optedOut = normalizeState({
+		...structuredClone(DEFAULT_SETUP),
+		settings: {
+			...structuredClone(DEFAULT_SETUP.settings),
+			thumbnailCapture: { enabled: false, delayMs: 2000 },
+		},
+	});
+	expect(optedOut.settings.thumbnailCapture).toEqual({
+		enabled: false,
+		delayMs: 2000,
+	});
+});

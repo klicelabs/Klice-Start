@@ -1,5 +1,10 @@
 import type { Card } from "../types";
-import { canonicalUrl } from "./url";
+import { canonicalUrl, isAbsoluteHttpUrl } from "./url";
+
+/** Automatic screenshots only support ordinary web pages. */
+export function isThumbnailCaptureUrl(rawUrl: string): boolean {
+	return isAbsoluteHttpUrl(rawUrl);
+}
 
 /** Find one bookmark with the same URL in the requested destination. */
 export function findBookmarkInFolder(

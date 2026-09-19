@@ -1,6 +1,7 @@
 import {
 	findBookmarkInFolder,
 	findBookmarksWithoutScreenshot,
+	isThumbnailCaptureUrl,
 } from "../src/lib/bookmark-match";
 import { ext } from "../src/lib/extension-api";
 import { getChildren } from "../src/lib/folder-tree";
@@ -220,6 +221,8 @@ interface InFlightThumbnailCapture {
 const pendingThumbnailCaptures = new Map<number, PendingThumbnailCapture>();
 const inFlightThumbnailCaptures = new Map<number, InFlightThumbnailCapture>();
 const recentThumbnailAttempts = new Map<string, number>();
+/** One capture can satisfy every card that points at the same URL. */
+const inFlightThumbnailKeys = new Set<string>();
 const navigationStartUrls = new Map<number, string>();
 const navigationGenerations = new Map<number, number>();
 
@@ -236,8 +239,8 @@ function nextNavigationGeneration(tabId: number): number {
 	return next;
 }
 
-function thumbnailAttemptKey(tabId: number, expectedKey: string): string {
-	return `${tabId}:${expectedKey}`;
+function thumbnailAttemptKey(expectedKey: string): string {
+	return expectedKey;
 }
 
 function isWithinThumbnailFailureCooldown(attemptKey: string): boolean {
@@ -260,7 +263,7 @@ function tabCanBeCaptured(
 		tab.status === "complete" &&
 		navigationGenerations.get(tabId) === navigationGeneration &&
 		!!tab.url &&
-		isAbsoluteHttpUrl(tab.url)
+		isThumbnailCaptureUrl(tab.url)
 	);
 }
 
@@ -351,10 +354,6 @@ export default defineBackground(() => {
 		navigationStartUrls.delete(tabId);
 		navigationGenerations.delete(tabId);
 		inFlightThumbnailCaptures.delete(tabId);
-		const prefix = `${tabId}:`;
-		for (const key of recentThumbnailAttempts.keys()) {
-			if (key.startsWith(prefix)) recentThumbnailAttempts.delete(key);
-		}
 	});
 });
 
@@ -564,12 +563,12 @@ function queueMissingThumbnailCapture(
 	expectedUrl = tab.url,
 ) {
 	const url = tab.url;
-	if (tab.active === false || !url || !isAbsoluteHttpUrl(url)) {
+	if (tab.active === false || !url || !isThumbnailCaptureUrl(url)) {
 		cancelPendingThumbnailCapture(tabId);
 		return;
 	}
 	const candidateUrl =
-		expectedUrl && isAbsoluteHttpUrl(expectedUrl) ? expectedUrl : url;
+		expectedUrl && isThumbnailCaptureUrl(expectedUrl) ? expectedUrl : url;
 	const expectedKey = canonicalUrl(candidateUrl);
 	if (!expectedKey) {
 		cancelPendingThumbnailCapture(tabId);
@@ -579,7 +578,8 @@ function queueMissingThumbnailCapture(
 	const navigationGeneration = navigationGenerations.get(tabId) ?? 0;
 	const inFlight = inFlightThumbnailCaptures.get(tabId);
 	if (inFlight?.navigationGeneration === navigationGeneration) return;
-	const attemptKey = thumbnailAttemptKey(tabId, expectedKey);
+	const attemptKey = thumbnailAttemptKey(expectedKey);
+	if (inFlightThumbnailKeys.has(attemptKey)) return;
 	if (isWithinThumbnailFailureCooldown(attemptKey)) return;
 
 	cancelPendingThumbnailCapture(tabId);
@@ -611,10 +611,12 @@ async function captureMissingThumbnail(
 	navigationGeneration: number,
 ) {
 	if (inFlightThumbnailCaptures.has(tabId)) return;
+	if (inFlightThumbnailKeys.has(expectedKey)) return;
 	inFlightThumbnailCaptures.set(tabId, {
 		expectedKey,
 		navigationGeneration,
 	});
+	inFlightThumbnailKeys.add(expectedKey);
 
 	let thumbId: string | null = null;
 	let persisted = false;
@@ -631,7 +633,7 @@ async function captureMissingThumbnail(
 		]);
 		if (matches.length === 0) return;
 
-		const attemptKey = thumbnailAttemptKey(tabId, expectedKey);
+		const attemptKey = thumbnailAttemptKey(expectedKey);
 		if (isWithinThumbnailFailureCooldown(attemptKey)) return;
 		recentThumbnailAttempts.set(attemptKey, Date.now());
 
@@ -660,6 +662,7 @@ async function captureMissingThumbnail(
 
 		const dataUrl = await captureVisible(tab.windowId, 82);
 		thumbId = await saveThumbnail(dataUrl);
+		const capturedAt = Date.now();
 
 		if (navigationGenerations.get(tabId) !== navigationGeneration) return;
 		tab = await ext.tabs.get(tabId);
@@ -680,6 +683,7 @@ async function captureMissingThumbnail(
 		for (const card of fresh.cards) {
 			if (!matchIds.has(card.id) || card.thumbId) continue;
 			card.thumbId = thumbId;
+			card.capturedAt = capturedAt;
 			if (!card.favicon && tab.favIconUrl) card.favicon = tab.favIconUrl;
 			changed = true;
 		}
@@ -691,6 +695,7 @@ async function captureMissingThumbnail(
 		const navigationChanged =
 			navigationGenerations.get(tabId) !== navigationGeneration;
 		if (thumbId && !persisted) await deletePendingThumbnail(thumbId);
+		if (persisted) recentThumbnailAttempts.delete(expectedKey);
 		const current = inFlightThumbnailCaptures.get(tabId);
 		if (
 			current?.expectedKey === expectedKey &&
@@ -698,6 +703,7 @@ async function captureMissingThumbnail(
 		) {
 			inFlightThumbnailCaptures.delete(tabId);
 		}
+		inFlightThumbnailKeys.delete(expectedKey);
 		if (navigationGenerations.get(tabId) === navigationGeneration) {
 			navigationStartUrls.delete(tabId);
 		}
