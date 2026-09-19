@@ -906,9 +906,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    The already-mounted panel moves below on the compositor instead. */
 [data-settings-sidebar-slot] {
 	width: 0;
+	pointer-events: none;
 }
 [data-settings-sidebar-slot][data-settings-layout-open="true"] {
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
+}
+[data-settings-sidebar-slot][data-settings-open="true"] {
+	pointer-events: auto;
 }
 
 /* Geometry settles once at the start/end of the workspace transition. Only
@@ -929,8 +933,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    corner-shape:squircle. */
 [data-speed-dial-frame] {
 	border-radius: 0;
-	transition: border-radius var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: 24px;

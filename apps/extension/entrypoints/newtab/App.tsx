@@ -1,10 +1,6 @@
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@klice-start/ui/components/sidebar";
+import { SidebarInset } from "@klice-start/ui/components/sidebar";
 import { Toaster } from "@klice-start/ui/components/sonner";
 import {
-	type CSSProperties,
 	memo,
 	type RefObject,
 	useCallback,
@@ -33,11 +29,15 @@ import {
 	type UnifiedSearchHandle,
 } from "../../src/components/newtab/search/unified-search";
 import { SelectionTray } from "../../src/components/newtab/selection-tray";
-import {
-	type SettingsPaneId,
-	SettingsSidebar,
-	type SettingsSidebarProps,
+import type {
+	SettingsPaneId,
+	SettingsSidebarProps,
 } from "../../src/components/newtab/settings";
+import {
+	SettingsMotionFrame,
+	SettingsMotionSidebar,
+	SettingsMotionWorkspace,
+} from "../../src/components/newtab/settings/settings-motion-workspace";
 import { NavigationToolbar } from "../../src/components/newtab/toolbar/navigation-toolbar";
 import { ToolbarActions } from "../../src/components/newtab/toolbar/toolbar-actions";
 import { MoveToDialog } from "../../src/components/shared/move-to-dialog";
@@ -85,6 +85,10 @@ import { useHistoryStore } from "../../src/stores/history-store";
 import { useImageStore } from "../../src/stores/image-store";
 import { useRenameStore } from "../../src/stores/rename-store";
 import { useSelectionStore } from "../../src/stores/selection-store";
+import {
+	settingsMotionStore,
+	useSettingsMotionStore,
+} from "../../src/stores/settings-motion-store";
 import { useSetupStore } from "../../src/stores/setup-store";
 import type { Card, Folder } from "../../src/types";
 
@@ -295,6 +299,18 @@ const HomeSurface = memo(function HomeSurface({
 		</>
 	);
 });
+
+const SettingsMotionToolbarActions = memo(
+	function SettingsMotionToolbarActions({
+		onSettings,
+	}: {
+		onSettings: () => void;
+	}) {
+		const open = useSettingsMotionStore((state) => state.phase === "open");
+		if (open) return null;
+		return <ToolbarActions onSettings={onSettings} />;
+	},
+);
 
 export default function App() {
 	useCrossTabSync();
@@ -575,14 +591,7 @@ export default function App() {
 	}, [folders, activeFolderId]);
 
 	// UI state.
-	const [showSettings, setShowSettings] = useState(false);
-	const [settingsLayoutOpen, setSettingsLayoutOpen] = useState(false);
 	const [historyOpen, setHistoryOpen] = useState(false);
-	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
-	const [settingsAction, setSettingsAction] =
-		useState<SettingsSidebarProps["initialAction"]>(undefined);
-	const settingsOpenRef = useRef(false);
-	const settingsOpenFrameRef = useRef<number | null>(null);
 	const unifiedSearchRef = useRef<UnifiedSearchHandle>(null);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
@@ -599,41 +608,25 @@ export default function App() {
 	}, []);
 
 	const handleCloseSettings = useCallback(() => {
-		if (settingsOpenFrameRef.current !== null) {
-			cancelAnimationFrame(settingsOpenFrameRef.current);
-			settingsOpenFrameRef.current = null;
-		}
-		const wasOpen = settingsOpenRef.current;
-		settingsOpenRef.current = false;
-		setShowSettings(false);
-		setSettingsAction(undefined);
-		// If the opening commit has not reached the panel yet, there is no
-		// transform to play in reverse and the layout footprint can be released.
-		if (!wasOpen) setSettingsLayoutOpen(false);
+		// Keep the layout footprint until the mounted panel's transform reaches
+		// its closed position. The shell store lets only motion subscribers
+		// rerender; Home's data selectors stay untouched.
+		settingsMotionStore.getState().close();
 	}, []);
 
 	// Open Settings window with optional pane & action deep-linking
 	const handleOpenSettings = useCallback(
 		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
-			setSettingsPane(pane);
-			setSettingsAction(action);
-			setSettingsLayoutOpen(true);
-			if (settingsOpenRef.current) {
-				setShowSettings(true);
-				return;
-			}
-			if (settingsOpenFrameRef.current !== null) return;
-			settingsOpenFrameRef.current = requestAnimationFrame(() => {
-				settingsOpenFrameRef.current = null;
-				settingsOpenRef.current = true;
-				setShowSettings(true);
-			});
+			// The panel stays mounted, so one synchronous store update drives its
+			// transform and the aligned Home frame together. There is no rAF gap
+			// for the layout to settle in a separate commit.
+			settingsMotionStore.getState().open(pane, action);
 		},
 		[],
 	);
 
 	const handleToggleSettings = useCallback(() => {
-		if (settingsOpenRef.current || settingsOpenFrameRef.current !== null) {
+		if (settingsMotionStore.getState().phase === "open") {
 			handleCloseSettings();
 			return;
 		}
@@ -649,14 +642,6 @@ export default function App() {
 		setRestMode(false);
 		triggerWake();
 	}, [triggerWake]);
-
-	useEffect(() => {
-		return () => {
-			if (settingsOpenFrameRef.current !== null) {
-				cancelAnimationFrame(settingsOpenFrameRef.current);
-			}
-		};
-	}, []);
 
 	useEffect(() => {
 		if (!restMode) return;
@@ -677,7 +662,11 @@ export default function App() {
 
 	const handleSpeedDialBackgroundPointer = useCallback(
 		(event: PointerEvent) => {
-			if (!settingsOpenRef.current || event.pointerType !== "mouse") return;
+			if (
+				settingsMotionStore.getState().phase !== "open" ||
+				event.pointerType !== "mouse"
+			)
+				return;
 			if (event.button !== 0 && event.button !== 2) return;
 
 			const target = event.target;
@@ -1118,28 +1107,7 @@ export default function App() {
 				onEnterRestMode={enterRestMode}
 				enabled={!restMode}
 			>
-				<SidebarProvider
-					open={showSettings}
-					onOpenChange={(isOpen) => {
-						if (isOpen) {
-							settingsOpenRef.current = true;
-							setSettingsLayoutOpen(true);
-							setShowSettings(true);
-							return;
-						}
-						handleCloseSettings();
-					}}
-					style={
-						{
-							"--sidebar-width": "var(--settings-sidebar-width)",
-						} as CSSProperties
-					}
-					className={cn(
-						"settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]",
-						settingsLayoutOpen ? "p-[var(--workspace-gutter)]" : "p-0",
-					)}
-					data-settings-layout-open={settingsLayoutOpen ? "true" : "false"}
-				>
+				<SettingsMotionWorkspace>
 					<div
 						className="flex h-full min-h-0 min-w-0 flex-1"
 						data-settings-workspace-panels="true"
@@ -1148,13 +1116,12 @@ export default function App() {
 							className="h-full min-h-0 min-w-0 bg-transparent p-0"
 							data-speed-dial-inset="true"
 						>
-							<div
+							<SettingsMotionFrame
 								className={cn(
 									"squircle relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
 									wakeActive && "klice-wake",
 								)}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-settings-open={settingsLayoutOpen ? "true" : "false"}
 								data-compact-search={compactSearch ? "true" : "false"}
 								data-active-folder-id={activeFolderId}
 								data-folder-depth={breadcrumb.length}
@@ -1193,9 +1160,9 @@ export default function App() {
 											canNestFolder={canNestFolder}
 										/>
 										<div className="pointer-events-auto flex items-center">
-											{!showSettings && (
-												<ToolbarActions onSettings={handleToggleSettings} />
-											)}
+											<SettingsMotionToolbarActions
+												onSettings={handleToggleSettings}
+											/>
 										</div>
 									</div>
 								)}
@@ -1233,21 +1200,14 @@ export default function App() {
 									onSelectAll={handleSelectAll}
 									onHistoryOpenChange={setHistoryOpen}
 								/>
-							</div>
+							</SettingsMotionFrame>
 						</SidebarInset>
 
-						<SettingsSidebar
-							open={showSettings}
-							onClose={handleCloseSettings}
-							layoutOpen={settingsLayoutOpen}
-							onCloseComplete={() => setSettingsLayoutOpen(false)}
-							initialPane={settingsPane}
-							initialAction={settingsAction}
-						/>
+						<SettingsMotionSidebar />
 					</div>
 
 					<ThemedToaster />
-				</SidebarProvider>
+				</SettingsMotionWorkspace>
 			</PageContextMenu>
 		</AppearanceProvider>
 	);

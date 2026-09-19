@@ -1,4 +1,5 @@
 import { Icon, type IconName } from "@klice-start/ui/icons/icon";
+import { memo } from "react";
 import { cn } from "../../../../lib/utils";
 import type { SettingsPaneId } from "../settings-types";
 import { SectionCard } from "../shared/section-card";
@@ -67,7 +68,9 @@ function SettingsNavigationRow({
  * category. Existing panes supply the same controls and grouped cards; this
  * composition only removes the extra landing-page click.
  */
-export function SettingsRootPane({ onNavigate }: SettingsRootPaneProps) {
+export const SettingsRootPane = memo(function SettingsRootPane({
+	onNavigate,
+}: SettingsRootPaneProps) {
 	return (
 		<div className={SETTINGS_PAGE}>
 			<AppearancePane onOpenWallpaper={() => onNavigate("wallpaper")} />
@@ -89,4 +92,4 @@ export function SettingsRootPane({ onNavigate }: SettingsRootPaneProps) {
 			</SectionCard>
 		</div>
 	);
-}
+});

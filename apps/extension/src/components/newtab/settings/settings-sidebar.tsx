@@ -7,7 +7,13 @@ import {
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import {
 	glassForeground,
 	glassLensVeil,
@@ -150,20 +156,41 @@ export function SettingsSidebar({
 		reduceMotion,
 	};
 	const contentRef = useRef<HTMLElement>(null);
+	const slotRef = useRef<HTMLDivElement>(null);
 	const rootScrollTopRef = useRef(0);
 	const closeControlRef = useRef<HTMLButtonElement>(null);
 	const wasOpenRef = useRef(open);
+	const focusAfterEnterRef = useRef(false);
 	const restoreFocusRef = useRef(false);
+
+	// Keep the subtree inert while it is offscreen. During motion, changing
+	// inert would invalidate every descendant's style tree; the transition
+	// boundary toggles it after the panel is no longer moving.
+	useLayoutEffect(() => {
+		slotRef.current?.setAttribute("inert", "");
+	}, []);
 
 	useEffect(() => {
 		if (!open) return;
 		rootScrollTopRef.current = 0;
-		setNavigation(createSettingsNavigation(initialPane));
+		const nextNavigation = createSettingsNavigation(initialPane);
+		setNavigation((current) => {
+			const sameEntries =
+				current.entries.length === nextNavigation.entries.length &&
+				current.entries.every(
+					(entry, index) => entry === nextNavigation.entries[index],
+				);
+			return current.root === nextNavigation.root &&
+				current.index === nextNavigation.index &&
+				sameEntries
+				? current
+				: nextNavigation;
+		});
 	}, [initialPane, open]);
 
 	useEffect(() => {
 		if (open && !wasOpenRef.current) {
-			closeControlRef.current?.focus({ preventScroll: true });
+			focusAfterEnterRef.current = true;
 		}
 		wasOpenRef.current = open;
 	}, [open]);
@@ -181,7 +208,16 @@ export function SettingsSidebar({
 	}, [open]);
 
 	useEffect(() => {
+		if (open && reduceMotion) {
+			slotRef.current?.removeAttribute("inert");
+			if (focusAfterEnterRef.current) {
+				focusAfterEnterRef.current = false;
+				closeControlRef.current?.focus({ preventScroll: true });
+			}
+			return;
+		}
 		if (open || !reduceMotion) return;
+		slotRef.current?.setAttribute("inert", "");
 		onCloseComplete?.();
 	}, [onCloseComplete, open, reduceMotion]);
 
@@ -253,12 +289,12 @@ export function SettingsSidebar({
 
 	return (
 		<div
+			ref={slotRef}
 			className="flex h-full min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
 			data-settings-open={open ? "true" : "false"}
 			data-settings-layout-open={layoutOpen ? "true" : "false"}
 			data-settings-sidebar-slot="true"
 			aria-hidden={!open}
-			inert={!open}
 		>
 			<Sidebar
 				side="right"
@@ -269,10 +305,18 @@ export function SettingsSidebar({
 				data-settings-panel="true"
 				onTransitionEnd={(event) => {
 					if (
-						!open &&
 						event.target === event.currentTarget &&
 						event.propertyName === "transform"
 					) {
+						if (open) {
+							slotRef.current?.removeAttribute("inert");
+							if (focusAfterEnterRef.current) {
+								focusAfterEnterRef.current = false;
+								closeControlRef.current?.focus({ preventScroll: true });
+							}
+							return;
+						}
+						slotRef.current?.setAttribute("inert", "");
 						onCloseComplete?.();
 					}
 				}}

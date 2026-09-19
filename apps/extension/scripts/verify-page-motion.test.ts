@@ -53,15 +53,31 @@ test("Settings keeps the Home frame in the inset state through close motion", ()
 		new URL("../src/styles/tokens.css", import.meta.url),
 		"utf8",
 	);
-	expect(app).toContain(
-		'data-settings-open={settingsLayoutOpen ? "true" : "false"}',
+	const motionWorkspace = readFileSync(
+		new URL(
+			"../src/components/newtab/settings/settings-motion-workspace.tsx",
+			import.meta.url,
+		),
+		"utf8",
 	);
-	expect(app).not.toContain(
-		'data-settings-open={showSettings ? "true" : "false"}',
+	const sidebar = readFileSync(
+		new URL(
+			"../src/components/newtab/settings/settings-sidebar.tsx",
+			import.meta.url,
+		),
+		"utf8",
 	);
-	expect(tokens).toContain(
-		"transition: border-radius var(--workspace-motion-duration)",
-	);
+	expect(motionWorkspace).toContain('const layoutOpen = phase !== "closed"');
+	expect(motionWorkspace).toContain('phase !== "closed"');
+	expect(app).not.toContain("settingsOpenFrameRef");
+	expect(app).not.toContain("settingsOpenRef");
+	expect(sidebar).not.toContain("inert={!open}");
+	expect(sidebar).toContain('setAttribute("inert", "")');
+	expect(tokens).not.toContain("transition: border-radius");
+	expect(tokens).not.toContain("transition:\n\t\tborder-radius");
+	expect(tokens).toContain("pointer-events: none");
+	expect(tokens).toContain("pointer-events: auto");
+	expect(tokens).toContain("transform var(--workspace-motion-duration)");
 	expect(tokens).not.toContain("--workspace-home-scale");
 	expect(tokens).not.toContain("transform: scale(var(--workspace-home-scale))");
 });
