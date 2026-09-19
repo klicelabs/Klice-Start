@@ -38,8 +38,8 @@
     <h1>Complete pre-release audit</h1>
     <p class="status">PASS — no unresolved actionable Critical, High, Medium or Low findings in the current branch.</p>
     <p class="meta"><strong>Branch:</strong> <code>audit/pre-release-reliability</code></p>
-    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence/icon-menu behavior, Settings hierarchy cleanup, shared Home rhythm, Card-mode footer treatment, and Settings workspace motion/fullscreen behavior.</p>
-    <p class="meta"><strong>Implementation commit:</strong> <code>fdf6afb</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
+    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures, supplied Vivaldi export (read-only), Quick Links defaults/persistence/icon-menu behavior, Settings hierarchy cleanup, shared Home rhythm, Card-mode footer treatment, Settings workspace motion/fullscreen behavior, and wallpaper-overlay text contrast.</p>
+    <p class="meta"><strong>Implementation commit:</strong> <code>483d790</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
     <p class="meta"><strong>Working-tree note:</strong> the private user export <code>favoritos_17_09_2026.html</code> and pre-existing <code>.freebuff/</code> remain untracked and were not staged, printed or modified.</p>
   </section>
 
@@ -159,6 +159,7 @@
     <tr><td>Home vertical rhythm</td><td class="result">IMPLEMENTED</td><td>Search, Quick Links and the bookmark grid now share one responsive <code>speed-dial-home-stack</code> gap token. Negative Quick Links margins and the separate grid-top magic number were removed, so Card and Icon modes use the same stack rhythm.</td></tr>
     <tr><td>Card-mode title footer</td><td class="result">IMPLEMENTED</td><td>Card-mode bookmark and folder footers are real overlays inside the card, with a softened black-only fade strongest at the bottom and transparent toward the thumbnail. The established Liquid Glass implementation remains available through <code>cardFooterMaterial("glass")</code>; Icon mode has no fade marker.</td></tr>
     <tr><td>Settings workspace fullscreen and motion</td><td class="result">IMPLEMENTED</td><td>Closed Home runs edge-to-edge with no workspace gutter or frame. Opening commits the footprint first, then starts the panel transform on the next frame so the entrance has a real offscreen state to interpolate from; closing keeps the footprint until the transform transition ends, then releases it completely. Settings-only toggles no longer re-render the memoized Home surface, and the sidebar width is no longer animated, so the grid avoids per-frame layout reflow.</td></tr>
+    <tr><td>Wallpaper-overlay text contrast</td><td class="result">IMPLEMENTED</td><td>A shared wallpaper-only foreground role now maps to white primary/muted tokens plus a subtle shadow. Bookmark and folder Icon-mode labels, Quick Links labels through the shared <code>IconModeTile</code>, Icon-mode rename fields and the floating contextual folder title all use it in Light and Dark; card footers, menus, dialogs and Settings keep their existing surface ink.</td></tr>
   </tbody></table>
 
   <h2>Browser bookmark hierarchy sweep</h2>
@@ -169,7 +170,7 @@
     <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>120 tests, 0 failures after shared Icon mode tile, Quick Links menu/edit/remove, empty-list persistence and settings grouping regressions. The history-manager mount harness prints React <code>act(...)</code> diagnostics, and persistence tests print the expected corrupt/quota error paths; neither is a failing assertion.</td></tr>
     <tr><td><code>npm run compile</code> in <code>apps/extension</code></td><td class="result">PASS</td><td>TypeScript no-emit clean.</td></tr>
     <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
-    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Feature-scope Biome check passes on the changed implementation/test TS and TSX files; one existing informational dependency note remains for <code>sweepOrphans</code> in the Home effect. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
+    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Feature-scope Biome check passes on the changed implementation/test TS, TSX and CSS files; one existing informational dependency note remains for <code>sweepOrphans</code> in the Home effect. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
     <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
     <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>; WXT emits its existing advisory for the 647 kB newtab chunk, but the build completes successfully.</td></tr>
     <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>; the same non-blocking chunk-size advisory is emitted.</td></tr>
