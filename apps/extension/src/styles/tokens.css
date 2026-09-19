@@ -874,18 +874,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .settings-workspace {
 	--settings-sidebar-width: clamp(320px, 29vw, 408px);
 	--workspace-gutter: 8px;
-	/* One authored moment for the complete push transition. */
+	/* One authored moment for the compositor-only panel transition. */
 	--workspace-motion-duration: 220ms;
 	--workspace-motion-ease: var(--ease-out-expo, var(--ease-out));
 }
 
 /* The slot owns the sidebar's structural footprint. It includes the
-   inter-panel gutter, so the closed layout has no phantom gap. The footprint
-   settles atomically; only the already-mounted panel moves below. */
+   inter-panel gutter, so the closed layout has no phantom gap. Its width is a
+   discrete layout commit; animating it would reflow the Home grid every frame.
+   The already-mounted panel moves below on the compositor instead. */
 [data-settings-sidebar-slot] {
 	width: 0;
-	transition: width var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
 }
 [data-settings-sidebar-slot][data-settings-layout-open="true"] {
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));

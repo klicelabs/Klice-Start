@@ -70,6 +70,9 @@ export interface SettingsPaneProps {
 export interface SettingsSidebarProps {
 	open: boolean;
 	onClose: () => void;
+	/** Keeps the in-flow footprint until the closing transform has finished. */
+	layoutOpen?: boolean;
+	onCloseComplete?: () => void;
 	initialPane?: SettingsPaneId;
 	initialAction?: {
 		type: "add-link" | "edit-link" | "add-folder" | "edit-folder";

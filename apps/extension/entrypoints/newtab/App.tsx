@@ -5,6 +5,8 @@ import {
 import { Toaster } from "@klice-start/ui/components/sonner";
 import {
 	type CSSProperties,
+	memo,
+	type RefObject,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -61,6 +63,7 @@ import {
 import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
 import {
 	getOrderedRefs,
+	type ItemOrder,
 	type ItemRef,
 	ROOT_CONTAINER,
 } from "../../src/lib/item-order";
@@ -83,7 +86,7 @@ import { useImageStore } from "../../src/stores/image-store";
 import { useRenameStore } from "../../src/stores/rename-store";
 import { useSelectionStore } from "../../src/stores/selection-store";
 import { useSetupStore } from "../../src/stores/setup-store";
-import type { Card } from "../../src/types";
+import type { Card, Folder } from "../../src/types";
 
 import "../../src/styles/tokens.css";
 
@@ -101,6 +104,197 @@ function ThemedToaster() {
 		/>
 	);
 }
+
+interface HomeSurfaceProps {
+	restMode: boolean;
+	activeFolderId: string;
+	cards: Card[];
+	subfolders: Folder[];
+	allCards: Card[];
+	allFolders: Folder[];
+	itemOrder: ItemOrder;
+	cardCounts: Record<string, number>;
+	previewCards: Record<string, FolderPreviewItem[]>;
+	navigation: NavigationState;
+	isEmpty: boolean;
+	currentFolderName: string;
+	historyOpen: boolean;
+	pageIds: string[];
+	speedDialScrollRef: RefObject<HTMLDivElement | null>;
+	searchAnchorRef: RefObject<HTMLDivElement | null>;
+	unifiedSearchRef: RefObject<UnifiedSearchHandle | null>;
+	onExitRestMode: () => void;
+	onSelectFolder: (id: string) => void;
+	onOpenSettings: (
+		pane?: SettingsPaneId,
+		action?: SettingsSidebarProps["initialAction"],
+	) => void;
+	onDelete: (id: string) => void;
+	onDeleteFolder: (id: string) => void;
+	onNewSubfolder: (parentId: string) => void;
+	onMoveItems: (
+		cardIds: string[],
+		folderIds: string[],
+		targetFolderId: string,
+	) => void;
+	onLiveReorder: (
+		container: string,
+		dragged: ItemRef,
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
+	onReorderGroup: (
+		container: string,
+		groupIds: string[],
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
+	onInsertCardsAt: (
+		targetFolderId: string,
+		cardIds: string[],
+		targetCardId: string,
+		position: "before" | "after",
+	) => void;
+	onPreviewDrop: (
+		targetFolderId: string,
+		draggedCardId: string,
+		targetCardId: string,
+		position: "before" | "after",
+	) => void;
+	onCombineCards: (draggedCardId: string, targetCardId: string) => void;
+	canNestFolder: (folderId: string, targetFolderId: string) => boolean;
+	onSelectAll: () => void;
+	onHistoryOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Home stays mounted and memoized while the Settings sibling animates. The
+ * previous parent-level showSettings state invalidated this whole subtree on
+ * every open/close frame, which made the grid and its motion measurements do
+ * work even though none of its inputs changed.
+ */
+const HomeSurface = memo(function HomeSurface({
+	restMode,
+	activeFolderId,
+	cards,
+	subfolders,
+	allCards,
+	allFolders,
+	itemOrder,
+	cardCounts,
+	previewCards,
+	navigation,
+	isEmpty,
+	currentFolderName,
+	historyOpen,
+	pageIds,
+	speedDialScrollRef,
+	searchAnchorRef,
+	unifiedSearchRef,
+	onExitRestMode,
+	onSelectFolder,
+	onOpenSettings,
+	onDelete,
+	onDeleteFolder,
+	onNewSubfolder,
+	onMoveItems,
+	onLiveReorder,
+	onReorderGroup,
+	onInsertCardsAt,
+	onPreviewDrop,
+	onCombineCards,
+	canNestFolder,
+	onSelectAll,
+	onHistoryOpenChange,
+}: HomeSurfaceProps) {
+	return (
+		<>
+			<BackgroundLayer contained />
+			{restMode && <RestMode onExit={onExitRestMode} />}
+
+			<div
+				ref={speedDialScrollRef}
+				className="scrollbar-hidden relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
+				data-speed-dial-scroll="true"
+			>
+				<div className={cn(restMode && "rest-mode-hidden")}>
+					{/* Ambient content remains in the normal page flow. */}
+					<div className="speed-dial-home-stack">
+						<main className="speed-dial-hero hero">
+							<div className="klice-ambient-hero" data-ambient-hero="true">
+								<ClockWidget />
+							</div>
+							<div ref={searchAnchorRef} className="speed-dial-search-anchor">
+								<UnifiedSearch
+									ref={unifiedSearchRef}
+									onNavigateFolder={onSelectFolder}
+								/>
+							</div>
+						</main>
+
+						<QuickLinks />
+
+						<div className="speed-dial-grid-region">
+							<DialGrid
+								folderId={activeFolderId}
+								cards={cards}
+								subfolders={subfolders}
+								allCards={allCards}
+								allFolders={allFolders}
+								itemOrder={itemOrder}
+								cardCounts={cardCounts}
+								previewCards={previewCards}
+								onDelete={onDelete}
+								onDeleteFolder={onDeleteFolder}
+								onOpenFolder={onSelectFolder}
+								onNewSubfolder={onNewSubfolder}
+								onMoveItems={onMoveItems}
+								onLiveReorder={onLiveReorder}
+								onReorderGroup={onReorderGroup}
+								onInsertCardsAt={onInsertCardsAt}
+								onPreviewDrop={onPreviewDrop}
+								onCombineCards={onCombineCards}
+								canNestFolder={canNestFolder}
+								navigation={navigation}
+								emptyState={
+									isEmpty ? (
+										<EmptyLanding
+											folderName={currentFolderName}
+											onAdd={() =>
+												onOpenSettings("bookmarks", {
+													type: "add-link",
+												})
+											}
+										/>
+									) : null
+								}
+							/>
+						</div>
+					</div>
+
+					<MoveToDialog />
+					<SelectionTray
+						onNavigateFolder={onSelectFolder}
+						pageIds={pageIds}
+						onSelectAll={onSelectAll}
+					/>
+					<HistoryManager />
+					<HistoryDialog
+						open={historyOpen}
+						onOpenChange={onHistoryOpenChange}
+					/>
+				</div>
+			</div>
+
+			{!restMode && (
+				<GoToTopButton
+					scrollRef={speedDialScrollRef}
+					folderId={activeFolderId}
+				/>
+			)}
+		</>
+	);
+});
 
 export default function App() {
 	useCrossTabSync();
@@ -382,6 +576,7 @@ export default function App() {
 
 	// UI state.
 	const [showSettings, setShowSettings] = useState(false);
+	const [settingsLayoutOpen, setSettingsLayoutOpen] = useState(false);
 	const [historyOpen, setHistoryOpen] = useState(false);
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
@@ -433,6 +628,7 @@ export default function App() {
 		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
 			setSettingsPane(pane);
 			setSettingsAction(action);
+			setSettingsLayoutOpen(true);
 			setShowSettings(true);
 		},
 		[],
@@ -515,6 +711,13 @@ export default function App() {
 			reorderItems(container, dragged, target, position);
 		},
 		[reorderItems],
+	);
+
+	const handleMoveItems = useCallback(
+		(cardIds: string[], folderIds: string[], targetFolderId: string) => {
+			moveItemsToContainer(targetFolderId, cardIds, folderIds);
+		},
+		[moveItemsToContainer],
 	);
 
 	const handleReorderGroup = useCallback(
@@ -897,8 +1100,9 @@ export default function App() {
 					}
 					className={cn(
 						"settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]",
-						"p-[var(--workspace-gutter)]",
+						settingsLayoutOpen ? "p-[var(--workspace-gutter)]" : "p-0",
 					)}
+					data-settings-layout-open={settingsLayoutOpen ? "true" : "false"}
 				>
 					<div
 						className="flex h-full min-h-0 min-w-0 flex-1"
@@ -914,13 +1118,12 @@ export default function App() {
 									wakeActive && "klice-wake",
 								)}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-settings-open={showSettings ? "true" : "false"}
+								data-settings-open={settingsLayoutOpen ? "true" : "false"}
 								data-compact-search={compactSearch ? "true" : "false"}
 								data-active-folder-id={activeFolderId}
 								data-folder-depth={breadcrumb.length}
 								data-speed-dial-frame="true"
 							>
-								<BackgroundLayer contained />
 								{!restMode && (
 									<div
 										ref={appToolbarRef}
@@ -960,105 +1163,48 @@ export default function App() {
 										</div>
 									</div>
 								)}
-								{restMode && <RestMode onExit={exitRestMode} />}
-
-								<div
-									ref={speedDialScrollRef}
-									className="scrollbar-hidden relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden"
-									data-speed-dial-scroll="true"
-								>
-									<div className={cn(restMode && "rest-mode-hidden")}>
-										{/* Ambient content remains in the normal page flow. */}
-										<div className="speed-dial-home-stack">
-											<main className="speed-dial-hero hero">
-												<div
-													className="klice-ambient-hero"
-													data-ambient-hero="true"
-												>
-													<ClockWidget />
-												</div>
-												<div
-													ref={searchAnchorRef}
-													className="speed-dial-search-anchor"
-												>
-													<UnifiedSearch
-														ref={unifiedSearchRef}
-														onNavigateFolder={handleSelectFolder}
-													/>
-												</div>
-											</main>
-
-											<QuickLinks />
-
-											<div className="speed-dial-grid-region">
-												<DialGrid
-													folderId={activeFolderId}
-													cards={cards}
-													subfolders={subfolders}
-													allCards={allCards}
-													allFolders={folders}
-													itemOrder={itemOrder}
-													cardCounts={cardCounts}
-													previewCards={previewCards}
-													onDelete={deleteCard}
-													onDeleteFolder={handleDeleteFolder}
-													onOpenFolder={handleSelectFolder}
-													onNewSubfolder={handleNewSubfolder}
-													onMoveItems={(cardIds, folderIds, targetId) =>
-														moveItemsToContainer(targetId, cardIds, folderIds)
-													}
-													onLiveReorder={handleLiveReorder}
-													onReorderGroup={handleReorderGroup}
-													onInsertCardsAt={handleInsertCardsAt}
-													onPreviewDrop={handlePreviewDrop}
-													onCombineCards={handleCombineCards}
-													canNestFolder={canNestFolder}
-													navigation={navigation}
-													emptyState={
-														isEmpty ? (
-															<EmptyLanding
-																folderName={currentFolderName}
-																onAdd={() =>
-																	handleOpenSettings("bookmarks", {
-																		type: "add-link",
-																	})
-																}
-															/>
-														) : null
-													}
-												/>
-											</div>
-										</div>
-
-										{/* Lightweight Move-to destination picker */}
-										<MoveToDialog />
-
-										{/* Floating multi-select transport tray */}
-										<SelectionTray
-											onNavigateFolder={handleSelectFolder}
-											pageIds={pageIds}
-											onSelectAll={handleSelectAll}
-										/>
-										{/* Command history: toasts, confirmation, shortcuts */}
-										<HistoryManager />
-										<HistoryDialog
-											open={historyOpen}
-											onOpenChange={setHistoryOpen}
-										/>
-									</div>
-								</div>
-								{!restMode && (
-									<GoToTopButton
-										scrollRef={speedDialScrollRef}
-										folderId={activeFolderId}
-									/>
-								)}
+								<HomeSurface
+									restMode={restMode}
+									activeFolderId={activeFolderId}
+									cards={cards}
+									subfolders={subfolders}
+									allCards={allCards}
+									allFolders={folders}
+									itemOrder={itemOrder}
+									cardCounts={cardCounts}
+									previewCards={previewCards}
+									navigation={navigation}
+									isEmpty={isEmpty}
+									currentFolderName={currentFolderName}
+									historyOpen={historyOpen}
+									pageIds={pageIds}
+									speedDialScrollRef={speedDialScrollRef}
+									searchAnchorRef={searchAnchorRef}
+									unifiedSearchRef={unifiedSearchRef}
+									onExitRestMode={exitRestMode}
+									onSelectFolder={handleSelectFolder}
+									onOpenSettings={handleOpenSettings}
+									onDelete={deleteCard}
+									onDeleteFolder={handleDeleteFolder}
+									onNewSubfolder={handleNewSubfolder}
+									onMoveItems={handleMoveItems}
+									onLiveReorder={handleLiveReorder}
+									onReorderGroup={handleReorderGroup}
+									onInsertCardsAt={handleInsertCardsAt}
+									onPreviewDrop={handlePreviewDrop}
+									onCombineCards={handleCombineCards}
+									canNestFolder={canNestFolder}
+									onSelectAll={handleSelectAll}
+									onHistoryOpenChange={setHistoryOpen}
+								/>
 							</div>
 						</SidebarInset>
 
 						<SettingsSidebar
 							open={showSettings}
 							onClose={() => setShowSettings(false)}
+							layoutOpen={settingsLayoutOpen}
+							onCloseComplete={() => setSettingsLayoutOpen(false)}
 							initialPane={settingsPane}
 							initialAction={settingsAction}
 						/>

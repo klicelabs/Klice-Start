@@ -132,6 +132,8 @@ function SettingsChromeButton({
 export function SettingsSidebar({
 	open,
 	onClose,
+	layoutOpen = open,
+	onCloseComplete,
 	initialPane,
 	initialAction,
 }: SettingsSidebarProps) {
@@ -175,6 +177,11 @@ export function SettingsSidebar({
 		if (!focusReturnedFromSidebar) return;
 		document.getElementById("settings-trigger")?.focus();
 	}, [open]);
+
+	useEffect(() => {
+		if (open || !reduceMotion) return;
+		onCloseComplete?.();
+	}, [onCloseComplete, open, reduceMotion]);
 
 	const activePane: SettingsPaneId =
 		navigation.entries[navigation.index] ?? initialPane ?? "general";
@@ -246,7 +253,7 @@ export function SettingsSidebar({
 		<div
 			className="flex h-full min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
 			data-settings-open={open ? "true" : "false"}
-			data-settings-layout-open={open ? "true" : "false"}
+			data-settings-layout-open={layoutOpen ? "true" : "false"}
 			data-settings-sidebar-slot="true"
 			aria-hidden={!open}
 			inert={!open}
@@ -258,6 +265,15 @@ export function SettingsSidebar({
 				id="settings-sidebar"
 				aria-label="Settings"
 				data-settings-panel="true"
+				onTransitionEnd={(event) => {
+					if (
+						!open &&
+						event.target === event.currentTarget &&
+						event.propertyName === "transform"
+					) {
+						onCloseComplete?.();
+					}
+				}}
 				className={cn("h-full min-w-0 shrink-0", SETTINGS_SIDEBAR_SHELL)}
 			>
 				<SidebarHeader className="p-0">
