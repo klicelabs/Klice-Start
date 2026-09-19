@@ -123,7 +123,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		/* Semantic workspace layers. Keep the material surfaces stable and move
 		   whole interaction families between these boundaries. */
 		--speed-dial-layer-content: 0;
-		--speed-dial-layer-scroll-fade: 20;
 		--speed-dial-layer-navigation: 30;
 		--speed-dial-layer-app-toolbar: 60;
 		--speed-dial-layer-popover: 70;
@@ -1093,7 +1092,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	right: 0;
 	left: 0;
 	width: 100%;
-	max-width: 42rem;
+	max-width: 100%;
 	margin-inline: auto;
 }
 .speed-dial-search-anchor:has([data-search-open="true"]) {
@@ -1116,46 +1115,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding-bottom: var(--speed-dial-grid-bottom);
 }
 
-/* Layer order is deliberate: wallpaper/content, this fade, navigation/app
-   toolbar, then the promoted Search surface. The scroll viewport must stay
-   non-stacking so these frame-level boundaries remain predictable.
-   NOTE: no `opacity` here on purpose. This file is unlayered, so any opacity
-   declared here would outrank Tailwind's `opacity-*` utilities (which live in
-   @layer utilities) and the scroll gate in App.tsx could never hide the fade.
-   Visibility is owned solely by those utilities. */
-.speed-dial-top-fade {
-	position: absolute;
-	inset-inline: 0;
-	top: 0;
-	z-index: var(--speed-dial-layer-scroll-fade);
-	pointer-events: none;
-	height: calc(4.5rem + max(env(safe-area-inset-top), 0.75rem));
-	/* Light Glass family: soft white atmospheric diffusion, opaque at the
-	   top so dark toolbar ink stays readable, gone below the toolbar. No
-	   radial blob — the linear alone diffuses evenly without a visible
-	   ellipse edge on dark photography. */
-	background-image: linear-gradient(
-		to bottom,
-		rgb(255 255 255 / 0.88),
-		rgb(255 255 255 / 0.55) 38%,
-		rgb(255 255 255 / 0.18) 72%,
-		transparent 100%
-	);
-}
-
-/* Dark Glass family: the same shape as soft dark atmospheric diffusion. */
-html.dark .speed-dial-top-fade {
-	background-image:
-		radial-gradient(ellipse at 50% 0%, rgb(0 0 0 / 0.48), transparent 72%),
-		linear-gradient(
-			to bottom,
-			rgb(0 0 0 / 0.82),
-			rgb(0 0 0 / 0.52) 38%,
-			rgb(0 0 0 / 0.16) 72%,
-			transparent 100%
-		);
-}
-
+/* Navigation and the promoted Search surface share predictable frame-level
+   stacking boundaries while the scroll viewport remains non-stacking. */
 @media (prefers-reduced-motion: reduce) {
 	.toolbar-compact-search {
 		transition: none;

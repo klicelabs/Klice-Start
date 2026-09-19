@@ -4,6 +4,7 @@ import { SharedLayoutBg } from "@klice-start/ui/components/motion/shared-layout-
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useReducedMotion } from "motion/react";
 import {
+	type CSSProperties,
 	type FormEvent,
 	forwardRef,
 	type KeyboardEvent as ReactKeyboardEvent,
@@ -69,6 +70,7 @@ export const UnifiedSearch = forwardRef<
 	const engineId = useSetupStore((s) => s.settings.search.engine);
 	const customPlaceholder = useSetupStore((s) => s.settings.search.placeholder);
 	const iconMode = useSetupStore((s) => s.settings.search.iconMode);
+	const searchWidth = useSetupStore((s) => s.settings.search.width);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const cards = useSetupStore((s) => s.cards);
 	const folders = useSetupStore((s) => s.folders);
@@ -626,9 +628,16 @@ export const UnifiedSearch = forwardRef<
 	return (
 		<div
 			ref={shellRef}
-			className="relative w-full max-w-2xl"
+			className="relative max-w-full"
 			data-unified-search
 			data-search-open={open ? "true" : "false"}
+			style={
+				{
+					"--speed-dial-search-width": `${searchWidth}px`,
+					width:
+						"min(var(--speed-dial-search-width), calc(100vw - var(--speed-dial-content-gutter) - var(--speed-dial-content-gutter)))",
+				} as CSSProperties
+			}
 		>
 			<GlassSurface
 				variant={open ? "search" : "hero"}

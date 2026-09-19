@@ -172,6 +172,13 @@ export const GRID_PADDING_X_PX = 24;
 export const MIN_COLUMNS = 4;
 export const MAX_COLUMNS = 10;
 
+/** User-facing scale bounds shared by the widget controls and storage repair. */
+export const WIDGET_SIZE_MIN = 60;
+export const WIDGET_SIZE_MAX = 200;
+export const SEARCH_WIDTH_MIN = 420;
+export const SEARCH_WIDTH_MAX = 800;
+export const DEFAULT_SEARCH_WIDTH = 672;
+
 export const DEFAULT_THUMBNAIL_CAPTURE: ThumbnailCaptureSettings = {
 	enabled: true,
 	delayMs: 1200,
@@ -197,15 +204,18 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 
 export const DEFAULT_CLOCK: ClockSettings = {
 	enabled: true,
+	dateEnabled: true,
 	format24: true,
 	showSeconds: false,
 	size: 200,
+	dateSize: 100,
 	timezone: "auto",
 };
 
 export const DEFAULT_GREETING: GreetingSettings = {
 	enabled: true,
 	name: "",
+	size: 100,
 };
 
 export interface SearchEngineDef {
@@ -255,6 +265,7 @@ export const DEFAULT_SEARCH: SearchSettings = {
 	engine: "google",
 	placeholder: "",
 	iconMode: "engine",
+	width: DEFAULT_SEARCH_WIDTH,
 };
 
 export const DEFAULT_SETTINGS: Settings = {

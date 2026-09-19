@@ -5,8 +5,9 @@ export interface ClockState {
 	time: string;
 	date: string;
 	greeting: string;
-	/** Clock and greeting are independent — each has its own visibility. */
+	/** Time, date and greeting each have independent visibility. */
 	clockVisible: boolean;
+	dateVisible: boolean;
 	greetingVisible: boolean;
 	visible: boolean;
 }
@@ -65,6 +66,7 @@ function computeGreeting(date: Date, name: string, timezone: string): string {
 
 export function useClock(): ClockState {
 	const enabled = useSetupStore((s) => s.settings.clock.enabled);
+	const dateEnabled = useSetupStore((s) => s.settings.clock.dateEnabled);
 	const format24 = useSetupStore((s) => s.settings.clock.format24);
 	const showSeconds = useSetupStore((s) => s.settings.clock.showSeconds);
 	const timezone = useSetupStore((s) => s.settings.clock.timezone);
@@ -79,14 +81,16 @@ export function useClock(): ClockState {
 	}, [showSeconds]);
 
 	const clockVisible = enabled;
+	const dateVisible = dateEnabled;
 	const greetingVisible = greetingEnabled;
 
 	return {
 		time: clockVisible ? formatTime(now, format24, showSeconds, timezone) : "",
-		date: clockVisible ? formatDate(now, timezone) : "",
+		date: dateVisible ? formatDate(now, timezone) : "",
 		greeting: greetingVisible ? computeGreeting(now, name, timezone) : "",
 		clockVisible,
+		dateVisible,
 		greetingVisible,
-		visible: clockVisible || greetingVisible,
+		visible: clockVisible || dateVisible || greetingVisible,
 	};
 }

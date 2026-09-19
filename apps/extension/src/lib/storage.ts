@@ -7,15 +7,16 @@ import type {
 	ColorScheme,
 	CustomWallpaper,
 	Folder,
-	Settings,
 	Setup,
 	WallpaperFrequency,
 } from "../types";
 import {
 	DEFAULT_SETUP,
-	MAX_COLUMNS,
-	MIN_COLUMNS,
+	SEARCH_WIDTH_MAX,
+	SEARCH_WIDTH_MIN,
 	WALLPAPERS,
+	WIDGET_SIZE_MAX,
+	WIDGET_SIZE_MIN,
 } from "./constants";
 import { extApi } from "./extension-api";
 import { getDescendantIds } from "./folder-tree";
@@ -133,6 +134,16 @@ function normalizeAccentColor(
 function normalizeGlassIntensity(value: unknown, fallback: number): number {
 	if (!isFiniteNumber(value)) return fallback;
 	return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function normalizeBoundedNumber(
+	value: unknown,
+	fallback: number,
+	min: number,
+	max: number,
+): number {
+	if (!isFiniteNumber(value)) return fallback;
+	return Math.min(max, Math.max(min, value));
 }
 
 function normalizeCustomWallpapers(raw: unknown): CustomWallpaper[] {
@@ -335,6 +346,15 @@ export function normalizeState(
 	const sourceSettings = isRecord(source.settings as unknown)
 		? (source.settings as Partial<typeof DEFAULT_SETUP.settings>)
 		: undefined;
+	const sourceClock = isRecord(sourceSettings?.clock)
+		? sourceSettings.clock
+		: undefined;
+	const sourceGreeting = isRecord(sourceSettings?.greeting)
+		? sourceSettings.greeting
+		: undefined;
+	const sourceSearch = isRecord(sourceSettings?.search)
+		? sourceSettings.search
+		: undefined;
 
 	const defaults = structuredClone(DEFAULT_SETUP);
 
@@ -376,14 +396,46 @@ export function normalizeState(
 			clock: {
 				...defaults.settings.clock,
 				...(sourceSettings?.clock ?? {}),
+				// Before dateEnabled existed, enabled controlled both readouts. Keep
+				// that visibility choice when hydrating an older install.
+				dateEnabled:
+					typeof sourceClock?.dateEnabled === "boolean"
+						? sourceClock.dateEnabled
+						: typeof sourceClock?.enabled === "boolean"
+							? sourceClock.enabled
+							: defaults.settings.clock.dateEnabled,
+				size: normalizeBoundedNumber(
+					sourceClock?.size,
+					defaults.settings.clock.size,
+					WIDGET_SIZE_MIN,
+					WIDGET_SIZE_MAX,
+				),
+				dateSize: normalizeBoundedNumber(
+					sourceClock?.dateSize,
+					defaults.settings.clock.dateSize,
+					WIDGET_SIZE_MIN,
+					WIDGET_SIZE_MAX,
+				),
 			},
 			greeting: {
 				...defaults.settings.greeting,
 				...(sourceSettings?.greeting ?? {}),
+				size: normalizeBoundedNumber(
+					sourceGreeting?.size,
+					defaults.settings.greeting.size,
+					WIDGET_SIZE_MIN,
+					WIDGET_SIZE_MAX,
+				),
 			},
 			search: {
 				...defaults.settings.search,
 				...(sourceSettings?.search ?? {}),
+				width: normalizeBoundedNumber(
+					sourceSearch?.width,
+					defaults.settings.search.width,
+					SEARCH_WIDTH_MIN,
+					SEARCH_WIDTH_MAX,
+				),
 			},
 		},
 	};

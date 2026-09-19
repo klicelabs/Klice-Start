@@ -60,15 +60,21 @@ export interface BackgroundSettings {
 
 export interface ClockSettings {
 	enabled: boolean;
+	/** Show the time portion of the clock widget. */
+	dateEnabled: boolean;
 	format24: boolean;
 	showSeconds: boolean;
 	size: number;
+	/** Date scale as a percentage of the 20px base date size. */
+	dateSize: number;
 	timezone: string;
 }
 
 export interface GreetingSettings {
 	enabled: boolean;
 	name: string;
+	/** Greeting scale as a percentage of the 34px base greeting size. */
+	size: number;
 }
 
 export interface SearchSettings {
@@ -81,6 +87,8 @@ export interface SearchSettings {
 	placeholder: string;
 	/** Leading glyph: the engine's own logo, or a classic magnifying glass. */
 	iconMode: "engine" | "search";
+	/** Preferred search surface width in CSS pixels. */
+	width: number;
 }
 
 /** Top-level look: rich CSS glass material vs flat surfaces. */

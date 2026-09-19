@@ -6,9 +6,9 @@ import { useSetupStore } from "../../../../stores/setup-store";
 import type { CardAspect } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
 import { SegmentedControl } from "../shared/segmented-control";
-import { SettingsExpandable } from "../shared/settings-expandable";
 import { SelectRow } from "../shared/select-row";
 import { SettingRow } from "../shared/setting-row";
+import { SettingsExpandable } from "../shared/settings-expandable";
 import {
 	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_INPUT,
@@ -183,7 +183,25 @@ export function GeneralPane() {
 					/>
 				</SettingRow>
 
-				<SettingsExpandable expanded={clock.enabled} label="Clock options">
+				<SettingRow
+					label="Date"
+					icon="clock"
+					tooltip="Show the date independently from the clock."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Show date"
+						checked={clock.dateEnabled}
+						onCheckedChange={(checked: boolean) =>
+							updateClock({ dateEnabled: checked })
+						}
+					/>
+				</SettingRow>
+
+				<SettingsExpandable
+					expanded={clock.enabled || clock.dateEnabled}
+					label="Clock and date options"
+				>
 					<SelectRow
 						label="Time zone"
 						icon="globe"
@@ -193,38 +211,57 @@ export function GeneralPane() {
 						onChange={(v) => updateClock({ timezone: v })}
 					/>
 
-					<SettingRow label="24-hour time" icon="timer">
-						<Switch
-							className={SETTINGS_SWITCH}
-							aria-label="Use 24-hour time"
-							checked={clock.format24}
-							onCheckedChange={(checked: boolean) =>
-								updateClock({ format24: checked })
-							}
-						/>
-					</SettingRow>
+					{clock.enabled ? (
+						<SettingRow label="24-hour time" icon="timer">
+							<Switch
+								className={SETTINGS_SWITCH}
+								aria-label="Use 24-hour time"
+								checked={clock.format24}
+								onCheckedChange={(checked: boolean) =>
+									updateClock({ format24: checked })
+								}
+							/>
+						</SettingRow>
+					) : null}
 
-					<SettingRow label="Show seconds" icon="hourglass">
-						<Switch
-							className={SETTINGS_SWITCH}
-							aria-label="Show seconds"
-							checked={clock.showSeconds}
-							onCheckedChange={(checked: boolean) =>
-								updateClock({ showSeconds: checked })
-							}
-						/>
-					</SettingRow>
+					{clock.enabled ? (
+						<SettingRow label="Show seconds" icon="hourglass">
+							<Switch
+								className={SETTINGS_SWITCH}
+								aria-label="Show seconds"
+								checked={clock.showSeconds}
+								onCheckedChange={(checked: boolean) =>
+									updateClock({ showSeconds: checked })
+								}
+							/>
+						</SettingRow>
+					) : null}
 
-					<SliderRow
-						label="Clock size"
-						icon="text"
-						value={clock.size}
-						suffix="%"
-						min={60}
-						max={200}
-						step={10}
-						onChange={(v) => updateClock({ size: v })}
-					/>
+					{clock.enabled ? (
+						<SliderRow
+							label="Clock size"
+							icon="text"
+							value={clock.size}
+							suffix="%"
+							min={60}
+							max={200}
+							step={10}
+							onChange={(v) => updateClock({ size: v })}
+						/>
+					) : null}
+
+					{clock.dateEnabled ? (
+						<SliderRow
+							label="Date size"
+							icon="clock"
+							value={clock.dateSize}
+							suffix="%"
+							min={60}
+							max={200}
+							step={10}
+							onChange={(v) => updateClock({ dateSize: v })}
+						/>
+					) : null}
 				</SettingsExpandable>
 			</SectionCard>
 
@@ -264,6 +301,17 @@ export function GeneralPane() {
 							)}
 						/>
 					</SettingRow>
+
+					<SliderRow
+						label="Greeting size"
+						icon="text"
+						value={greeting.size}
+						suffix="%"
+						min={60}
+						max={200}
+						step={10}
+						onChange={(v) => updateGreeting({ size: v })}
+					/>
 				</SettingsExpandable>
 			</SectionCard>
 		</div>

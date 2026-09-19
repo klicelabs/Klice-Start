@@ -18,6 +18,7 @@ import {
 	SETTINGS_RADIUS,
 	SETTINGS_SWITCH,
 } from "../shared/settings-tokens";
+import { SliderRow } from "../shared/slider-row";
 
 /** The engine's real brand mark, with its initial as a graceful fallback. */
 function EngineIcon({ engineId }: { engineId: string }) {
@@ -123,6 +124,18 @@ export function SearchPane() {
 							)}
 						/>
 					</SettingRow>
+
+					<SliderRow
+						label="Search width"
+						icon="columns"
+						value={search.width}
+						suffix="px"
+						min={420}
+						max={800}
+						step={10}
+						onChange={(v) => updateSearch({ width: v })}
+						description="The bar shrinks to fit smaller windows."
+					/>
 				</SectionCard>
 			</SettingsExpandable>
 		</div>
