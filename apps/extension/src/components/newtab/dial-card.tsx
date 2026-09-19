@@ -226,7 +226,11 @@ export function DialCard({
 										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
 										cardFooterMaterial(isLiquid),
 									)}
-									style={{ height: "var(--card-footer-h, 30px)" }}
+									style={
+										CARD_FOOTER_VARIANT === "glass"
+											? { height: "var(--card-footer-h, 30px)" }
+											: undefined
+									}
 								>
 									<img
 										src={faviconSrc}

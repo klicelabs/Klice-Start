@@ -298,7 +298,11 @@ export function FolderPreviewCard({
 										cardFooterMaterial(isLiquid),
 										showOpenAction && !editing && "pr-8",
 									)}
-									style={{ height: "var(--card-footer-h, 30px)" }}
+									style={
+										CARD_FOOTER_VARIANT === "glass"
+											? { height: "var(--card-footer-h, 30px)" }
+											: undefined
+									}
 								>
 									<Icon
 										name="folder"

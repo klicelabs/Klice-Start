@@ -604,35 +604,36 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* Card-mode title treatment. The old Liquid Glass footer remains available
-   through cardFooterMaterial("glass"); the active variant is a theme-neutral
-   black fade that rises over the thumbnail and keeps the title above it. */
-.dial-card[data-card-footer="fade"]::after {
+   through cardFooterMaterial("glass"). The active footer is a real overlay
+   inside the card, so the thumbnail keeps its geometry while the title sits
+   over a soft black fade that is strongest at the bottom edge. */
+.dial-card[data-card-footer="fade"] .card-footer-fade {
 	position: absolute;
 	right: 0;
 	bottom: 0;
 	left: 0;
-	height: clamp(72px, 34%, 112px);
-	z-index: 5;
+	z-index: 6;
+	display: flex;
+	height: clamp(56px, 30%, 84px);
+	align-items: flex-end;
+	padding: 0 10px 8px;
 	background: linear-gradient(
 		to top,
-		rgb(0 0 0 / 0.68) 0%,
-		rgb(0 0 0 / 0.42) 38%,
+		rgb(0 0 0 / 0.78) 0%,
+		rgb(0 0 0 / 0.52) 40%,
+		rgb(0 0 0 / 0.18) 72%,
 		rgb(0 0 0 / 0) 100%
 	);
-	content: "";
-	pointer-events: none;
-}
-
-.dial-card[data-card-footer="fade"] .card-footer-fade {
-	position: relative;
-	z-index: 6;
-	background: transparent;
 	color: #fff;
 }
 
 .dial-card[data-card-footer="fade"] .card-footer-fade .title {
 	color: #fff;
 	text-shadow: 0 1px 3px rgb(0 0 0 / 0.42);
+}
+
+.dial-card[data-card-footer="fade"] .card-footer-fade.pr-8 {
+	padding-right: 32px;
 }
 
 /* Card mode keeps its existing whole-card selection treatment. Icon mode uses
@@ -1183,7 +1184,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	--icon-size: 48px;
 	--icon-favicon-size: 30px;
 	--icon-radius: 16px;
-	--icon-label-gap: 0px;
+	--icon-cell-w: 76px;
+	--icon-label-gap: 4px;
+	--icon-label-lines: 1;
+	--icon-label-line-height: 13px;
 	display: flex;
 	width: 100%;
 	justify-content: center;
@@ -1191,11 +1195,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 /* Quick Links scale the established Icon mode tokens for a compact rail. The
-   tile surface, hover shadow and focus treatment remain the shared system. */
+   tile surface, hover shadow, label treatment and focus state remain the
+   shared Icon mode system. */
 .quick-link-icon {
-	width: calc(var(--icon-size) + 12px);
-	height: calc(var(--icon-size) + 12px);
+	width: 76px;
+	height: 78px;
 	flex: 0 0 auto;
+}
+
+.quick-link-icon .icon-label {
+	font-size: 10px;
+	line-height: 13px;
 }
 
 /* The wrap is the full-bleed interaction surface: it owns the vertical

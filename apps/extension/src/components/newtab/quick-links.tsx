@@ -63,7 +63,12 @@ export function QuickLinks() {
 										glassFocusRing(isLiquid),
 									)}
 								>
-									<IconModeTile url={link.url} favicon={faviconUrl(link.url)} />
+									<IconModeTile
+										url={link.url}
+										favicon={faviconUrl(link.url)}
+										label={link.label}
+										showLabel
+									/>
 								</a>
 							</ContextMenuTrigger>
 
