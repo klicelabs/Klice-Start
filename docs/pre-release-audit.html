@@ -172,7 +172,7 @@
     <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
     <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Feature-scope Biome check passes on the changed implementation/test TS, TSX and CSS files; one existing informational dependency note remains for <code>sweepOrphans</code> in the Home effect. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
     <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
-    <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>; WXT emits its existing advisory for the 647 kB newtab chunk, but the build completes successfully.</td></tr>
+    <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>; WXT emits its existing advisory for the newtab chunk over 500 kB, but the build completes successfully.</td></tr>
     <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>; the same non-blocking chunk-size advisory is emitted.</td></tr>
   </tbody></table>
 
