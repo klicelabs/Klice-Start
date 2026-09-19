@@ -4,11 +4,7 @@ import { act, useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { useGridDnd } from "../src/hooks/use-grid-dnd";
 import { useSpringLoad } from "../src/hooks/use-spring-load";
-import {
-	clearActiveDrag,
-	dropZoneFor,
-	getActiveDrag,
-} from "../src/lib/dnd";
+import { clearActiveDrag, dropZoneFor, getActiveDrag } from "../src/lib/dnd";
 import type { ItemRef } from "../src/lib/item-order";
 
 const { window } = parseHTML(
@@ -30,7 +26,10 @@ Object.assign(globalThis, {
 });
 // linkedom does not implement scrolling; give the autoscroll loop a stable
 // viewport so edge-intent tests cannot crash between dragover and drop.
-Object.defineProperty(window, "innerHeight", { configurable: true, value: 1000 });
+Object.defineProperty(window, "innerHeight", {
+	configurable: true,
+	value: 1000,
+});
 window.scrollBy = () => undefined;
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,9 +72,15 @@ interface HarnessProps {
 	folderId: string;
 	onNavigate: (id: string) => void;
 	onBackgroundDrop: (dragged: ItemRef) => void;
+	onItemDragStart?: (ref: ItemRef) => ItemRef | undefined;
 }
 
-function Harness({ folderId, onNavigate, onBackgroundDrop }: HarnessProps) {
+function Harness({
+	folderId,
+	onNavigate,
+	onBackgroundDrop,
+	onItemDragStart,
+}: HarnessProps) {
 	const spring = useSpringLoad(() => undefined);
 	const firstSpring = useRef(spring);
 	const springStable = firstSpring.current === spring;
@@ -86,6 +91,7 @@ function Harness({ folderId, onNavigate, onBackgroundDrop }: HarnessProps) {
 		onCombineCards: () => undefined,
 		onDropOnFolder: () => undefined,
 		onBackgroundDrop,
+		onItemDragStart,
 		onOpenFolder: onNavigate,
 		canNest: () => true,
 		isInContainer: () => true,
@@ -118,6 +124,32 @@ afterEach(() => {
 	root = null;
 	clearActiveDrag();
 	document.body.innerHTML = '<div id="app"></div>';
+});
+
+test("dragging an inherited child carries its atomic selected folder", async () => {
+	const drops: ItemRef[] = [];
+	const mount = document.getElementById("app");
+	if (!mount) throw new Error("test mount missing");
+	root = createRoot(mount);
+	await act(async () => {
+		root?.render(
+			<Harness
+				folderId="selected-folder"
+				onNavigate={() => undefined}
+				onBackgroundDrop={(dragged) => drops.push(dragged)}
+				onItemDragStart={() => ({ kind: "folder", id: "selected-folder" })}
+			/>,
+		);
+	});
+	const source = document.querySelector('[data-testid="source"]');
+	const grid = document.querySelector('[data-testid="grid"]');
+	if (!source || !grid) throw new Error("test nodes missing");
+	const transfer = new TestDataTransfer();
+	await act(async () => dispatchDnd(source, "dragstart", transfer));
+	expect(getActiveDrag()).toEqual({ kind: "folder", id: "selected-folder" });
+	expect(transfer.getData("text/plain")).toBe("selected-folder");
+	await act(async () => dispatchDnd(grid, "drop", transfer));
+	expect(drops).toEqual([{ kind: "folder", id: "selected-folder" }]);
 });
 
 test("keeps the native payload through rerender and folder navigation", async () => {
@@ -157,9 +189,9 @@ test("keeps the native payload through rerender and folder navigation", async ()
 		await new Promise((resolve) => setTimeout(resolve, 20));
 	});
 	expect(getActiveDrag()).toEqual({ kind: "card", id: "card-1" });
-	expect(document.querySelector('[data-testid="grid"]')?.dataset.springStable).toBe(
-		"true",
-	);
+	expect(
+		document.querySelector('[data-testid="grid"]')?.dataset.springStable,
+	).toBe("true");
 
 	await act(async () => {
 		navigate("child");
@@ -188,11 +220,18 @@ interface ReorderCall {
 }
 
 interface ReorderHarnessProps {
-	onLiveReorder: (dragged: ItemRef, target: ItemRef, position: "before" | "after") => void;
+	onLiveReorder: (
+		dragged: ItemRef,
+		target: ItemRef,
+		position: "before" | "after",
+	) => void;
 	onDropOnFolder: (draggedId: string, folderId: string) => void;
 }
 
-function ReorderHarness({ onLiveReorder, onDropOnFolder }: ReorderHarnessProps) {
+function ReorderHarness({
+	onLiveReorder,
+	onDropOnFolder,
+}: ReorderHarnessProps) {
 	const dnd = useGridDnd({
 		onLiveReorder,
 		onCombineCards: () => undefined,
@@ -241,7 +280,11 @@ function stubRect(el: Element, width = 100, height = 100) {
 	});
 }
 
-function dispatchDragOver(el: Element, dataTransfer: TestDataTransfer, clientX: number) {
+function dispatchDragOver(
+	el: Element,
+	dataTransfer: TestDataTransfer,
+	clientX: number,
+) {
 	const event = new Event("dragover", { bubbles: true, cancelable: true });
 	Object.defineProperties(event, {
 		clientX: { value: clientX },
@@ -312,7 +355,9 @@ test("applies an edge reorder once per zone and settles on drop", async () => {
 		dispatchDnd(b, "drop", dataTransfer, 10, 50);
 	});
 	expect(reorders).toHaveLength(1);
-	expect(document.querySelector('[data-testid="insertion"]')?.textContent).toBe("");
+	expect(document.querySelector('[data-testid="insertion"]')?.textContent).toBe(
+		"",
+	);
 	expect(getActiveDrag()).toBeNull();
 
 	// A folder's centre is a nest target, not a reorder. The pointer stays at
@@ -395,12 +440,9 @@ function SpringHarness({
 	mode: "replace" | "cancel";
 	fires: number[];
 }) {
-	const spring = useSpringLoad(
-		() => {
-			fires.push(1);
-		},
-		0,
-	);
+	const spring = useSpringLoad(() => {
+		fires.push(1);
+	}, 0);
 	useEffect(() => {
 		if (mode === "replace") {
 			spring.start();
@@ -440,4 +482,3 @@ test("cancelling after restart suppresses the navigation", async () => {
 	await new Promise((resolve) => setTimeout(resolve, 30));
 	expect(cancelled).toHaveLength(0);
 });
-

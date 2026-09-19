@@ -41,6 +41,7 @@ import {
 	type ItemRef,
 } from "../../lib/item-order";
 import type { NavigationState } from "../../lib/navigation";
+import { selectedAncestorOf } from "../../lib/selection-model";
 import { cn } from "../../lib/utils";
 import { useHistoryStore } from "../../stores/history-store";
 import { useSelectionStore } from "../../stores/selection-store";
@@ -295,6 +296,17 @@ export function DialGrid({
 		: REORDER_TWEEN;
 
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
+	const selectedItems = useSelectionStore((s) => s.items);
+	const inheritedFrom = useMemo(() => {
+		if (selectedIds.includes(folderId)) return folderId;
+		const folder = allFolders.find((candidate) => candidate.id === folderId);
+		if (!folder) return null;
+		return selectedAncestorOf(
+			{ id: folderId, kind: "folder", sourceId: folder.parentId ?? null },
+			selectedItems,
+			allFolders,
+		);
+	}, [folderId, allFolders, selectedIds, selectedItems]);
 	const toggle = useSelectionStore((s) => s.toggle);
 	const selectRange = useSelectionStore((s) => s.selectRange);
 	const clearSelection = useSelectionStore((s) => s.clear);
@@ -525,6 +537,30 @@ export function DialGrid({
 		(ref: ItemRef, e: React.DragEvent) => {
 			beginGestureCapture(allCards, allFolders, itemOrder);
 			const store = useSelectionStore.getState();
+			const sourceId =
+				ref.kind === "card"
+					? (allCards.find((card) => card.id === ref.id)?.folderId ?? folderId)
+					: (allFolders.find((folder) => folder.id === ref.id)?.parentId ??
+						null);
+			const selectedAncestor = selectedAncestorOf(
+				{ ...ref, sourceId },
+				store.items,
+				allFolders,
+			);
+			if (selectedAncestor) {
+				const parent: ItemRef = { kind: "folder", id: selectedAncestor };
+				freezeDragGroup(
+					resolveDragGroup(
+						parent,
+						store.items,
+						allCards,
+						allFolders,
+						itemOrder,
+					),
+				);
+				if (dialLayout === "icon") showGroupDragGhost(e, 1);
+				return parent;
+			}
 			if (!store.selectedIds.includes(ref.id)) {
 				store.clear();
 				// L8: freeze the single-item group — drop sites must never
@@ -908,7 +944,8 @@ export function DialGrid({
 									if (ref.kind === "folder") {
 										const folder = folderById.get(ref.id);
 										if (!folder) return null;
-										const isSelected = selectedIds.includes(folder.id);
+										const isSelected =
+											Boolean(inheritedFrom) || selectedIds.includes(folder.id);
 										return (
 											<motion.div
 												key={folder.id}
@@ -980,7 +1017,8 @@ export function DialGrid({
 									}
 									const card = cardById.get(ref.id);
 									if (!card) return null;
-									const isSelected = selectedIds.includes(card.id);
+									const isSelected =
+										Boolean(inheritedFrom) || selectedIds.includes(card.id);
 									return (
 										<motion.div
 											key={card.id}

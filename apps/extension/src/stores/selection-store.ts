@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import {
+	canonicalizeSelection,
+	materializeExcluding,
+	selectedAncestorOf,
+} from "../lib/selection-model";
+import { useSetupStore } from "./setup-store";
 
 export type SelectionKind = "card" | "folder";
 
@@ -14,16 +20,19 @@ export interface SelectionItem {
 }
 
 /**
- * Which selection domain is active. Content mode (bookmarks + subfolders)
- * and roots mode (root tabs) are intentionally incompatible: entering one
- * clears the other, so navigation semantics never get ambiguous.
+ * Scope informs local selection affordances. Root and content items may
+ * coexist when a selected root is materialized inside its folder.
  */
-export type SelectionScope = "content" | "roots";
+export type SelectionScope = "content" | "roots" | "mixed";
 
 function domainOf(item: SelectionItem): SelectionScope {
-	return item.kind === "folder" && item.sourceId === null
-		? "roots"
-		: "content";
+	return item.kind === "folder" && item.sourceId === null ? "roots" : "content";
+}
+
+function scopeOf(items: readonly SelectionItem[]): SelectionScope | null {
+	if (items.length === 0) return null;
+	const first = domainOf(items[0]);
+	return items.some((item) => domainOf(item) !== first) ? "mixed" : first;
 }
 
 interface SelectionStoreState {
@@ -40,10 +49,10 @@ interface SelectionStoreState {
 	 * Union the given items into the live selection (Select all adds the
 	 * current page to whatever is already selected elsewhere, never
 	 * replacing it). Existing members keep their position; newcomers append
-	 * in the given order. An incompatible domain still replaces, same as
-	 * toggle, so root tabs never mix with content.
+	 * in the given order. Explicit ancestor folders subsume their descendants.
 	 */
 	addAll: (items: SelectionItem[]) => void;
+	removeAll: (items: SelectionItem[]) => void;
 	isSelected: (id: string) => boolean;
 }
 
@@ -59,50 +68,77 @@ export const useSelectionStore = create<SelectionStoreState>()((set, get) => ({
 
 	select: (item) => {
 		const scope = domainOf(item);
-		set({ items: [item], selectedIds: [item.id], lastSelectedId: item.id, scope });
+		set({
+			items: [item],
+			selectedIds: [item.id],
+			lastSelectedId: item.id,
+			scope,
+		});
 	},
 
 	toggle: (item) => {
 		const state = get();
-		const scope = domainOf(item);
-		// Entering an incompatible domain intentionally replaces the
-		// selection instead of mixing root tabs with content.
-		if (state.scope !== null && state.scope !== scope) {
-			set({
-				items: [item],
-				selectedIds: [item.id],
-				lastSelectedId: item.id,
-				scope,
-			});
-			return;
-		}
+		const setup = useSetupStore.getState();
 		const exists = state.selectedIds.includes(item.id);
-		const items = exists
-			? state.items.filter((x) => x.id !== item.id)
-			: [...state.items, item];
+		const inheritedFrom = exists
+			? null
+			: selectedAncestorOf(item, state.items, setup.folders);
+		const next = inheritedFrom
+			? [
+					...state.items.filter((entry) => entry.id !== inheritedFrom),
+					...materializeExcluding(
+						inheritedFrom,
+						item,
+						setup.folders,
+						setup.cards,
+						setup.itemOrder,
+					),
+				]
+			: exists
+				? state.items.filter((entry) => entry.id !== item.id)
+				: [...state.items, item];
+		const items = canonicalizeSelection(next, setup.folders);
 		set({
 			items,
 			selectedIds: syncIds(items),
-			lastSelectedId: exists ? state.lastSelectedId : item.id,
-			scope: items.length > 0 ? scope : null,
+			lastSelectedId: inheritedFrom || exists ? state.lastSelectedId : item.id,
+			scope: scopeOf(items),
 		});
 	},
 
 	selectRange: (targetId, ordered) => {
 		const state = get();
-		// Ranges only ever run inside content views; a roots selection is
-		// replaced rather than extended across domains.
-		const base = state.scope !== null && state.scope !== "content" ? [] : state.items;
-		const last = state.scope !== null && state.scope !== "content" ? null : state.lastSelectedId;
+		const base = state.items;
+		const last = state.lastSelectedId;
 		const ids = ordered.map((o) => o.id);
 		if (!last || !ids.includes(last) || !ids.includes(targetId)) {
 			const found = ordered.find((o) => o.id === targetId);
 			if (!found) return;
+			const setup = useSetupStore.getState();
+			const inheritedFrom = selectedAncestorOf(
+				found,
+				state.items,
+				setup.folders,
+			);
+			const next = inheritedFrom
+				? [
+						...state.items.filter((entry) => entry.id !== inheritedFrom),
+						...materializeExcluding(
+							inheritedFrom,
+							found,
+							setup.folders,
+							setup.cards,
+							setup.itemOrder,
+							true,
+						),
+					]
+				: [...state.items, found];
+			const items = canonicalizeSelection(next, setup.folders);
 			set({
-				items: [found],
-				selectedIds: [found.id],
+				items,
+				selectedIds: syncIds(items),
 				lastSelectedId: found.id,
-				scope: "content",
+				scope: scopeOf(items),
 			});
 			return;
 		}
@@ -114,12 +150,15 @@ export const useSelectionStore = create<SelectionStoreState>()((set, get) => ({
 
 		const merged = new Map(base.map((i) => [i.id, i]));
 		for (const item of ordered.slice(start, end + 1)) merged.set(item.id, item);
-		const items = Array.from(merged.values());
+		const items = canonicalizeSelection(
+			Array.from(merged.values()),
+			useSetupStore.getState().folders,
+		);
 		set({
 			items,
 			selectedIds: syncIds(items),
 			lastSelectedId: targetId,
-			scope: "content",
+			scope: scopeOf(items),
 		});
 	},
 
@@ -135,40 +174,66 @@ export const useSelectionStore = create<SelectionStoreState>()((set, get) => ({
 	},
 
 	selectAll: (items) => {
-		const scope = items.length > 0 ? domainOf(items[0]) : null;
-		set({
+		const canonical = canonicalizeSelection(
 			items,
-			selectedIds: syncIds(items),
-			lastSelectedId: items[items.length - 1]?.id ?? null,
-			scope,
+			useSetupStore.getState().folders,
+		);
+		set({
+			items: canonical,
+			selectedIds: syncIds(canonical),
+			lastSelectedId: canonical.at(-1)?.id ?? null,
+			scope: scopeOf(canonical),
 		});
 	},
 
 	addAll: (items) => {
 		const state = get();
-		const incoming = items.length > 0 ? domainOf(items[0]) : null;
-		if (
-			state.scope !== null &&
-			incoming !== null &&
-			state.scope !== incoming
-		) {
-			set({
-				items,
-				selectedIds: syncIds(items),
-				lastSelectedId: items[items.length - 1]?.id ?? null,
-				scope: incoming,
-			});
-			return;
-		}
 		const merged = new Map(state.items.map((i) => [i.id, i]));
 		for (const item of items) merged.set(item.id, item);
-		const next = Array.from(merged.values());
+		const next = canonicalizeSelection(
+			Array.from(merged.values()),
+			useSetupStore.getState().folders,
+		);
 		set({
 			items: next,
 			selectedIds: syncIds(next),
 			lastSelectedId:
 				state.lastSelectedId ?? items[items.length - 1]?.id ?? null,
-			scope: next.length > 0 ? (state.scope ?? incoming) : null,
+			scope: scopeOf(next),
+		});
+	},
+
+	removeAll: (items) => {
+		const state = get();
+		const setup = useSetupStore.getState();
+		const removeIds = new Set(items.map((item) => item.id));
+		const expanded = new Set<string>();
+		let next = [...state.items];
+		for (const item of items) {
+			const ancestor = selectedAncestorOf(item, next, setup.folders);
+			if (!ancestor || expanded.has(ancestor)) continue;
+			expanded.add(ancestor);
+			next = [
+				...next.filter((entry) => entry.id !== ancestor),
+				...materializeExcluding(
+					ancestor,
+					item,
+					setup.folders,
+					setup.cards,
+					setup.itemOrder,
+					true,
+				),
+			];
+		}
+		const canonical = canonicalizeSelection(
+			next.filter((entry) => !removeIds.has(entry.id)),
+			setup.folders,
+		);
+		set({
+			items: canonical,
+			selectedIds: syncIds(canonical),
+			lastSelectedId: canonical.at(-1)?.id ?? null,
+			scope: scopeOf(canonical),
 		});
 	},
 

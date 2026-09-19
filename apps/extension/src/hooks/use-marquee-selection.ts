@@ -10,9 +10,14 @@ import {
 	pointerTravel,
 } from "../lib/marquee-geometry";
 import {
+	materializeExcluding,
+	selectedAncestorOf,
+} from "../lib/selection-model";
+import {
 	type SelectionItem,
 	useSelectionStore,
 } from "../stores/selection-store";
+import { useSetupStore } from "../stores/setup-store";
 
 export type MarqueeMode = "add" | "toggle";
 
@@ -140,7 +145,24 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 			}
 			hits.push({ id, kind: surface.kind, sourceId: folder });
 		}
-		const snap = snapshot.current;
+		let snap = snapshot.current;
+		if (hits.length > 0) {
+			const setup = useSetupStore.getState();
+			const ancestor = selectedAncestorOf(hits[0], snap, setup.folders);
+			if (ancestor) {
+				snap = [
+					...snap.filter((item) => item.id !== ancestor),
+					...materializeExcluding(
+						ancestor,
+						hits[0],
+						setup.folders,
+						setup.cards,
+						setup.itemOrder,
+						true,
+					),
+				];
+			}
+		}
 		const snapIds = new Set(snap.map((item) => item.id));
 		if (mode.current === "add") {
 			// Union with the gesture-start snapshot: the window

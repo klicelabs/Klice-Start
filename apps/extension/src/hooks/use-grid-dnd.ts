@@ -90,7 +90,7 @@ export interface GridDndHandlers {
 	 * (dragging an unselected item starts a fresh single drag) and may set a
 	 * custom drag image while the browser still accepts one.
 	 */
-	onItemDragStart?: (ref: ItemRef, e: DragEvent) => void;
+	onItemDragStart?: (ref: ItemRef, e: DragEvent) => ItemRef | undefined;
 	/**
 	 * Fires after every settled item/background drop (all paths), once the
 	 * owner's drop handler has run. Lets the owner diff gesture state for
@@ -310,10 +310,10 @@ export function useGridDnd(handlers: GridDndHandlers) {
 
 	const handleItemDragStart = useCallback(
 		(ref: ItemRef) => (e: DragEvent) => {
-			handlersRef.current.onItemDragStart?.(ref, e);
+			const effectiveRef = handlersRef.current.onItemDragStart?.(ref, e) ?? ref;
 			globalThis.__kliceDndGestureEpoch =
 				(globalThis.__kliceDndGestureEpoch ?? 0) + 1;
-			dragRef.current = ref;
+			dragRef.current = effectiveRef;
 			// Fresh gesture: any stale cancel from a previous drag is void.
 			gestureRef.current = { id: gestureRef.current.id + 1, cancelled: false };
 			lastApplied.current = null;
@@ -322,11 +322,11 @@ export function useGridDnd(handlers: GridDndHandlers) {
 			// Snapshot the persisted order before hover-applied live reorders
 			// mutate it, so Escape can return to a stable pre-drag state.
 			orderSnapshot.current = handlersRef.current.onSnapshotOrder?.() ?? null;
-			setDragData(e, ref.kind, ref.id);
+			setDragData(e, effectiveRef.kind, effectiveRef.id);
 			// Defer source dimming one frame so the browser captures a
 			// full-opacity drag image.
 			requestAnimationFrame(() => {
-				if (dragRef.current?.id === ref.id) setDrag(ref);
+				if (dragRef.current?.id === effectiveRef.id) setDrag(effectiveRef);
 			});
 		},
 		[autoscroll],
@@ -670,7 +670,8 @@ export function useGridDnd(handlers: GridDndHandlers) {
 				"data-dnd-kind": "card",
 				onDragStart: (e) => {
 					e.stopPropagation();
-					handlersRef.current.onItemDragStart?.(ref, e);
+					const effectiveRef =
+						handlersRef.current.onItemDragStart?.(ref, e) ?? ref;
 					/**
 					 * C3: preview drags share the gesture lifecycle; a fresh
 					 * gesture voids any stale cancel from a previous drag.
@@ -681,15 +682,15 @@ export function useGridDnd(handlers: GridDndHandlers) {
 					};
 					globalThis.__kliceDndGestureEpoch =
 						(globalThis.__kliceDndGestureEpoch ?? 0) + 1;
-					dragRef.current = ref;
+					dragRef.current = effectiveRef;
 					lastApplied.current = null;
 					autoscroll.setContainer(undefined);
 					sweepDragGhosts();
 					orderSnapshot.current =
 						handlersRef.current.onSnapshotOrder?.() ?? null;
-					setDragData(e, "card", cardId);
+					setDragData(e, effectiveRef.kind, effectiveRef.id);
 					requestAnimationFrame(() => {
-						if (dragRef.current?.id === cardId) setDrag(ref);
+						if (dragRef.current?.id === effectiveRef.id) setDrag(effectiveRef);
 					});
 				},
 				onDragEnd: (e) => {

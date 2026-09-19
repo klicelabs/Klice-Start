@@ -10,7 +10,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { setDragData } from "../../lib/dnd";
+import { clearActiveDrag, setDragData } from "../../lib/dnd";
 import { showGroupDragGhost } from "../../lib/drag-ghost";
 import { orderGroupBySource } from "../../lib/drag-group";
 import { wouldCreateCycle } from "../../lib/folder-tree";
@@ -24,10 +24,13 @@ import {
 import {
 	beginGestureCapture,
 	buildHistoryEntry,
+	clearFrozenDragGroup,
+	clearGestureCapture,
 	freezeDragGroup,
 	snapshotSetup,
 } from "../../lib/history-capture";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
+import { selectedAncestorOf } from "../../lib/selection-model";
 import { cn } from "../../lib/utils";
 import { useHistoryStore } from "../../stores/history-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -76,6 +79,7 @@ export function SelectionTray({
 	onSelectAll,
 }: SelectionTrayProps) {
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
+	const selectedItems = useSelectionStore((s) => s.items);
 	const selectionScope = useSelectionStore((s) => s.scope);
 	const clearSelection = useSelectionStore((s) => s.clear);
 	const cards = useSetupStore((s) => s.cards as Card[]);
@@ -269,7 +273,15 @@ export function SelectionTray({
 	// The tray is a group drag source: one member id rides the native payload
 	// and every drop site expands it back to the live selection in source
 	// order (same rule as dragging a selected grid item).
-	function handleTrayDragStart(e: React.DragEvent) {
+	function handleTrayDragStart(e: React.DragEvent, fromHandle = false) {
+		if (
+			!fromHandle &&
+			e.target instanceof HTMLElement &&
+			e.target.closest("button, [role='menuitem']")
+		) {
+			e.preventDefault();
+			return;
+		}
 		const ordered = orderGroupBySource(selectedIds, cards, folders, itemOrder);
 		const first = ordered[0] ?? null;
 		if (!first) {
@@ -292,6 +304,13 @@ export function SelectionTray({
 		if (total > 1) showGroupDragGhost(e, total);
 	}
 
+	function handleTrayDragEnd() {
+		globalThis.__kliceDndGestureEpoch = 0;
+		clearActiveDrag();
+		clearFrozenDragGroup();
+		clearGestureCapture();
+	}
+
 	return (
 		<>
 			<AnimatePresence>
@@ -304,6 +323,16 @@ export function SelectionTray({
 							layout
 							role="region"
 							aria-label={`Selection tray, ${totalLabel}`}
+							draggable
+							onDragStartCapture={(event) => {
+								if (
+									event.target instanceof HTMLElement &&
+									event.target.closest("[data-tray-drag-handle]")
+								)
+									return;
+								handleTrayDragStart(event);
+							}}
+							onDragEndCapture={handleTrayDragEnd}
 							initial={
 								reduceMotion
 									? { opacity: 0 }
@@ -328,7 +357,7 @@ export function SelectionTray({
 										}
 							}
 							className={cn(
-								"pointer-events-auto flex w-full max-w-[232px] flex-col gap-2.5 overflow-hidden px-3 py-3",
+								"pointer-events-auto flex w-full max-w-[232px] cursor-grab flex-col gap-2.5 overflow-hidden px-3 py-3 active:cursor-grabbing",
 								glassShape("panel"),
 								// Dense readable veil (shared menu tier), never the faint
 								// hero veil: the tray carries status text + actions.
@@ -435,7 +464,12 @@ export function SelectionTray({
 								<button
 									type="button"
 									draggable
-									onDragStart={handleTrayDragStart}
+									data-tray-drag-handle
+									onDragStart={(event) => {
+										event.stopPropagation();
+										handleTrayDragStart(event, true);
+									}}
+									onDragEnd={handleTrayDragEnd}
 									title={
 										total > 1
 											? `Drag to move ${total} items`
@@ -457,7 +491,6 @@ export function SelectionTray({
 												card={item.card}
 												folder={item.folder}
 												isLiquid={isLiquid}
-												resolvedDark={resolvedDark}
 												reduceMotion={reduceMotion}
 											/>
 										))}
@@ -492,10 +525,27 @@ export function SelectionTray({
 								onSelectAll &&
 								(() => {
 									const pageSet = new Set(pageIds);
+									const inheritedPage =
+										selectedIds.includes(activeFolderId) ||
+										Boolean(
+											selectedAncestorOf(
+												{
+													id: activeFolderId,
+													kind: "folder",
+													sourceId:
+														folders.find(
+															(folder) => folder.id === activeFolderId,
+														)?.parentId ?? null,
+												},
+												selectedItems,
+												folders,
+											),
+										);
 									const selectedInPage = selectedIds.filter((id) =>
 										pageSet.has(id),
 									).length;
-									const pageComplete = selectedInPage >= pageIds.length;
+									const pageComplete =
+										inheritedPage || selectedInPage >= pageIds.length;
 									return (
 										<button
 											type="button"
@@ -503,12 +553,13 @@ export function SelectionTray({
 												if (pageComplete) {
 													// True inverse of local Select all: drop
 													// this page's members, keep the rest.
-													const remaining = useSelectionStore
-														.getState()
-														.items.filter((item) => !pageSet.has(item.id));
-													if (remaining.length === 0) clearSelection();
-													else
-														useSelectionStore.getState().selectAll(remaining);
+													useSelectionStore.getState().removeAll(
+														pageIds.map((id) => ({
+															id,
+															kind: cardById.has(id) ? "card" : "folder",
+															sourceId: activeFolderId,
+														})),
+													);
 												} else onSelectAll();
 											}}
 											className={cn(
@@ -629,14 +680,12 @@ function TrayMini({
 	card,
 	folder,
 	isLiquid,
-	resolvedDark,
 	reduceMotion,
 }: {
 	index: 0 | 1 | 2;
 	card: Card | null;
 	folder: Folder | null;
 	isLiquid: boolean;
-	resolvedDark: boolean;
 	reduceMotion: boolean;
 }) {
 	return (
