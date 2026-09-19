@@ -27,7 +27,7 @@ import { useSetupStore } from "../../stores/setup-store";
 import type { Card } from "../../types";
 import { InlineRenameInput } from "../shared/inline-rename-input";
 import { useAppearance } from "./appearance-provider";
-import { IconAppTile } from "./icon-app-tile";
+import { ICON_MODE_SURFACE_CLASS, IconModeTile } from "./icon-mode-tile";
 
 interface DialCardProps {
 	card: Card;
@@ -113,8 +113,7 @@ export function DialCard({
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
-					dialLayout === "icon" &&
-						"dial-icon-item overflow-visible rounded-none",
+					dialLayout === "icon" && ICON_MODE_SURFACE_CLASS,
 					// Screenshot/gradient content is already the bookmark body surface.
 					// Keep classic elevation, but avoid a second Liquid Glass backdrop
 					// layer behind that visual content. The footer remains materialized
@@ -158,19 +157,14 @@ export function DialCard({
 					onDrop={dragProps?.onDrop}
 				>
 					{dialLayout === "icon" ? (
-						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center justify-center">
-							<IconAppTile
-								url={card.url}
-								favicon={faviconSrc}
-								className={cn(
-									combineActive && "icon-app-tile-drop-active",
-									dragging && "icon-app-tile-dragging",
-									insertion === "before" && "icon-drop-insert-before",
-									insertion === "after" && "icon-drop-insert-after",
-								)}
-							/>
-							{(iconShowLabel || editing) &&
-								(editing ? (
+						<IconModeTile
+							url={card.url}
+							favicon={faviconSrc}
+							selected={isSelected}
+							label={label}
+							showLabel={iconShowLabel || editing}
+							labelContent={
+								editing ? (
 									<InlineRenameInput
 										value={savedTitle}
 										commitOnSame={
@@ -181,10 +175,15 @@ export function DialCard({
 										onCancel={cancelRename}
 										className="w-full flex-none text-center"
 									/>
-								) : (
-									<span className="icon-label">{label}</span>
-								))}
-						</div>
+								) : undefined
+							}
+							tileClassName={cn(
+								combineActive && "icon-app-tile-drop-active",
+								dragging && "icon-app-tile-dragging",
+								insertion === "before" && "icon-drop-insert-before",
+								insertion === "after" && "icon-drop-insert-after",
+							)}
+						/>
 					) : (
 						<>
 							{/* Cover fills the bounded media box without stretching or letterbox
@@ -254,15 +253,6 @@ export function DialCard({
 								</div>
 							)}
 						</>
-					)}
-
-					{isSelected && (
-						<div
-							aria-hidden="true"
-							className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
-						>
-							<Icon name="check" size={11} strokeWidth={3} />
-						</div>
 					)}
 				</a>
 			</ContextMenuTrigger>

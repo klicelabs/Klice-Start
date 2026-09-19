@@ -193,7 +193,12 @@ function normalizeQuickLinks(
 		seen.add(id);
 		items.push({ id, label, url });
 	}
-	return items.length > 0 ? items : cloneQuickLinks(defaults);
+	// An explicit empty list is a valid user choice (for example, after
+	// removing the final Quick Link). Only a non-empty but wholly invalid
+	// payload falls back to the curated defaults for recovery.
+	return items.length > 0 || rawValue.length === 0
+		? items
+		: cloneQuickLinks(defaults);
 }
 
 function normalizeSettings(

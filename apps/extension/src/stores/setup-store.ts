@@ -30,7 +30,7 @@ import {
 	normalizeState,
 } from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
-import type { Card, Settings, Setup } from "../types";
+import type { Card, QuickLink, Settings, Setup } from "../types";
 import { useHistoryStore } from "./history-store";
 import { useImageStore } from "./image-store";
 
@@ -165,6 +165,11 @@ interface SetupActions {
 	updateGreeting: (changes: Partial<Settings["greeting"]>) => void;
 	updateSearch: (changes: Partial<Settings["search"]>) => void;
 	updateQuickLinks: (changes: Partial<Settings["quickLinks"]>) => void;
+	updateQuickLink: (
+		id: string,
+		changes: Partial<Pick<QuickLink, "label" | "url">>,
+	) => void;
+	removeQuickLink: (id: string) => void;
 	updateThumbnailCapture: (
 		changes: Partial<Settings["thumbnailCapture"]>,
 	) => void;
@@ -1084,6 +1089,39 @@ export const useSetupStore = create<SetupStore>()(
 
 			updateQuickLinks: (changes) =>
 				set((s) => applyNestedSettingsUpdate(s, "quickLinks", changes)),
+
+			updateQuickLink: (id, changes) =>
+				set((s) => {
+					const items = s.settings.quickLinks.items;
+					if (!items.some((item) => item.id === id)) return {};
+					return {
+						settings: {
+							...s.settings,
+							quickLinks: {
+								...s.settings.quickLinks,
+								items: items.map((item) =>
+									item.id === id ? { ...item, ...changes } : item,
+								),
+							},
+						},
+					};
+				}),
+
+			removeQuickLink: (id) =>
+				set((s) => {
+					const items = s.settings.quickLinks.items;
+					const nextItems = items.filter((item) => item.id !== id);
+					if (nextItems.length === items.length) return {};
+					return {
+						settings: {
+							...s.settings,
+							quickLinks: {
+								...s.settings.quickLinks,
+								items: nextItems,
+							},
+						},
+					};
+				}),
 
 			updateThumbnailCapture: (changes) =>
 				set((s) => applyNestedSettingsUpdate(s, "thumbnailCapture", changes)),
