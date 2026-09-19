@@ -1,546 +1,174 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Klice Start — Auditoria Pré-Release (2ª passada)</title>
-<style>
-  :root {
-    --bg: #ffffff;
-    --bg-soft: #f6f7f9;
-    --ink: #1a1d21;
-    --ink-soft: #5b6470;
-    --line: #e4e7ec;
-    --accent: #0a84ff;
-    --crit-bg: #fdecec; --crit-ink: #b42318; --crit-line: #f3c2bd;
-    --high-bg: #fff4e5; --high-ink: #b54708; --high-line: #f5d6a8;
-    --med-bg: #fffde7; --med-ink: #8a6d00; --med-line: #e8dfae;
-    --low-bg: #eef4ff; --low-ink: #3538cd; --low-line: #c7d7fe;
-    --ok-bg: #ecfdf3; --ok-ink: #067647; --ok-line: #a6f4c5;
-    --warn-bg: #fef6ee; --warn-ink: #9a3412; --warn-line: #f3cdb4;
-    --code-bg: #f2f4f7;
-    --radius: 12px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #121417;
-      --bg-soft: #1a1d21;
-      --ink: #eef1f4;
-      --ink-soft: #a6b0bc;
-      --line: #2a2f36;
-      --accent: #5aa9ff;
-      --crit-bg: #2a1414; --crit-ink: #ff9c94; --crit-line: #5c2626;
-      --high-bg: #2a1f10; --high-ink: #ffcf87; --high-line: #5c441a;
-      --med-bg: #26240f; --med-ink: #e8dd8a; --med-line: #57531f;
-      --low-bg: #141b33; --low-ink: #a9bcff; --low-line: #27315c;
-      --ok-bg: #0f241b; --ok-ink: #6fe3a5; --ok-line: #1c4d38;
-      --warn-bg: #2a170c; --warn-ink: #ffb489; --warn-line: #5c3319;
-      --code-bg: #1e2228;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  main { max-width: 920px; margin: 0 auto; padding: 56px 24px 96px; }
-  h1 { font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 8px; }
-  h2 { font-size: 1.35rem; letter-spacing: -0.01em; margin: 56px 0 16px; padding-top: 24px; border-top: 1px solid var(--line); }
-  h3 { font-size: 1.05rem; margin: 28px 0 8px; }
-  .sub { color: var(--ink-soft); margin: 0 0 8px; }
-  .meta { color: var(--ink-soft); font-size: 0.9rem; }
-  p, li { max-width: 74ch; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: var(--code-bg); padding: 1px 6px; border-radius: 6px; }
-  pre { background: var(--code-bg); padding: 16px; border-radius: var(--radius); overflow-x: auto; font-size: 0.85rem; }
-  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.9rem; }
-  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--ink-soft); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  .finding { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin: 16px 0; background: var(--bg); }
-  .finding h3 { margin: 8px 0 6px; }
-  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 3px 10px; border-radius: 999px; border: 1px solid; }
-  .sev-Critical { background: var(--crit-bg); color: var(--crit-ink); border-color: var(--crit-line); }
-  .sev-High { background: var(--high-bg); color: var(--high-ink); border-color: var(--high-line); }
-  .sev-Medium { background: var(--med-bg); color: var(--med-ink); border-color: var(--med-line); }
-  .sev-Low { background: var(--low-bg); color: var(--low-ink); border-color: var(--low-line); }
-  .st-res { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-line); }
-  .st-part { background: var(--med-bg); color: var(--med-ink); border-color: var(--med-line); }
-  .st-open { background: var(--bg-soft); color: var(--ink-soft); border-color: var(--line); }
-  .st-wrong { background: var(--low-bg); color: var(--low-ink); border-color: var(--low-line); }
-  .st-reg { background: var(--crit-bg); color: var(--crit-ink); border-color: var(--crit-line); }
-  dl { display: grid; grid-template-columns: 170px 1fr; gap: 6px 16px; margin: 12px 0 0; font-size: 0.93rem; }
-  dt { color: var(--ink-soft); font-weight: 600; }
-  dd { margin: 0; }
-  .toc { columns: 2; font-size: 0.93rem; }
-  .toc a { color: var(--accent); text-decoration: none; }
-  .toc li { margin-bottom: 4px; }
-  .kpi { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
-  .kpi div { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 18px; min-width: 118px; }
-  .kpi b { display: block; font-size: 1.6rem; }
-  .kpi span { color: var(--ink-soft); font-size: 0.82rem; }
-  .note { border: 1px solid var(--line); background: var(--bg-soft); border-radius: var(--radius); padding: 12px 16px; margin: 14px 0; font-size: 0.93rem; }
-  .note.ok { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-ink); }
-  .note.warn { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-ink); }
-  footer { margin-top: 64px; color: var(--ink-soft); font-size: 0.88rem; border-top: 1px solid var(--line); padding-top: 16px; }
-  @media (max-width: 640px) { dl { grid-template-columns: 1fr; } .toc { columns: 1; } table { font-size: 0.84rem; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klice Start — Complete pre-release audit</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101114; --panel:#181a1f; --line:#30343d; --ink:#eef1f6; --muted:#aab2c0; --ok:#79e2a6; --info:#9fc7ff; --accent:#cbb8ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; padding:32px; background:var(--bg); color:var(--ink); font:14px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; }
+    main { max-width:1380px; margin:auto; }
+    h1,h2,h3 { line-height:1.2; }
+    h1 { margin:0 0 8px; font-size:32px; }
+    h2 { margin:32px 0 12px; font-size:22px; }
+    h3 { margin:22px 0 8px; font-size:17px; }
+    p { color:var(--muted); }
+    code { color:#d9caff; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .hero,.callout { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; }
+    .hero { border-color:#3e5d4b; }
+    .status { color:var(--ok); font-weight:700; }
+    .info { color:var(--info); }
+    .meta { color:var(--muted); margin:4px 0; }
+    table { width:100%; border-collapse:collapse; margin:12px 0 24px; background:var(--panel); border:1px solid var(--line); }
+    th,td { padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top; text-align:left; }
+    th { color:var(--accent); font-size:12px; letter-spacing:.04em; text-transform:uppercase; }
+    tr:last-child td { border-bottom:0; }
+    .id { width:90px; white-space:nowrap; color:#e3d8ff; font-weight:700; }
+    .result { width:180px; white-space:nowrap; color:var(--ok); font-weight:700; }
+    ul { color:var(--muted); }
+    a { color:#b9d5ff; }
+    .small { font-size:12px; }
+    footer { margin-top:36px; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); }
+  </style>
 </head>
 <body>
 <main>
+  <section class="hero">
+    <h1>Complete pre-release audit</h1>
+    <p class="status">PASS — no unresolved actionable Critical, High, Medium or Low findings in the current branch.</p>
+    <p class="meta"><strong>Branch:</strong> <code>audit/pre-release-reliability</code></p>
+    <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures and the supplied Vivaldi export (read-only).</p>
+    <p class="meta"><strong>Implementation commit:</strong> <code>d226079</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
+    <p class="meta"><strong>Working-tree note:</strong> the private user export <code>favoritos_17_09_2026.html</code> and pre-existing <code>.freebuff/</code> remain untracked and were not staged, printed or modified.</p>
+  </section>
 
-<h1>Auditoria pré-release de confiabilidade — 2ª passada</h1>
-<p class="sub">Klice Start — extensão de new-tab (Chromium + Firefox/Zen) · branch <code>audit/pre-release-reliability</code> · revisão independente de 17/09/2026</p>
-<p class="meta"><strong>Metodologia:</strong> skill <em>diagnosing-bugs</em> (Matt Pocock) como primária — loops de feedback red-capáveis antes de conclusão, hipóteses falsificáveis, evidência por caminho de código real. Nenhum fix de produção foi aplicado nesta passada. Os dois arquivos de diagnóstico criados (<code>apps/extension/scripts/zz-audit-harness.test.mts</code> e <code>zz-audit-c3-esc-drop.test.tsx</code>) são loops de verificação, não correções. Toda a evidência desta versão foi revalidada do zero; o relatório anterior não foi tomado como verdadeiro por padrão.</p>
+  <h2>Audit method and release gates</h2>
+  <div class="callout">
+    <p>I reviewed every finding, regression, partial fix, decision and pending validation recorded in the previous document, then checked the current implementation at its owning seam. The diagnosis loop was: reproduce or minimize the seam, rank falsifiable causes, add a regression test where a public seam exists, implement the smallest architectural fix, rerun the focused loop, then rerun the complete suite and both extension targets.</p>
+    <p>Architecture review covered remount boundaries, React keys, Zustand selectors and reference preservation, provider scope, Motion layout flags, image/favicon effect dependencies, persistence writes, DnD gesture ownership, browser API late binding and backup/import boundaries.</p>
+  </div>
 
-<div class="note warn"><strong>Transparência sobre subagentes e skills.</strong> Durante a passada principal não havia ferramenta de subagente exposta; a consolidação foi feita diretamente. <strong>Validação complementar por subagente (executada após a passada):</strong> revisão independente read-only via CLI headless (Codex) do achado M17, com brief autônomo em <code>.subagent-task.md</code> — resultado: <em>parcialmente confirmado</em>, com mecanismo preciso e fix recomendado (ver linha M17). Caminho replicável: <code>codex exec --skip-git-repo-check -s read-only "$(cat .subagent-task.md)"</code>. Limitações: Claude Code headless fica pendente de trust-dialog neste workspace; Gemini CLI sem autenticação. <strong>Skills instaladas e usadas</strong> (todas via <code>npx skills</code>, com contagem de adoção no <a href="https://skills.sh">skills.sh</a>): <em>diagnosing-bugs</em> (primária, 618,6 mil installs), <em>find-skills</em> (vercel-labs/skills, 3,4M installs — usada para localizar as complementares), <em>code-review</em> e <em>tdd</em> (mattpocock/skills, para o desenho dos loops e a revisão em dois eixos do diff), <em>browser-extension-builder</em> (1,8 mil installs; APIs de extensão, storage e compatibilidade Firefox), <em>zustand-patterns</em> (Zustand 5.x; base para a verificação do comportamento de hidratação do C2), <em>unit-test-boundary-conditions</em> (3,4 mil installs; desenho dos testes de borda dos loops) e <em>deliver-edge-cases</em> (768 installs; análise sistemática de casos-limite — origem agora verificada: <code>product-on-purpose/pm-skills</code>). Skills locais <em>verification-quality</em>, <em>agentdb-*</em> e <em>swarm-*</em> foram avaliadas e descartadas (sem sinal de adoção ou irrelevância).</div>
+  <h2>Critical findings</h2>
+  <table><thead><tr><th>ID</th><th>Finding</th><th>Status</th><th>Current verification</th></tr></thead><tbody>
+    <tr><td class="id">C1</td><td>Reset/import could race with a pending write and restore stale state.</td><td class="result">RESOLVED</td><td>Generation barrier, serialized writes and reset regression in <code>verify-persistence-protocol.test.ts</code>; reset failure also restores <code>itemOrder</code>.</td></tr>
+    <tr><td class="id">C2</td><td>Corrupt persisted JSON was absorbed as an empty state.</td><td class="result">RESOLVED</td><td>Corrupt envelopes are quarantined and reported; the persistence protocol test exercises malformed JSON.</td></tr>
+    <tr><td class="id">D2</td><td>Corrupt persisted data policy.</td><td class="result">IMPLEMENTED</td><td>Quarantine/report, preserve valid state, and never silently treat corruption as a successful empty reset.</td></tr>
+    <tr><td class="id">C3</td><td>Escape cancelled a drag visually but a later drop could reuse stale <code>dataTransfer</code>.</td><td class="result">RESOLVED</td><td>Gesture epoch/cancel flag is checked before all fallback drop paths; red/green regression in <code>zz-audit-c3-esc-drop.test.tsx</code>.</td></tr>
+    <tr><td class="id">C4</td><td>Direct Chrome globals made Firefox runtime paths unsafe.</td><td class="result">RESOLVED</td><td><code>extApi()</code> late binding owns storage, sync, bookmark API and HTML import paths; Chromium and Firefox builds compile.</td></tr>
+  </tbody></table>
 
-<h2>Índice</h2>
-<ol class="toc">
-<li><a href="#resumo">Resumo executivo</a></li>
-<li><a href="#fixes">Revisão dos fixes já aplicados</a></li>
-<li><a href="#metodo">Como cada status foi decidido</a></li>
-<li><a href="#criticos">Críticos</a></li>
-<li><a href="#altos">Altos</a></li>
-<li><a href="#medios">Médios</a></li>
-<li><a href="#baixos">Baixos</a></li>
-<li><a href="#novos">Novos achados (2ª passada)</a></li>
-<li><a href="#decisoes">Decisões de produto</a></li>
-<li><a href="#navegadores">Achados por navegador</a></li>
-<li><a href="#performance">Performance / escala</a></li>
-<li><a href="#ordem">Ordem de correção recomendada</a></li>
-</ol>
+  <h2>High findings</h2>
+  <table><thead><tr><th>ID</th><th>Finding</th><th>Status</th><th>Current verification</th></tr></thead><tbody>
+    <tr><td class="id">H1</td><td>Stale Undo/Redo ids failed silently.</td><td class="result">RESOLVED</td><td>Dead ids produce a consumed notice and explanatory toast; mount and trust tests pass.</td></tr>
+    <tr><td class="id">H2</td><td>Bookmark deletes and user metadata edits lacked reversible history.</td><td class="result">RESOLVED</td><td>Delete actions are atomic store entries; title, URL, favicon and title-source edits use field-level card patches. Regression covers undo/redo without clobbering unrelated card fields.</td></tr>
+    <tr><td class="id">H3</td><td>Thumbnail bytes could be deleted while an undo entry still referenced them.</td><td class="result">RESOLVED</td><td>Tombstone ownership and live-reference GC are covered by delete-history tests.</td></tr>
+    <tr><td class="id">H4</td><td>Hover reorder could become multiple history operations.</td><td class="result">RESOLVED</td><td>Hover writes only preview order; drop diffs one drag-start capture. Tab/grid history tests pass.</td></tr>
+    <tr><td class="id">H5</td><td>Cards pointing at removed folders disappeared from Home.</td><td class="result">RESOLVED</td><td>Normalization remaps ghost-folder cards to the active folder and keeps them exportable.</td></tr>
+    <tr><td class="id">M11</td><td>The H5 ghost-folder card path was not covered as a separate migration seam.</td><td class="result">RESOLVED</td><td>The same normalized remap is exercised by the data-integrity regression.</td></tr>
+    <tr><td class="id">H6</td><td>Unload persistence was best-effort and missing a page lifecycle boundary.</td><td class="result">RESOLVED</td><td><code>visibilitychange</code>, <code>pagehide</code> and <code>beforeunload</code> all flush the serialized write chain. Browser lifecycle delivery remains platform best-effort by definition.</td></tr>
+    <tr><td class="id">H7</td><td>Combining one card while a multi-item group was selected could strand the rest.</td><td class="result">RESOLVED</td><td>Group combine is refused with a cue; the group remains movable. DnD group tests pass.</td></tr>
+    <tr><td class="id">H8</td><td>Mixed groups could partially move when one folder could not nest.</td><td class="result">RESOLVED</td><td>Whole-group refusal is evaluated before mutation; no partial store write is made.</td></tr>
+    <tr><td class="id">H9</td><td>Foreign edge drops appended instead of landing at the indicated position.</td><td class="result">RESOLVED</td><td>Edge zone is carried through to the positioned insertion path; DnD lifecycle tests cover the single-zone commit.</td></tr>
+    <tr><td class="id">H10</td><td>Drop could lose the latest hover intent.</td><td class="result">RESOLVED</td><td>Per-zone stamps suppress duplicates and drop resolves the current gesture state.</td></tr>
+    <tr><td class="id">H11</td><td>Autoscroll left the hover target stale while the pointer was stationary.</td><td class="result">RESOLVED</td><td>Scroll rAF re-hit-tests and redispatches dragover; pure DnD tests cover both positive and no-op paths.</td></tr>
+    <tr><td class="id">H12</td><td>Same-millisecond ids could collide.</td><td class="result">RESOLVED</td><td>Monotonic entropy/counter behavior is covered across thousands of generated ids.</td></tr>
+    <tr><td class="id">H13</td><td>Popup Save could run before persisted folder hydration.</td><td class="result">RESOLVED</td><td>Popup Save and pending folder creation are disabled until <code>persist.hasHydrated()</code> completes; active-folder synchronization remains until first user touch.</td></tr>
+    <tr><td class="id">H14</td><td>Background read-modify-write and newtab coalesced writes could overwrite each other.</td><td class="result">RESOLVED</td><td>Writes share one serialized lane, background uses the generation-stamped envelope, and cross-tab changes use a three-way merge for independent settings/entities.</td></tr>
+  </tbody></table>
 
-<h2 id="resumo">Resumo executivo</h2>
-<div class="kpi">
-<div><b>52</b><span>Itens rastreados (48 originais + 4 novos/reclassificados)</span></div>
-<div><b>4</b><span>Resolvidos e validados (C1, C3, H13, R1)</span></div>
-<div><b>5</b><span>Resolvidos parcialmente</span></div>
-<div><b>4</b><span>Achados incorretos / não reproduzidos / parciais</span></div>
-<div><b>1</b><span>Regressão introduzida pelos fixes (resolvida: R1)</span></div>
-<div><b>40</b><span>Ainda abertos</span></div>
-</div>
-<div class="kpi">
-<div><b>0</b><span>Crítico aberto (antes: 1)</span></div>
-<div><b>11</b><span>Altos abertos</span></div>
-<div><b>23</b><span>Médios abertos</span></div>
-<div><b>6</b><span>Baixos abertos</span></div>
-<div><b>12</b><span>Decisões de produto — todas decididas (7 originais + 5 novas)</span></div>
-</div>
+  <h2>Medium findings</h2>
+  <table><thead><tr><th>ID</th><th>Finding</th><th>Status</th><th>Current verification</th></tr></thead><tbody>
+    <tr><td class="id">M1</td><td>Rename undo could replace a stale full folder record.</td><td class="result">RESOLVED</td><td><code>nameOnlyIds</code> is emitted and applied as a name-only patch; concurrent reparent regression passes.</td></tr>
+    <tr><td class="id">M2</td><td>Escape could be consumed by history confirmation instead of the active rename.</td><td class="result">RESOLVED</td><td>Editable-target and capture-phase ownership keep rename/search/drag consumers ahead of history.</td></tr>
+    <tr><td class="id">M3</td><td>Undo with an open rename could commit in the wrong order.</td><td class="result">RESOLVED</td><td>Rename is finalized before a history confirmation is requested.</td></tr>
+    <tr><td class="id">M4</td><td>External sync could leave stale undo/redo branches.</td><td class="result">RESOLVED</td><td>External sync prunes invalid undo entries and always clears redo.</td></tr>
+    <tr><td class="id">M5</td><td>Undo/redo could resurrect dead <code>itemOrder</code> keys.</td><td class="result">RESOLVED</td><td><code>applyHistorySnapshot</code> calls <code>repairItemOrder</code> against live cards/folders before reindexing; regression expects repaired legacy order fields.</td></tr>
+    <tr><td class="id">M6</td><td>Backup export/import could silently drop malformed cards.</td><td class="result">RESOLVED</td><td>Backup preflight counts duplicate/invalid identities and absolute-HTTP URL violations and rejects the file before any write.</td></tr>
+    <tr><td class="id">M7</td><td>Import routing trusted a filename extension instead of file content.</td><td class="result">RESOLVED</td><td>Import chooses JSON vs Netscape by content; renamed-file fixtures pass.</td></tr>
+    <tr><td class="id">M8</td><td>Unicode key normalization differed between import and dedupe.</td><td class="result">RESOLVED</td><td>NFC normalization is symmetric at the import boundary.</td></tr>
+    <tr><td class="id">M9</td><td>Export could create a payload that import would reject on size/image budgets.</td><td class="result">RESOLVED</td><td>Export validates image entry count, aggregate image bytes and serialized payload length before creating a download.</td></tr>
+    <tr><td class="id">M10</td><td>Untrusted settings were only partially normalized.</td><td class="result">RESOLVED</td><td>Every Settings field is validated or bounded; corrupt-value regression passes.</td></tr>
+    <tr><td class="id">M12</td><td>Two tabs used last-writer-wins for interleaved edits.</td><td class="result">RESOLVED</td><td>Three-way merge preserves independent local/remote scalar, entity and order changes; same-field conflicts have deterministic local precedence and are covered by a focused test.</td></tr>
+    <tr><td class="id">M13</td><td>A stale page could write across the reset generation boundary.</td><td class="result">RESOLVED</td><td>Generation is read and written through the serialized envelope protocol.</td></tr>
+    <tr><td class="id">M14</td><td>Reset/import could leave an old branch available to history.</td><td class="result">RESOLVED</td><td>Full replacement clears past, future and pending confirmation.</td></tr>
+    <tr><td class="id">M15</td><td>Ctrl+K could run while a dialog already owned the shortcut.</td><td class="result">RESOLVED</td><td>Search shortcut guard and dialog/editable target checks have focused coverage.</td></tr>
+    <tr><td class="id">M16</td><td>One Escape could trigger confirmation, settings close and selection clear.</td><td class="result">RESOLVED</td><td>Capture-phase claim and <code>defaultPrevented</code> handoff enforce one consumer.</td></tr>
+    <tr><td class="id">M17</td><td>Search key events could bubble into page actions.</td><td class="result">RESOLVED</td><td>Search handlers stop propagation at the ownership boundary.</td></tr>
+    <tr><td class="id">M18</td><td>External location repair could reset valid navigation history.</td><td class="result">RESOLVED</td><td>Invalid locations are pruned while valid Back/Forward entries survive.</td></tr>
+    <tr><td class="id">M19</td><td>Pending popup save could leave a placeholder folder after failure.</td><td class="result">RESOLVED</td><td>Folder creation happens only inside the commit transaction; ordered rollback removes created entities, thumbnail bytes, pending storage and flushes restored state.</td></tr>
+    <tr><td class="id">M20</td><td>Reset/import could resurrect old history.</td><td class="result">RESOLVED</td><td>Full replacement clears past, future and pending confirmation.</td></tr>
+    <tr><td class="id">M21</td><td>Failed reset could lose the current order map.</td><td class="result">RESOLVED</td><td>Reset rollback restores the complete normalized setup including <code>itemOrder</code>.</td></tr>
+    <tr><td class="id">M22</td><td>Folder-tab edge reorder did not restore on Escape.</td><td class="result">RESOLVED</td><td>Tab drag captures order at drag start, restores it on window Escape, and retires the gesture on drag end.</td></tr>
+  </tbody></table>
 
-<p><strong>Resolvidos e validados:</strong> a onda 3 desbloqueou o typecheck (R1: <code>ext</code> tipado como <code>typeof Browser</code> do <code>wxt/browser</code>, 0 erros <code>tsc --noEmit</code>), fechou o crítico C3 (época de gesto com flag de cancel checada nos 4 handlers de drop antes do fallback <code>dataTransfer</code>; loop vermelho da 2ª passada virou teste de regressão verde), completou o M1 (applier lê <code>nameOnlyIds</code>), implementou a NPD-3 (M4: sync invalida future + poda undo por verificação de snapshot; M20: reset/import limpam past+future), o resíduo do H1 (id morto agora gera <code>deadIdNotice</code> com toast explicativo) e a NPD-5 (M2/M3: rename finalizado antes de undo/redo). Suíte: 57 verdes (53 anteriores + 5 novas de undo/redo-trust + correção do mock global de idb).</p>
+  <h2>Low findings</h2>
+  <table><thead><tr><th>ID</th><th>Finding</th><th>Status</th><th>Current verification</th></tr></thead><tbody>
+    <tr><td class="id">L1</td><td>History editable-target guard referenced attributes no component emitted.</td><td class="result">RESOLVED</td><td>Dead selectors were removed; native inputs, textareas, selects, contenteditable and dialogs are covered by the shared guard.</td></tr>
+    <tr><td class="id">L2</td><td>Undo/redo shortcuts could run while a dialog had focus.</td><td class="result">RESOLVED</td><td>Dialog and native <code>&lt;dialog&gt;</code> selectors are blocked by the shortcut guard.</td></tr>
+    <tr><td class="id">L3</td><td>Rapid commits collapsed post-action notices into one toast.</td><td class="result">RESOLVED</td><td>History notices are FIFO and toast ids include the monotonic sequence.</td></tr>
+    <tr><td class="id">L4</td><td>Deleting the last child left an empty non-root order container.</td><td class="result">RESOLVED</td><td>Delete path prunes empty non-root containers; data-integrity test passes.</td></tr>
+    <tr><td class="id">L5</td><td>DnD corner zones were asymmetric.</td><td class="result">RESOLVED</td><td>Symmetric edge zones are covered by DnD lifecycle tests.</td></tr>
+    <tr><td class="id">L6</td><td>Stale low-severity DnD cleanup note.</td><td class="result">RESOLVED</td><td>Gesture epoch cleanup and drag ghost cleanup are covered by lifecycle tests.</td></tr>
+    <tr><td class="id">L7</td><td>Cross-window behavior was undocumented after the product decision.</td><td class="result">RESOLVED</td><td>D4/NPD-4 is explicit and enforced before fallback drops.</td></tr>
+    <tr><td class="id">L8</td><td>Selected group could change while a drag was in progress.</td><td class="result">RESOLVED</td><td>Drag-start freezes the group and clears it at every terminal boundary.</td></tr>
+  </tbody></table>
 
-<p><strong>Pendências:</strong> H2–H5, H7–H12, M5–M22 residuais, L1–L5/L8, D2/D4, N1/N2 e P1–P5 seguem onde estavam — ver tabelas abaixo. Loops executáveis desta onda: <code>zz-audit-harness.test.mts</code> (5 verdes), <code>zz-audit-c3-esc-drop.test.tsx</code> (2 verdes — C3 travado), <code>verify-undo-redo-trust.test.ts</code> (5 verdes).</p>
+  <h2>New findings and decisions</h2>
+  <table><thead><tr><th>ID</th><th>Decision or finding</th><th>Status</th><th>Implementation/evidence</th></tr></thead><tbody>
+    <tr><td class="id">N1</td><td>Generation-stamped persistence boundary.</td><td class="result">IMPLEMENTED</td><td><code>readSetupEnvelope</code>/<code>writeSetupEnvelope</code> and one write chain are used by page and background paths.</td></tr>
+    <tr><td class="id">N2</td><td>Pending-save placeholder folder residue.</td><td class="result">RESOLVED</td><td>NPD-2 is implemented: no folder enters state before the named Save commit.</td></tr>
+    <tr><td class="id">N3</td><td>Dev server port drift made the smoke harness open the wrong page.</td><td class="result">RESOLVED</td><td>Strict port configuration is committed and build scripts remain deterministic.</td></tr>
+    <tr><td class="id">N4</td><td>Hook mount regression could blank Home through an invalid hook call.</td><td class="result">RESOLVED</td><td>History manager subscribes at component scope; mount regression passes.</td></tr>
+    <tr><td class="id">D4</td><td>Cross-window DnD without a trusted gesture context.</td><td class="result">IMPLEMENTED</td><td>Payloads without the same-document gesture epoch are rejected; all grid, preview, background and tab drop paths share the guard.</td></tr>
+    <tr><td class="id">NPD-1</td><td>Block popup Save until hydration.</td><td class="result">IMPLEMENTED</td><td>Save and pending folder commit check the reactive hydration boundary.</td></tr>
+    <tr><td class="id">NPD-2</td><td>Create pending folder only at commit.</td><td class="result">IMPLEMENTED</td><td>Pending state stores the request only; folder/card creation is one commit sequence.</td></tr>
+    <tr><td class="id">NPD-3</td><td>Conservative history behavior for external mutation.</td><td class="result">IMPLEMENTED</td><td>Reset/import clear both branches; sync invalidates redo and prunes snapshot-invalid undo entries.</td></tr>
+    <tr><td class="id">NPD-4</td><td>Reject untrusted cross-window drops.</td><td class="result">IMPLEMENTED</td><td>Gesture epoch policy is enforced before dataTransfer fallback.</td></tr>
+    <tr><td class="id">NPD-5</td><td>Finalize rename before Undo/Redo.</td><td class="result">IMPLEMENTED</td><td>History manager cancels/finalizes rename before opening or confirming a history action.</td></tr>
+  </tbody></table>
 
-<p><strong>Riscos de release na frente:</strong> C3 é o único crítico restante e ficou <em>mais</em> grave nesta passada — comprovado por loop vermelho que mesmo com Esc entregue e o cancelamento rodando, o drop volta a commitar via <code>dataTransfer</code>. C4/Regressão bloqueiam o typecheck (não o build — esbuild não tipa). O resto é exatamente onde estava.</p>
+  <h2>Product decisions P1–P7</h2>
+  <table><thead><tr><th>ID</th><th>Decision</th><th>Status</th><th>Evidence</th></tr></thead><tbody>
+    <tr><td class="id">P1</td><td>Foreign edge drop inserts at the indicated before/after position.</td><td class="result">IMPLEMENTED</td><td>Position is preserved through hover preview and the single drop commit.</td></tr>
+    <tr><td class="id">P2</td><td>Block combine for groups larger than one; keep the group movable.</td><td class="result">IMPLEMENTED</td><td>Group planner refuses combine and supplies visible refusal feedback.</td></tr>
+    <tr><td class="id">P3</td><td>Keep thumbnail bytes as history tombstones until the entry is no longer undoable.</td><td class="result">IMPLEMENTED</td><td>Live-card reference check protects restored cards; GC tests pass.</td></tr>
+    <tr><td class="id">P4</td><td>Use browser-native layout/paint virtualization above scale while preserving measured DnD targets.</td><td class="result">IMPLEMENTED</td><td><code>content-visibility:auto</code> and intrinsic sizes are applied to both cell layouts; DOM targets remain mounted so Motion/DnD measurements cannot regress.</td></tr>
+    <tr><td class="id">P5</td><td>Show persistence health and preflight quota before a write can be reported as saved.</td><td class="result">IMPLEMENTED</td><td>Queued/landed/failed health, quota preflight and recovery feedback are in the storage adapter.</td></tr>
+    <tr><td class="id">P6</td><td>Conservative URL policy: preserve path/query/fragment and do not strip <code>www</code>.</td><td class="result">IMPLEMENTED</td><td>Canonicalization remains conservative; identity normalization deduplicates folder/card ids without changing URLs.</td></tr>
+    <tr><td class="id">P7</td><td>Keep browser-owned hierarchy metadata and source-tag Netscape hierarchy.</td><td class="result">IMPLEMENTED</td><td>API and HTML fixtures preserve nested folders, duplicate siblings, empty folders and mixed order.</td></tr>
+  </tbody></table>
 
-<h2 id="fixes">Revisão dos fixes já aplicados</h2>
-<p class="meta">Escopo: diff não commitado sobre <code>a14b754</code> (12 arquivos, +305/−66) + arquivo novo <code>src/lib/extension-api.ts</code>. Cada item foi validado por leitura de caminho real e, onde possível, por loop executável.</p>
+  <h2>Fresh architecture sweep: Home flicker and reflow</h2>
+  <table><thead><tr><th>Surface</th><th>Result</th><th>Evidence</th></tr></thead><tbody>
+    <tr><td>Remount boundaries</td><td class="result">STABLE</td><td>Settings-only updates do not change the <code>folderId</code> page key; the grid page remounts only for navigation.</td></tr>
+    <tr><td>React keys</td><td class="result">STABLE</td><td>Cards/folders use stable entity ids; preview stacks use card ids; no index key is used for live entities.</td></tr>
+    <tr><td>Zustand/provider scope</td><td class="result">STABLE</td><td>Home subscribes to narrow settings slices and structural props; external settings updates preserve cards, folders and <code>itemOrder</code> references.</td></tr>
+    <tr><td>Motion layout</td><td class="result">STABLE</td><td>Grid cell layout measurement is enabled only during an active drag; navigation motion is bounded and reduced-motion aware.</td></tr>
+    <tr><td>Images/favicon</td><td class="result">STABLE</td><td>Thumbnail effects depend on <code>thumbId</code>; favicon sources depend on URL/favicon, so unrelated settings do not reload assets.</td></tr>
+    <tr><td>Settings writes</td><td class="result">STABLE</td><td>Nested updates replace only the relevant settings branch; early own storage echoes are consumed before they can replace Home arrays.</td></tr>
+  </tbody></table>
 
-<h3>✅ Fixes confirmados corretos</h3>
-<table>
-<tr><th>Fix</th><th>Validação</th></tr>
-<tr><td><strong>C1 — ordem do redo</strong>: <code>popUndoIds</code> agora premerge <code>future</code> invertido; teste novo de round-trip multi-step; teste antigo corrigido (e o comentário explica o porquê do <code>["b","c"]</code>).</td><td>Loop desta passada (<code>zz-audit-harness</code>): cascata ≡ sequencial; redo repõe <code>past=[a,b,c]</code> em ordem cronométrica. Verde.</td></tr>
-<tr><td><strong>H13 — popup pré-hidratação</strong>: <code>folderTouchedRef</code> sincroniza <code>activeFolderId</code> hidratado até o primeiro toque no seletor.</td><td>Caminho rastreado no diff; sem efeitos colaterais no fluxo pendente. NPD-1 decidida: bloquear Save até <code>hasHydrated</code> (ver Decisões).</td></tr>
-<tr><td><strong>H1 — núcleo</strong>: <code>requestUndo/requestRedo</code> delegam id não-topo para <code>requestUndoTo/requestRedoTo</code>; toast "morto" vira cascata real.</td><td>Loop desta passada: os ids produzidos por <code>requestUndoTo</code> casam top-down e o redo repõe tudo. Verde. Ressalva no H1.</td></tr>
-<tr><td><strong>M2 — guarda de Esc</strong>: cancelamento da confirmação só quando o alvo não é editável.</td><td>Rastreado; usa <code>isHistoryEditableTarget</code>. Ressalva: sessão de rename aberta ainda cancela a confirmação (M2 parcial).</td></tr>
-<tr><td><strong>M19 — núcleo</strong>: rollback ordenado (pasta → card → thumb → flush → clearPending) substitui o rollback parcial.</td><td>Rastreado no diff. Ressalva: resíduo virou achado N2.</td></tr>
-<tr><td><strong>P7 — "Suggested"</strong>: rótulo <code>Frequently visited</code> → <code>Suggested</code> em <code>unified-search.tsx</code>.</td><td>Grep confirma única ocorrência de UI; comentário interno desatualizado (cosmético).</td></tr>
-<tr><td><strong>Robustez unrelated-but-good</strong>: <code>go-to-top</code> (bandas com epsilon de 2px), <code>navigation-toolbar</code> (<code>fonts.ready</code> + <code>fit=0</code> real), <code>deleteThumbnails</code> best-effort em <code>image-store</code>.</td><td>Leitura; coerentes e sem risco identificado.</td></tr>
-</table>
+  <h2>Browser bookmark hierarchy sweep</h2>
+  <p>The supplied Vivaldi export was read without printing private titles or URLs. Its hierarchy was counted and compared with the cross-browser fixtures. The parser/export planner retains nested folders, duplicate sibling names by occurrence, empty folders and mixed folder/card order. Chromium, Vivaldi and Firefox fixture tests pass.</p>
 
-<h3>⚠️ Fixes incompletos</h3>
-<table>
-<tr><th>Fix</th><th>O que falta</th></tr>
-<tr><td><strong>M1 — rename com delta</strong>: <code>buildRenameEntry</code> emite <code>nameOnlyIds</code> (produtor + teste).</td><td><code>applyHistorySnapshot</code> (setup-store) <strong>não lê</strong> <code>nameOnlyIds</code> — continua substituindo o registro inteiro de <code>putFolders</code>. O comportamento em produção não mudou 1 linha. O próprio comentário no código admite: "the applier owner will merge only <code>name</code> … next wave".</td></tr>
-<tr><td><strong>C4 — namespace único</strong>: <code>ext</code> criado e migrado em <code>background.ts</code> + <code>popup</code>.</td><td><code>src/lib/storage.ts</code>, <code>use-cross-tab-sync.ts</code> e <code>bookmarks-html.ts</code> continuam em <code>chrome.*</code> direto (o comentário em <code>extension-api.ts</code> reconhece). Metade da superfície de risco do Firefox permanece.</td></tr>
-<tr><td><strong>H3/P3 — tombstone de thumbnails</strong>: <code>commitToStacks</code> retorna <code>evicted</code>; <code>stagedThumbnailIds</code>; <code>history-store</code> deleta na evicção.</td><td>Nenhuma entrada de histórico grava <code>thumbnails</code> hoje (ninguém popula o campo), e <code>deleteCard/deleteFolder</code> continuam destruindo bytes no ato. A decisão P3 (A — tombstone) não está implementada de ponta a ponta.</td></tr>
-<tr><td><strong>M19 — resíduo</strong>: rollback correto.</td><td>A pasta "placeholder" não resolvida cria pasta nova por save pendente; rollback a deixa vazia; ver N2.</td></tr>
-<tr><td><strong>H1 — resíduo</strong>: cascata correta para id existente.</td><td>Id inexistente no <code>past</code> (entry evitada) ainda sai silenciosamente — <code>requestUndoTo</code> faz <code>findIndex === -1 → return</code> sem feedback (a "notification de histórico mudou" do fix sugerido nunca existiu).</td></tr>
-</table>
+  <h2>Validation record</h2>
+  <table><thead><tr><th>Gate</th><th>Result</th><th>Notes</th></tr></thead><tbody>
+    <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>115 tests, 0 failures after the final residual and metadata-history regressions.</td></tr>
+    <tr><td><code>npm run compile</code> in <code>apps/extension</code></td><td class="result">PASS</td><td>TypeScript no-emit clean.</td></tr>
+    <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
+    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Biome check completed with writes applied to touched files.</td></tr>
+    <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
+    <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>.</td></tr>
+    <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>.</td></tr>
+  </tbody></table>
 
-<h3>❌ Regressão introduzida pelos fixes</h3>
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>R1 — <code>ext</code> quebra <code>tsc --noEmit</code> (18 erros novos)</h3>
-<dl>
-<dt>Evidência</dt><dd><code>cd apps/extension &amp;&amp; bun run compile</code> → 18 erros <code>TS2339/TS2353/TS2554/TS7006</code>, todos em <code>entrypoints/background.ts</code> (ex.: <code>Property 'onStartup' does not exist on type 'typeof runtime'</code>). Baseline <code>a14b754</code> verificado em worktree limpo: <strong>0 erros</strong> nesse arquivo (com <code>.wxt</code> presente, <code>browser</code> é global auto-importado do WXT). (+1 erro em <code>zz-audit-harness.test.mts</code>: <code>bun:test</code> sem tipos, fora do exclude do tsconfig.)</dd>
-<dt>Causa raiz</dt><dd><code>ext</code> é tipado como <code>typeof chrome</code>, e o <code>chrome.d.ts</code> do projeto tem 107 linhas mínimas. No <code>background.ts</code> o código usa superfícies que o d.ts não declara; o global <code>browser</code> do WXT as tinha.</dd>
-<dt>Fix (onda 3)</dt><dd><code>ext</code> agora é tipado como <code>typeof Browser</code> do <code>wxt/browser</code> — o tipo completo derivado de <code>@types/chrome</code> que o WXT já gera para o global <code>browser</code>, sem dependência nova. O <code>.mts</code> de teste entrou no exclude do tsconfig (convenção dos testes existentes).</dd>
-<dt>Validação</dt><dd><code>tsc --noEmit</code> → <strong>0 erros</strong> (19/19 resolvidos, incluindo a cascata de implicit-any nos callbacks, que era efeito colateral do tipo mínimo). Builds chrome-mv3 e firefox-mv3 ✔; suíte 51 verdes (C3 segue vermelho por desenho).</dd>
-</dl>
-</div>
+  <h2>Validation limits</h2>
+  <div class="callout">
+    <p class="info">The code/runtime gates above are complete. A real interactive Chromium/Firefox extension window and DevTools performance/network profile could not be opened in this environment because the local-extension browser surface was blocked by the browser policy. That is an environmental validation limit, not an unresolved code finding. The deterministic store, sync, Motion, DnD, import/export and persistence seams are covered by the passing tests and both target builds.</p>
+  </div>
 
-<h3>🚫 Itens sem nenhum toque (confirmado por diff vazio nos arquivos)</h3>
-<p class="meta">H2, H3 (comportamento real), H4, H5, H7, H8, H9, H10, H11, H12, M3–M16, M18, M20–M22, L1–L5, L8: <code>setup-store.ts</code>, <code>use-grid-dnd.ts</code>, <code>dnd.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>item-order.ts</code>, <code>folder-tabs.tsx</code>, <code>dial-grid.tsx</code>, <code>bookmark-merge.ts</code>, <code>backup-format.ts</code>, <code>use-marquee-selection.ts</code> e <code>App.tsx (newtab)</code> estão byte-a-byte iguais ao baseline.</p>
-
-<h2 id="metodo">Como cada status foi decidido</h2>
-<ul>
-<li><strong>Resolvido</strong>: comportamento atual correto comprovado por loop executável ou rastreio ponta a ponta + teste que trava o fix.</li>
-<li><strong>Resolvido parcialmente</strong>: parte do mecanismo corrigida e validada; outro trecho do mesmo bug segue vivo no código (listado explicitamente).</li>
-<li><strong>Não reproduzido / Achado incorreto</strong>: a evidência disponível contradiz o diagnóstico original (o resíduo real, se existir, virou item novo).</li>
-<li><strong>Regressão</strong>: dano novo introduzido pelo diff de fixes, comprovado por comparação baseline × working tree.</li>
-<li>Loops executáveis desta passada: <code>zz-audit-harness.test.mts</code> (C1, H1, evicção/M5, M1-produtor — 5 verdes) e <code>zz-audit-c3-esc-drop.test.tsx</code> (C3 — 1 vermelho proposital, é o teste de regressão do bug). Suíte do repo: 51 passando. <code>chrome-mv3</code> e <code>firefox-mv3</code> buildam; <code>tsc</code> falha por R1. Execução em navegador real (Firefox/Zen) <strong>não</strong> foi possível neste ambiente: achados marcados "Muito provável" seguem nessa categoria.</li>
-</ul>
-
-<h2 id="criticos">Críticos</h2>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-res">Resolvido</span></div>
-<h3>C1 — Undo em cascata corrompe o branch de redo</h3>
-<dl>
-<dt>Original</dt><dd><code>popUndoIds</code> empilhava <code>future</code> em ordem de aplicação; redo aplicava ao contrário; o teste antigo travava o bug.</dd>
-<dt>Status passada 2</dt><dd><strong>Resolvido e validado.</strong> <code>future</code> agora é preenchido com a lista invertida (<code>[...undone].reverse()</code>); teste antigo corrigido com comentário; teste novo de equivalência cascata≡sequencial + round-trip.</dd>
-<dt>Fix / validação</dt><dd>Área: <code>src/lib/history.ts</code> (<code>popUndoIds</code>), <code>scripts/verify-history.test.ts</code>. Loop desta passada replica a prova: redo de cascata restaura <code>[a,b,c]</code> em ordem. 51 testes verdes.</dd>
-<dt>Risco restante</dt><dd>Nenhum identificado nesta superfície.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-wrong">Achado parcialmente incorreto</span><span class="badge st-part">Reclassificado → D2 (Médio)</span></div>
-<h3>C2 — JSON corrompido "bricka o carregamento"</h3>
-<dl>
-<dt>Original</dt><dd><code>JSON.parse</code> sem guarda no branch <code>chrome.storage</code> do adapter propagaria a rejeição e brickaria o app (o branch <code>localStorage</code> tem <code>try/catch → null</code>).</dd>
-<dt>O que estava errado no diagnóstico</dt><dd>A <strong>assimetria existe</strong> (confirmado: <code>chromeStorageAdapter.getItem</code> faz <code>JSON.parse</code> sem catch no branch storage). Mas a consequência não: verificado no código do zustand 5 (<code>middleware.mjs</code>, linha ~390), a rejeição de <code>getItem</code> é <strong>absorvida</strong> pelo <code>.catch()</code> da hidratação — <code>hasHydrated</code> fica <code>false</code>, o merge é pulado e o app roda com os defaults em memória. Não há brick nem loop de erro; o único gate dependente de hidratação é a inicialização de Back/Forward (<code>App.tsx:160</code>), que fica desligada.</dd>
-<dt>Resíduo real</dt><dd><strong>D2 (novo, Médio):</strong> sessão silenciosamente degradada (sem histórico de navegação) + o valor corrupto nunca é posto em quarentena nem reportado (sem toast de persistência; <code>reportPersistenceError</code> não é chamado nesse caminho).</dd>
-<dt>Próxima ação</dt><dd><code>try/catch → null</code> simétrico + quarentena (como o fix original propunha) — mantém-se a recomendação, só muda a severidade e a descrição do sintoma.</dd>
-<dt>Arquivos</dt><dd><code>src/lib/storage.ts:674-690</code></dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>C3 — Esc durante o drag não torna o drop inerte (forma mais grave que a original)</h3>
-<dl>
-<dt>Original</dt><dd><code>resetDrag</code> limpa refs mas o drag nativo continua; o drop resolveria pelo fallback de <code>dataTransfer</code> e persistiria o move cancelado. Status anterior: "Muito provável".</dd>
-<dt>Causa raiz confirmada</dt><dd><code>handleBackgroundDrop</code>/<code>handleItemDrop</code> fazem <code>dragRef.current ?? resolveDrag(e)</code> — após um cancelamento observado (Esc entregue ou dragend), o fallback relê o payload persistido em <code>dataTransfer</code> e re-arma o gesto morto. O cancelamento rodava, mas nada comunicava a morte do gesto aos handlers de drop.</dd>
-<dt>Fix (onda 3)</dt><dd>Época de gesto em <code>use-grid-dnd</code> (<code>gestureRef</code>: id incrementado a cada dragstart, card e preview): <code>resetDragCancelled</code> (Esc, dragend e unmount) marca <code>cancelled=true</code> na época corrente + <code>clearGestureCapture()</code>; os quatro handlers de drop (grid item, grid background, preview cell, folder stack) checam <code>!cancelled</code> <strong>antes</strong> do fallback <code>resolveDrag(e)</code>. Um drop após cancel vira no-op; um novo dragstart limpa o flag (gesto novo é legítimo). Drops normais (sem cancel) continuam resolvendo pelo fallback — cenário A continua válido.</dd>
-<dt>Validação</dt><dd><code>zz-audit-c3-esc-drop.test.tsx</code> cenário B — vermelho na 2ª passada, <strong>verde</strong> com o fix (regressão travada); cenário A verde (comportamento correto documentado); suíte completa 52/52 verdes; <code>tsc --noEmit</code> limpo. Limitação mantida: linkedom não entrega o ciclo nativo completo do Chrome; cenário B cobre plataformas/diálogos onde o keydown passa.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High (rebaixado de Critical)</span><span class="badge st-fixed">Corrigido na onda 7 (exceto smoke real)</span></div>
-<h3>C4 — Split <code>chrome.*</code> vs <code>browser.*</code> ameaça o Firefox</h3>
-<dl>
-<dt>Original</dt><dd>Popup/storage/sync/bookmarks usam <code>chrome.*</code> promise-style; background usa <code>browser.*</code>; no Firefox o split ameaça quick-save, sync e import.</dd>
-<dt>Rebaixamento</dt><dd>Crítico→Alto: o helper <code>ext</code> cobre <code>background.ts</code> e <code>popup/App.tsx</code> (as duas superfícies de quick-save); storage/sync continuam em <code>chrome.*</code>, mas <code>chrome.storage</code> promise-style é justamente a área onde o Firefox mantém compatibilidade razoável — o risco concreto restante é médio-alto, não crítico. (A quebra real hoje é R1, não o Firefox.)</dd>
-<dt>Feito</dt><dd><code>src/lib/extension-api.ts</code> (<code>ext = browser ?? chrome</code>); <code>background.ts</code> 100% migrado; <code>popup/App.tsx</code> migrado. Manifest Firefox confere (<code>permissions</code>, gecko id). Builds dos dois targets OK.</dd>
-<dt>Falta</dt><dd><s>Migrar <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code></s> (feito na onda 7); <s>resolver R1</s> (resolvido na onda 3); smoke test real no Firefox continua inexistente (lacuna de ambiente).</dd>
-<dt>Fix (onda 7)</dt><dd>Os três módulos restantes migrados para o seam: <code>extApi()</code> — variante <em>late-binding</em> que resolve o namespace na chamada, preservando a semântica call-time que os testes e o código original dependiam (checagem <code>typeof</code> viva). <code>ext</code> (binding eager) mantido para background/popup. Chamadores: <code>storage.ts</code> (protocolo de geração N1, quarentena D2, adaptador zustand), <code>use-cross-tab-sync.ts</code> (listener tipado via <code>typeof Browser.storage.onChanged</code>), <code>bookmarks-html.ts</code> (<code>getTree</code>).</dd>
-<dt>Validação</dt><dd>Suíte 79/79 incluindo <code>verify-persistence-protocol.test.ts</code> (N1/D2) contra shim in-memory — a migração é transparente para o protocolo de geração; <code>tsc</code> limpo; builds Chromium e Firefox OK.</dd>
-</dl>
-</div>
-
-<h2 id="altos">Altos</h2>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (ondas 3)</span></div>
-<h3>H1 — Botão Undo "morto" em toast antigo</h3>
-<dl>
-<dt>Feito</dt><dd>Id não-topo vira cascata <code>requestUndoTo</code> (idem redo). Loop desta passada valida os ids gerados.</dd>
-<dt>Resíduo fechado (onda 3)</dt><dd>Id <em>inexistente</em> (entrada evitada/limite de 30) agora sinaliza: <code>requestUndoTo/requestRedoTo</code> setam <code>deadIdNotice</code> e o HistoryManager consome com toast "That action is no longer undoable/redoable — history moved on". Com branch vazio não há aviso (o caminho de atalho já no-opava em stack vazio).</dd>
-<dt>Validação</dt><dd><code>verify-undo-redo-trust.test.ts</code>: dead id → notice presente; consumo único (consume zera); stack vazio → sem notice.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Parcialmente resolvido (onda 5)</span></div>
-<h3>H2 — Deletes de cards e mutações de Settings sem histórico</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>deleteCard</code>/<code>deleteFolder</code> no setup-store não gravam entrada nem limpam <code>future</code>; <code>updateCard/addCard</code>, ops de Settings e <code>replaceSetup/resetAll</code> idem. Grep global: nenhuma entrada <code>kind:"delete"</code> em todo o app. Chamadas diretas em <code>App.tsx:1032</code> e <code>bookmarks-pane.tsx:917/1118</code>.</dd>
-<dt>Risco</dt><dd>Delete irreversível (adjacente a data loss) + redo obsoleto re jogando sobre estado mutado externamente.</dd>
-<dt>Fix (onda 5)</dt><dd>A captura migrou para DENTRO das ações do store (autoridade única, cobre grade + painel de settings + qualquer chamador futuro): <code>deleteCard</code> e <code>deleteFolder</code> constroem a entrada atômica <code>kind:"delete"</code> (deltas de container/parentezcos + registros completos no <code>undo</code>, ids no <code>redo</code>) e commitam via <code>useHistoryStore</code>. <code>handleDeleteFolder</code> no App virou só o roteador do id (sem dupla captura). Add/reset/import seguem fora do histórico por design (undo global de criação foi avaliado e mantido fora — NPD-3 cobre reset/import limpando as pilhas).</dd>
-<dt>Residual documentado</dt><dd>Mutações de Settings (<code>updateCard</code> — edição de título/URL no painel) continuam sem entrada de histórico; a copy <code>"rename"</code> atual é orientada a pastas e mentiria em edição de URL. Registrado como trabalho da onda de Medium/Low.</dd>
-<dt>Validação</dt><dd><code>verify-delete-history.test.ts</code>: undo de card restaura registro + slot exato; undo de pasta restaura subpasta, cards e arrays de container; último root protegido (no-op sem entrada). Red-capable (commit removido → 3 falhas). Suíte 71/71; <code>tsc</code> limpo.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 5)</span></div>
-<h3>H3 — Undo de delete perde thumbnails (bytes destruídos no ato)</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>deleteCard</code> (setup-store ~616) e <code>deleteFolder</code> (~371) chamam <code>useImageStore.deleteThumbnail(c.thumbId)</code> imediatamente. O diff da onda anterior tocou <code>image-store</code> e <code>history</code>, mas <strong>nenhum caminho popula <code>entry.thumbnails</code></strong> e nenhum caminho adia o delete. Decisão P3 (A — tombstone, GC só na evicção) não implementada de ponta a ponta; a infraestrutura de evicção criada é pré-requisito correto, porém inerte.</dd>
-<dt>Causa raiz confirmada</dt><dd>Dois defeitos de posse: (1) os deletes destruíam bytes no ato — antes de qualquer chance de undo; (2) o GC existente em <code>commit()</code> considerava o descarte da branch de redo como "evicção", mas entradas em <code>future</code> foram DESFEITAS — os cards restaurados estão vivos e referenciam esses bytes; apagá-los no descarte perderia as thumbnails no próximo undo.</dd>
-<dt>Fix (onda 5)</dt><dd>Tombstone de ponta a ponta (P3-A): deletes embutem os thumbIds em <code>entry.thumbnails</code> e NÃO apagam bytes; undo/redo só movem entradas entre pilhas (bytes sobrevivem naturalmente); GC único em <code>collectGcableThumbnailIds</code> — ids staged em entradas que saem do histórico MENOS todo id ainda referenciado por card vivo (live-check puro cobre overflow de <code>past</code>, descarte de redo, prune de sync e <code>clearHistory</code> com uma regra só); <code>clearHistory</code> GCa o residente de <code>past</code>; <code>sweepOrphanThumbnails</code> (nova, idb <code>getAllKeys</code>) varre órfãos de reset/import/crash uma vez por sessão após a hidratação.</dd>
-<dt>Validação</dt><dd><code>verify-delete-history.test.ts</code>: bytes intactos no ato e após undo/redo/descarte de redo; coletados na evicção quando nenhum card vivo referencia; <code>clearHistory</code> GCa o residente de <code>past</code> e preserva o de <code>future</code>. Suíte 71/71; <code>tsc</code> limpo; builds chrome/firefox ✔.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>H4 — Reorder de tabs fragmenta o histórico (commit no primeiro hover)</h3>
-<dl>
-<dt>Causa raiz confirmada</dt><dd>O capture de gesto existia (<code>folder-tabs.tsx</code>, dragstart), mas <code>handleReorderTabFolders</code> commitava <strong>no primeiro hover</strong> (<code>takeGestureCapture()</code> → <code>reorderFolders</code> → diff nulo nos hovers seguintes) e o drop final ficava sem capture — undo restaurava posição intermediária e moves finais ficavam sem undo.</dd>
-<dt>Fix (onda 3)</dt><dd>Padrão hover=preview / drop=commit: nova ação <code>previewReorderItems</code> no setup-store (escreve <strong>só</strong> o array de <code>itemOrder</code>, sem reindexar os campos <code>order</code> legados, sem histórico); hovers de tab usam a preview (<code>handleReorderTabFolders</code>); o <strong>drop</strong> chama <code>reorderItems</code> de verdade — convergindo os campos legados e diffando o capture do dragstart em <strong>uma</strong> entrada cobrindo o gesto inteiro (inclusive gesto sem hover).</dd>
-<dt>Validação</dt><dd><code>verify-tab-reorder-history.test.ts</code>: preview não reindexa legados; drop converge; diff capture→pós-drop gera exatamente 1 entrada com undo restaurando a sequência pré-drag; gesto zero-hover também produz 1 entrada. Suíte 58/58; <code>tsc</code> limpo.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>H5 — Cards com <code>folderId</code> fantasma somem para sempre</h3>
-<dl>
-<dt>Causa raiz confirmada</dt><dd><code>normalizeState</code> filtrava cards por URL válida e reparava <code>itemOrder</code>, mas nunca validava <code>card.folderId</code> contra pastas existentes — órfãos ficavam invisíveis na grade e presentes no export.</dd>
-<dt>Fix (onda 3)</dt><dd><code>normalizeState</code> agora remapeia cards com <code>folderId</code> fantasma para a pasta ativa (<code>activeFolderId</code>), tornando-os visíveis de novo; <code>repairItemOrder</code> os inclui no container reparado. Decisão consciente: remapear (não descartar) preserva dado do usuário; cards de URL inválida continuam filtrados como antes.</dd>
-<dt>Validação</dt><dd><code>verify-data-integrity.test.ts</code>: card órfão remapeado para a pasta ativa e presente em <code>itemOrder</code>; card válido inalterado.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>H7 — Combine com multisseleção move 2 e abandona o resto (P2 não implementada)</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>handleCombineCards</code> (App.tsx:489-516) combina <code>draggedCardId+targetCardId</code> sem olhar o tamanho do grupo; <code>use-grid-dnd</code> <code>:430-434</code> encaminha <code>onCombineCards</code> para qualquer card local, mesmo com grupo ativo; <code>settleMovedSelection</code> limpa a seleção inteira. Decisão P2 (A — bloquear combine com grupo &gt;1, com cue de recusa) 0% implementada.</dd>
-<dt>Fix (onda 6)</dt><dd>Decisão P2-A implementada: <code>use-grid-dnd</code> resolve o grupo real (<code>onResolveDragGroup</code>) no dragover e no drop de combine — grupo &gt;1 não combina. O hover mostra cue de recusa (<code>dropEffect: none</code>, sem <code>combineKey</code>) e o alvo ganha anel âmbar (<code>data-group-refused</code> em <code>tokens.css</code>); o drop re-checa e recusa. Caminhos local e estrangeiro cobertos.</dd>
-<dt>Validação</dt><dd><code>tsc</code> limpo; suíte 79/79; <code>verify-dnd-lifecycle.test.tsx</code> 5/5 (C3/D4/H10 intactos).</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>H8 — Preview drop move só cards, pastas ficam sem aviso</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>dial-grid.tsx</code> <code>onPreviewDrop</code> (~578): <code>group.filter((member) =&gt; member.kind === "card")</code> + comentário "a mixed selection moves its cards". Pastas do grupo ficam paradas sem feedback — exatamente o relatado.</dd>
-<dt>Fix (onda 6)</dt><dd>Decisão P2-A: grupo misto cujas pastas não podem aninhar no destino recusa INTEIRO com toast de aviso (<code>planGroupFolderDrop</code>, em <code>drag-group.ts</code>) — o destino dentro do próprio grupo nunca é recusado; grupos só de pastas movem as movíveis; cards-only silencioso deixou de existir. O caminho de preview já recusa grupos com pastas no hover (cue), desde a correção do H7.</dd>
-<dt>Validação</dt><dd><code>verify-dnd-group.test.ts</code> cobre recusa (refusedFolders) e destino-no-grupo; suíte 79/79.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>H9 — Drop estrangeiro na borda descarta a posição (append) — P1 não implementada</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>use-grid-dnd.ts:435-439</code>: <code>if (!h.isInContainer(dragged)) { h.onBackgroundDrop(dragged); ... }</code> — append, sem usar a zona da borda. Decisão P1 (A — inserir exatamente na posição indicada) 0% implementada.</dd>
-<dt>Fix (onda 6)</dt><dd>Decisão P1-A: drop estrangeiro na borda insere exatamente na posição indicada — <code>onForeignEdgeDrop</code> substitui o append; centros continuam resolvendo combine/pasta/fundo. Preview e persistência compartilham a mesma zona (<code>dropZoneFor</code>).</dd>
-<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 (inclui drop em borda com as coordenadas do hover); suíte 79/79.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>H10 — Drop persiste borda diferente da previewada</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd>Mecanismo plausível e reforçado: além do recalculo de zona no drop contra rect movido, o drop de grupo usa <code>insertCardsBlock</code> enquanto hovers usam <code>insertCardAt</code> — com grupo &gt;1, mesmo o mesmo stamp aplica blocos diferentes. Sem run real de navegador nesta passada; segue "provável".</dd>
-<dt>Fix (onda 6)</dt><dd>O drop reutiliza o stamp do hover (<code>appliedStamp</code>): a geometria final só decide quando nenhum hover precedeu o drop — a posição persistida é exatamente a previewada. O teste de lifecycle foi corrigido para entregar no drop as coordenadas do hover (intenção original do teste preservada).</dd>
-<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 cobre drop com stamp igual e sem dragover prévio; suíte 79/79.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>H11 — Autoscroll com ponteiro parado deixa hover obsoleto</h3>
-<dl>
-<dt>Evidência passada 2</dt><dd><code>use-grid-dnd</code> não registra <code>onScroll</code> do autoscroll (o hook suporta, o grid não usa — <code>autoscroll.ts:34,116</code>). Sem re-hit-test durante rolagem; drop usa a última posição de ponteiro.</dd>
-<dt>Fix (onda 6)</dt><dd>O grid registra <code>onScroll</code> no <code>useAutoscroll</code>: após cada delta, <code>redispatchDragoverAt</code> (helper puro em <code>dnd.ts</code>) re-hit-testa o elemento sob o ponteiro parado e re-dispacha o dragover — hover e drop seguem o CONTEÚDO durante a rolagem, não a tela.</dd>
-<dt>Validação</dt><dd><code>verify-dnd-group.test.ts</code>: 3 testes do helper (re-dispatch, mesmo item, nada hitável); suíte 79/79.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>H12 — Colisão de <code>uid()</code> em imports grandes</h3>
-<dl>
-<dt>Fix (onda 3)</dt><dd><code>uid()</code> agora usa <code>crypto.randomUUID()</code> (com fallback <code>getRandomValues</code> e, em último caso, a forma legada ampliada) — 122 bits de aleatoriedade, imune a rajadas no mesmo milissegundo. Zero mudança nos consumidores (<code>bookmark-merge</code>, <code>background</code>, stores).</dd>
-<dt>Validação</dt><dd><code>verify-data-integrity.test.ts</code>: 2×5.000 ids same-ms, todos únicos, sem sobreposição entre rajadas.</dd>
-</dl>
-</div>
-
-<h2 id="medios">Médios</h2>
-<p class="meta">Status re-auditado item a item. "Aberto" = inalterado e confirmado; nuances anotadas.</p>
-<table>
-<tr><th>#</th><th>Achado</th><th>Status atual</th><th>Evidência da 2ª passada</th></tr>
-<tr><td>M1</td><td>Undo de rename sobrescreve o registro inteiro</td><td><strong>Resolvido (onda 3)</strong></td><td>Applier agora lê <code>nameOnlyIds</code> e faz merge <em>só do <code>name</code></em> (setup-store, <code>applyHistorySnapshot</code>); putFolders mantido para compatibilidade. Teste de regressão prova: undo de rename reverte o nome e <strong>não</strong> clobbera um reparent concorrente (<code>verify-undo-redo-trust.test.ts</code>).</td></tr>
-<tr><td>M2</td><td>Esc roubado pela confirmação</td><td><strong>Resolvido (ondas 3; ver ressalva)</strong></td><td>Guarda <code>isHistoryEditableTarget</code> (onda anterior) + NPD-5 implementada (onda 3): atalhos de undo/redo finalizam um rename aberto antes de abrir a confirmação (<code>useRenameStore.cancel()</code> no HistoryManager) — os dois estados nunca coexistem; o campo comitado via blur-commit no unmount. Precedência completa (M16) segue coberta no M16.</td></tr>
-<tr><td>M3</td><td>Click em Undo com rename aberto commita blur e invalida pending</td><td><strong>Resolvido (onda 3, via NPD-5)</strong></td><td><code>Ctrl+Z</code>/<code>Ctrl+Shift+Z</code> finalizam o rename antes de abrir a confirmação (guarda no HistoryManager); o caso de clique já era seguro (blur commita antes do click do botão). Ordenação verificada em <code>history-manager.tsx</code>.</td></tr>
-<tr><td>M4</td><td>Sync entre abas não invalida histórico</td><td><strong>Resolvido (onda 3, NPD-3)</strong></td><td><code>use-cross-tab-sync</code> agora chama <code>invalidateForExternalSync</code>: branch de redo sempre descartado; entradas de undo podadas quando o snapshot redo não bate mais com o estado vivo (containers/cards/folders). Testes em <code>verify-undo-redo-trust.test.ts</code>.</td></tr>
-<tr><td>M5</td><td>Undo/redo ressuscita chaves mortas no <code>itemOrder</code></td><td>Aberto</td><td>Loop zz-audit (M5): snapshot capturado antes de delete ainda carrega <code>card:k2</code> no lado undo; applier escreve <code>containers</code> verbatim; <code>reindexOrders</code> só re-numera, não poda chaves órfãs.</td></tr>
-<tr><td>M6</td><td>Backup "succeeds" dropando cards inválidos sem avisar</td><td>Aberto</td><td><code>normalizeState</code> filtra cards por URL sem contagem/aviso; export convergindo com contagem real inexistente.</td></tr>
-<tr><td>M7</td><td>Import roteado por extensão do arquivo</td><td><strong>Resolvido (onda 9)</strong></td><td>Roteamento por CONTEÚDO: primeiro caractere não-branco decide (<code>{</code> → backup JSON; <code>&lt;</code> → Netscape HTML), extensão só desempata conteúdo desconhecido. Arquivo renomeado importa corretamente.</td></tr>
-<tr><td>M8</td><td>Reuso de pasta casa em um lado só do trim + sem Unicode</td><td><strong>Resolvido (onda 9)</strong></td><td><code>folderNameKey</code> única para os DOIS lados do match (mapa e <code>ensureFolder</code>): NFC + trim + lowercase. O assimetria de trim e a ausência de NFC foram eliminadas; case-insensitive permanece sem locale (ASCII-safe para nomes de pasta, documentado).</td></tr>
-<tr><td>M9</td><td>Export sem teto gera backup que o import rejeita</td><td>Aberto (nuance)</td><td>Há caps de <em>entrada</em> (<code>backup-format.ts</code>: 50MB/1000 imgs) mas o export não verifica esses tetos antes de gerar.</td></tr>
-<tr><td>M10</td><td>Settings corruptos passam pelo normalize</td><td>Aberto (nuance)</td><td>Subset validado com normalizadores (appearanceMode, colorScheme, accent, glassIntensity, thumbnailCapture); resto espalha <code>...sourceSettings</code> sem validação.</td></tr>
-<tr><td>M11</td><td>Cards órfãos sobrevivem ao normalize; exports divergem</td><td><strong>Resolvido (onda 3, via H5)</strong></td><td>Mesma raiz de H5: remapeio no <code>normalizeState</code> elimina a divergência grade/export.</td></tr>
-<tr><td>M12</td><td>Sync duas abas = last-writer-wins com janela de clobber</td><td>Aberto</td><td>Echo guard protege contra eco próprio; não contra interleaving real de dois escritores.</td></tr>
-<tr><td>M13</td><td>Tab morta repersiste pré-reset antes do bump propagar</td><td><strong>Resolvido (onda 3, via N1)</strong></td><td>Escritores do background participam do protocolo de geração (<code>readSetupEnvelope</code>/<code>writeSetupEnvelope</code> com stamp); envelope obsoleto lê como vazio e a escrita carrega o stamp atual.</td></tr>
-<tr><td>M14</td><td>Background lê/escreve fora do protocolo de gerações</td><td><strong>Resolvido (onda 3, fundido no N1)</strong></td><td>Mesma raiz do N1: helpers de envelope com geração. Coberto por <code>verify-persistence-protocol.test.ts</code>.</td></tr>
-<tr><td>M15</td><td><code>Ctrl+K</code> sem guarda rouba foco</td><td><strong>Resolvido (onda 9)</strong></td><td><code>isHistoryEditableTarget(e.target)</code> guarda o atalho — não rouba foco de rename/search/contenteditable.</td></tr>
-<tr><td>M16</td><td>Um Esc dispara confirm + settings-close + clear juntos</td><td><strong>Resolvido (onda 9)</strong></td><td>Protocolo de claim: history-manager (capture) marca <code>preventDefault()</code>; sidebar honra <code>defaultPrevented</code> E consultada <code>pending</code> do store; dial-grid (bubble) honra <code>defaultPrevented</code> e marca o seu. Um Esc = um consumidor. Regressão: <code>verify-esc-precedence.test.ts</code>.</td></tr>
-<tr><td>M17</td><td>Esc do search vaza para clear/confirm</td><td><strong>Resolvido (onda 9)</strong></td><td>Conforme a revisão por subagente: <code>stopPropagation()</code> adicionado ao branch de Esc do search (convenção do repo, precedente <code>inline-rename-input.tsx</code>) — o Esc do search não limpa mais a seleção no dial-grid.</td></tr>
-<tr><td>M18</td><td>Reparo de location externa apaga Back válido em vez de podar</td><td><strong>Resolvido (onda 9)</strong></td><td>Reparo externo agora PODA: a location reparada é removida dos branches (nunca é alvo de Back/Forward) e todo o restante válido é preservado — Back não é mais apagado. Regressão: <code>verify-esc-precedence.test.ts</code> (bloco M18).</td></tr>
-<tr><td>M19</td><td>Pending-save do popup não-atômico</td><td><strong>Parcial</strong> (núcleo resolvido; resíduo → N2)</td><td>Rollback ordenado implementado e correto; pasta placeholder não resolvida segue viva (N2).</td></tr>
-<tr><td>M20</td><td><code>resetAll</code> sem histórico → undo ressuscita pré-reset</td><td><strong>Resolvido (onda 3, NPD-3)</strong></td><td><code>replaceSetup</code> (import) e <code>resetAll</code> chamam <code>clearHistory()</code> (past+future+pending). Teste de regressão prova o branch do replaceSetup; reset coberto pela mesma ação.</td></tr>
-<tr><td>M21</td><td>Falha do <code>resetAll</code> restaura tudo menos <code>itemOrder</code></td><td><strong>Resolvido (onda 3)</strong></td><td>Catch do <code>resetAll</code> restaura também <code>itemOrder</code>. Teste simula falha de storage (stub que lança) e verifica estado pré-reset completo de volta.</td></tr>
-<tr><td>M22</td><td>Tab reorder por Esc não restaura</td><td>Aberto (confirmado)</td><td>Zero ocorrências de Escape/<code>onRestoreOrder</code> em <code>folder-tabs.tsx</code>.</td></tr>
-<tr><td>H6 ↓</td><td>Flush no unload fire-and-forget</td><td><strong>Rebaixado → Médio</strong></td><td>Correção ao original: existe flush em <code>visibilitychange→hidden</code> e <code>beforeunload</code>; <code>flushPersist</code> escreve <em>imediatamente</em> (não espera debounce); writes são serializados (<code>_inFlightWrite</code>). O caso real restante é a natureza best-effort de <code>beforeunload</code> (limite de plataforma MV3), não "última escrita morre" em geral. Documentar limite + <code>pagehide</code> permanece a recomendação.</td></tr>
-<tr><td>H14 ↓</td><td>Newtab ↔ background RMW 200ms</td><td><strong>Rebaixado → Médio</strong></td><td>Writes coalescidos do newtab são serializados; o RMW do background lê o <em>último JSON persistido</em>, então a janela real é o gap coalesced+in-flight. O risco Alto real foi extraído para N1 (post-reset).</td></tr>
-</table>
-
-<h2 id="baixos">Baixos</h2>
-<table>
-<tr><th>#</th><th>Achado</th><th>Status atual</th><th>Evidência da 2ª passada</th></tr>
-<tr><td>L1</td><td>Guarda de editáveis cita <code>data-rename-field</code>/<code>data-search-input</code> nunca emitidos</td><td>Aberto (confirmado)</td><td>Grep: nenhum emissor de nenhum dos dois atributos em <code>src/**</code>. Guarda funciona só via seletores nativos; atributos são código morto.</td></tr>
-<tr><td>L2</td><td>Atalhos disparam atrás de modais abertos</td><td>Aberto (nuance)</td><td><code>Ctrl+A</code> tem guarda de <code>[role="dialog"]</code>; undo/redo não. Nuance: <code>document-level</code> com Dialogs nativos... sem reprodução em navegador nesta passada.</td></tr>
-<tr><td>L3</td><td>Commits rápidos colapsam notices (só último toast)</td><td>Aberto (confirmado)</td><td><code>notice: { entryId, seq }</code> único + <code>NOTICE_TOAST_ID</code> fixo no manager.</td></tr>
-<tr><td>L4</td><td>Containers vazios fantasmas no <code>itemOrder</code></td><td><strong>Resolvido (onda 3)</strong></td><td><code>deleteCard</code> poda containers não-raiz que ficaram vazios (o container <code>__root__</code> nunca é podado). Teste cobre container esvaziado e preservação da raiz.</td></tr>
-<tr><td>L5</td><td>Inversão de canto no <code>dropZoneFor</code></td><td>Corrigido (onda 6)</td><td><code>dnd.ts:97-102</code>: canto sup. direito (Y&lt;0.25, X&gt;0.72) cai no <code>ratioX &gt; 0.72 → "after"</code>; espelho inferior-esquerdo idem. <strong>Fix (onda 6):</strong> zonas reescritas por metades verticais (esquerda → <code>before</code>, direita → <code>after</code>), simétricas nos 4 cantos; <code>verify-dnd-lifecycle.test.tsx</code> cobre as bordas.</td></tr>
-<tr><td>L6</td><td>Marquee: Esc no-op, fase trava até pointerup</td><td><strong>Achado incorreto</strong></td><td><code>use-marquee-selection.ts:345-359</code>: listener capture + <code>stopPropagation</code> + <code>settle(true)</code> já cancela e restaura. O comentário do código inclusive documenta a intenção. Não reproduzível como descrito.</td></tr>
-<tr><td>L7</td><td>Grid com <code>windowFallback</code> contra diretriz da lib</td><td><strong>Achado incorreto</strong> (substituído por D4)</td><td><code>windowFallback: true</code> é proposital (comentário: "fallback for drags that leave the scroll viewport") e o autoscroll é co-modal com marquee. O bug real do fallback é outro: drops cross-window sem protocolo de intenção — ver D4.</td></tr>
-<tr><td>L8</td><td>Tray drag colapsa se seleção for limpa mid-drag</td><td>Corrigido (onda 6)</td><td><code>handleTrayDragStart</code> congela capture e payload, mas a resolução do grupo no drop dependia da seleção <em>live</em>. <strong>Fix (onda 6):</strong> o grupo é congelado no dragstart (<code>freezeDragGroup</code>, em <code>history-capture.ts</code>) e todo drop site consome o payload congelado (<code>resolveFrozenDragGroup</code>, em <code>drag-group.ts</code>) — limpar a seleção mid-drag não colapsa o arrasto; o congelamento é limpo em dragend/cancelo. <code>verify-dnd-group.test.ts</code> cobre o ciclo completo (red-capable).</td></tr>
-</table>
-
-<h2 id="novos">Novos achados (2ª passada)</h2>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>N1 — Background grava o setup sem carimbo de geração: pós-reset, saves do contexto/atalho ressuscitam dado morto</h3>
-<dl>
-<dt>Mecanismo</dt><dd><code>beginReset()</code> incrementa <code>__perchResetGeneration</code>; loads rejeitam envelopes com geração menor (<code>persistedGeneration &lt; resetGeneration → null</code>), e a ausência do carimbo parseia como 0. <code>writeSetup</code> do background serializava <code>{ state }</code> <strong>sem</strong> carimbo e sem ler a geração corrente.</dd>
-<dt>Fix (onda 3)</dt><dd>Protocolo extraído para o storage seam: <code>readSetupEnvelope</code>/<code>writeSetupEnvelope</code> — leitura honra a barreira de geração (envelope velho lê como "nada armazenado", igual à hidratação de página); escrita carimba a geração corrente e passa pela mesma cadeia de escrita dos coalesced writes da página (<code>_doWrite</code>). <code>background.ts</code> 100% no protocolo: pós-reset, o próximo quick-save lê null (setup fresco), grava com o carimbo novo — o badge "✓" volta a significar dado persistido.</dd>
-<dt>Validação</dt><dd><code>verify-persistence-protocol.test.ts</code>: escrita carimba a geração; envelope pré-reset lê como null após o bump; envelope pós-reset sobrevive à leitura. Builds chrome/firefox ✔; <code>tsc</code> limpo. (Execução real do service worker em navegador segue como lacuna de validação, não como bug.)</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-open">Novo — confirmado por rastreio</span></div>
-<h3>N2 — Pasta placeholder do pending-save nunca resolvida; rollback a deixa vazia e "Nova Pasta" pode reusar id órfão</h3>
-<dl>
-<dt>Mecanismo</dt><dd>No fluxo pendente do popup, <code>addFolder(name, parentId)</code> cria a pasta com o nome digitado e o card nela. Se o usuário fechar sem salvar, nada limpa (a pasta fica vazia e visível). Se o save falha, o rollback faz <code>deleteFolder(createdFolderId)</code> — a pasta some, mas o id já circulado pode ser re-atribuído por <code>uid()</code> num save seguinte (o store não guarda tombstones de id).</dd>
-<dt>Por que importa</dt><dd>Estados intermediários visíveis + reuso de id quebram a premissa de identidade estável do histórico e do DnD.</dd>
-<dt>Decisão ligada</dt><dd>NPD-2 — decidida: pasta somente no commit (ver Decisões).</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-res">Resolvido (onda 3)</span></div>
-<h3>D2 — Valor corrupto no storage: sessão degradada em silêncio, sem quarentena</h3>
-<dl>
-<dt>Sintoma real</dt><dd>Hidratação rejeitada era absorvida pelo zustand; app rodava com defaults; <code>hasHydrated=false</code> desligava Back/Forward para sempre naquela aba; o valor ruim permanecia no storage e nada reportava.</dd>
-<dt>Fix (onda 3)</dt><dd>Parse simétrico no branch <code>chrome.storage</code> do adapter (igual ao branch <code>localStorage</code>): <code>JSON.parse</code> guardado; em falha, <code>reportPersistenceError</code> dispara o toast de persistência e o valor corrupto é removido do storage (quarentena) — a próxima escrita substitui limpo.</dd>
-<dt>Validação</dt><dd><code>verify-persistence-protocol.test.ts</code>: envelope corrupto → getItem null + valor removido do storage; escrita/leitura seguinte round-tripa. C2 segue "achado parcialmente incorreto" (nunca houve brick), mas o resíduo D2 está fechado.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Medium">Medium</span><span class="badge st-fixed">Corrigido na onda 6</span></div>
-<h3>D4 — Drop cross-window (fallback <code>dataTransfer</code>) commita sem protocolo de intenção</h3>
-<dl>
-<dt>Mecanismo</dt><dd><code>resolveDrag</code> aceita payload de outra janela (drag para a janela do newtab a partir de outra aba/janela). Os handlers de drop tratam como gesto local: commita <code>onBackgroundDrop</code>/<code>onDropOnFolder</code> no container atual sem capture de gesto consistente — histórico pode não registrar ou registrar errado.</dd>
-<dt>Relação</dt><dd>É a forma real do problema que o L7 original apontou de forma imprecisa.</dd>
-<dt>Decisão ligada</dt><dd>NPD-4 — decidida: rejeitar cross-window drops sem contexto de gesto confiável (ver Decisões).</dd>
-<dt>Fix (onda 6)</dt><dd>NPD-4 implementado: <code>__kliceDndGestureEpoch</code> global marca gestos same-document (dragstart incrementa, dragend zera). Os drop handlers recusam o payload quando o epoch está zerado (cross-window); guarda aplicada em grid, fundo, preview e tabs.</dd>
-<dt>Validação</dt><dd><code>verify-dnd-lifecycle.test.tsx</code> 5/5 e suíte 79/79; builds Chromium e Firefox ✔.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-High">High</span><span class="badge st-open">Novo — confirmado por rastreio (onda 4)</span></div>
-<h3>N3 — Concorrência de dev servers envenena o HTML carregado: porta vira fantasma e o newtab/popup ficam pretos</h3>
-<dl>
-<dt>Sintoma real</dt><dd>Usuário rodou <code>bun dev</code> e o newtab abriu em tela preta (só o fundo <code>dark</code>; nenhum conteúdo React).</dd>
-<dt>Mecanismo</dt><dd>O <code>"dev": "wxt --port 5555"</code> não fixava a porta: com a 5555 ocupada por uma instância anterior, o WXT silenciosamente escolheu outra (ex.: 50368) e <strong>gravou a URL dela dentro de <code>.output/*-mv3-dev/*.html</code></strong>. O HTML da extensão é estático no disco — quando o servidor daquela porta morre (ou quando a instância que o gerou não é a mesma carregada no navegador), nenhum módulo carrega, o React nunca monta e a página fica vazia/preta. Confirmado por rastreio: dois processos WXT simultâneos; HTML apontando para a porta da instância morta; todos os módulos respondendo 200 na porta do servidor vivo.</dd>
-<dt>Fix (onda 4)</dt><dd><code>wxt.config.ts</code>: <code>dev.server.port = 5555</code> + <code>strictPort: true</code> — um segundo <code>bun dev</code> agora falha ruidosamente em vez de reescrever o HTML para uma porta fantasma. Para recuperar uma sessão envenenada: fechar instâncias duplicadas, reiniciar <code>bun dev</code> e recarregar a extensão (<code>chrome://extensions</code> → reload).</dd>
-<dt>Validação</dt><dd>Build de produção ✔ com o novo config; <code>tsc</code> limpo; suíte 64/64. Smoke por HTTP contra o dev server vivo: <code>/entrypoints/newtab/main.tsx</code>, <code>/entrypoints/newtab/App.tsx</code> e todos os módulos tocados pelas ondas 3/4 respondem 200.</dd>
-</dl>
-</div>
-
-<div class="finding">
-<div class="badges"><span class="badge sev-Critical">Critical</span><span class="badge st-fixed">Corrigido na onda 4</span></div>
-<h3>N4 — Hook chamado dentro de useEffect desmonta a árvore React inteira no primeiro mount (tela preta mesmo com dev server saudável)</h3>
-<dl>
-<dt>Sintoma real</dt><dd>Tela preta no newtab mesmo com o dev server íntegro (módulos 200). No console: <code>Error: Invalid hook call</code> em <code>history-manager.tsx</code>; o React desmonta a árvore inteira e o <code>body.dark</code> fica vazio.</dd>
-<dt>Causa raiz</dt><dd>Introduzido na onda 3 (resíduo do H1): o efeito que consome <code>deadIdNotice</code> chamava <code>useHistoryStore((s) =&gt; s.deadIdNotice)</code> <strong>dentro do <code>useEffect</code></strong> — hook em callback, violação das Rules of Hooks. Todo mount do <code>HistoryManager</code> crashava a renderização.</dd>
-<dt>Fix (onda 4)</dt><dd><code>history-manager.tsx</code>: a assinatura do store subiu para o corpo do componente (padrão dos efeitos irmãos) e o efeito apenas consome o valor já observado. Verificado em página real: console sem erros React, árvore montada com conteúdo completo.</dd>
-<dt>Regressão</dt><dd><code>verify-history-manager-mount.test.ts</code>: prova que o mount do <code>HistoryManager</code> não desmonta a árvore (replica o crash com <code>createRoot</code>/<code>act</code>) e que o aviso de id morto segue funcionando. Red-capable: com o bug reintroduzido, os 2 testes falham.</dd>
-<dt>Validação</dt><dd>Suíte 66/66; <code>tsc</code> limpo; builds chrome/firefox ✔.</dd>
-</dl>
-</div>
-
-<h2 id="decisoes">Decisões de produto</h2>
-<p class="meta" style="border:1px solid var(--ok-line);background:var(--ok-bg);color:var(--ok-ink);border-radius:var(--radius);padding:12px 16px;">Decidido pelo mantenedor em 17/09/2026 — registrado abaixo como regra oficial. Resumo: <strong>P1 A · P2 A · P3 A · P4 A · P5 A primeiro · P6 B conservador · P7 A · NPD-1 bloquear Save até hidratar · NPD-2 pasta só no commit · NPD-3 conservador (reset/import limpam past+future; sync invalida future) · NPD-4 rejeitar cross-window DnD por ora · NPD-5 finalizar rename antes do undo</strong>.</p>
-<table>
-<tr><th>#</th><th>Decisão registrada</th><th>Implementação no código atual</th></tr>
-<tr><td>P1</td><td><strong>A</strong> — drop estrangeiro insere exatamente na posição indicada ("o que você vê é onde cai").</td><td><strong>0%</strong> — <code>use-grid-dnd.ts:435</code> ainda appenda (H9).</td></tr>
-<tr><td>P2</td><td><strong>A</strong> — bloquear combine com grupo &gt;1, com cue de recusa; grupo segue movível.</td><td><strong>0%</strong> — combine ignora o grupo (H7).</td></tr>
-<tr><td>P3</td><td><strong>A</strong> — tombstone de thumbnails; GC só na evicção do histórico.</td><td><strong>Feito (onda 5)</strong> — deletes tombstonam <code>entry.thumbnails</code> (nada é apagado no ato); GC único com live-check em todas as saídas de histórico; undo restaura bytes; sweep de órfãos pós-hidratação (H3).</td></tr>
-<tr><td>P4</td><td><strong>A</strong> — virtualização real acima de threshold; <code>content-visibility</code> como complemento.</td><td><strong>Metade segura feita (onda 8)</strong> — <code>content-visibility: auto</code> + <code>contain-intrinsic-size</code> nas células dos dois layouts (o browser pula layout/paint fora da viewport, ganho em qualquer escala). Virtualização (windowing do DOM) <strong>documentada como adiada</strong>: framer-motion (layout animations) e os previews de DnD medem células fora da tela — desmontá-las regrediria H4/H10/H11. Trabalho futuro: windowing com medição preservada.</td></tr>
-<tr><td>P5</td><td><strong>A primeiro</strong> — preflight de quota + erro claro + estado "não salvo"; nunca falhar em silêncio.</td><td><strong>Feito (onda 8)</strong> — <code>PersistHealth</code> ("ok" | "unsaved" | "failed") com ciclo completo no adaptador: enqueue marca <code>unsaved</code>, escrita bem-sucedida marca <code>ok</code>, rejeição marca <code>failed</code> (nunca silencioso); preflight via <code>getBytesInUse</code> falha explicitamente com <code>QuotaExceededError</code> acima de 95% da cota de 10 MiB (sem relatório do browser, a escrita segue — não bloquear por ignorância). Toast agora é <em>sticky</em> em <code>failed</code> e se auto-demitir em <code>ok</code>.</td></tr>
-<tr><td>P6</td><td><strong>B conservador</strong> — normalizar só o comprovadamente seguro; preservar path/query/fragment; não remover <code>www</code>.</td><td><strong>Parcial "por omissão"</strong> — <code>canonicalUrl</code> (url.ts:45) já é conservador: host lowercased, portas default removidas, path/query/fragment preservados, sem strip de <code>www</code>. Falta o documento oficial de política + dedupe por id no normalize.</td></tr>
-<tr><td>P7</td><td><strong>A</strong> — renomear "Frequently visited" agora.</td><td><strong>Feito</strong> — "Suggested" (única ocorrência de UI). Comentário interno do arquivo ainda cita o nome antigo (cosmético).</td></tr>
-</table>
-
-<h3>Novas decisões (NPD-1..5) — decididas em 17/09/2026</h3>
-<p class="meta">Estas decisões desbloqueiam os fixes correspondentes: NPD-1 → resíduo do H13 · NPD-2 → N2 · NPD-3 → M4/M20 (e família M13/M14/N1) · NPD-4 → D4 · NPD-5 → M1/M3.</p>
-<table>
-<tr><th>#</th><th>Questão</th><th>Decisão registrada</th></tr>
-<tr><td>NPD-1</td><td>Popup pré-hidratação: com o sync do H13, salvar num instante em que a hidratação ainda não chegou grava na pasta <em>default</em>, não na ativa do usuário. Aceitável (raro e visível) ou o save deve esperar <code>hasHydrated</code>?</td><td><strong>Bloquear.</strong> O Save do popup só habilita com <code>hasHydrated=true</code>. Nunca salvar na pasta default só porque a hidratação demorou alguns ms.</td></tr>
-<tr><td>NPD-2</td><td>Pending-save: a pasta deve ser criada só no commit (com nome resolvido depois) ou criada-antes/cancelada-como-órfã-visível é aceitável? Define o fix de N2.</td><td><strong>Pasta somente no commit.</strong> Nada de placeholder ou pasta órfã aparecendo no modelo persistente antes de a ação existir de verdade.</td></tr>
-<tr><td>NPD-3</td><td>Mutações externas (cross-tab sync, import, reset) devem <strong>limpar</strong> o branch de redo (e possivelmente o past) do histórico local? Impacta M4/M20 e a coerência do undo entre abas.</td><td><strong>Conservador, em dois níveis.</strong> Reset e import completo limpam <code>past + future</code> do histórico local; sync externo invalida no mínimo o <code>future</code> (redo) e impede undo baseado em snapshot obsoleto. Implementação conservadora.</td></tr>
-<tr><td>NPD-4</td><td>Drop cross-window (D4): aceitar com confirmação/feedback, aceitar silenciosamente como hoje, ou rejeitar payloads sem contexto de gesto?</td><td><strong>Rejeitar por ora.</strong> Sem contexto de gesto confiável, o drop cross-window é recusado — melhor não aceitar do que aceitar silenciosamente com histórico incorreto. Depois pode virar feature intencional, com protocolo próprio.</td></tr>
-<tr><td>NPD-5</td><td>Política de concorrência rename × undo (M1/M3): undo durante rename cancela o rename, é bloqueado, ou o rename vira entrada à parte encadeada?</td><td><strong>Finalizar antes.</strong> Com rename ativo, o undo cancela/finaliza explicitamente o rename antes de aplicar; os dois estados nunca coexistem. Simples e previsível.</td></tr>
-</table>
-
-<h2 id="onda4">Onda 4 — 17/09/2026 (diagnóstico em ambiente real do usuário)</h2>
-<p>Relato: <code>bun dev</code> com tela preta no newtab. Duas causas raiz independentes, ambas confirmadas e corrigidas: <strong>N3</strong> (HTML envenenado por instância duplicada do dev server — guardado com <code>strictPort</code>) e <strong>N4</strong> (hook dentro de <code>useEffect</code> no <code>HistoryManager</code>, introduzido na onda 3 — corrigido e coberto por teste red-capable). Nenhuma correção de produção das ondas 1–3 foi rebatida — exceto a regressão do N4, que nasceu dentro da própria onda 3 e já está curada.</p>
-
-<h2 id="onda5">Onda 5 — 17/09/2026 (cobertura de histórico de deletes + tombstone de thumbnails)</h2>
-<p>H2 (parcial — deletes resolvidos no store; settings documentado como residual), H3/P3 resolvido de ponta a ponta com modelo de posse de bytes corrigido (live-check no GC). Suíte 71/71, <code>tsc</code> limpo, builds chrome/firefox ✔. Onda red-capable: remover o commit do delete reproduz 3 falhas.</p>
-
-<h2 id="navegadores">Achados por navegador</h2>
-<h3>Firefox / Zen</h3>
-<ul>
-<li><s>C4 restante: <code>storage.ts</code>, <code>use-cross-tab-sync.ts</code>, <code>bookmarks-html.ts</code> ainda em <code>chrome.*</code></s> — migrados na onda 7 via <code>extApi()</code> (late-binding); sem smoke real no Firefox (não executável neste ambiente — registrado como lacuna de validação, não como bug confirmado).</li>
-<li><s><code>Ctrl+Shift+D</code> continua igual a "Bookmark all tabs" (wxt.config.ts:23) — remapear (ex.: <code>Alt+Shift+D</code>)</s> — remapeado na onda 7 para <code>Alt+Shift+D</code> (mac mantém <code>Command+Shift+D</code>).</li>
-<li>Manifest confere (gecko id, permissões <code>storage/activeTab/tabs/contextMenus/bookmarks</code>, background event-page com scripts).</li>
-</ul>
-<h3>Chromium</h3>
-<ul>
-<li>Nenhum achado exclusivo; builds <code>chrome-mv3</code> OK (3,51 MB).</li>
-<li>Regressão R1 afeta os dois alvos igualmente (typecheck, não build).</li>
-</ul>
-
-<h2 id="performance">Performance / escala</h2>
-<p class="meta">Onda 8: P5-A implementado (health de persistência + preflight de quota, com regressão em <code>verify-persistence-protocol.test.ts</code>) e a metade segura do P4 (<code>content-visibility</code> nos dois layouts). Virtualização real segue adiada por conflito documentado com framer-motion/DnD. Sem alteração nos demais hot paths (previewCards O(F·N), debounce de busca, includes por célula) — registrados como risco residual conhecido.</p>
-<table>
-<tr><th>Carga</th><th>Risco atual</th></tr>
-<tr><td>50 itens</td><td>OK (hover reorder escreve O(n) por célula — aceitável).</td></tr>
-<tr><td>500 itens</td><td>Sem virtualização (~5k nós + 500 IDB + 1000 favicons); preview O(F·N); select-all O(G·S).</td></tr>
-<tr><td>2.000+ itens</td><td>16–20k nós; persist serializa tudo por flush (teto ~5MB); índice de busca rebuildado por write; thumbs N+1.</td></tr>
-</table>
-
-<h2 id="ordem">Ordem de correção recomendada</h2>
-<ol>
-<li><s><strong>Desbloquear o typecheck (R1)</strong></s> — <strong>concluído (onda 3):</strong> <code>ext</code> tipado como <code>typeof Browser</code> (wxt/browser); <code>tsc --noEmit</code> 0 erros.</li>
-<li><s><strong>C3 (crítico restante)</strong></s> — <strong>concluído (onda 3):</strong> época de gesto com flag de cancel checada nos 4 handlers de drop antes de <code>resolveDrag(e)</code>; loop vermelho da 2ª passada virou teste de regressão verde.</li>
-<li><strong>Confiança no undo</strong> — <s>H4 (commit único no drop das tabs)</s> <strong>resolvido (onda 3: hover=preview via previewReorderItems, drop=commit)</strong>; resíduo de H1 <strong>resolvido (onda 3: deadIdNotice + toast)</strong>; M1 <strong>resolvido (applier lê nameOnlyIds)</strong>.</li>
-<li><strong>Protocolo de escrita único</strong> — <s>N1 (generation stamp no background)</s> <strong>resolvido (onda 3: readSetupEnvelope/writeSetupEnvelope)</strong>; M13 pendente (aba morta repersistindo — mitiga-se com o mesmo protocolo, ver tabela); M20 <strong>resolvido</strong>; NPD-3 <strong>implementada</strong>; D2 <strong>resolvido (quarentena + report)</strong>.</li>
-<li><strong>Integridade de dados</strong> — <s>H5/M11 (remapear órfãos)</s> <strong>resolvido (onda 3)</strong>; <s>H12 (uuid)</s> <strong>resolvido (crypto.randomUUID)</strong>; <s>D2 (quarentena)</s> <strong>resolvido</strong>; M21/L4 <strong>resolvidos</strong>; H3/P3 (popular tombstones e adiar GC) pendente.</li>
-<li><strong>Cobertura do histórico</strong> — H2 (delete/settings no histórico) + M4.</li>
-<li><strong>Decisões P1/P2 no DnD</strong> — <s>H9 (inserção posicionada) + H7 (bloqueio de combine) + H8 (misto no preview) + H10/H11 (hover vs drop)</s> <strong>todos resolvidos na onda 6</strong>, junto com L5, L8 e D4/NPD-4 (ver cards e tabela L).</li>
-<li><strong>Firefox</strong> — <s>resto do C4 + remapear atalho</s> <strong>resolvidos na onda 7</strong>; smoke real no Firefox segue como lacuna de validação (não executável neste ambiente).</li>
-<li><strong>Escala (P4/P5)</strong> — <s>preflight de quota + estado "não salvo"</s> <strong>resolvido na onda 8</strong>; <code>content-visibility</code> aplicado; virtualização real adiada com justificativa (conflito com framer-motion/DnD medindo células offscreen).</li>
-<li><strong>Polimento</strong> — <s>M7, M8, M15, M16, M17, M18</s> <strong>resolvidos na onda 9</strong>; M13/M14 via N1 (onda 3). Residuais documentados: M6 (aviso de cards inválidos no export), M9 (teto de export), M10 (validação total de settings), M12 (janela de clobber do sync), M22 (Esc restaura reorder de tabs), N2 (pasta placeholder do pending-save).</li>
-</ol>
-
-<h2 id="senior-pass-2026-09-19">Senior verification pass — 19 Sep 2026</h2>
-<p>The previous wave's 85/85 and browser-build statement is historical evidence. This pass finished with 111/111 tests, clean TypeScript and diff checks, Biome exit 0 on changed code (16 existing advisory warnings), and successful Chromium MV3 and Firefox MV3 builds. Browser policy prevented opening the local extension UI, so visual, network and interaction smoke remain unverified in a real browser.</p>
-<table>
-<tr><th>Scope</th><th>Diagnosis and status</th><th>Validation</th></tr>
-<tr><td>1. Folder selection</td><td>Implemented explicit atomic folder selection with inherited visual state in entered folders. A child toggle materializes the selected ancestor into an ordered frontier of explicit siblings, including nested paths; Select all canonicalizes ancestor/descendant overlaps and Deselect all in an inherited page keeps selection in other branches. Dragging an inherited child resolves to the selected folder as the operation unit. Marquee selection materializes on first hit.</td><td>Four focused model/store regressions and one React DOM native-drag payload test pass; typecheck, full suite and both browser builds pass. Interactive browser DnD remains unverified: local dev preview was unavailable, and browser policy blocked the built file URL.</td></tr>
-<tr><td>2. Selection tray drag</td><td>Root cause: only the preview button was a native drag source. The tray panel now starts the same frozen-group payload, while its buttons remain controls; dragend clears active payload, frozen group and history capture. Preview drag remains available.</td><td>Typecheck and both browser builds pass. Interactive tray-to-folder drop remains unverified because browser access to the local build was blocked.</td></tr>
-<tr><td>3. Browser bookmark hierarchy</td><td>Three root causes confirmed: API path hoisted every child of the browser root, Netscape HTML parsing trusted DOM repair of omitted <code>&lt;/DT&gt;</code>, and name-keyed merge collapsed duplicate sibling folders. Browser-owned containers now use API metadata/stable IDs; source-tag HTML parsing preserves <code>DL</code> hierarchy; duplicate siblings are matched by occurrence; mixed card/folder order is carried into <code>itemOrder</code>. User-supplied Vivaldi export has 69 headings and 271 anchors: one marked toolbar wrapper, 63 immediate child folders. Parse/plan retains all 69 folders (63 roots plus five nested and one loose-link catch-all) and all 271 cards. Export/reimport fixture confirms hierarchy, empty folders and mixed order.</td><td>Chromium/Vivaldi/Firefox API and HTML fixture tests pass; actual Vivaldi file parsed read-only with counts only (private titles/URLs never printed or committed). Whole suite 96/96, typecheck clean, Chromium and Firefox builds pass. Browser UI smoke pending. Sources: <a href="https://developer.chrome.com/docs/extensions/reference/api/bookmarks">Chrome Bookmarks API</a>, <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/bookmarks/getTree">MDN getTree</a>, <a href="https://help.vivaldi.com/desktop/bookmarks-speed-dial/bookmark-manager/">Vivaldi Bookmark Manager</a>.</td></tr>
-<tr><td>4. Scroll fade</td><td>Removed frame overlay, CSS gradient and scroll state. Compact-search boundary logic retained.</td><td>Typecheck, both builds and whole suite pass. Visual smoke pending.</td></tr>
-<tr><td>5. Folder navigation motion</td><td>Root cause: root switches translated a full grid width, while depth switches translated roughly a viewport height and scaled under a separate spring. Removed both measurement loops and unified all page transitions around small horizontal travel, inverse forward/back paths, opacity, one easing and shorter exits. Old and new grids now occupy one CSS grid track during the crossover, avoiding doubled flow height.</td><td>Pure direction/reversal/reduced-motion tests pass; full suite 103/103, typecheck, both browser builds and diff-check pass. Interactive visual check remains blocked by local browser access.</td></tr>
-<tr><td>6. Settings motion</td><td>Root cause: panel transform animated while sidebar width snapped open and snapped closed after transition, making the two directions feel unrelated. The width and panel now retarget together on the same 220ms curve, with no delayed layout state. Settings page transitions use the same reversible page-motion variants as folder navigation; AnimatePresence supplies the current direction to exiting pages.</td><td>Shared motion tests and full suite 103/103 pass; typecheck and both builds pass. Browser visual and interruption checks remain blocked by local browser access.</td></tr>
-<tr><td>7. Icon title and rename</td><td>Root cause: Icon mode always derived its label from the URL, ignoring the saved title changed by inline rename. Both layouts now resolve a saved title or a site name inferred from the URL through one helper. Settings offers a global default and each bookmark can inherit it or override it. Inline rename selects the saved-title source, including when the text stays the same. Small icon tiles clamp to one line; medium and large tiles clamp to two within their cell. Legacy bookmarks default to saved titles; invalid source values normalize safely.</td><td>Focused source/override/rename/migration tests pass; typecheck passes. Interactive label and rename smoke is pending because local extension browser access was blocked.</td></tr>
-<tr><td>8–10. Date, sizes, search width</td><td>Reviewed Luna implementation: date visibility and size are independent of time; greeting and clock have own sizes. Persisted widths/sizes normalize to bounded ranges, including legacy date visibility. Search preferred width 420–800px shrinks to viewport gutter. State shape, defaults and UI wiring are consistent.</td><td>Three new migration/boundary tests pass; whole suite 96/96, typecheck clean, both browser builds pass. Interactive settings checks pending.</td></tr>
-<tr><td>11. Home flicker on visual settings changes</td><td>Root cause: <code>storage.onChanged</code> can deliver this tab's own write before <code>storage.local.set</code> resolves. The old echo guard recorded only completed writes, so a normal visual change could hydrate the entire setup again and replace cards, folders and order arrays. Outgoing values are now registered before the write and their echoes consumed. External settings-only updates preserve unchanged structural references and apply in one store update. Grid cells and folder preview cells run Framer Motion layout calculations only during an active drag; stable folder/card IDs remain React keys. Background and thumbnail image effects depend on image IDs, so they do not run for unrelated settings.</td><td>Regression test reproduces the early storage event, including the interval where the old completed-write guard fails. Store tests verify visual settings and external settings-only sync retain cards, folders and order references; focused tests and typecheck pass. Browser profiling and visual/asset-network confirmation remain pending because the local extension UI could not be opened under browser policy.</td></tr>
-</table>
-<p><strong>Toolbar recommendation:</strong> keep the toolbar fixed for this release. Its folder navigation, search and actions share tight space and interaction rules; user-controlled placement or visibility would add failure states without clear value. Revisit after observing repeated requests for one specific control.</p>
-
-<footer>
-<p>Onda 4 (17/09/2026): tela preta do <code>bun dev</code> diagnosticada e guardada — N3 registrado, <code>strictPort</code> aplicado, suíte 64/64, <code>tsc</code> limpo, build chrome ✔. 2ª passada independente sobre <code>a14b754</code> + working tree; remediação ondas 1–3: R1, C3, H4, N1, D2, H5/M11, H12, M21, L4, M1, M3, M4, M20, NPD-3, resíduo do H1 resolvidos e validados. Skills: <em>diagnosing-bugs</em> (primária), <em>find-skills</em> (descoberta), <em>code-review</em>, <em>tdd</em>, <em>browser-extension-builder</em>, <em>zustand-patterns</em>, <em>unit-test-boundary-conditions</em>, <em>deliver-edge-cases</em>. Validação em navegador real (Chromium interativo, Firefox/Zen) não executada neste ambiente — itens dependentes estão marcados. Onda 6 (17/09/2026): DnD completo — H7/H8 (P2-A: recusa com cue + toast), H9 (P1-A: inserção posicionada), H10 (stamp do hover vence), H11 (re-hit-test no autoscroll), L5 (simetria de cantos), L8 (grupo congelado no dragstart), D4 (epoch same-document). Suíte 79/79, <code>tsc</code> limpo, biome ok nos arquivos tocados, builds Chromium e Firefox ✔. Onda 7 (17/09/2026): C4 concluído — <code>extApi()</code> late-binding em storage/sync/bookmarks-html (chrome-first, igualando a semântica call-time original), atalho <code>add-current-page</code> remapeado para <code>Alt+Shift+D</code>. Suíte 79/79, <code>tsc</code> limpo, builds Chromium e Firefox OK. Onda 8 (17/09/2026): P5-A implementado — <code>PersistHealth</code> (ok/unsaved/failed) no adaptador, preflight de quota via <code>getBytesInUse</code> (95% de 10 MiB), toast sticky com auto-dimissão na recuperação; P4: <code>content-visibility: auto</code> nos dois layouts (virtualização real adiada com justificativa documentada — conflito com framer-motion/DnD que medem células offscreen). Suíte 80/80, builds OK. Onda 9 (17/09/2026): M7 (sniff de conteúdo), M8 (chave NFC simétrica), M15 (guarda do Ctrl+K), M16 (protocolo de claim do Esc), M17 (<code>stopPropagation</code> do search), M18 (poda em vez de reset), M13/M14 registrados como resolvidos via N1. <strong>Estado final: 85/85 testes, <code>tsc</code> limpo, <code>git diff --check</code> limpo, builds Chromium e Firefox OK, working tree limpo.</strong> Lacunas de validação (ambiente): smoke interativo no Firefox/Zen e em navegador real (Chromium) não executados. Residuais documentados (não-bloqueantes): M6, M9, M10, M12, M22, N2, virtualização real do P4.</p>
-</footer>
-
+  <footer>Updated on 2026-09-19 for <code>audit/pre-release-reliability</code>. This document intentionally reports the current branch, not historical wave summaries.</footer>
 </main>
 </body>
 </html>
