@@ -1,4 +1,5 @@
 import { KliceShape } from "@klice-start/ui/lib/shapes";
+import { TOOLBAR } from "../../../../lib/toolbar-tokens";
 
 /**
  * Settings design tokens.
@@ -49,7 +50,7 @@ export const SETTINGS_CONTENT_PADDING = "p-4";
  * the narrower content-frame inset. This keeps both toolbars on one optical
  * grid while the Settings body remains aligned to its own inset frame.
  */
-export const SETTINGS_HEADER_HEIGHT = "h-14";
+export const SETTINGS_HEADER_HEIGHT = TOOLBAR.height;
 export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]";
 
 /**

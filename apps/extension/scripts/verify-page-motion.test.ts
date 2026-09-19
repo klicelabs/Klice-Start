@@ -83,7 +83,7 @@ test("Settings toolbar shares Home toolbar geometry", () => {
 	);
 
 	expect(settingsTokens).toContain(
-		'export const SETTINGS_HEADER_HEIGHT = "h-14"',
+		"export const SETTINGS_HEADER_HEIGHT = TOOLBAR.height",
 	);
 	expect(settingsTokens).toContain(
 		'export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]"',
