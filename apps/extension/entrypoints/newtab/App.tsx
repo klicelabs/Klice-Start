@@ -581,6 +581,8 @@ export default function App() {
 	const [settingsPane, setSettingsPane] = useState<SettingsPaneId>();
 	const [settingsAction, setSettingsAction] =
 		useState<SettingsSidebarProps["initialAction"]>(undefined);
+	const settingsOpenRef = useRef(false);
+	const settingsOpenFrameRef = useRef<number | null>(null);
 	const unifiedSearchRef = useRef<UnifiedSearchHandle>(null);
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
@@ -596,15 +598,65 @@ export default function App() {
 		return () => window.clearTimeout(timer);
 	}, []);
 
-	const enterRestMode = useCallback(() => {
+	const handleCloseSettings = useCallback(() => {
+		if (settingsOpenFrameRef.current !== null) {
+			cancelAnimationFrame(settingsOpenFrameRef.current);
+			settingsOpenFrameRef.current = null;
+		}
+		const wasOpen = settingsOpenRef.current;
+		settingsOpenRef.current = false;
 		setShowSettings(false);
-		setRestMode(true);
+		setSettingsAction(undefined);
+		// If the opening commit has not reached the panel yet, there is no
+		// transform to play in reverse and the layout footprint can be released.
+		if (!wasOpen) setSettingsLayoutOpen(false);
 	}, []);
+
+	// Open Settings window with optional pane & action deep-linking
+	const handleOpenSettings = useCallback(
+		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
+			setSettingsPane(pane);
+			setSettingsAction(action);
+			setSettingsLayoutOpen(true);
+			if (settingsOpenRef.current) {
+				setShowSettings(true);
+				return;
+			}
+			if (settingsOpenFrameRef.current !== null) return;
+			settingsOpenFrameRef.current = requestAnimationFrame(() => {
+				settingsOpenFrameRef.current = null;
+				settingsOpenRef.current = true;
+				setShowSettings(true);
+			});
+		},
+		[],
+	);
+
+	const handleToggleSettings = useCallback(() => {
+		if (settingsOpenRef.current || settingsOpenFrameRef.current !== null) {
+			handleCloseSettings();
+			return;
+		}
+		handleOpenSettings();
+	}, [handleCloseSettings, handleOpenSettings]);
+
+	const enterRestMode = useCallback(() => {
+		handleCloseSettings();
+		setRestMode(true);
+	}, [handleCloseSettings]);
 
 	const exitRestMode = useCallback(() => {
 		setRestMode(false);
 		triggerWake();
 	}, [triggerWake]);
+
+	useEffect(() => {
+		return () => {
+			if (settingsOpenFrameRef.current !== null) {
+				cancelAnimationFrame(settingsOpenFrameRef.current);
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		if (!restMode) return;
@@ -623,29 +675,9 @@ export default function App() {
 		return () => document.removeEventListener("keydown", handleRestModeKey);
 	}, [restMode, exitRestMode]);
 
-	// Open Settings window with optional pane & action deep-linking
-	const handleOpenSettings = useCallback(
-		(pane?: SettingsPaneId, action?: SettingsSidebarProps["initialAction"]) => {
-			setSettingsPane(pane);
-			setSettingsAction(action);
-			setSettingsLayoutOpen(true);
-			setShowSettings(true);
-		},
-		[],
-	);
-
-	const handleToggleSettings = useCallback(() => {
-		if (showSettings) {
-			setShowSettings(false);
-			setSettingsAction(undefined);
-			return;
-		}
-		handleOpenSettings();
-	}, [handleOpenSettings, showSettings]);
-
 	const handleSpeedDialBackgroundPointer = useCallback(
 		(event: PointerEvent) => {
-			if (!showSettings || event.pointerType !== "mouse") return;
+			if (!settingsOpenRef.current || event.pointerType !== "mouse") return;
 			if (event.button !== 0 && event.button !== 2) return;
 
 			const target = event.target;
@@ -655,10 +687,9 @@ export default function App() {
 			// This handler is scoped to the real Speed Dial scroll surface. A
 			// background click closes the sidebar, while the subsequent native
 			// contextmenu event is intentionally left untouched for right-clicks.
-			setShowSettings(false);
-			setSettingsAction(undefined);
+			handleCloseSettings();
 		},
-		[showSettings],
+		[handleCloseSettings],
 	);
 
 	// The toolbar is an alternate trigger for the one mounted Search controller.
@@ -1090,8 +1121,13 @@ export default function App() {
 				<SidebarProvider
 					open={showSettings}
 					onOpenChange={(isOpen) => {
-						setShowSettings(isOpen);
-						if (!isOpen) setSettingsAction(undefined);
+						if (isOpen) {
+							settingsOpenRef.current = true;
+							setSettingsLayoutOpen(true);
+							setShowSettings(true);
+							return;
+						}
+						handleCloseSettings();
 					}}
 					style={
 						{
@@ -1202,7 +1238,7 @@ export default function App() {
 
 						<SettingsSidebar
 							open={showSettings}
-							onClose={() => setShowSettings(false)}
+							onClose={handleCloseSettings}
 							layoutOpen={settingsLayoutOpen}
 							onCloseComplete={() => setSettingsLayoutOpen(false)}
 							initialPane={settingsPane}
