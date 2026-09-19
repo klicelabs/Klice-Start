@@ -39,7 +39,7 @@
     <p class="status">PASS — no unresolved actionable Critical, High, Medium or Low findings in the current branch.</p>
     <p class="meta"><strong>Branch:</strong> <code>audit/pre-release-reliability</code></p>
     <p class="meta"><strong>Audit scope:</strong> current source, tests, extension build graph, Netscape/Vivaldi/Chromium/Firefox fixtures and the supplied Vivaldi export (read-only).</p>
-    <p class="meta"><strong>Implementation commit:</strong> <code>d226079</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
+    <p class="meta"><strong>Implementation commit:</strong> <code>8144c45</code> · <strong>Audit document:</strong> this file is the source of truth for the final status.</p>
     <p class="meta"><strong>Working-tree note:</strong> the private user export <code>favoritos_17_09_2026.html</code> and pre-existing <code>.freebuff/</code> remain untracked and were not staged, printed or modified.</p>
   </section>
 
@@ -157,7 +157,7 @@
     <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>115 tests, 0 failures after the final residual and metadata-history regressions.</td></tr>
     <tr><td><code>npm run compile</code> in <code>apps/extension</code></td><td class="result">PASS</td><td>TypeScript no-emit clean.</td></tr>
     <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
-    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Biome check completed with writes applied to touched files.</td></tr>
+    <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Biome check passes on the 17 touched implementation/test TS, TSX and MTS files; the eight remaining notices are non-blocking pre-existing optional-chain guidance. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
     <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
     <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>.</td></tr>
     <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>.</td></tr>
