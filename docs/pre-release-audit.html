@@ -154,13 +154,13 @@
 
   <h2>Validation record</h2>
   <table><thead><tr><th>Gate</th><th>Result</th><th>Notes</th></tr></thead><tbody>
-    <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>115 tests, 0 failures after the final residual and metadata-history regressions.</td></tr>
+    <tr><td><code>bun test scripts</code></td><td class="result">PASS</td><td>115 tests, 0 failures after the final residual and metadata-history regressions. The history-manager mount harness prints React <code>act(...)</code> diagnostics, and persistence tests print the expected corrupt/quota error paths; neither is a failing assertion.</td></tr>
     <tr><td><code>npm run compile</code> in <code>apps/extension</code></td><td class="result">PASS</td><td>TypeScript no-emit clean.</td></tr>
     <tr><td><code>npm run check-types</code></td><td class="result">PASS</td><td>Workspace typecheck clean.</td></tr>
     <tr><td>Biome format/lint on affected files</td><td class="result">PASS</td><td>Biome check passes on the 17 touched implementation/test TS, TSX and MTS files; the eight remaining notices are non-blocking pre-existing optional-chain guidance. Deliberately malformed Netscape HTML fixtures are excluded because they are parser inputs, not implementation source.</td></tr>
     <tr><td><code>git diff --check</code></td><td class="result">PASS</td><td>No whitespace errors.</td></tr>
-    <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>.</td></tr>
-    <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>.</td></tr>
+    <tr><td>Chromium MV3 build</td><td class="result">PASS</td><td><code>npm run build</code> in <code>apps/extension</code>; WXT emits its existing advisory for the 647 kB newtab chunk, but the build completes successfully.</td></tr>
+    <tr><td>Firefox MV3 build</td><td class="result">PASS</td><td><code>npm run build:firefox</code> in <code>apps/extension</code>; the same non-blocking chunk-size advisory is emitted.</td></tr>
   </tbody></table>
 
   <h2>Validation limits</h2>
