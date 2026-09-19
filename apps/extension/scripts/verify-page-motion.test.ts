@@ -49,10 +49,19 @@ test("Settings keeps the Home frame in the inset state through close motion", ()
 		new URL("../entrypoints/newtab/App.tsx", import.meta.url),
 		"utf8",
 	);
+	const tokens = readFileSync(
+		new URL("../src/styles/tokens.css", import.meta.url),
+		"utf8",
+	);
 	expect(app).toContain(
 		'data-settings-open={settingsLayoutOpen ? "true" : "false"}',
 	);
 	expect(app).not.toContain(
 		'data-settings-open={showSettings ? "true" : "false"}',
 	);
+	expect(tokens).toContain(
+		"transition: border-radius var(--workspace-motion-duration)",
+	);
+	expect(tokens).not.toContain("--workspace-home-scale");
+	expect(tokens).not.toContain("transform: scale(var(--workspace-home-scale))");
 });
