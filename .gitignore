@@ -76,4 +76,5 @@ ruvector.db
 .wxt*/
 .agents/
 .playwright-mcp/
+.freebuff/
 skills-lock.json
