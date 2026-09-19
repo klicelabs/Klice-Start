@@ -1,5 +1,4 @@
 import { KliceShape } from "@klice-start/ui/lib/shapes";
-import { TOOLBAR } from "../../../../lib/toolbar-tokens";
 
 /**
  * Settings design tokens.
@@ -50,7 +49,8 @@ export const SETTINGS_CONTENT_PADDING = "p-4";
  * the narrower content-frame inset. This keeps both toolbars on one optical
  * grid while the Settings body remains aligned to its own inset frame.
  */
-export const SETTINGS_HEADER_HEIGHT = TOOLBAR.height;
+/** Compact header band keeps the title and content frame on one short rhythm. */
+export const SETTINGS_HEADER_HEIGHT = "h-12";
 export const SETTINGS_HEADER_INSET = "px-[var(--speed-dial-toolbar-gutter)]";
 /** Header chrome sits on the Home frame's top edge in the framed workspace. */
 export const SETTINGS_HEADER_CONTROL_ALIGNMENT = "self-start";
