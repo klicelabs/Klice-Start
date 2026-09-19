@@ -134,7 +134,7 @@ export function SearchPane() {
 						max={800}
 						step={10}
 						onChange={(v) => updateSearch({ width: v })}
-						description="The bar shrinks to fit smaller windows."
+						tooltip="The bar shrinks to fit smaller windows."
 					/>
 				</SectionCard>
 			</SettingsExpandable>

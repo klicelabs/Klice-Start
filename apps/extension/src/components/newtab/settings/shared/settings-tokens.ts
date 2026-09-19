@@ -57,8 +57,6 @@ export const SETTINGS_HEADER_INSET = "px-[var(--workspace-gutter)]";
  */
 export const SETTINGS_LABEL =
 	"block text-[13px] font-medium leading-[1.35] text-neutral-900 dark:text-neutral-100";
-export const SETTINGS_DESCRIPTION =
-	"mt-1 block text-[12px] leading-[1.4] text-neutral-500 dark:text-neutral-400";
 
 /** Control column width — the widest a select, picker or input may grow. */
 export const SETTINGS_CONTROL_WIDTH = "w-[min(11rem,100%)]";

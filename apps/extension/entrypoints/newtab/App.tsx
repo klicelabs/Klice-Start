@@ -969,63 +969,65 @@ export default function App() {
 								>
 									<div className={cn(restMode && "rest-mode-hidden")}>
 										{/* Ambient content remains in the normal page flow. */}
-										<main className="speed-dial-hero hero">
-											<div
-												className="klice-ambient-hero"
-												data-ambient-hero="true"
-											>
-												<ClockWidget />
-											</div>
-											<div
-												ref={searchAnchorRef}
-												className="speed-dial-search-anchor"
-											>
-												<UnifiedSearch
-													ref={unifiedSearchRef}
-													onNavigateFolder={handleSelectFolder}
+										<div className="speed-dial-home-stack">
+											<main className="speed-dial-hero hero">
+												<div
+													className="klice-ambient-hero"
+													data-ambient-hero="true"
+												>
+													<ClockWidget />
+												</div>
+												<div
+													ref={searchAnchorRef}
+													className="speed-dial-search-anchor"
+												>
+													<UnifiedSearch
+														ref={unifiedSearchRef}
+														onNavigateFolder={handleSelectFolder}
+													/>
+												</div>
+											</main>
+
+											<QuickLinks />
+
+											<div className="speed-dial-grid-region">
+												<DialGrid
+													folderId={activeFolderId}
+													cards={cards}
+													subfolders={subfolders}
+													allCards={allCards}
+													allFolders={folders}
+													itemOrder={itemOrder}
+													cardCounts={cardCounts}
+													previewCards={previewCards}
+													onDelete={deleteCard}
+													onDeleteFolder={handleDeleteFolder}
+													onOpenFolder={handleSelectFolder}
+													onNewSubfolder={handleNewSubfolder}
+													onMoveItems={(cardIds, folderIds, targetId) =>
+														moveItemsToContainer(targetId, cardIds, folderIds)
+													}
+													onLiveReorder={handleLiveReorder}
+													onReorderGroup={handleReorderGroup}
+													onInsertCardsAt={handleInsertCardsAt}
+													onPreviewDrop={handlePreviewDrop}
+													onCombineCards={handleCombineCards}
+													canNestFolder={canNestFolder}
+													navigation={navigation}
+													emptyState={
+														isEmpty ? (
+															<EmptyLanding
+																folderName={currentFolderName}
+																onAdd={() =>
+																	handleOpenSettings("bookmarks", {
+																		type: "add-link",
+																	})
+																}
+															/>
+														) : null
+													}
 												/>
 											</div>
-										</main>
-
-										<QuickLinks />
-
-										<div className="speed-dial-grid-region">
-											<DialGrid
-												folderId={activeFolderId}
-												cards={cards}
-												subfolders={subfolders}
-												allCards={allCards}
-												allFolders={folders}
-												itemOrder={itemOrder}
-												cardCounts={cardCounts}
-												previewCards={previewCards}
-												onDelete={deleteCard}
-												onDeleteFolder={handleDeleteFolder}
-												onOpenFolder={handleSelectFolder}
-												onNewSubfolder={handleNewSubfolder}
-												onMoveItems={(cardIds, folderIds, targetId) =>
-													moveItemsToContainer(targetId, cardIds, folderIds)
-												}
-												onLiveReorder={handleLiveReorder}
-												onReorderGroup={handleReorderGroup}
-												onInsertCardsAt={handleInsertCardsAt}
-												onPreviewDrop={handlePreviewDrop}
-												onCombineCards={handleCombineCards}
-												canNestFolder={canNestFolder}
-												navigation={navigation}
-												emptyState={
-													isEmpty ? (
-														<EmptyLanding
-															folderName={currentFolderName}
-															onAdd={() =>
-																handleOpenSettings("bookmarks", {
-																	type: "add-link",
-																})
-															}
-														/>
-													) : null
-												}
-											/>
 										</div>
 
 										{/* Lightweight Move-to destination picker */}

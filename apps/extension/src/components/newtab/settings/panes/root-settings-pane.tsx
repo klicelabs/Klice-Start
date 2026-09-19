@@ -18,14 +18,12 @@ interface SettingsRootPaneProps {
 }
 
 interface SettingsNavigationRowProps {
-	description: string;
 	icon: IconName;
 	label: string;
 	onClick: () => void;
 }
 
 function SettingsNavigationRow({
-	description,
 	icon,
 	label,
 	onClick,
@@ -52,9 +50,6 @@ function SettingsNavigationRow({
 			<span className="min-w-0 flex-1">
 				<span className="block font-medium text-[13px] text-neutral-900 leading-[1.35] dark:text-neutral-100">
 					{label}
-				</span>
-				<span className="mt-0.5 block truncate text-[12px] text-neutral-500 leading-[1.35] dark:text-neutral-400">
-					{description}
 				</span>
 			</span>
 			<Icon
@@ -84,13 +79,11 @@ export function SettingsRootPane({ onNavigate }: SettingsRootPaneProps) {
 				<SettingsNavigationRow
 					icon="bookmark"
 					label="Manage bookmarks"
-					description="Folders, links and backups"
 					onClick={() => onNavigate("bookmarks")}
 				/>
 				<SettingsNavigationRow
 					icon="wrench"
 					label="Advanced"
-					description="Storage and reset"
 					onClick={() => onNavigate("advanced")}
 				/>
 			</SectionCard>

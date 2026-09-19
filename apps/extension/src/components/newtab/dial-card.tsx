@@ -7,10 +7,10 @@ import {
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useEffect, useState } from "react";
+import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
 import type { GridItemDragProps } from "../../lib/dnd";
 import {
-	glassCardFooter,
 	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
@@ -106,6 +106,9 @@ export function DialCard({
 			<ContextMenuTrigger
 				data-selected={isSelected ? "true" : undefined}
 				data-dragging={dragging ? "true" : undefined}
+				data-card-footer={
+					dialLayout === "card" ? CARD_FOOTER_VARIANT : undefined
+				}
 				className={cn(
 					// Calm by default: no hover lift/translate/glow. The card's
 					// material stays local to its own rounded surface.
@@ -221,7 +224,7 @@ export function DialCard({
 										// footer follows the card geometry in every
 										// browser (corner-shape aware or fallback).
 										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
-										glassCardFooter(isLiquid),
+										cardFooterMaterial(isLiquid),
 									)}
 									style={{ height: "var(--card-footer-h, 30px)" }}
 								>

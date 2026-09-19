@@ -55,6 +55,7 @@ export function QuickLinks() {
 									target={openInNewTab ? "_blank" : "_self"}
 									rel={openInNewTab ? "noopener noreferrer" : undefined}
 									aria-label={link.label}
+									title={link.label}
 									data-quick-link-id={link.id}
 									className={cn(
 										"quick-link-icon",

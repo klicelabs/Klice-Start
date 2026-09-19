@@ -146,7 +146,7 @@ export function GeneralPane() {
 					<SelectRow
 						label="Default title source"
 						icon="text"
-						description="Applies to bookmarks without their own title source."
+						tooltip="Applies to bookmarks without their own title source."
 						value={defaultTitleSource}
 						options={TITLE_SOURCE_OPTIONS}
 						onChange={(value) =>
@@ -215,7 +215,7 @@ export function GeneralPane() {
 				<SettingRow
 					label="Quick links"
 					icon="link"
-					description="Show common destinations above your bookmarks."
+					tooltip="Show common destinations above your bookmarks."
 				>
 					<Switch
 						className={SETTINGS_SWITCH}

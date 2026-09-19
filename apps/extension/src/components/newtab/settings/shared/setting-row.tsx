@@ -3,14 +3,17 @@ import type { ReactNode } from "react";
 import { useId } from "react";
 import { cn } from "../../../../lib/utils";
 import { SettingsLabel } from "./settings-label";
-import { SETTINGS_DESCRIPTION, SETTINGS_ROW } from "./settings-tokens";
+import { SETTINGS_ROW } from "./settings-tokens";
 
 interface SettingRowProps {
 	children: ReactNode;
 	className?: string;
 	icon?: IconName;
 	label?: ReactNode;
-	/** Supporting copy under the label. One short line, sentence case. */
+	/**
+	 * Legacy supporting copy. It is kept as a tooltip for callers that still
+	 * provide it; Settings rows never render permanent secondary text.
+	 */
 	description?: ReactNode;
 	/**
 	 * Supporting context kept one hover away instead of on screen. Use only
@@ -26,16 +29,15 @@ interface SettingRowProps {
  * The single row primitive for every preference.
  *
  * A row is a 48px beat: a label column that takes all remaining width, and a
- * control column that hugs the trailing edge. Labels sit at 13px/medium with
- * an optional 12px description one step dimmer — hierarchy comes from weight
- * and space, never from colour tricks.
+ * control column that hugs the trailing edge. Labels sit at 13px/medium;
+ * supporting context stays behind the shared help tooltip so the panel stays
+ * compact.
  *
  * Layout lives on a plain `div`, never on a `fieldset`: Chromium does not
  * distribute free space (`align-items`) reliably inside a fieldset grid
  * container, which left row content sitting ~4px high with a heavier bottom
  * pad. The grouping contract is preserved with `role="group"` named by the
- * visible label, so assistive tech announces label and description with the
- * control exactly as before.
+ * visible label, so assistive tech keeps the control paired with its row.
  */
 export function SettingRow({
 	children,
@@ -47,10 +49,10 @@ export function SettingRow({
 	align = "center",
 }: SettingRowProps) {
 	const labelId = useId();
-	const descriptionId = useId();
 
 	if (label) {
 		return (
+			// biome-ignore lint/a11y/useSemanticElements: settings rows use a generic group so controls can share the panel row grid without fieldset layout rules.
 			<div
 				role="group"
 				className={cn(
@@ -60,7 +62,6 @@ export function SettingRow({
 					className,
 				)}
 				aria-labelledby={labelId}
-				aria-describedby={description ? descriptionId : undefined}
 			>
 				<div className="flex min-w-0 items-center gap-2.5">
 					{icon && (
@@ -73,17 +74,9 @@ export function SettingRow({
 						/>
 					)}
 					<span className="min-w-0">
-						<SettingsLabel
-							id={labelId}
-							tooltip={tooltip && !description ? tooltip : undefined}
-						>
+						<SettingsLabel id={labelId} tooltip={tooltip ?? description}>
 							{label}
 						</SettingsLabel>
-						{description && (
-							<span id={descriptionId} className={SETTINGS_DESCRIPTION}>
-								{description}
-							</span>
-						)}
 					</span>
 				</div>
 				<div className="flex min-w-0 shrink-0 items-center gap-2 justify-self-end">

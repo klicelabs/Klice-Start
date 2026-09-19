@@ -129,8 +129,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		--speed-dial-layer-search: 80;
 		--speed-dial-hero-top: var(--speed-dial-space-xlarge);
 		--speed-dial-hero-gap: var(--speed-dial-space-large);
-		--speed-dial-hero-bottom: var(--speed-dial-space-medium);
-		--speed-dial-toolbar-grid-gap: var(--speed-dial-space-large);
+		--speed-dial-hero-bottom: 0px;
+		/* One responsive beat between Search, Quick Links and the grid. */
+		--speed-dial-home-stack-gap: var(--speed-dial-space-large);
 		--speed-dial-grid-bottom: 80px;
 	}
 }
@@ -600,6 +601,38 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transition:
 		transform 150ms var(--ease-out),
 		box-shadow 150ms var(--ease-out);
+}
+
+/* Card-mode title treatment. The old Liquid Glass footer remains available
+   through cardFooterMaterial("glass"); the active variant is a theme-neutral
+   black fade that rises over the thumbnail and keeps the title above it. */
+.dial-card[data-card-footer="fade"]::after {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	height: clamp(72px, 34%, 112px);
+	z-index: 5;
+	background: linear-gradient(
+		to top,
+		rgb(0 0 0 / 0.68) 0%,
+		rgb(0 0 0 / 0.42) 38%,
+		rgb(0 0 0 / 0) 100%
+	);
+	content: "";
+	pointer-events: none;
+}
+
+.dial-card[data-card-footer="fade"] .card-footer-fade {
+	position: relative;
+	z-index: 6;
+	background: transparent;
+	color: #fff;
+}
+
+.dial-card[data-card-footer="fade"] .card-footer-fade .title {
+	color: #fff;
+	text-shadow: 0 1px 3px rgb(0 0 0 / 0.42);
 }
 
 /* Card mode keeps its existing whole-card selection treatment. Icon mode uses
@@ -1099,6 +1132,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding: var(--speed-dial-hero-top) var(--speed-dial-content-gutter)
 		var(--speed-dial-hero-bottom);
 }
+
+.speed-dial-home-stack {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	gap: var(--speed-dial-home-stack-gap);
+}
 /* The main Search reserves a stable slot in the hero. Its expanded surface is
    anchored to this box and can overlap the functional content below without
    changing the document geometry. */
@@ -1147,8 +1187,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	display: flex;
 	width: 100%;
 	justify-content: center;
-	margin-top: clamp(-28px, -2.6vh, -18px);
-	margin-bottom: clamp(-24px, -2.2vh, -14px);
 	padding-inline: var(--speed-dial-content-gutter);
 }
 
@@ -1165,7 +1203,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    anywhere in the blue content area. Track width/centering live on the
    stage, so content alignment is pixel-identical. */
 .dial-grid-wrap {
-	padding-top: var(--speed-dial-toolbar-grid-gap);
+	padding-top: 0;
 	padding-bottom: var(--speed-dial-grid-bottom);
 }
 

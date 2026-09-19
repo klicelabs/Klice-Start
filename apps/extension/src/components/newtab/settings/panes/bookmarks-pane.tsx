@@ -705,16 +705,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 				<SettingRow
 					label="Folder"
 					icon="folder"
-					description={
-						/* The picker already shows the folder itself, so the
-						   supporting line carries its *location* — and disappears
-						   at the root, where there is nothing above it. */
-						parentPath ? (
-							<span className="block truncate" title={parentPath}>
-								{parentPath}
-							</span>
-						) : undefined
-					}
+					tooltip={parentPath ? `Inside ${parentPath}` : undefined}
 				>
 					<FolderTreePicker
 						folders={folders}
@@ -798,15 +789,7 @@ export function BookmarksPane({ initialAction }: BookmarksPaneProps) {
 
 			{/* 2 — The links in that folder. */}
 			<SectionCard>
-				<SettingRow
-					label="Bookmarks"
-					icon="bookmark"
-					description={
-						bookmarkCount === 1
-							? "1 link in this folder"
-							: `${bookmarkCount} links in this folder`
-					}
-				>
+				<SettingRow label="Bookmarks" icon="bookmark">
 					{isAddingLink || bookmarkCount === 0 ? null : (
 						<SettingsAction icon="plus" onClick={handleStartAddLink}>
 							Add link

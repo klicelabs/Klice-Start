@@ -9,9 +9,12 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { EASE_OUT } from "@klice-start/ui/lib/ease";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import {
+	CARD_FOOTER_VARIANT,
+	cardFooterMaterial,
+} from "../../../lib/card-footer";
 import type { GridItemDragProps } from "../../../lib/dnd";
 import {
-	glassCardFooter,
 	glassCardMaterial,
 	glassDropdownItem,
 	glassDropRing,
@@ -131,6 +134,9 @@ export function FolderPreviewCard({
 			<ContextMenuTrigger
 				data-selected={isSelected ? "true" : undefined}
 				data-dragging={dragging ? "true" : undefined}
+				data-card-footer={
+					dialLayout === "card" ? CARD_FOOTER_VARIANT : undefined
+				}
 				draggable={
 					dialLayout === "icon"
 						? editing
@@ -289,7 +295,7 @@ export function FolderPreviewCard({
 								<div
 									className={cn(
 										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
-										glassCardFooter(isLiquid),
+										cardFooterMaterial(isLiquid),
 										showOpenAction && !editing && "pr-8",
 									)}
 									style={{ height: "var(--card-footer-h, 30px)" }}
@@ -297,7 +303,12 @@ export function FolderPreviewCard({
 									<Icon
 										name="folder"
 										size={14}
-										className={cn("shrink-0", isLiquid && glassForeground())}
+										className={cn(
+											"shrink-0",
+											CARD_FOOTER_VARIANT === "glass" &&
+												isLiquid &&
+												glassForeground(),
+										)}
 									/>
 									{editing ? (
 										<InlineRenameInput
