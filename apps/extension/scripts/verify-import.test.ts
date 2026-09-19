@@ -73,6 +73,34 @@ test("reuses same-level folders and dedupes same-folder urls", () => {
 	expect(plan.cardsCreated).toBe(0);
 });
 
+test("preserves duplicate sibling folder names and reimports them by occurrence", () => {
+	const source = [
+		{
+			name: "Work",
+			links: [{ title: "A", url: "https://a.example/" }],
+			children: [],
+		},
+		{
+			name: "Work",
+			links: [{ title: "B", url: "https://b.example/" }],
+			children: [],
+		},
+	];
+	const first = planBookmarkMerge([], [], source, []);
+	expect(first.folders.map((item) => item.name)).toEqual(["Work", "Work"]);
+	expect(new Set(first.cards.map((item) => item.folderId)).size).toBe(2);
+	const second = planBookmarkMerge(
+		first.folders,
+		first.cards,
+		source,
+		[],
+		first.itemOrder,
+	);
+	expect(second.foldersCreated).toBe(0);
+	expect(second.cardsCreated).toBe(0);
+	expect(second.folders).toHaveLength(2);
+});
+
 test("keeps the same url in different folders", () => {
 	const existing = [folder("a", "A", null), folder("b", "B", null)];
 	const cards = [card("g", "a", "https://github.com/")];

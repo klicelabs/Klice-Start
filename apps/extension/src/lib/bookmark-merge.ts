@@ -1,4 +1,10 @@
 import type { Card, Folder } from "../types";
+import {
+	containerKeyOf,
+	type ItemOrder,
+	itemKey,
+	repairItemOrder,
+} from "./item-order";
 import { canonicalUrl, faviconUrl } from "./url";
 import { uid } from "./utils";
 
@@ -26,11 +32,18 @@ export interface BookmarkTreeFolder {
 	name: string;
 	links: BookmarkTreeLink[];
 	children: BookmarkTreeFolder[];
+	/** Original mixed sibling order, when supplied by an API or HTML parser. */
+	entries?: BookmarkTreeEntry[];
 }
+
+export type BookmarkTreeEntry =
+	| ({ kind: "link" } & BookmarkTreeLink)
+	| { kind: "folder"; folder: BookmarkTreeFolder };
 
 export interface BookmarkMergePlan {
 	folders: Folder[];
 	cards: Card[];
+	itemOrder: ItemOrder;
 	foldersCreated: number;
 	cardsCreated: number;
 	/** Folder ids that gained content (reveal targets), in touch order. */
@@ -42,9 +55,20 @@ export function planBookmarkMerge(
 	existingCards: readonly Card[],
 	rootFolders: readonly BookmarkTreeFolder[],
 	rootLinks: readonly BookmarkTreeLink[],
+	existingItemOrder?: ItemOrder,
 ): BookmarkMergePlan {
 	const folders: Folder[] = existingFolders.map((f) => ({ ...f }));
 	const cards: Card[] = existingCards.map((c) => ({ ...c }));
+	const order = repairItemOrder(existingItemOrder, folders, cards);
+	const appendOrder = (
+		container: string,
+		kind: "card" | "folder",
+		id: string,
+	) => {
+		const keys = order[container] ?? [];
+		keys.push(itemKey(kind, id));
+		order[container] = keys;
+	};
 	const touched: string[] = [];
 	const touch = (id: string) => {
 		if (!touched.includes(id)) touched.push(id);
@@ -57,13 +81,14 @@ export function planBookmarkMerge(
 	const folderNameKey = (name: string): string =>
 		name.normalize("NFC").trim().toLowerCase();
 
-	const folderByParentAndName = new Map<string, Folder>();
+	const folderByParentAndName = new Map<string, Folder[]>();
 	for (const f of folders) {
-		folderByParentAndName.set(
-			`${f.parentId ?? ""}\u0000${folderNameKey(f.name)}`,
-			f,
-		);
+		const key = `${f.parentId ?? ""}\u0000${folderNameKey(f.name)}`;
+		const matches = folderByParentAndName.get(key) ?? [];
+		matches.push(f);
+		folderByParentAndName.set(key, matches);
 	}
+	const claimedFolders = new Set<string>();
 
 	const seenByFolder = new Map<string, Set<string>>();
 	const seenFor = (folderId: string): Set<string> => {
@@ -86,8 +111,13 @@ export function planBookmarkMerge(
 	const ensureFolder = (name: string, parentId: string | null): Folder => {
 		const clean = name.trim() || "Untitled";
 		const key = `${parentId ?? ""}\u0000${folderNameKey(clean)}`;
-		const existing = folderByParentAndName.get(key);
-		if (existing) return existing;
+		const existing = folderByParentAndName
+			.get(key)
+			?.find((candidate) => !claimedFolders.has(candidate.id));
+		if (existing) {
+			claimedFolders.add(existing.id);
+			return existing;
+		}
 		const folder: Folder = {
 			id: uid(),
 			name: clean,
@@ -101,7 +131,11 @@ export function planBookmarkMerge(
 			parentId,
 		};
 		folders.push(folder);
-		folderByParentAndName.set(key, folder);
+		appendOrder(containerKeyOf(parentId), "folder", folder.id);
+		const matches = folderByParentAndName.get(key) ?? [];
+		matches.push(folder);
+		folderByParentAndName.set(key, matches);
+		claimedFolders.add(folder.id);
 		foldersCreated++;
 		touch(folder.id);
 		return folder;
@@ -122,8 +156,9 @@ export function planBookmarkMerge(
 		for (const link of links) {
 			const canon = canonicalUrl(link.url);
 			if (!canon || seen.has(canon)) continue;
+			const id = uid();
 			cards.push({
-				id: uid(),
+				id,
 				folderId: target.id,
 				title: link.title.trim() || link.url,
 				url: link.url,
@@ -133,6 +168,7 @@ export function planBookmarkMerge(
 				origin: "local",
 				capturedAt: null,
 			});
+			appendOrder(target.id, "card", id);
 			seen.add(canon);
 			cardsCreated++;
 			touch(target.id);
@@ -144,8 +180,15 @@ export function planBookmarkMerge(
 		parentId: string | null,
 	): void => {
 		const folder = ensureFolder(treeFolder.name, parentId);
-		addLinks(folder, treeFolder.links);
-		for (const child of treeFolder.children) merge(child, folder.id);
+		if (treeFolder.entries) {
+			for (const entry of treeFolder.entries) {
+				if (entry.kind === "link") addLinks(folder, [entry]);
+				else merge(entry.folder, folder.id);
+			}
+		} else {
+			addLinks(folder, treeFolder.links);
+			for (const child of treeFolder.children) merge(child, folder.id);
+		}
 	};
 
 	if (rootLinks.length > 0) {
@@ -156,6 +199,7 @@ export function planBookmarkMerge(
 	return {
 		folders,
 		cards,
+		itemOrder: repairItemOrder(order, folders, cards),
 		foldersCreated,
 		cardsCreated,
 		touchedFolderIds: touched,

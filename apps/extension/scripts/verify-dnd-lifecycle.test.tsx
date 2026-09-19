@@ -28,6 +28,10 @@ Object.assign(globalThis, {
 		setTimeout(() => callback(Date.now()), 0),
 	cancelAnimationFrame: (id: number) => clearTimeout(id),
 });
+// linkedom does not implement scrolling; give the autoscroll loop a stable
+// viewport so edge-intent tests cannot crash between dragover and drop.
+Object.defineProperty(window, "innerHeight", { configurable: true, value: 1000 });
+window.scrollBy = () => undefined;
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 

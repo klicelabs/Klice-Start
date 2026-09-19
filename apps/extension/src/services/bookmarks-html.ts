@@ -14,8 +14,15 @@ import {
 	type BookmarkTreeFolder,
 	planBookmarkMerge,
 } from "../lib/bookmark-merge";
+import { normalizeBrowserBookmarkTree } from "../lib/browser-bookmark-tree";
 import { extApi } from "../lib/extension-api";
-import { repairItemOrder } from "../lib/item-order";
+import {
+	getOrderedRefs,
+	type ItemOrder,
+	ROOT_CONTAINER,
+	repairItemOrder,
+} from "../lib/item-order";
+import { parseNetscapeTree } from "../lib/netscape-bookmarks";
 import { isAbsoluteHttpUrl } from "../lib/url";
 import { useSetupStore } from "../stores/setup-store";
 import type { Card, Folder } from "../types";
@@ -37,6 +44,10 @@ interface ParsedFolder {
 	name: string;
 	links: ParsedLink[];
 	children: ParsedFolder[];
+	entries: Array<
+		| { kind: "link"; title: string; url: string }
+		| { kind: "folder"; folder: ParsedFolder }
+	>;
 }
 
 /** A folder in a normalized bookmark tree (HTML file or browser bookmarks). */
@@ -56,9 +67,12 @@ function escapeHtml(text: string): string {
  * as `klice-start-bookmarks.html`. Hierarchy is preserved (roots → children via
  * parentId) and empty folders are included so the structure round-trips.
  */
-export async function exportBookmarksHtml(): Promise<void> {
-	const { folders, cards } = useSetupStore.getState();
-
+export function serializeBookmarksHtml(
+	folders: Folder[],
+	cards: Card[],
+	itemOrder?: ItemOrder,
+): string {
+	const ordered = repairItemOrder(itemOrder, folders, cards);
 	const folderIds = new Set(folders.map((f) => f.id));
 
 	// Group folders by parent; orphaned parentId values fall back to root.
@@ -71,9 +85,8 @@ export async function exportBookmarksHtml(): Promise<void> {
 		if (list) list.push(folder);
 		else childrenByParent.set(parentId, [folder]);
 	}
-	for (const list of childrenByParent.values()) {
+	for (const list of childrenByParent.values())
 		list.sort((a, b) => a.order - b.order);
-	}
 
 	// Group cards by folder; cards whose folder is missing are skipped.
 	const cardsByFolder = new Map<string, Card[]>();
@@ -83,9 +96,10 @@ export async function exportBookmarksHtml(): Promise<void> {
 		if (list) list.push(card);
 		else cardsByFolder.set(card.folderId, [card]);
 	}
-	for (const list of cardsByFolder.values()) {
+	for (const list of cardsByFolder.values())
 		list.sort((a, b) => a.order - b.order);
-	}
+	const folderById = new Map(folders.map((folder) => [folder.id, folder]));
+	const cardById = new Map(cards.map((card) => [card.id, card]));
 
 	const lines: string[] = [
 		"<!DOCTYPE NETSCAPE-Bookmark-file-1>",
@@ -102,24 +116,44 @@ export async function exportBookmarksHtml(): Promise<void> {
 		const indent = "    ".repeat(depth);
 		lines.push(`${indent}<DT><H3>${escapeHtml(folder.name)}</H3>`);
 		lines.push(`${indent}<DL><p>`);
-		for (const card of cardsByFolder.get(folder.id) ?? []) {
-			if (!isAllowedScheme(card.url)) continue;
-			lines.push(
-				`${indent}    <DT><A HREF="${escapeHtml(card.url)}">${escapeHtml(card.title)}</A>`,
-			);
-		}
-		for (const child of childrenByParent.get(folder.id) ?? []) {
-			emitFolder(child, depth + 1);
+		for (const ref of getOrderedRefs(
+			folder.id,
+			childrenByParent.get(folder.id) ?? [],
+			cardsByFolder.get(folder.id) ?? [],
+			ordered,
+		)) {
+			if (ref.kind === "folder") {
+				const child = folderById.get(ref.id);
+				if (child) emitFolder(child, depth + 1);
+			} else {
+				const card = cardById.get(ref.id);
+				if (!card || !isAllowedScheme(card.url)) continue;
+				lines.push(
+					`${indent}    <DT><A HREF="${escapeHtml(card.url)}">${escapeHtml(card.title)}</A>`,
+				);
+			}
 		}
 		lines.push(`${indent}</DL><p>`);
 	};
 
-	for (const root of childrenByParent.get(null) ?? []) {
-		emitFolder(root, 1);
+	for (const ref of getOrderedRefs(
+		ROOT_CONTAINER,
+		childrenByParent.get(null) ?? [],
+		[],
+		ordered,
+	)) {
+		const root = folderById.get(ref.id);
+		if (root) emitFolder(root, 1);
 	}
 	lines.push("</DL><p>");
+	return lines.join("\n");
+}
 
-	const blob = new Blob([lines.join("\n")], { type: "text/html" });
+export async function exportBookmarksHtml(): Promise<void> {
+	const { folders, cards, itemOrder } = useSetupStore.getState();
+	const blob = new Blob([serializeBookmarksHtml(folders, cards, itemOrder)], {
+		type: "text/html",
+	});
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement("a");
 	a.href = url;
@@ -131,90 +165,6 @@ export async function exportBookmarksHtml(): Promise<void> {
 /** True when the href is an absolute http: or https: URL. */
 function isAllowedScheme(href: string): boolean {
 	return isAbsoluteHttpUrl(href);
-}
-
-/**
- * Parse one `<DL>` level: `<DT><A>` entries are links of this level, and
- * `<DT><H3>` entries open folders. Links and subfolders may be interleaved in
- * document order.
- *
- * The folder's content `<DL>` is a CHILD of the `<DT>` in the DOM that
- * browsers actually produce: the HTML5 parser does not close an open `<DT>`
- * before a `<DL>` start tag (verified against the spec tree construction).
- * Exporters that emit explicit `</DT>` produce a sibling `<DL>` instead, so
- * both shapes are accepted.
- */
-interface ParseBudget {
-	dtNodes: number;
-}
-
-const MAX_BOOKMARK_INPUT_LENGTH = 10 * 1024 * 1024;
-const MAX_BOOKMARK_NESTING_DEPTH = 100;
-const MAX_BOOKMARK_DT_NODES = 100_000;
-
-function parseLevel(
-	dl: Element,
-	budget: ParseBudget,
-	depth: number,
-): {
-	links: ParsedLink[];
-	folders: ParsedFolder[];
-} {
-	const links: ParsedLink[] = [];
-	const folders: ParsedFolder[] = [];
-
-	if (depth > MAX_BOOKMARK_NESTING_DEPTH) {
-		throw new Error(
-			`Bookmark file exceeds maximum folder nesting depth (${MAX_BOOKMARK_NESTING_DEPTH}).`,
-		);
-	}
-	for (const dt of Array.from(dl.children)) {
-		if (dt.tagName !== "DT") continue;
-		budget.dtNodes++;
-		if (budget.dtNodes > MAX_BOOKMARK_DT_NODES) {
-			throw new Error(
-				`Bookmark file contains too many entries (maximum ${MAX_BOOKMARK_DT_NODES}).`,
-			);
-		}
-
-		const heading = dt.querySelector(":scope > H3");
-		if (heading) {
-			const folder: ParsedFolder = {
-				name: heading.textContent?.trim() || "Untitled",
-				links: [],
-				children: [],
-			};
-			folders.push(folder);
-
-			// The folder's content <DL> appears in one of three shapes:
-			// child of the <DT> (browser-parsed files — the HTML5 parser does
-			// not close an open <DT> before <DL>), inside a <DD> sibling (the
-			// <DD> start tag does close the <DT>), or as a plain <DL> sibling
-			// when the exporter wrote explicit </DT>.
-			let innerDl = dt.querySelector(":scope > DL");
-			if (!innerDl) {
-				const sibling = dt.nextElementSibling;
-				if (sibling?.tagName === "DL") innerDl = sibling;
-				else if (sibling?.tagName === "DD") {
-					innerDl = sibling.querySelector(":scope > DL");
-				}
-			}
-			if (innerDl) {
-				const inner = parseLevel(innerDl, budget, depth + 1);
-				folder.links = inner.links;
-				folder.children = inner.folders;
-			}
-			continue;
-		}
-
-		const anchor = dt.querySelector(":scope > A");
-		if (!anchor) continue;
-		const href = anchor.getAttribute("href") ?? "";
-		if (!href || !isAllowedScheme(href)) continue;
-		links.push({ title: anchor.textContent?.trim() || href, url: href });
-	}
-
-	return { links, folders };
 }
 
 /**
@@ -233,6 +183,7 @@ export function mergeBookmarkTree(
 		store.cards,
 		rootFolders,
 		rootLinks,
+		store.itemOrder,
 	);
 
 	if (plan.foldersCreated > 0 || plan.cardsCreated > 0) {
@@ -241,7 +192,7 @@ export function mergeBookmarkTree(
 		useSetupStore.setState({
 			folders: plan.folders,
 			cards: plan.cards,
-			itemOrder: repairItemOrder(store.itemOrder, plan.folders, plan.cards),
+			itemOrder: plan.itemOrder,
 		});
 	}
 
@@ -271,7 +222,7 @@ export function replaceBookmarkLibrary(
 		folders: plan.folders,
 		cards: plan.cards,
 		activeFolderId: firstFolder?.id ?? "default",
-		itemOrder: repairItemOrder(undefined, plan.folders, plan.cards),
+		itemOrder: plan.itemOrder,
 	});
 	return {
 		foldersCreated: plan.foldersCreated,
@@ -291,42 +242,32 @@ export interface ParsedBookmarkFile {
  * empty files fail before any dialog opens. Throws on the same conditions
  * as the import itself.
  */
-export function parseNetscapeBookmarkFile(fileText: string): ParsedBookmarkFile {
-	if (typeof fileText !== "string") {
-		throw new Error("Bookmark file must be provided as text.");
-	}
-	if (fileText.length > MAX_BOOKMARK_INPUT_LENGTH) {
-		throw new Error(
-			`Bookmark file exceeds maximum input length (${MAX_BOOKMARK_INPUT_LENGTH} characters).`,
-		);
-	}
-	const doc = new DOMParser().parseFromString(fileText, "text/html");
-	const budget: ParseBudget = { dtNodes: 0 };
-
-	// Parse only top-level <DL> lists; nested ones are reached via recursion.
-	const rootLinks: ParsedLink[] = [];
+export function parseNetscapeBookmarkFile(
+	fileText: string,
+): ParsedBookmarkFile {
+	const parsed = parseNetscapeTree(fileText);
+	const hasToolbarMarker = parsed.rootFolders.some(
+		(folder) => folder.personalToolbar,
+	);
+	if (!hasToolbarMarker) return parsed;
 	const rootFolders: ParsedFolder[] = [];
-	for (const dl of Array.from(doc.querySelectorAll("DL"))) {
-		let ancestor = dl.parentElement;
-		let nested = false;
-		while (ancestor) {
-			if (ancestor.tagName === "DL") {
-				nested = true;
-				break;
-			}
-			ancestor = ancestor.parentElement;
-		}
-		if (nested) continue;
-
-		const level = parseLevel(dl, budget, 0);
-		rootLinks.push(...level.links);
-		rootFolders.push(...level.folders);
+	const rootLinks = [...parsed.rootLinks];
+	const nativeNames = new Set([
+		"bookmarks bar",
+		"bookmarks toolbar",
+		"other bookmarks",
+		"mobile bookmarks",
+		"bookmarks menu",
+	]);
+	for (const folder of parsed.rootFolders) {
+		// The marker is semantic; companion browser containers lack it in
+		// Netscape HTML, so their known export names are the conservative fallback.
+		// User folders beside these containers remain roots.
+		if (folder.personalToolbar || nativeNames.has(folder.name.toLowerCase())) {
+			rootFolders.push(...folder.children);
+			rootLinks.push(...folder.links);
+		} else rootFolders.push(folder);
 	}
-
-	if (rootLinks.length === 0 && rootFolders.length === 0) {
-		throw new Error("No bookmarks found in file.");
-	}
-
 	return { rootFolders, rootLinks };
 }
 
@@ -381,64 +322,7 @@ export async function readBrowserBookmarks(): Promise<{
 		);
 	}
 
-	const topFolders: BookmarkTreeFolder[] = [];
-	const topLinks: { title: string; url: string }[] = [];
-
-	const convertFolder = (
-		node: chrome.bookmarks.BookmarkTreeNode,
-		depth: number,
-	): BookmarkTreeFolder => {
-		if (depth > MAX_BOOKMARK_NESTING_DEPTH) {
-			throw new Error(
-				`Browser bookmarks exceed maximum folder nesting depth (${MAX_BOOKMARK_NESTING_DEPTH}).`,
-			);
-		}
-		const folder: BookmarkTreeFolder = {
-			name: node.title.trim() || "Untitled",
-			links: [],
-			children: [],
-		};
-		for (const child of node.children ?? []) {
-			if (child.url) {
-				if (isAbsoluteHttpUrl(child.url)) {
-					folder.links.push({
-						title: child.title.trim() || child.url,
-						url: child.url,
-					});
-				}
-				continue;
-			}
-			folder.children.push(convertFolder(child, depth + 1));
-		}
-		return folder;
-	};
-
-	// tree[0] is the browser root node; its children are the root containers
-	// (bookmark bar, other bookmarks, …). Hoist each container's children to
-	// the top level instead of creating a wrapper folder per container.
-	for (const rootContainer of tree[0]?.children ?? []) {
-		if (rootContainer.url) {
-			if (isAbsoluteHttpUrl(rootContainer.url)) {
-				topLinks.push({
-					title: rootContainer.title.trim() || rootContainer.url,
-					url: rootContainer.url,
-				});
-			}
-			continue;
-		}
-		for (const child of rootContainer.children ?? []) {
-			if (child.url) {
-				if (isAbsoluteHttpUrl(child.url)) {
-					topLinks.push({
-						title: child.title.trim() || child.url,
-						url: child.url,
-					});
-				}
-				continue;
-			}
-			topFolders.push(convertFolder(child, 2));
-		}
-	}
+	const { topFolders, topLinks } = normalizeBrowserBookmarkTree(tree);
 
 	const hasLinks = (folder: BookmarkTreeFolder): boolean =>
 		folder.links.length > 0 || folder.children.some(hasLinks);
