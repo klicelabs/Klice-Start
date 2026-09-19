@@ -11,8 +11,8 @@ import {
 	glassForeground,
 	glassLensVeil,
 	glassLiquidProps,
-	glassText,
 	HERO_TEXT_SHADOW,
+	wallpaperText,
 } from "../../../lib/glass";
 import type { NavigationDirection } from "../../../lib/navigation";
 import {
@@ -95,7 +95,7 @@ export function NavigationToolbar({
 	isRootFolder,
 	canNestFolder,
 }: NavigationToolbarProps) {
-	const { isLiquid, resolvedDark } = useAppearance();
+	const { isLiquid } = useAppearance();
 
 	const sorted = useMemo(
 		() => [...rootFolders].sort((a, b) => a.order - b.order),
@@ -216,16 +216,9 @@ export function NavigationToolbar({
 						<span
 							className={cn(
 								"min-w-0 truncate font-medium text-[13px]",
-								glassText(isLiquid, "secondary", resolvedDark),
+								wallpaperText("secondary"),
 							)}
-							// Wallpaper-floated ink: dark in Light, white in Dark.
-							// The shadow stays a Dark-only aid — never a substitute
-							// for the Light material pairing (see glass.ts).
-							style={
-								isLiquid && resolvedDark
-									? { textShadow: HERO_TEXT_SHADOW }
-									: undefined
-							}
+							style={{ textShadow: HERO_TEXT_SHADOW }}
 							title={contextualFolder.name}
 						>
 							{contextualFolder.name}
@@ -497,8 +490,7 @@ function HistoryButton({
 
 	useEffect(
 		() => () => {
-			if (cooldownTimer.current !== null)
-				clearTimeout(cooldownTimer.current);
+			if (cooldownTimer.current !== null) clearTimeout(cooldownTimer.current);
 		},
 		[],
 	);

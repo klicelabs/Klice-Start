@@ -540,10 +540,10 @@ export function wallpaperText(
 ): string {
 	switch (variant) {
 		case "primary":
-			return "text-[var(--foreground-on-wallpaper)]";
+			return "wallpaper-overlay-text";
 		case "secondary":
-			return "text-[var(--foreground-on-wallpaper-muted)]";
+			return "wallpaper-overlay-text-secondary";
 		case "muted":
-			return "text-[var(--foreground-on-wallpaper-subtle)]";
+			return "wallpaper-overlay-text-muted";
 	}
 }

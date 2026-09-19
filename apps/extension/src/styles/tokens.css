@@ -23,6 +23,7 @@ html.dark body {
 	--foreground-on-wallpaper: #ffffff;
 	--foreground-on-wallpaper-muted: rgb(255 255 255 / 0.84);
 	--foreground-on-wallpaper-subtle: rgb(255 255 255 / 0.64);
+	--wallpaper-overlay-text-shadow: 0 1px 3px rgb(0 0 0 / 0.32);
 	/* Liquid Glass toolbar ink. Light uses black primary ink; Dark overrides the
 	   same ladder to white primary ink below. The selectors at the bottom keep older
 	   utility-shaped consumers on this single theme-aware source. */
@@ -45,6 +46,26 @@ html.dark body {
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 	--motion-toolbar-duration: 180ms;
+}
+
+/* Text painted directly on the Home wallpaper has its own contrast role. It
+   stays white in both themes and never leaks into cards, menus or Settings. */
+.wallpaper-overlay-text,
+.wallpaper-overlay-text-secondary,
+.wallpaper-overlay-text-muted {
+	text-shadow: var(--wallpaper-overlay-text-shadow);
+}
+
+.wallpaper-overlay-text {
+	color: var(--foreground-on-wallpaper);
+}
+
+.wallpaper-overlay-text-secondary {
+	color: var(--foreground-on-wallpaper-muted);
+}
+
+.wallpaper-overlay-text-muted {
+	color: var(--foreground-on-wallpaper-subtle);
 }
 .dark {
 	--apple-blue: var(--klice-accent);

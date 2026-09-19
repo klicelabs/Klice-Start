@@ -16,6 +16,7 @@ import {
 	glassDropRing,
 	glassFocusRing,
 	glassMenu,
+	wallpaperText,
 } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
@@ -176,7 +177,7 @@ export function DialCard({
 										ariaLabel={`Rename ${label}`}
 										onCommit={handleCommitRename}
 										onCancel={cancelRename}
-										className="w-full flex-none text-center"
+										className={`w-full flex-none text-center ${wallpaperText("primary")}`}
 									/>
 								) : undefined
 							}

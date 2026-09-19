@@ -1,5 +1,6 @@
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
+import { wallpaperText } from "../../lib/glass";
 import { IconAppTile } from "./icon-app-tile";
 
 export const ICON_MODE_SURFACE_CLASS =
@@ -33,7 +34,11 @@ export function IconModeTile({
 		<div className="icon-bookmark-layout flex h-full w-full flex-col items-center justify-center">
 			<IconAppTile url={url} favicon={favicon} className={tileClassName} />
 			{(showLabel || labelContent) &&
-				(labelContent ?? <span className="icon-label">{label}</span>)}
+				(labelContent ?? (
+					<span className={`icon-label ${wallpaperText("primary")}`}>
+						{label}
+					</span>
+				))}
 			{selected && (
 				<div
 					aria-hidden="true"

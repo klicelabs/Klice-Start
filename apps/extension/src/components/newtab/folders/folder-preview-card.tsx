@@ -22,6 +22,7 @@ import {
 	glassForeground,
 	glassMaterial,
 	glassMenu,
+	wallpaperText,
 } from "../../../lib/glass";
 import { buildRenameEntry } from "../../../lib/history-capture";
 import { iconFolderPreviewSlots } from "../../../lib/icon-layout";
@@ -633,10 +634,12 @@ function IconFolderBody({
 					ariaLabel={`Rename folder ${name}`}
 					onCommit={onCommitRename}
 					onCancel={onCancelRename}
-					className="icon-label"
+					className={cn("icon-label", wallpaperText("primary"))}
 				/>
 			) : (
-				<span className="icon-label">{name}</span>
+				<span className={cn("icon-label", wallpaperText("primary"))}>
+					{name}
+				</span>
 			)}
 		</div>
 	);
