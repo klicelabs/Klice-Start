@@ -279,6 +279,132 @@ export const INSTRUMENT_SCRIPT = `
 `;
 
 /**
+ * Timeline instrument: per-commit commit log (timestamp + PerformedWork fiber
+ * walk + component names), input gesture timestamps (capture phase), frame-gap
+ * watchdog (>16ms between rAF frames = main-thread blocking proxy) and long
+ * tasks (>50ms, native observer, cross-check). Storage.set is wrapped so the
+ * settle detector can require write-quiet too.
+ *
+ * Commit attribution: walking root.current inside onCommitFiberRoot sees only
+ * fibers flagged PerformedWork by the commit that just finished (React clears
+ * the flag at the start of each render), so each log entry is exactly the set
+ * of components re-rendered by that commit.
+ */
+export const TIMELINE_SCRIPT = `
+(() => {
+  const rec = {
+    commitLog: [],   // {t, fibers, names:[[name,count]...]} per commit (top 30 names)
+    inputMarks: [],  // {t, type} capture-phase gesture events (bounded)
+    gaps: [],        // rAF watchdog: {start, dur} frame gaps > 16ms
+    longTasks: [],   // {t, dur} native longtask entries (>50ms)
+    storageSets: [], // {t, bytes}
+    lastFrameT: 0,
+    armedAt: null,
+    _wdT0: 0,
+  };
+  window.__kliceTimeline = rec;
+  const now = () => performance.now();
+
+  // --- input gesture anchors (pointerdown = the instant the page sees input)
+  for (const type of ["pointerdown", "mousedown", "keydown"]) {
+    window.addEventListener(type, (e) => {
+      rec.inputMarks.push({ t: Math.round(now() * 10) / 10, type });
+      if (rec.inputMarks.length > 40) rec.inputMarks.shift();
+    }, { capture: true, passive: true });
+  }
+
+  // --- frame-gap watchdog: rAF does not fire while the main thread is
+  // blocked, so consecutive rAF timestamps spaced >16ms (>2 missed frames at
+  // 120Hz) approximate blocking spans. JS-driven animation produces ~8ms
+  // frames and is NOT recorded as a gap.
+  const wdLoop = (t) => {
+    if (rec._wdT0) {
+      const delta = t - rec._wdT0;
+      if (delta > 16.9) rec.gaps.push({ start: Math.round(rec._wdT0), dur: Math.round(delta) });
+    }
+    rec._wdT0 = t;
+    rec.lastFrameT = t;
+    requestAnimationFrame(wdLoop);
+  };
+  requestAnimationFrame(wdLoop);
+
+  // --- long tasks (>50ms) via native observer — cross-check of the watchdog
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) rec.longTasks.push({ t: Math.round(e.startTime), dur: Math.round(e.duration) });
+    }).observe({ entryTypes: ["longtask"] });
+  } catch (e) {}
+
+  // --- chrome.storage.local.set (write tail participates in settle)
+  const armStorage = () => {
+    try {
+      const c = window.chrome;
+      if (!c || !c.storage || !c.storage.local || c.storage.local.__kliceWrapped) return;
+      const orig = c.storage.local.set.bind(c.storage.local);
+      const wrapped = (items, cb) => {
+        rec.storageSets.push({ t: Math.round(now()), bytes: JSON.stringify(items).length });
+        return orig(items, cb);
+      };
+      try { Object.defineProperty(c.storage.local, "set", { value: wrapped, writable: true, configurable: true }); } catch {}
+      c.storage.local.__kliceWrapped = true;
+    } catch (e) {}
+  };
+  armStorage();
+  setTimeout(armStorage, 0);
+  document.addEventListener("DOMContentLoaded", armStorage);
+
+  // --- React commit log (prod react-dom dispatches onCommitFiberRoot)
+  const hook = (window.__REACT_DEVTOOLS_GLOBAL_HOOK__ =
+    window.__REACT_DEVTOOLS_GLOBAL_HOOK__ || {});
+  hook.supportsFiber = true;
+  hook.renderers = new Map();
+  let _rendererIdSeed = 0;
+  if (typeof hook.inject !== "function") {
+    hook.inject = (internals) => {
+      const id = ++_rendererIdSeed;
+      hook.renderers.set(id, { id, type: 1, rendererPackage: internals.rendererPackageName });
+      return id;
+    };
+  }
+  const walk = (fiber, names) => {
+    let n = 0;
+    let performed = 0;
+    while (fiber && n < 20000) {
+      n += 1;
+      if (typeof fiber.flags === "number" && fiber.flags & 1) {
+        performed += 1;
+        const t = fiber.type;
+        const name = typeof t === "function" ? (t.displayName || t.name) : (t && typeof t === "object" ? undefined : String(t));
+        if (name) names.set(name, (names.get(name) || 0) + 1);
+      }
+      if (fiber.child) performed += walk(fiber.child, names);
+      fiber = fiber.sibling;
+    }
+    return performed;
+  };
+  const origCommit = hook.onCommitFiberRoot;
+  hook.onCommitFiberRoot = (rendererId, root, priority, hydrated, fluctuations) => {
+    if (rec.commitLog.length < 400) {
+      const t = Math.round(now() * 10) / 10;
+      try {
+        const names = new Map();
+        const current = root.current || (root.stateNode && root.stateNode.current);
+        const performed = current ? walk(current, names) : 0;
+        rec.commitLog.push({
+          t,
+          fibers: performed,
+          names: [...names.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30),
+        });
+      } catch (e) {
+        rec.commitLog.push({ t, fibers: -1, names: [], err: String(e).slice(0, 80) });
+      }
+    }
+    if (origCommit) return origCommit.call(hook, rendererId, root, priority, hydrated, fluctuations);
+  };
+})();
+`;
+
+/**
  * Launch Chromium with the built extension loaded.
  * Returns { context, page, extensionId } where page is about:blank.
  */
