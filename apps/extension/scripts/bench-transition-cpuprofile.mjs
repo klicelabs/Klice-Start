@@ -58,6 +58,12 @@ const SUFFIX = process.argv[3] ? `-${process.argv[3]}` : "-cpuprofile";
 
 /** Markers mapping a JS function name to a React subtree for grouping. */
 const SUBTREE_MARKERS = [
+	// PROBE glass-transition (Front A): isolate glass-material frames
+	// (LiquidGlass measure/displacement, glass recipe helpers) so the
+	// glasskill A/B attributes glass JS precisely instead of leaving it in
+	// "(unattributed)". Ordered before grid-card-icon: names like
+	// glassCardMaterial belong to the material, not the card.
+	{ subtree: "glass-material", match: /displacementmap|liquidglass|^measure$|refract|glassmenu|glasscard|glassdropdown|glassforeground|glasssurface|glasslens|glassshape/i },
 	{ subtree: "settings-overlay", match: /settings|settingspanel|settingssidebar|settingsmotion/i },
 	{ subtree: "context-menu", match: /contextmenu/i },
 	{ subtree: "popover-tooltip-dialog", match: /popover|tooltip|dialog|sheet|select|dropdown/i },
