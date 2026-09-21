@@ -33,11 +33,43 @@ import { FolderTreePicker } from "./folder-tree-picker";
  * folders cannot land inside themselves or their descendants, and bookmarks
  * cannot live at the top level.
  */
-export function MoveToDialog() {
+/**
+ * Option B decision: does this move carry away the folder the user is standing
+ * in, and if so where should the app follow it?
+ *
+ * Pure on purpose — the acceptance cases (into a root folder, into a
+ * descendant, to the top level, and every "not the current folder" shape) are
+ * then testable without rendering the destination picker.
+ *
+ * Identity is the folder ID, never its name or path. Top level returns null by
+ * design: the moved folder BECOMES a root there, so the derived breadcrumb
+ * collapses on its own and there is nowhere new to go.
+ */
+export function moveFollowTarget(
+	destinationId: string | null | undefined,
+	folderIds: readonly string[],
+	activeFolderId: string,
+): string | null {
+	if (typeof destinationId !== "string") return null;
+	return folderIds.includes(activeFolderId) ? destinationId : null;
+}
+
+export function MoveToDialog({
+	onNavigate,
+}: {
+	/**
+	 * Option B: when the move carries away the folder the user is standing in,
+	 * the app follows it to the destination so the breadcrumb and the active
+	 * tab keep describing a real place. The caller owns navigation (Back stack,
+	 * page transition), so this is the app's own `handleSelectFolder`.
+	 */
+	onNavigate: (folderId: string) => void;
+}) {
 	const ids = useMoveDialogStore((s) => s.ids);
 	const close = useMoveDialogStore((s) => s.close);
 	const folders = useSetupStore((s) => s.folders);
 	const cards = useSetupStore((s) => s.cards);
+	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
 	const { isLiquid } = useAppearance();
 
@@ -126,7 +158,23 @@ export function MoveToDialog() {
 							: undefined,
 			},
 		);
+		// Option B: moving the folder the user is standing in follows it to its
+		// new home, so the breadcrumb and the active tab keep describing a place
+		// that exists where the user left it.
+		const followDestination = moveFollowTarget(
+			destinationId,
+			folderIds,
+			activeFolderId,
+		);
+		if (entry && followDestination) {
+			// One gesture, one entry: the view travels with the tree, so undo
+			// puts the user back where they were instead of leaving them on a
+			// destination they only reached because of this move.
+			entry.undo.location = activeFolderId;
+			entry.redo.location = followDestination;
+		}
 		if (entry) useHistoryStore.getState().commit(entry, { silent: true });
+		if (followDestination) onNavigate(followDestination);
 		toast.success(total === 1 ? "Item moved" : `${total} items moved`, {
 			description: dest
 				? `to ${dest.name} · ${describeMoveGroup(cardIds.length, folderIds.length)}`

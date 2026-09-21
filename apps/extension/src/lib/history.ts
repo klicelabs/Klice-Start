@@ -73,6 +73,17 @@ export interface HistorySnapshot {
 	nameOnlyIds?: string[];
 	/** Field-level card patches for metadata edits (H2). */
 	cardPatches?: Record<string, Partial<Card>>;
+	/**
+	 * Location to restore alongside the tree (optional).
+	 *
+	 * Why: a few actions also move the user — "Move to…" on the folder you are
+	 * standing in navigates to the destination, so the breadcrumb and the
+	 * active tab keep describing a place that exists where the user left it.
+	 * Undo has to revert the whole gesture (tree AND view) as ONE entry, so the
+	 * location rides on the snapshot instead of becoming a second entry or a
+	 * second undo step. Absent for every action that does not navigate.
+	 */
+	location?: string;
 }
 
 export interface HistoryEntry {

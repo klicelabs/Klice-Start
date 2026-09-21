@@ -276,7 +276,7 @@ const HomeSurface = memo(function HomeSurface({
 						</div>
 					</div>
 
-					<MoveToDialog />
+					<MoveToDialog onNavigate={onSelectFolder} />
 					<SelectionTray
 						onNavigateFolder={onSelectFolder}
 						pageIds={pageIds}

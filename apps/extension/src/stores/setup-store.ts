@@ -1015,9 +1015,16 @@ export const useSetupStore = create<SetupStore>()(
 					// container map before reindexing so deleted ids can never be
 					// resurrected by undo/redo (M5).
 					const repairedOrder = repairItemOrder(itemOrder, folders, cards);
+					const location = snapshot.location;
 					return {
 						...reindexOrders(folders, cards, repairedOrder),
 						itemOrder: repairedOrder,
+						// Only follow a location that still exists AFTER the replay, so
+						// a snapshot from an older live state can never strand the app
+						// on a folder the undo just removed.
+						...(location !== undefined && folders.some((f) => f.id === location)
+							? { activeFolderId: location }
+							: {}),
 					};
 				}),
 
