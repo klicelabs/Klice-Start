@@ -627,7 +627,27 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 /* Card-mode title treatment. The old Liquid Glass footer remains available
    through cardFooterMaterial("glass"). The active footer is a real overlay
    inside the card, so the thumbnail keeps its geometry while the title sits
-   over a soft black fade that is strongest at the bottom edge. */
+   over a soft scrim.
+
+   Two constraints shape this gradient, and both were arrived at by rendering
+   the real build rather than by reasoning about the numbers:
+
+   1. The ramp is sampled (every 10%), not written as three or four coarse
+      stops. A card this small magnifies the joins between linear segments:
+      coarse stops meet at visible angles and the scrim reads as a hard-edged
+      black bar rather than depth.
+
+   2. Alpha holds across the text band before falling away, instead of decaying
+      from the first pixel. The footer is 30px tall but the favicon and title
+      sit 7-24px above the card's bottom edge — the upper half of the ramp, not
+      the bottom. A monotonic decay starves exactly the pixels the glyphs need,
+      so titles wash out over bright thumbnails no matter how high the peak is.
+
+   The level is 0.60. Legibility is not the binding constraint here (the shadow
+   below carries a lot of it) — visual weight is. A short box means the falloff
+   starts near the top, and the plateau is what keeps that top edge from turning
+   hard while the scrim stays light enough to read as depth over the thumbnail
+   rather than as a black band laid on top of it. */
 .dial-card[data-card-footer="fade"] .card-footer-fade {
 	position: absolute;
 	right: 0;
@@ -635,26 +655,54 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	left: 0;
 	z-index: 6;
 	display: flex;
-	height: clamp(56px, 30%, 84px);
+	height: clamp(30px, 15%, 42px);
 	align-items: flex-end;
-	padding: 0 10px 8px;
+	padding: 0 10px 7px;
 	background: linear-gradient(
 		to top,
-		rgb(0 0 0 / 0.58) 0%,
-		rgb(0 0 0 / 0.34) 40%,
-		rgb(0 0 0 / 0.1) 72%,
+		rgb(0 0 0 / 0.6) 0%,
+		rgb(0 0 0 / 0.59) 10%,
+		rgb(0 0 0 / 0.58) 20%,
+		rgb(0 0 0 / 0.56) 30%,
+		rgb(0 0 0 / 0.53) 40%,
+		rgb(0 0 0 / 0.48) 50%,
+		rgb(0 0 0 / 0.4) 60%,
+		rgb(0 0 0 / 0.29) 70%,
+		rgb(0 0 0 / 0.16) 80%,
+		rgb(0 0 0 / 0.06) 90%,
 		rgb(0 0 0 / 0) 100%
 	);
 	color: #fff;
 }
 
+/* Two shadows, not one: the tight pass defines the glyph edge, the wide pass
+   separates the word from whatever the image is doing behind it. A single
+   mid-blur shadow does neither well once the scrim is this light. */
 .dial-card[data-card-footer="fade"] .card-footer-fade .title {
 	color: #fff;
-	text-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+	text-shadow:
+		0 1px 2px rgb(0 0 0 / 0.7),
+		0 1px 8px rgb(0 0 0 / 0.45);
 }
 
 .dial-card[data-card-footer="fade"] .card-footer-fade.pr-8 {
 	padding-right: 32px;
+}
+
+/* Minimal hover zoom on the cover image. 1.04 sits below the threshold where a
+   thumbnail reads as "moving" — the image settles rather than travels, so the
+   card gains depth without the layout appearing to animate. Clipping comes
+   from .thumb's own overflow-hidden, so no radius work is needed here.
+   Gated on real pointers: touch fires a phantom :hover that sticks after a tap
+   (the same reason useHoverCapable exists). */
+.dial-card .thumb-media {
+	transition: transform 400ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.dial-card:hover .thumb-media {
+		transform: scale(1.04);
+	}
 }
 
 /* Card mode keeps its existing whole-card selection treatment. Icon mode uses
@@ -821,6 +869,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	.dial-card,
 	.dial-card:active,
 	.dial-grid-stage > * {
+		transform: none !important;
+	}
+	.dial-card .thumb-media {
 		transform: none !important;
 	}
 }

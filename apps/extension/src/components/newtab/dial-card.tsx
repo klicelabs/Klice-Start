@@ -200,7 +200,7 @@ export function DialCard({
 									<img
 										src={thumbUrl}
 										alt=""
-										className="absolute inset-0 size-full object-cover object-center"
+										className="thumb-media absolute inset-0 size-full object-cover object-center"
 										loading="lazy"
 										draggable={false}
 									/>
