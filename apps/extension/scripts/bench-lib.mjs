@@ -122,6 +122,75 @@ export function buildSeed({ cardsPerFolder = 12, folders = 3 } = {}) {
 	};
 }
 
+/** Seed for interaction benches: 3 root folders (tabbar tabs, parentId
+ * null); folder-1 active with 30 cards + 1 subfolder (marquee 3/10/20,
+ * card-drag, rename, open-folder); folder-2/3 hold 12 cards each
+ * (folder-nav). Mirrors a real user who created root folders from the
+ * tabbar. Lives here (not in bench-interactions.mjs) so importing benches
+ * do not execute bench-interactions' top-level main(). */
+export function buildInteractionSeed() {
+	const cards = [];
+	const folders = [
+		{ id: "folder-1", name: "Folder 1", order: 0, parentId: null },
+		{ id: "folder-2", name: "Folder 2", order: 1, parentId: null },
+		{ id: "folder-3", name: "Folder 3", order: 2, parentId: null },
+		{ id: "folder-4", name: "Subfolder", order: 0, parentId: "folder-1" },
+	];
+	const itemOrder = {
+		__root__: ["folder:folder-1", "folder:folder-2", "folder:folder-3"],
+		"folder-1": [],
+		"folder-2": [],
+		"folder-3": [],
+		"folder-4": [],
+	};
+
+	let seq = 0;
+	for (let c = 0; c < 30; c += 1) {
+		seq += 1;
+		const id = `card-${seq}`;
+		cards.push({
+			id,
+			folderId: "folder-1",
+			title: `Bookmark ${seq}`,
+			url: `https://example.com/${seq}`,
+			favicon: null,
+			thumbId: null,
+			order: c,
+			titleSource: null,
+			origin: "local",
+			capturedAt: null,
+		});
+		itemOrder["folder-1"].push(`card:${id}`);
+	}
+	itemOrder["folder-1"].push("folder:folder-4");
+	for (const fid of ["folder-2", "folder-3"]) {
+		for (let c = 0; c < 12; c += 1) {
+			seq += 1;
+			const id = `card-${seq}`;
+			cards.push({
+				id,
+				folderId: fid,
+				title: `Bookmark ${seq}`,
+				url: `https://example.com/${seq}`,
+				favicon: null,
+				thumbId: null,
+				order: c,
+				titleSource: null,
+				origin: "local",
+				capturedAt: null,
+			});
+			itemOrder[fid].push(`card:${id}`);
+		}
+	}
+
+	const seed = buildSeed({ folders: 0, cardsPerFolder: 0 });
+	seed.state.folders = folders;
+	seed.state.cards = cards;
+	seed.state.itemOrder = itemOrder;
+	seed.state.activeFolderId = "folder-1";
+	return seed;
+}
+
 /**
  * Instrumentation injected before any page script runs.
  * Returns a recorder object exposed as window.__kliceBench.
@@ -309,7 +378,7 @@ export const TIMELINE_SCRIPT = `
   for (const type of ["pointerdown", "mousedown", "keydown"]) {
     window.addEventListener(type, (e) => {
       rec.inputMarks.push({ t: Math.round(now() * 10) / 10, type });
-      if (rec.inputMarks.length > 40) rec.inputMarks.shift();
+      if (rec.inputMarks.length > 200) rec.inputMarks.shift();
     }, { capture: true, passive: true });
   }
 
@@ -448,9 +517,10 @@ export async function launchExtension({ headless = true } = {}) {
 }
 
 /** Open a newtab page, optionally seeding first (seed + reload for cold data). */
-export async function openNewtab(context, extensionId, { seed } = {}) {
+export async function openNewtab(context, extensionId, { seed, initScripts = [] } = {}) {
 	const page = await context.newPage();
 	await page.addInitScript(INSTRUMENT_SCRIPT);
+	for (const script of initScripts) await page.addInitScript(script);
 	await page.goto(`chrome-extension://${extensionId}/newtab.html`);
 	if (seed) {
 		await page.evaluate((data) => {

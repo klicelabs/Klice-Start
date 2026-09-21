@@ -14,7 +14,7 @@
  */
 import {
 	launchExtension,
-	buildSeed,
+	buildInteractionSeed,
 	openNewtab,
 	waitForGrid,
 	measureInteraction,
@@ -24,73 +24,6 @@ import {
 } from "./bench-lib.mjs";
 
 const REPS = Number(process.argv[2] ?? 3) || 3;
-
-/** Seed: 3 root folders (tabbar tabs, parentId null); folder-1 active with
- * 30 cards + 1 subfolder (marquee 3/10/20, card-drag, rename, open-folder);
- * folder-2/3 hold 12 cards each (folder-nav). Mirrors a real user who
- * created root folders from the tabbar. */
-function buildInteractionSeed() {
-	const cards = [];
-	const folders = [
-		{ id: "folder-1", name: "Folder 1", order: 0, parentId: null },
-		{ id: "folder-2", name: "Folder 2", order: 1, parentId: null },
-		{ id: "folder-3", name: "Folder 3", order: 2, parentId: null },
-		{ id: "folder-4", name: "Subfolder", order: 0, parentId: "folder-1" },
-	];
-	const itemOrder = {
-		__root__: ["folder:folder-1", "folder:folder-2", "folder:folder-3"],
-		"folder-1": [],
-		"folder-2": [],
-		"folder-3": [],
-		"folder-4": [],
-	};
-
-	let seq = 0;
-	for (let c = 0; c < 30; c += 1) {
-		seq += 1;
-		const id = `card-${seq}`;
-		cards.push({
-			id,
-			folderId: "folder-1",
-			title: `Bookmark ${seq}`,
-			url: `https://example.com/${seq}`,
-			favicon: null,
-			thumbId: null,
-			order: c,
-			titleSource: null,
-			origin: "local",
-			capturedAt: null,
-		});
-		itemOrder["folder-1"].push(`card:${id}`);
-	}
-	itemOrder["folder-1"].push("folder:folder-4");
-	for (const fid of ["folder-2", "folder-3"]) {
-		for (let c = 0; c < 12; c += 1) {
-			seq += 1;
-			const id = `card-${seq}`;
-			cards.push({
-				id,
-				folderId: fid,
-				title: `Bookmark ${seq}`,
-				url: `https://example.com/${seq}`,
-				favicon: null,
-				thumbId: null,
-				order: c,
-				titleSource: null,
-				origin: "local",
-				capturedAt: null,
-			});
-			itemOrder[fid].push(`card:${id}`);
-		}
-	}
-
-	const seed = buildSeed({ folders: 0, cardsPerFolder: 0 });
-	seed.state.folders = folders;
-	seed.state.cards = cards;
-	seed.state.itemOrder = itemOrder;
-	seed.state.activeFolderId = "folder-1";
-	return seed;
-}
 
 /** Center of an element's bounding rect (page coordinates). */
 async function centerOf(page, selector) {
