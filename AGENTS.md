@@ -1,5 +1,9 @@
 # Agent Rules
 
+## Benchmark scripts
+
+`apps/extension/scripts/bench-*.mjs` are diagnostic tooling — not tests, not CI, not maintained as a suite. See `apps/extension/scripts/README.md`.
+
 ## Commit Convention
 
 Use Conventional Commits in English only:
