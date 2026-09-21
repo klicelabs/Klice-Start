@@ -14,10 +14,13 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { useSpringLoad } from "../../../hooks/use-spring-load";
 import {
-	dropZoneFor,
+	type ActiveDrag,
 	resolveDragRef,
 	setActiveDrag,
 	setDragData,
+	type TabBox,
+	tabDropTargetFor,
+	tabGapIndex,
 } from "../../../lib/dnd";
 import { resolveDragGroup } from "../../../lib/drag-group";
 import {
@@ -65,14 +68,29 @@ interface FolderTabsProps {
 	onNewRootFolder?: () => void;
 	onNewSubfolder?: (parentId: string) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (
+	/**
+	 * Hover preview while a root is dragged across the gaps: writes the order
+	 * array only (no legacy `order` reindex, no history). Called on every gap
+	 * change, so it must stay cheap.
+	 */
+	onPreviewReorderFolders?: (
 		draggedId: string,
 		targetId: string,
-		position?: InsertPosition,
+		position: InsertPosition,
+	) => void;
+	/**
+	 * The drop that ends a gap drag. This is the single history-worthy write
+	 * for the whole gesture: it converges the legacy order fields, and the
+	 * caller diffs it against the dragstart capture to produce one entry.
+	 */
+	onCommitReorderFolders?: (
+		draggedId: string,
+		targetId: string,
+		position: InsertPosition,
 	) => void;
 	onDropCards?: (cardId: string, folderId: string) => void;
 	onMoveFolders?: (folderId: string, targetFolderId: string) => void;
-	/** Drop a non-root folder on a tab edge: hoist to root at that position. */
+	/** Drop a non-root folder in a gap: hoist to root at that position. */
 	onMoveFolderToRoot?: (
 		folderId: string,
 		targetId: string,
@@ -80,6 +98,24 @@ interface FolderTabsProps {
 	) => void;
 	isRootFolder?: (id: string) => boolean;
 	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
+}
+
+/** What the pointer over the bar currently means. */
+type TabIntent =
+	| { kind: "gap"; key: string; position: InsertPosition }
+	| { kind: "nest"; id: string }
+	/** Refused destination (itself or a descendant): cue, never a drop. */
+	| { kind: "blocked"; id: string };
+
+function sameIntent(a: TabIntent | null, b: TabIntent | null): boolean {
+	if (a === b) return true;
+	if (!a || !b || a.kind !== b.kind) return false;
+	if (a.kind === "gap" && b.kind === "gap") {
+		return a.key === b.key && a.position === b.position;
+	}
+	if (a.kind === "nest" && b.kind === "nest") return a.id === b.id;
+	if (a.kind === "blocked" && b.kind === "blocked") return a.id === b.id;
+	return false;
 }
 
 function cloneItemOrder(order: ItemOrder | undefined): ItemOrder {
@@ -90,12 +126,26 @@ function cloneItemOrder(order: ItemOrder | undefined): ItemOrder {
 	return copy;
 }
 
+/** D4/NPD-4: arm the same-document gesture marker so grid drop sites accept
+ *  a payload that started on the tab bar (see use-grid-dnd). */
+function armGestureEpoch() {
+	const scope = globalThis as { __kliceDndGestureEpoch?: number };
+	scope.__kliceDndGestureEpoch = (scope.__kliceDndGestureEpoch ?? 0) + 1;
+}
+
 /**
  * Floating tab bar with spring-load dwell navigation and tab context menu.
  *
- * Drop intent is zonal, identical to the grid: the center nests/moves the
- * dragged item into the tab (persisted first, navigation second), while the
- * edges live-reorder root tabs. Spring-load only arms on center hover.
+ * Drop intent is gap-based. The lane is split into the tabs themselves and
+ * the gaps between them: a gap reorders root folders (roots move within the
+ * top level, non-roots are hoisted to it), a tab body nests — persist first,
+ * navigation second — and spring-load only arms while the pointer is over a
+ * tab body. Gaps win even where they overlap a tab's padding, so the two
+ * intents never compete for the same pixel.
+ *
+ * The bar owns every drop decision; the tabs only render the intent they are
+ * handed. That is what keeps the "is this a gap or a tab?" question answered
+ * once, in one place.
  */
 export function FolderTabs({
 	folders,
@@ -110,7 +160,8 @@ export function FolderTabs({
 	onNewRootFolder,
 	onNewSubfolder,
 	onDeleteFolder,
-	onReorderFolders,
+	onPreviewReorderFolders,
+	onCommitReorderFolders,
 	onDropCards,
 	onMoveFolders,
 	onMoveFolderToRoot,
@@ -119,10 +170,11 @@ export function FolderTabs({
 }: FolderTabsProps) {
 	const { isLiquid, resolvedDark } = useAppearance();
 	const sorted = [...folders].sort((a, b) => a.order - b.order);
-	const [insertion, setInsertion] = useState<{
-		key: string;
-		position: InsertPosition;
-	} | null>(null);
+	const barRef = useRef<HTMLDivElement | null>(null);
+	const [intent, setIntent] = useState<TabIntent | null>(null);
+	// The last preview we asked the store for, so scrubbing inside one gap
+	// does not re-write the same order on every dragover.
+	const lastPreview = useRef<string | null>(null);
 	const selectedIds = useSelectionStore((s) => s.selectedIds);
 	// A modifier-click toggles selection without navigating. The Tabs
 	// primitive still fires onValueChange for the same click, so the flag
@@ -144,6 +196,147 @@ export function FolderTabs({
 		useSelectionStore.getState().toggle({ id, kind: "folder", sourceId: null });
 	}
 
+	function clearIntent() {
+		lastPreview.current = null;
+		setIntent((prev) => (prev === null ? prev : null));
+	}
+
+	// Backstop for a drag that ends outside the bar (window-level dragend, or
+	// the source tab unmounting mid-gesture): the cue must never outlive it.
+	useEffect(() => {
+		if (typeof window === "undefined") return;
+		const reset = () => {
+			lastPreview.current = null;
+			setIntent(null);
+		};
+		window.addEventListener("dragend", reset);
+		window.addEventListener("drop", reset);
+		return () => {
+			window.removeEventListener("dragend", reset);
+			window.removeEventListener("drop", reset);
+		};
+	}, []);
+
+	/** Measure the lane in DOM order — the only geometry the gap model needs. */
+	function readTabs(): TabBox[] {
+		const root = barRef.current;
+		if (!root) return [];
+		const boxes: TabBox[] = [];
+		for (const el of root.querySelectorAll<HTMLElement>("[data-tab-id]")) {
+			const id = el.dataset.tabId;
+			if (!id) continue;
+			const rect = el.getBoundingClientRect();
+			boxes.push({ id, left: rect.left, right: rect.right });
+		}
+		return boxes;
+	}
+
+	function nestIntent(dragged: ActiveDrag, targetId: string): TabIntent | null {
+		if (canNestFolder && !canNestFolder(dragged.id, targetId)) {
+			// Dropping a folder on itself or a descendant would build a cycle.
+			// Say so on the target instead of silently refusing the drop.
+			return { kind: "blocked", id: targetId };
+		}
+		return { kind: "nest", id: targetId };
+	}
+
+	function resolveIntent(
+		clientX: number,
+		dragged: ActiveDrag,
+	): TabIntent | null {
+		const tabs = readTabs();
+		if (tabs.length === 0) return null;
+		const target = tabDropTargetFor(clientX, tabs);
+		if (!target) return null;
+
+		if (dragged.kind === "card") {
+			// Cards are not lane items, so they never reorder: the gap they
+			// land in is simply the nearest tab to nest into.
+			return nestIntent(
+				dragged,
+				target.kind === "gap" ? target.key : target.id,
+			);
+		}
+
+		if (target.kind === "nest") return nestIntent(dragged, target.id);
+
+		// Gap. Roots reorder within the top level; anything nested is hoisted
+		// to it at this position. Neither touches the hierarchy below.
+		if (isRootFolder?.(dragged.id) ?? true) {
+			const from = tabs.findIndex((tab) => tab.id === dragged.id);
+			const to = tabGapIndex(tabs, target);
+			// Landing back where it started is not a move: no rail, no drop.
+			if (from !== -1 && (to === from || to === from + 1)) return null;
+		}
+		return { kind: "gap", key: target.key, position: target.position };
+	}
+
+	function handleBarDragOver(e: DragEvent) {
+		const dragged = resolveDragRef(e);
+		if (!dragged?.id) return;
+		const next = resolveIntent(e.clientX, dragged);
+
+		if (!next) {
+			// Nothing to do here: let the pointer read as "no drop" rather
+			// than arming a gesture the drop would ignore.
+			e.dataTransfer.dropEffect = "none";
+			if (intent !== null) clearIntent();
+			return;
+		}
+
+		e.preventDefault();
+		e.dataTransfer.dropEffect = next.kind === "blocked" ? "none" : "move";
+
+		if (next.kind === "gap" && (isRootFolder?.(dragged.id) ?? true)) {
+			const stamp = `${dragged.id}|${next.key}|${next.position}`;
+			if (lastPreview.current !== stamp) {
+				lastPreview.current = stamp;
+				onPreviewReorderFolders?.(dragged.id, next.key, next.position);
+			}
+		} else {
+			lastPreview.current = null;
+		}
+
+		setIntent((prev) => (sameIntent(prev, next) ? prev : next));
+	}
+
+	function handleBarDragLeave(e: DragEvent) {
+		const related = e.relatedTarget as Node | null;
+		if (
+			related &&
+			e.currentTarget instanceof Node &&
+			e.currentTarget.contains(related)
+		) {
+			return;
+		}
+		clearIntent();
+	}
+
+	function handleBarDrop(e: DragEvent) {
+		const dragged = resolveDragRef(e);
+		const next = dragged?.id ? resolveIntent(e.clientX, dragged) : null;
+		clearIntent();
+		setActiveDrag(null);
+		if (!dragged?.id || !next || next.kind === "blocked") return;
+
+		// Accepted: swallow it so the page-level drop handlers stay out of a
+		// gesture the lane already resolved.
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (next.kind === "nest") {
+			if (dragged.kind === "card") onDropCards?.(dragged.id, next.id);
+			else onMoveFolders?.(dragged.id, next.id);
+			return;
+		}
+
+		if (isRootFolder?.(dragged.id) ?? true) {
+			onCommitReorderFolders?.(dragged.id, next.key, next.position);
+		} else {
+			onMoveFolderToRoot?.(dragged.id, next.key, next.position);
+		}
+	}
+
 	return (
 		<GlassSurface
 			shadowless
@@ -157,37 +350,54 @@ export function FolderTabs({
 				onValueChange={handleSelectFolder}
 				className="flex items-center"
 			>
-				<TabsList
-					ariaLabel="Folders"
-					className="gap-0.5 rounded-full bg-transparent p-0"
+				{/* The lane wrapper owns the drop surface. TabsList itself is a
+				    bare role="tablist" div and takes no extra props, and the
+				    gap between two tabs belongs to neither tab — so intent has
+				    to be resolved one level up from both.
+				    role="none": the wrapper is a layout box that only adds a
+				    pointer-only drop surface, so the accessibility tree stays
+				    exactly as it was before the wrapper existed. Dragging has
+				    an accessible equivalent in the "Move to…" context menu. */}
+				<div
+					ref={barRef}
+					role="none"
+					className="flex min-w-0 items-center"
+					onDragOver={handleBarDragOver}
+					onDragLeave={handleBarDragLeave}
+					onDrop={handleBarDrop}
 				>
-					{sorted.map((folder) => (
-						<FolderTab
-							key={folder.id}
-							folder={folder}
-							active={folder.id === activeRootId}
-							isActiveLocation={folder.id === (activeFolderId ?? activeRootId)}
-							isLiquid={isLiquid}
-							resolvedDark={resolvedDark}
-							isSelected={selectedIds.includes(folder.id)}
-							onToggleSelect={handleToggleSelect}
-							insertion={
-								insertion?.key === folder.id ? insertion.position : null
-							}
-							onInsertionChange={setInsertion}
-							onSelectFolder={onSelectFolder}
-							onNewRootFolder={onNewRootFolder}
-							onNewSubfolder={onNewSubfolder}
-							onDeleteFolder={onDeleteFolder}
-							onReorderFolders={onReorderFolders}
-							onDropCards={onDropCards}
-							onMoveFolders={onMoveFolders}
-							onMoveFolderToRoot={onMoveFolderToRoot}
-							isRootFolder={isRootFolder}
-							canNestFolder={canNestFolder}
-						/>
-					))}
-				</TabsList>
+					<TabsList
+						ariaLabel="Folders"
+						className="gap-0.5 rounded-full bg-transparent p-0"
+					>
+						{sorted.map((folder) => (
+							<FolderTab
+								key={folder.id}
+								folder={folder}
+								active={folder.id === activeRootId}
+								isActiveLocation={
+									folder.id === (activeFolderId ?? activeRootId)
+								}
+								isLiquid={isLiquid}
+								resolvedDark={resolvedDark}
+								isSelected={selectedIds.includes(folder.id)}
+								onToggleSelect={handleToggleSelect}
+								insertion={
+									intent?.kind === "gap" && intent.key === folder.id
+										? intent.position
+										: null
+								}
+								nestActive={intent?.kind === "nest" && intent.id === folder.id}
+								blocked={intent?.kind === "blocked" && intent.id === folder.id}
+								onIntentClear={clearIntent}
+								onSelectFolder={onSelectFolder}
+								onNewRootFolder={onNewRootFolder}
+								onNewSubfolder={onNewSubfolder}
+								onDeleteFolder={onDeleteFolder}
+							/>
+						))}
+					</TabsList>
+				</div>
 			</Tabs>
 			{showAddButton && (
 				<button
@@ -231,28 +441,18 @@ interface FolderTabProps {
 	resolvedDark: boolean;
 	isSelected?: boolean;
 	onToggleSelect?: (id: string) => void;
+	/** This tab's leading/trailing edge carries the insertion rail. */
 	insertion: InsertPosition | null;
-	onInsertionChange: (
-		value: { key: string; position: InsertPosition } | null,
-	) => void;
+	/** This tab is the nest destination: highlight it and arm spring-load. */
+	nestActive: boolean;
+	/** This tab refuses the drop (dragged onto itself or a descendant). */
+	blocked: boolean;
+	/** Drop ended or was cancelled: the bar must drop its intent. */
+	onIntentClear: () => void;
 	onSelectFolder: (id: string) => void;
 	onNewRootFolder?: () => void;
 	onNewSubfolder?: (parentId: string) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (
-		draggedId: string,
-		targetId: string,
-		position?: InsertPosition,
-	) => void;
-	onDropCards?: (cardId: string, folderId: string) => void;
-	onMoveFolders?: (folderId: string, targetFolderId: string) => void;
-	onMoveFolderToRoot?: (
-		folderId: string,
-		targetId: string,
-		position: InsertPosition,
-	) => void;
-	isRootFolder?: (id: string) => boolean;
-	canNestFolder?: (folderId: string, targetFolderId: string) => boolean;
 }
 
 function FolderTab({
@@ -264,23 +464,25 @@ function FolderTab({
 	isSelected = false,
 	onToggleSelect,
 	insertion,
-	onInsertionChange,
+	nestActive,
+	blocked,
+	onIntentClear,
 	onSelectFolder,
 	onNewRootFolder,
 	onNewSubfolder,
 	onDeleteFolder,
-	onReorderFolders,
-	onDropCards,
-	onMoveFolders,
-	onMoveFolderToRoot,
-	isRootFolder,
-	canNestFolder,
 }: FolderTabProps) {
-	const [dropActive, setDropActive] = useState(false);
 	const spring = useSpringLoad(() => onSelectFolder(folder.id));
-	const lastApplied = useRef<string | null>(null);
 	const tabDragSnapshot = useRef<ItemOrder | null>(null);
 	const tabDragActive = useRef(false);
+
+	// Spring-load arms on nest hover only. The bar owns "is the pointer on
+	// this tab", so the dwell is driven by that verdict rather than by the
+	// tab's own dragover — one source of truth for the intent.
+	useEffect(() => {
+		if (nestActive) spring.start();
+		else spring.cancel();
+	}, [nestActive, spring]);
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
@@ -291,14 +493,12 @@ function FolderTab({
 			tabDragSnapshot.current = null;
 			tabDragActive.current = false;
 			if (snapshot) useSetupStore.getState().restoreItemOrder(snapshot);
-			lastApplied.current = null;
-			setDropActive(false);
 			spring.cancel();
-			onInsertionChange(null);
+			onIntentClear();
 		};
 		window.addEventListener("keydown", onKeyDown, true);
 		return () => window.removeEventListener("keydown", onKeyDown, true);
-	}, [onInsertionChange, spring]);
+	}, [onIntentClear, spring]);
 
 	const editing = useRenameStore((s) => s.isEditing("folder", folder.id));
 	const beginRename = useRenameStore((s) => s.begin);
@@ -316,102 +516,44 @@ function FolderTab({
 		cancelRename();
 	}
 
-	function liveReorder(draggedId: string, position: InsertPosition) {
-		const stamp = `${draggedId}|${folder.id}|${position}`;
-		if (lastApplied.current === stamp) return;
-		lastApplied.current = stamp;
-		// H4: hover = visual-only preview (no legacy reindex, no history);
-		// the drop commits once (see handleDrop).
-		onReorderFolders?.(draggedId, folder.id, position);
+	function handleDragStart(e: DragEvent) {
+		tabDragSnapshot.current = cloneItemOrder(
+			useSetupStore.getState().itemOrder,
+		);
+		tabDragActive.current = true;
+		// Freeze order for history: hover writes mutate it and the drop diffs
+		// back to this capture (one entry).
+		const setup = useSetupStore.getState();
+		beginGestureCapture(setup.cards, setup.folders, setup.itemOrder);
+		// L8: freeze the drag group so a selection cleared mid-drag cannot
+		// shrink the tab drop.
+		freezeDragGroup(
+			resolveDragGroup(
+				{ kind: "folder", id: folder.id },
+				useSelectionStore.getState().items,
+				setup.cards,
+				setup.folders,
+				setup.itemOrder,
+			),
+		);
+		if (!useSelectionStore.getState().selectedIds.includes(folder.id)) {
+			useSelectionStore.getState().clear();
+		}
+		// A root folder lives only in this bar, so the bar is the only place
+		// that can mark the gesture as same-document. Without this the grid
+		// refuses the drop as a foreign payload.
+		armGestureEpoch();
+		setDragData(e, "folder", folder.id);
 	}
 
-	function handleDragOver(e: DragEvent) {
-		const dragged = resolveDragRef(e);
-		if (!dragged?.id || dragged.id === folder.id) return;
-		const el = e.currentTarget;
-		if (!(el instanceof HTMLElement)) return;
-		const zone = dropZoneFor(e, el);
-
-		if (dragged.kind === "card") {
-			// Cards always move into the tab, edge or center alike.
-			e.preventDefault();
-			e.dataTransfer.dropEffect = "move";
-			onInsertionChange(null);
-			if (!dropActive) setDropActive(true);
-			spring.start();
-			return;
-		}
-
-		// Folder drag.
-		if (zone === "center") {
-			if (canNestFolder && !canNestFolder(dragged.id, folder.id)) return;
-			e.preventDefault();
-			e.dataTransfer.dropEffect = "move";
-			onInsertionChange(null);
-			if (!dropActive) setDropActive(true);
-			spring.start();
-			return;
-		}
-
-		// Edge: live root reorder for roots; hoist-to-root for subfolders.
-		e.preventDefault();
-		e.dataTransfer.dropEffect = "move";
-		spring.cancel();
-		setDropActive(false);
-		if (isRootFolder?.(dragged.id) ?? true) {
-			onInsertionChange({ key: folder.id, position: zone });
-			liveReorder(dragged.id, zone);
-		} else {
-			onInsertionChange({ key: folder.id, position: zone });
-		}
-	}
-
-	function handleDragLeave(e: DragEvent) {
-		const related = e.relatedTarget as Node | null;
-		if (
-			related &&
-			e.currentTarget instanceof Node &&
-			e.currentTarget.contains(related)
-		) {
-			return;
-		}
-		setDropActive(false);
-		spring.cancel();
-		onInsertionChange(null);
-	}
-
-	function handleDrop(e: DragEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-		setDropActive(false);
-		spring.cancel();
-		onInsertionChange(null);
+	function handleDragEnd() {
+		tabDragSnapshot.current = null;
+		tabDragActive.current = false;
 		setActiveDrag(null);
-		const dragged = resolveDragRef(e);
-		if (!dragged?.id || dragged.id === folder.id) return;
-		const el = e.currentTarget;
-		const zone = el instanceof HTMLElement ? dropZoneFor(e, el) : "center";
-
-		if (dragged.kind === "card") {
-			onDropCards?.(dragged.id, folder.id);
-			return;
-		}
-		if (zone === "center") {
-			if (canNestFolder && !canNestFolder(dragged.id, folder.id)) return;
-			// Persist the move first; spring-load navigation (if armed) is
-			// only ever a view change on top of it.
-			onMoveFolders?.(dragged.id, folder.id);
-			return;
-		}
-		if (isRootFolder?.(dragged.id) ?? true) {
-			// H4: the drop is the single history-worthy commit. Hovers only
-			// previewed (order-array writes); this final reorderItems converges
-			// the legacy order fields and diffs the dragstart capture to one
-			// entry covering the whole gesture — even with zero hovers.
-			onReorderFolders?.(dragged.id, folder.id, zone);
-		} else {
-			onMoveFolderToRoot?.(dragged.id, folder.id, zone);
-		}
+		spring.cancel();
+		onIntentClear();
+		// L8: gesture over — retire the frozen group.
+		clearFrozenDragGroup();
 	}
 
 	const baseClass = cn(
@@ -437,7 +579,7 @@ function FolderTab({
 				: "ring-1 ring-flat-edge-strong ring-inset"),
 	);
 
-	const dropClass = dropActive
+	const dropClass = nestActive
 		? isLiquid
 			? cn("bg-foreground/10 ring-1 ring-foreground/30", glassForeground())
 			: "bg-flat-sunken-raised text-flat-ink ring-1 ring-flat-edge-strong"
@@ -447,7 +589,7 @@ function FolderTab({
 		// Active tab keeps its face wash for hierarchy, but like every other
 		// toolbar control it carries no elevation shadow.
 		isLiquid ? "bg-foreground/10" : "face-control shadow-none",
-		dropActive &&
+		nestActive &&
 			(isLiquid ? "ring-1 ring-foreground/30" : "ring-1 ring-flat-edge-strong"),
 	);
 
@@ -479,14 +621,16 @@ function FolderTab({
 				className={cn(
 					baseClass,
 					dropClass,
-					insertion === "before" && "drop-insert-before",
-					insertion === "after" && "drop-insert-after",
+					insertion === "before" && "tab-insert-before",
+					insertion === "after" && "tab-insert-after",
 				)}
 				indicatorClassName={indicatorClass}
 				render={
 					<ContextMenuTrigger title={folder.name}>
 						<button
 							data-local-context-menu
+							data-tab-id={folder.id}
+							data-drop-blocked={blocked || undefined}
 							type="button"
 							title={folder.name}
 							draggable
@@ -496,52 +640,8 @@ function FolderTab({
 									onToggleSelect?.(folder.id);
 								}
 							}}
-							onDragStart={(e) => {
-								lastApplied.current = null;
-								tabDragSnapshot.current = cloneItemOrder(
-									useSetupStore.getState().itemOrder,
-								);
-								tabDragActive.current = true;
-								// Freeze order for history: hover writes mutate it and
-								// the drop diffs back to this capture (one entry).
-								const setup = useSetupStore.getState();
-								beginGestureCapture(
-									setup.cards,
-									setup.folders,
-									setup.itemOrder,
-								);
-								// L8: freeze the drag group so a selection cleared
-								// mid-drag cannot shrink the tab drop.
-								freezeDragGroup(
-									resolveDragGroup(
-										{ kind: "folder", id: folder.id },
-										useSelectionStore.getState().items,
-										setup.cards,
-										setup.folders,
-										setup.itemOrder,
-									),
-								);
-								if (
-									!useSelectionStore.getState().selectedIds.includes(folder.id)
-								) {
-									useSelectionStore.getState().clear();
-								}
-								setDragData(e, "folder", folder.id);
-							}}
-							onDragEnd={() => {
-								tabDragSnapshot.current = null;
-								tabDragActive.current = false;
-								lastApplied.current = null;
-								setActiveDrag(null);
-								setDropActive(false);
-								spring.cancel();
-								onInsertionChange(null);
-								// L8: gesture over — retire the frozen group.
-								clearFrozenDragGroup();
-							}}
-							onDragOver={handleDragOver}
-							onDragLeave={handleDragLeave}
-							onDrop={handleDrop}
+							onDragStart={handleDragStart}
+							onDragEnd={handleDragEnd}
 						>
 							{folder.name}
 						</button>

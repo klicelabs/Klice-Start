@@ -939,6 +939,31 @@ export default function App() {
 		[previewReorderItems],
 	);
 
+	// The gap drop. Reordering roots rewrites the top level's order and
+	// nothing else: hierarchy is untouched, so no folder changes parent and
+	// the tab set is identical before and after. The gesture capture frozen
+	// at dragstart diffs against this final state, so however many gaps the
+	// pointer crossed, the user gets exactly one entry to undo.
+	const handleCommitReorderTabFolders = useCallback(
+		(fromId: string, toId: string, position: "before" | "after" = "before") => {
+			const before = takeGestureCapture() ?? snapshotLiveSetup();
+			reorderItems(
+				ROOT_CONTAINER,
+				{ kind: "folder", id: fromId },
+				{ kind: "folder", id: toId },
+				position,
+			);
+			commitManualHistory(before, {
+				kind: "reorder",
+				total: 1,
+				cardCount: 0,
+				folderCount: 1,
+				container: "Top level",
+			});
+		},
+		[reorderItems, commitManualHistory, snapshotLiveSetup],
+	);
+
 	// Folder deletion captures its atomic restore INSIDE the store action
 	// (H2), so every path — grid, settings pane, future callers — gets the
 	// same one-entry history and P3 tombstoned thumbnails. This handler only
@@ -1152,7 +1177,8 @@ export default function App() {
 											onNewRootFolder={() => handleNewSubfolder(null)}
 											onNewSubfolder={handleNewSubfolder}
 											onDeleteFolder={handleDeleteFolder}
-											onReorderFolders={handleReorderTabFolders}
+											onPreviewReorderFolders={handleReorderTabFolders}
+											onCommitReorderFolders={handleCommitReorderTabFolders}
 											onDropCards={handleTabDrop}
 											onMoveFolders={handleTabDrop}
 											onMoveFolderToRoot={handleMoveFolderToRoot}

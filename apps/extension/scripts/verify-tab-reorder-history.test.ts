@@ -27,6 +27,12 @@ const mem = new Map<string, string>();
 	addEventListener: () => undefined,
 	removeEventListener: () => undefined,
 	visibilityState: "visible",
+	// motion-dom's frameloop is a process-wide singleton that reads the LIVE
+	// `document` global on every tick (DocumentProjectionNode.measureScroll).
+	// The render harnesses in this folder leave animations pending, so a stub
+	// without `documentElement` makes a stray tick throw and aborts the run.
+	// Keep the double document-shaped even though this file never renders.
+	documentElement: { scrollLeft: 0, scrollTop: 0 },
 };
 
 import { expect, test } from "bun:test";

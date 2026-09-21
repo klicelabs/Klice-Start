@@ -48,7 +48,14 @@ interface NavigationToolbarProps {
 	/** Direct subfolder creation ("New Folder" + inline rename). */
 	onNewSubfolder: (parentId: string | null) => void;
 	onDeleteFolder?: (id: string) => void;
-	onReorderFolders?: (
+	/** Hover preview while a root is dragged across the lane gaps. */
+	onPreviewReorderFolders?: (
+		draggedId: string,
+		targetId: string,
+		position?: InsertPosition,
+	) => void;
+	/** The drop that ends a gap drag: converges order and commits history. */
+	onCommitReorderFolders?: (
 		draggedId: string,
 		targetId: string,
 		position?: InsertPosition,
@@ -88,7 +95,8 @@ export function NavigationToolbar({
 	onNewRootFolder,
 	onNewSubfolder,
 	onDeleteFolder,
-	onReorderFolders,
+	onPreviewReorderFolders,
+	onCommitReorderFolders,
 	onDropCards,
 	onMoveFolders,
 	onMoveFolderToRoot,
@@ -244,7 +252,8 @@ export function NavigationToolbar({
 							onNewRootFolder={onNewRootFolder}
 							onNewSubfolder={onNewSubfolder}
 							onDeleteFolder={onDeleteFolder}
-							onReorderFolders={onReorderFolders}
+							onPreviewReorderFolders={onPreviewReorderFolders}
+							onCommitReorderFolders={onCommitReorderFolders}
 							onDropCards={onDropCards}
 							onMoveFolders={onMoveFolders}
 							onMoveFolderToRoot={onMoveFolderToRoot}

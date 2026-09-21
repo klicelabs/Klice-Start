@@ -1336,6 +1336,53 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	bottom: -5px;
 }
 
+/* Tab-bar reorder rail: a VERTICAL line standing in the gap between two tabs,
+   so the destination reads as a slot rather than as a neighbour (Finder /
+   Notion / VS Code). The rails above are horizontal because grid items stack
+   into rows; the tab lane is a single row, so its rail turns 90deg. Drawn by
+   the tab the item is about to land in front of, which is why the inset is
+   one gap-width rather than centred on the boundary. */
+.tab-insert-before,
+.tab-insert-after {
+	position: relative;
+}
+.tab-insert-before::after,
+.tab-insert-after::after {
+	position: absolute;
+	top: 5px;
+	bottom: 5px;
+	width: 2px;
+	z-index: 20;
+	border-radius: 999px;
+	background: var(--klice-accent);
+	content: "";
+	pointer-events: none;
+}
+.tab-insert-before::after {
+	left: -2px;
+}
+.tab-insert-after::after {
+	right: -2px;
+}
+
+/* Refused nest target: a folder dropped on itself or on one of its own
+   descendants. Reuses the amber dashed outline the folder preview shows for a
+   refused group, so "this drop will not happen" reads identically everywhere
+   instead of being silently ignored. */
+[data-drop-blocked] {
+	cursor: not-allowed;
+}
+[data-drop-blocked]::after {
+	position: absolute;
+	inset: 0;
+	z-index: 25;
+	border-radius: inherit;
+	outline: 2px dashed var(--amber-9, #f5a623);
+	outline-offset: -3px;
+	content: "";
+	pointer-events: none;
+}
+
 /* Marquee (rubber-band) selection region. Wallpaper-direct geometry, not a
    surface: translucent accent fill plus a thin accent edge, squircle
    corners, no shadow or glow. Identical in Glass and Flat, Dark and Light.
@@ -1358,7 +1405,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .drop-insert-before::after,
 .drop-insert-after::after,
 .icon-drop-insert-before::before,
-.icon-drop-insert-after::after {
+.icon-drop-insert-after::after,
+.tab-insert-before::after,
+.tab-insert-after::after {
 	animation: drop-rail-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes drop-rail-in {

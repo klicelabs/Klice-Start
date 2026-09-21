@@ -142,6 +142,82 @@ export function dropZoneFor(e: DragEvent, el: HTMLElement): DropZone {
 	return "center";
 }
 
+/** Horizontal extent of one tab, in client coordinates. */
+export interface TabBox {
+	id: string;
+	left: number;
+	right: number;
+}
+
+/**
+ * Half-width of a gap band, in pixels. Two neighbouring tabs share the band
+ * across their boundary, so the full reorder slot is twice this — wide enough
+ * to hit without threading the 2px visual gap, narrow enough that the middle
+ * of a tab still reads as "on top of this tab".
+ */
+export const TAB_GAP_HALF = 5;
+
+/**
+ * Where a pointer over the tab bar lands.
+ *
+ * The bar reorders roots by dropping into a GAP, not onto a tab edge: the
+ * band around every boundary (plus a band before the first tab and after the
+ * last) inserts at that position, and it wins even where it overlaps a tab's
+ * own padding. Everywhere else the pointer is over a tab body, which nests.
+ * One function decides, so the two intents can never fight over the same
+ * pixel — the gap is not "a narrower edge", it is the only reorder target.
+ */
+export type TabDropTarget =
+	| { kind: "gap"; key: string; position: "before" | "after" }
+	| { kind: "nest"; id: string };
+
+export function tabDropTargetFor(
+	clientX: number,
+	tabs: readonly TabBox[],
+	gapHalf = TAB_GAP_HALF,
+): TabDropTarget | null {
+	const first = tabs[0];
+	const last = tabs[tabs.length - 1];
+	if (!first || !last) return null;
+
+	// Outer bands: past either end of the lane appends at that end.
+	if (clientX <= first.left + gapHalf) {
+		return { kind: "gap", key: first.id, position: "before" };
+	}
+	if (clientX >= last.right - gapHalf) {
+		return { kind: "gap", key: last.id, position: "after" };
+	}
+
+	// Inner boundaries. Anchored on the NEXT tab's leading edge, so the rail
+	// is drawn by the tab the item is about to land in front of.
+	for (let i = 0; i < tabs.length - 1; i++) {
+		const before = tabs[i];
+		const after = tabs[i + 1];
+		if (!before || !after) continue;
+		const boundary = (before.right + after.left) / 2;
+		if (Math.abs(clientX - boundary) <= gapHalf) {
+			return { kind: "gap", key: after.id, position: "before" };
+		}
+	}
+
+	const hit = tabs.find((tab) => clientX >= tab.left && clientX <= tab.right);
+	return hit ? { kind: "nest", id: hit.id } : null;
+}
+
+/**
+ * Index a gap target inserts at, or -1 when the anchor is unknown. Compared
+ * against the dragged item's current index, this is what tells a real move
+ * from a drop that would land it exactly where it already is.
+ */
+export function tabGapIndex(
+	tabs: readonly TabBox[],
+	target: { key: string; position: "before" | "after" },
+): number {
+	const anchor = tabs.findIndex((tab) => tab.id === target.key);
+	if (anchor === -1) return -1;
+	return target.position === "after" ? anchor + 1 : anchor;
+}
+
 /** Resolve the active drag during over/drop: in-memory first (same-document,
  * reliable mid-drag), dataTransfer types as the cross-window fallback. */
 export function resolveDragRef(e: DragEvent): ActiveDrag | null {
