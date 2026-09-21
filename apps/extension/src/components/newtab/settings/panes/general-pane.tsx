@@ -91,12 +91,15 @@ export function GeneralPane() {
 
 	return (
 		<div className={SETTINGS_PAGE}>
-			{/* Bookmark appearance, density and click behavior share one scan path. */}
+			{/* Appearance, density and click behavior run as one uninterrupted
+			    stack: no headings and no dividers. Every row names its own setting,
+			    so a heading above three rows only repeated what the rows already
+			    said, and a rule between them only restated the 48px row beat. The
+			    fieldsets keep their aria-labels, so the grouping still reaches
+			    assistive tech (aria-label already overrode the legends these
+			    replaced, so the announced names are unchanged). */}
 			<SectionCard>
 				<fieldset className="m-0 border-0 p-0" aria-label="Bookmark appearance">
-					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
-						Bookmark appearance
-					</legend>
 					<SelectRow
 						label="Display style"
 						icon="layout"
@@ -155,15 +158,10 @@ export function GeneralPane() {
 					/>
 				</fieldset>
 
-				<div className="mx-1.5 border-black/[0.06] border-t dark:border-white/[0.08]" />
-
 				<fieldset
 					className="m-0 border-0 p-0"
 					aria-label="Bookmark grid density"
 				>
-					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
-						Grid density
-					</legend>
 					<SelectRow
 						label="Tile size"
 						icon="grid"
@@ -185,15 +183,10 @@ export function GeneralPane() {
 					/>
 				</fieldset>
 
-				<div className="mx-1.5 border-black/[0.06] border-t dark:border-white/[0.08]" />
-
 				<fieldset
 					className="m-0 border-0 p-0"
 					aria-label="Bookmark click behavior"
 				>
-					<legend className="px-1.5 pt-2.5 pb-1 font-medium text-[11px] text-neutral-500 uppercase tracking-[0.08em] dark:text-neutral-400">
-						Click behavior
-					</legend>
 					<SettingRow
 						label="Open in new tab"
 						icon="external-link"
