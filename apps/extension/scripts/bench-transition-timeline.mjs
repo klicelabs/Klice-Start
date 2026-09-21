@@ -41,8 +41,14 @@ import {
 } from "./bench-lib.mjs";
 import { rmSync } from "node:fs";
 
-const REPS = Number(process.argv[2] ?? 3) || 3;
-const SUFFIX = process.argv[3] ? `-${process.argv[3]}` : "";
+// PROBE glass-transition (Front B): --headed runs Chromium with a visible
+// window + real GPU instead of headless software raster, to test whether
+// the (idle)-heavy inter-commit gap is partly a headless artifact.
+// Usage: node scripts/bench-transition-timeline.mjs 3 headed --headed
+const HEADED = process.argv.includes("--headed");
+const POSITIONAL = process.argv.slice(2).filter((a) => a !== "--headed");
+const REPS = Number(POSITIONAL[0] ?? 3) || 3;
+const SUFFIX = POSITIONAL[1] ? `-${POSITIONAL[1]}` : "";
 
 // ---------------------------------------------------------------------------
 // page-world helpers
@@ -174,7 +180,9 @@ async function measure(page, gesture) {
 
 async function main() {
 	const seed = buildInteractionSeed();
-	const { context, extensionId, userDataDir } = await launchExtension();
+	const { context, extensionId, userDataDir } = await launchExtension({
+		headless: !HEADED,
+	});
 	const results = {};
 	try {
 		const page = await openNewtab(context, extensionId, {

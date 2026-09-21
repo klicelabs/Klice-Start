@@ -53,8 +53,13 @@ import {
 } from "./bench-lib.mjs";
 import { rmSync } from "node:fs";
 
-const REPS = Number(process.argv[2] ?? 3) || 3;
-const SUFFIX = process.argv[3] ? `-${process.argv[3]}` : "-cpuprofile";
+// PROBE glass-transition (Front B): --headed runs Chromium with a visible
+// window + real GPU. CDP profiling works headed the same way.
+// Usage: node scripts/bench-transition-cpuprofile.mjs 3 headed --headed
+const HEADED = process.argv.includes("--headed");
+const POSITIONAL = process.argv.slice(2).filter((a) => a !== "--headed");
+const REPS = Number(POSITIONAL[0] ?? 3) || 3;
+const SUFFIX = POSITIONAL[1] ? `-${POSITIONAL[1]}` : "-cpuprofile";
 
 /** Markers mapping a JS function name to a React subtree for grouping. */
 const SUBTREE_MARKERS = [
@@ -330,7 +335,9 @@ function fmt(m) {
 
 async function main() {
 	const seed = buildInteractionSeed();
-	const { context, extensionId, userDataDir } = await launchExtension();
+	const { context, extensionId, userDataDir } = await launchExtension({
+		headless: !HEADED,
+	});
 	const results = {};
 	try {
 		const page = await openNewtab(context, extensionId, {
