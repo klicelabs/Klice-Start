@@ -32,3 +32,11 @@ i18n: replace all PT-BR strings with English
 - Keep the description concise (< 72 chars preferred)
 - Do not add emojis
 - Always rebuild all affected browser targets before finalizing a task.
+
+## Git maintenance traps
+
+- If `CODEBUDDY_SAFE_DELETE_ENABLED=1` is set in this shell, do NOT run
+  `git repack` / `gc` / `prune`. Deletions route to Recycle Bin mid-operation
+  and can leave `.git/objects` empty (repo unreadable).
+  Check: `$env:CODEBUDDY_SAFE_DELETE_ENABLED`
+- Safe to run if the variable is unset.
