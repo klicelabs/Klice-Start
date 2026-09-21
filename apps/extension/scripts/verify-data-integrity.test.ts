@@ -119,7 +119,10 @@ test("M21: reset failure restores itemOrder along with the rest", async () => {
 					throw new Error("quota exceeded (simulated)");
 				},
 			},
-			onChanged: { addListener: () => undefined, removeListener: () => undefined },
+			onChanged: {
+				addListener: () => undefined,
+				removeListener: () => undefined,
+			},
 		},
 	};
 	let threw = false;

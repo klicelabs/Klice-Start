@@ -36,8 +36,8 @@ const mem = new Map<string, string>();
 };
 
 import { expect, test } from "bun:test";
-import { useSetupStore } from "../src/stores/setup-store";
 import { buildHistoryEntry, snapshotSetup } from "../src/lib/history-capture";
+import { useSetupStore } from "../src/stores/setup-store";
 
 const S = () => useSetupStore.getState();
 
@@ -89,7 +89,8 @@ test("H4: hovers preview without legacy reindex; drop converges and diffs once",
 	expect(bAfter).not.toBe(bBefore);
 	// Non-touched roots keep contiguous indexes (reindex is order-wide).
 	const rootOrders = (S().itemOrder?.__root__ ?? []).map(
-		(key) => S().folders.find((f) => f.id === key.slice("folder:".length))!.order,
+		(key) =>
+			S().folders.find((f) => f.id === key.slice("folder:".length))!.order,
 	);
 	expect(new Set(rootOrders).size).toBe(rootOrders.length);
 
@@ -101,7 +102,13 @@ test("H4: hovers preview without legacy reindex; drop converges and diffs once",
 		S().cards,
 		S().folders,
 		S().itemOrder,
-		{ kind: "reorder", total: 1, cardCount: 0, folderCount: 1, container: "Top level" },
+		{
+			kind: "reorder",
+			total: 1,
+			cardCount: 0,
+			folderCount: 1,
+			container: "Top level",
+		},
 	);
 	expect(entry).not.toBeNull();
 	expect(entry!.undo.containers.__root__.slice(-2)).toEqual([
@@ -126,7 +133,13 @@ test("H4: hovers preview without legacy reindex; drop converges and diffs once",
 		S().cards,
 		S().folders,
 		S().itemOrder,
-		{ kind: "reorder", total: 1, cardCount: 0, folderCount: 1, container: "Top level" },
+		{
+			kind: "reorder",
+			total: 1,
+			cardCount: 0,
+			folderCount: 1,
+			container: "Top level",
+		},
 	);
 	expect(entry2).not.toBeNull();
 	expect(entry2!.redo.containers.__root__.slice(-2)).toEqual([
