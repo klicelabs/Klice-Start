@@ -6,6 +6,8 @@
 
 **Atualização (2026-09-21, 3ª rodada — probe de re-render):** as interações reportadas como travadas foram decompostas em timeline (input → commits → settle, §6) e a identidade dos componentes re-renderizados foi obtida com build não minificado throwaway (`perf/probe-rerender-sourcemap`, não commitado). O teste de comentar o empty-landing foi executado em branch throwaway e o resultado está na §6.2. Nenhum arquivo de produto foi commitado nesta branch.
 
+**Atualização (2026-09-21, 4ª rodada — probe de atribuição + A/B de overlays, branch `perf/probe-overlay-isolation`):** o bloco dominante de ~110–145 ms foi atribuído por CPU profile fatiado ao gap inter-commit (§6.5) e as duas variantes de isolamento de overlays (unmount vs isolate) foram medidas em branches throwaway contra baseline fresco (§6.6). O probe também revelou um erro metodológico do probe anterior, corrigido em §6.7: a contagem de fibers por `PerformedWork` inclui flags antigas (stale) de fibers não revisitadas — ela mede largura de árvore (fresh+stale), não re-renders do gesto. Nenhum arquivo de produto foi commitado nesta branch (`git diff main --name-only` = só `docs/` e `apps/extension/scripts/bench-*`).
+
 ---
 
 ## 1. Sumário executivo
@@ -211,32 +213,106 @@ Componentes re-renderizados por interação (build unminified, soma de 3 reps) �
 | SettingsLabel | 504 | 504 | 525 | 252 | 315 |
 | Switch | 240 | 240 | 250 | 120 | 150 |
 
-Menu de contexto (ContextMenuItem — 700–2 800 fibers por gesto), internos de settings (Switch, SettingsLabel, Select) e popovers re-renderizam a cada troca de pasta, cada abrir/fechar de painel e cada voltar.
+Menu de contexto (ContextMenuItem — 700–2 800 fibers sinalizados por gesto), internos de settings (Switch, SettingsLabel, Select) e popovers aparecem em cada troca de pasta, cada abrir/fechar de painel e cada voltar. (Correção §6.7: a contagem inclui flags antigas de mount — no close, contadores mostram 0 execuções de itens de menu; na navegação, ~metade das execuções é descida propagada e o resto é mount.)
 
 ### 6.4 Resposta às perguntas do probe
 
-- **Mesma causa para cold load e transições? Sim, na causa-raiz**: uma árvore larga em que toda mudança de estado re-renderiza tudo, incluindo overlays fechados. No boot ela se manifesta como 1 long task dominante (bloco render→commit→hidratação→re-commit atravessando os 2 commits, §5); nas transições, como cascata de 4–9 commits com um trecho de ~110–145 ms. O empty-landing foi excluído como culpado (§6.2).
+- **Mesma causa para cold load e transições? Sim, na causa-raiz** (com correção de mecanismo na §6.7): uma árvore larga e sempre montada, incluindo overlays fechados. No boot ela se manifesta como 1 long task dominante (bloco render→commit→hidratação→re-commit atravessando os 2 commits, §5); nas transições, como cascata de 4–9 commits com um trecho de ~110–145 ms. Nem toda mudança re-renderiza tudo — no close, menus executam 0× (só mantêm flags antigas); na navegação, a descida propagada existe (~metade das execuções de itens) somada a mounts. O empty-landing foi excluído como culpado (§6.2).
 - **Fix único ou separado? Um programa, duas táticas (§8)**: (a) **não manter overlays fechados montados/conectados** — desmontar o painel de settings e menus quando fechados, ou isolar a subtree (memo/portal fora da árvore que muda) — ataca as transições e o re-commit de hidratação do boot; (b) **deferir o primeiro mount** de subtrees não-críticas para pós-paint — ataca o cold load (§5). A tática (a) é nova neste probe e não estava em nenhuma recomendação anterior; é a que ataca o sintoma que o usuário reportou.
+
+> **Revisão na 4ª rodada (§6.5–§6.7):** a tática (a) foi testada diretamente e **não move o tempo de transição** — o bloco dominante não é JS de overlay (§6.5), e desmontar 70–86% da árvore sinalizada não muda a janela (§6.6). A causa-raiz "árvore larga" sobrevive (a árvore larga existe e custa mount/commit), mas o alvo do fix muda: fase de commit/efeitos + agendamento, não overlays. Ver §8 reescrita.
+
+### 6.5 Frente A — atribuição do bloco dominante por CPU profile
+
+**Método** (`bench-transition-cpuprofile.mjs`, commit `b4878ae`): para cada gesto, profile de amostragem CDP (200 µs) do pré-gesto ao settle; as amostras são mapeadas ao relógio da página por interpolação linear entre o `performance.now()` registrado logo após `Profiler.start` e logo antes de `Profiler.stop` (±~5 ms de skew IPC nas bordas — irrelevante num gap de ~110–145 ms) e fatiadas ao gap inter-commit dominante (maior espaçamento entre commits da janela, mesma definição da §6.3). Agregação por gap: self time por função, total (inclusivo, amostra creditada a todos os ancestrais) e agrupamento por subtree (frame mais interno da pilha com nome conhecido; sem match = `(unattributed)`, sem inventar). Nomes legíveis exigem o build unminified throwaway (`perf/probe-cpuprofile-unminified`, `minify: false` não commitado, descartado após a medição — mesmo protocolo do probe anterior): **shares e nomes vêm desse build; nenhum timing de janela é citado dele** (os canônicos continuam os do build minificado, §6.3). 3 interações × 3 reps.
+
+**O gap reproduz no unminified** (larguras não-canônicas, estrutura idêntica à §6.3): fechar-prefs 139/145/147 ms; tabbar 100/129/112 ms; abrir-pasta 93/140/231 ms (a rep 3 de abrir-pasta é cauda tardia pós-write de storage, não o bloco inter-commit típico — ver variância abaixo). Amostras no gap: 170–257/close, 175–229/tabbar, 132–410/abrir-pasta. Overhead do próprio harness (`walk` do `PerformedWork` dentro do `onCommitFiberRoot`): ≤0,6% do self no gap (~25% das pilhas perto das bordas por skew, ~35 ms totais em 3 reps no close — registrado, não muda o veredito).
+
+**Top self time no gap (soma de 3 reps; o bloco NÃO é JS de overlay):**
+
+| Interação (amostras no gap) | Top self |
+| --- | --- |
+| fechar-prefs (678) | `(idle)` 515 (76%), `(program)` 73 (10,8%), `getBoundingClientRect` 43 (6,3%, sob `measure` do `LiquidGlass`) — resto: crumbs de 1–6 amostras (`query`, `elementsFromPoint`, `removeChild`, `measureScroll`, 1 amostra cada de `processBatch`, `scheduleTaskForRootDuringMicrotask`, `createWorkInProgress`) |
+| tabbar-nav (600) | `(idle)` 221 (36,8%), `(program)` 179 (29,8%), `measureScroll` 35 (5,8%, `GoToTopButton`), `toDataURL` 29 (4,8%, sob `createDisplacementMap` do `LiquidGlass`), `setAttribute` 11, resto ≤3 |
+| abrir-pasta (786) | `(idle)` 572 (72,8%), `(program)` 68 (8,7%), `toDataURL` 48 (6,1%, sob `createDisplacementMap`), `elementsFromPoint` 7, `measureScroll` 6, `getBoundingClientRect` 5, resto crumbs |
+
+Por rep, o `(idle)` varia 64–80% (close), 23–52% (tabbar), 20–90% (abrir-pasta, rep 3 = cauda de 231 ms majoritariamente idle). `(program)` = trabalho nativo na main thread (style/layout/paint). O único JS de produto com self mensurável são leitores de layout em efeitos passivos (`LiquidGlass.measure` → `getBoundingClientRect`/`getComputedStyle` com `setGeometry` → `createDisplacementMap` → canvas `toDataURL` com cache por geometria; `GoToTopButton.secondRowCells` via `offsetTop`) e escritas DOM do próprio react-dom (`setAttribute`/`setProp`).
+
+**Top total (inclusivo) — a maquinaria de commit do react-dom domina:** `commitPassiveMountOnFiber`/`recursivelyTraversePassiveMountEffects`, `commitMutationEffectsOnFiber`/`recursivelyTraverseMutationEffects`, `commitLayoutEffectOnFiber`, `performWorkOnRoot`. Funções de render de componentes (`renderWithHooks`, `workLoopSync`) aparecem com 1–3 amostras: o render do próximo commit é barato; o gap é efeitos de commit + nativo + idle.
+
+**Subtrees (share das amostras do gap):** fechar-prefs — `(unattributed)` 89,4%, react-dom-internals 8,7%, popover/dialog 1,2%, motion 0,4%, **settings-overlay 0,1%, toolbar 0,1%**; tabbar — 77,2% / 18,7% / motion 2,5% / **context-menu 0,7% / grid-card-icon 0,7%** / ambient 0,3%; abrir-pasta — 85,2% / 12,5% / motion 0,9% / context-menu 0,5% / popover 0,5% / ambient 0,3% / settings 0,1%. **Nenhum componente de produto passa de ~1% das amostras em nenhuma interação.** 91–93% do trabalho nativo não tem ancestral no bundle (`(no-bundle-ancestor)` — callbacks internas do browser).
+
+**Veredito da Frente A: o bloco dominante NÃO é overlay.** Se overlays dominassem, veríamos `ContextMenuItem`, `Settings*`, `Icon`, `DialCard` no top self — vemos `(idle)` + `(program)` + travessia de efeitos do react-dom. Overlays participam como **largura da árvore (combustível)**, não como **executor nomeado**: a travessia de efeitos (`recursivelyTraverse*`) e o style/layout visitam a árvore inteira, e os únicos JS de produto no gap são medições de layout pós-mutação e regeneração de displacement maps do glass em superfícies recém-montadas. Desmontar overlays pode encolher a fração JS+layout do bloco, mas **não toca a maioria idle** — expectativa de ganho parcial, nunca eliminação. Isso decide o fix #1: ele ataca o alvo errado como P1 (§8 reescrita).
+
+### 6.6 Frente B — A/B de isolamento de overlays (unmount vs isolate)
+
+**Variantes** (branches throwaway a partir de `perf/probe-rerender`, nunca mergeadas, deletáveis sem impacto):
+
+- **V1 `perf/probe-overlay-unmount` (`2c6374c`)** — desmonta quando fechado: `SettingsMotionSidebar` retorna `null` com `phase === "closed"`; `ContextMenuContent` (motion, `@klice-start/ui`) retorna `null` com `!context.open`. Inclui um ajuste obrigatório descoberto no probe: montar-aberto nunca dispara o `transitionend` do transform, então o `inert` do slot ficaria armado para sempre (painel visível-porém-morto — botões sem hit-test); o mount-aberto pula o `inert` inicial. Popovers/tooltips seguem o caminho original (Base UI já monta `Popup` sob demanda; tooltips não aparecem nos tops). Sem warm-up em idle (não testado — risco residual).
+- **V2 `perf/probe-overlay-isolate` (`313aac0` + `2ec8a4b`)** — mantém montado, bloqueia o re-render propagado: `SettingsMotionSidebar` vira boundary `memo` sem props (o re-render do `App` na navegação não desce; os seletores zustand internos continuam disparando em mudanças genuínas); `ContextMenuContent` vira `memo` com comparador na raiz do overlay (descidas do pai bloqueadas; mudanças de `open` continuam re-renderizando via propagação de contexto, sempre com props atuais — aberturas seguem frescas). Estratégia escolhida por ser a mais cirúrgica (2 arquivos, DOM quente preservado). Uma primeira tentativa (retornar o portal escondido por referência cacheada) mostrou-se insuficiente sozinha; o `memo` na raiz conteve.
+
+**Medição:** um build minificado limpo por variante (`.output/` apagado entre builds) + baseline fresco na mesma máquina/era; `bench-transition-timeline.mjs 3 <baseline|unmount|isolate>`; comparação por `bench-overlay-ab.mjs` (commit `d9c222d`). `open-preferences` separada em rep 0 (fria: chunk + 1º mount) vs reps 1–2 (mornas) — a série misturada esconderia exatamente o trade-off que discrimina as variantes. Execuções reais (contadores de corpo de função, n=1 por condição, builds com contadores sem mudança de comportamento) complementam as contagens de flags (ver §6.7 por que flags sozinhas enganam).
+
+**Tabela comparativa (medianas de 3 reps; fibers = contagem de flags fresh+stale, ver §6.7):**
+
+| Métrica | baseline | V1 unmount | V2 isolate |
+|---|---:|---:|---:|
+| Navegar tabbar — janela (ms) | 222 | 215 (−3%) | 215 (−3%) |
+| Navegar tabbar — fibers | 11 018 | 1 579 (−86%) | 11 022 (+0%) |
+| Abrir pasta — janela (ms) | 221 | 214 (−3%) | 222 (+0%) |
+| Abrir pasta — fibers | 8 251 | 1 519 (−82%) | 8 251 (+0%) |
+| Voltar — janela (ms) | 233 | 216 (−7%) | 226 (−3%) |
+| Voltar — fibers | 11 113 | 1 668 (−85%) | 11 117 (+0%) |
+| Fechar Preferences — janela (ms) | 249 | 249 (0%) | 247 (−1%) |
+| Fechar Preferences — fibers | 7 703 | 2 280 (−70%) | 7 708 (+0%) |
+| 1ª abertura Preferences — janela (ms) | 393 | 275 (**−30%**) | 392 (0%) |
+| 1ª abertura — bloqueado (ms) | 366 | 266 (−27%) | 342 (−7%) |
+| 2ª/3ª abertura — janela (ms) | 203,5 | 164,5 (−19%)¹ | 200 (−2%) |
+| Commits no close / no open | 5 / 4 | 6 (+1) / 7 (+3) | 5 / 4 |
+
+¹ Variância alta no warm do baseline (reps 244/163 ms); ler o −19% como ausência de regressão, não como vitória provada.
+
+**Execuções reais (contadores, baseline vs V2):** no close, itens de menu executam **0× nas duas variantes** — menus nunca re-renderizaram no close; os ~5 600 fibers de `ContextMenuItem` na janela são flags antigas de mount (§6.7). No tabbar-nav, baseline executa +118 itens (60 mounts + 58 por descida propagada) vs V2 +60 (só mounts) — o `memo` bloqueia ~50% das execuções de itens na navegação. No open, 0 execuções de menu em todas as condições.
+
+**Veredito da Frente B — nenhuma variante ganha na transição; cada ponta tem um vencedor diferente, e a ponta principal (transição) não se move:**
+- **Transições (tabbar/pasta/voltar/fechar): V1 −3% e V2 −2% na média das janelas — dentro do ruído.** Cortar 70–86% da árvore sinalizada (V1) ou ~50% das execuções de itens (V2) não move o relógio. A cascata de 8 commits mantém os mesmos espaçamentos; o tempo é dirigido por agendamento/efeitos, não por trabalho de render (converge com §6.5).
+- **1ª abertura de Preferences: V1 vence folgado (−30% janela, −27% bloqueado)** — contraintuitivo e a favor do unmount: montar fresco sem a cascata da árvore montada custa menos que montar sobre ela. V2 empata o baseline (esperado: mesma árvore).
+- **Re-abertura morna: V1 164,5 vs baseline 203,5 (sem regressão; ver nota ¹), V2 200 (=).** O trade-off temido do unmount ("re-pagar o mount toda vez") **não se materializou**: com o chunk em cache, montar custa ~165 ms de janela — igual ou melhor que reutilizar o painel morno.
+- **Custos da V1:** +1 commit no close e +3 no open (efeitos de mount/unmount); acoplamento com o ciclo de vida do `inert`/transição (footgun real encontrado neste probe — unmount ingênuo embarca painel morto); latência de abertura de **menu de contexto** não medida (nenhum gesto do bench abre menu — risco residual); warm-up em idle não testado.
+- **V2:** mudança de comportamento zero fora do alvo (mesmos commits, mesmas janelas), isolamento de execução comprovado por contadores, DOM quente preservado — mas sem nenhum ganho mensurável em 4 métricas de 5.
+
+**Resposta direta à pergunta do probe:** a variante que "ganha nas duas pontas" é a **V1** (transição empatada, aberturas melhores), mas a conclusão honesta é maior que o A/B: **o fix #1, em qualquer variante, não ataca o gargalo das transições.** Implementá-lo como P1 de transição seria otimizar a métrica errada (flags/execuções) enquanto o relógio não se move.
+
+### 6.7 Correção metodológica: flags `PerformedWork` antigas (stale) — fibers ≠ re-renders
+
+**Achado:** no mesmo build, com o mesmo gesto de fechar Preferences (fechamento verificado via `data-settings-open`), os contadores de execução marcam **0 renders** de providers/contents/itens de menu — mas o walk por `flags & 1` sinaliza **2 820 `ContextMenuItem` + 2 820 `ContextMenuItemBase`** na janela. A aritmética fecha exatamente como stale de mount: ~188 itens montados × 2 fibers (wrapper + base) × 5 commits = ~1 880/rep ≈ 940+940 medidos. O bit 1 é o marcador "rendered" do próprio Profiler do React (`0 !== (flags & 1) && logComponentRender` no `react-dom` embarcado) — mas ele **persiste em fibers não revisitadas**: o React só limpa/redefine flags ao longo do caminho visitado pelo render; subtrees isoladas (ex.: pelo `memo` da V2) ou fora do caminho de atualização mantêm as flags do mount. O walk conta **fresh + stale**.
+
+**Impacto no relatório anterior:** as contagens "fibers re-renderizados" da §6.1/§6.3 são na verdade **largura de árvore sinalizada (fresh+stale)** — superestimam o trabalho de re-render do gesto. O que sobrevive: a árvore larga existe e permanece montada (a V1 prova a composição ao encolhê-la 70–86%); os timings (janelas, gaps, commits) e o CPU profile (§6.5, que mede execução real por amostragem) **não são afetados**. A identidade dos componentes por janela continua válida como "quem está montado e ativo na janela", não como "quem executou no gesto". Para execução real, usar contadores (§6.6) ou profile.
 
 ## 7. Gargalos ranqueados por impacto
 
 1. **Long task de startup (122–370 ms conforme a variante, 6/6 runs)** — bloco contínuo pós-DCL: render → commit → efeitos → hidratação do persist → re-commit; module eval pesa ≤53 ms. Um dos dois achados que sustentam a percepção de "travamento". *Efeito percebido:* abertura trava ~¼–⅓ de segundo. Code-split sozinho não resolve (§5, §8).
-2. **Cascata de re-render nas transições (Probe 2, §6)** — abrir/fechar Preferences, navegar tabbar, abrir pasta e voltar: 4–9 commits de 1–3k fibers cada, com um trecho contínuo de ~110–145 ms no meio; janelas reais de 165–405 ms; 0 long tasks >50 ms (por isso invisível à métrica antiga). O elenco dominante são **overlays fechados** (menu de contexto, internos de settings, popovers) que re-renderizam a cada mudança de estado. *Efeito percebido:* cada transição engasga ~¼ de segundo. Mesma causa-raiz do cold load (árvore larga) — §6.4.
+2. **Cascata de commits nas transições (Probes 2–4, §6.5–§6.7)** — abrir/fechar Preferences, navegar tabbar, abrir pasta e voltar: 4–9 commits com um trecho contínuo de ~110–145 ms no meio; janelas reais de 165–405 ms; 0 long tasks >50 ms (por isso invisível à métrica antiga). O bloco dominante **não é JS de overlay**: o CPU profile (§6.5) mostra travessia de efeitos do react-dom + trabalho nativo (style/layout/paint) + maioria idle/agendamento, com componentes de produto em ≤1% das amostras; e o A/B (§6.6) mostra que encolher a árvore sinalizada em 70–86% não move a janela. A árvore larga com overlays montados existe e custa mount/commit (combustível), mas o relógio é dirigido por agendamento e fase de commit — e as contagens de fibers da §6 incluem flags antigas (§6.7). *Efeito percebido:* cada transição engasga ~¼ de segundo. Alvo do fix: §8 nova P1.
 3. **Re-renders em drag e rename (26–27 commits, 44–46k fibers por gesto)** — alto em contagem, mas sem long tasks, 104–120 fps, e provadamente amortizado por guards (H3). Impacto percebido hoje: baixo. Vale atenção se o grid crescer (100+ cards).
 4. **Rename dispara ~25 commits/38k fibers para ~10 teclas** — provável commit por tecla com subscribers largos. Sem long tasks; dor futura em máquinas fracas.
 5. **Nada mais** — scroll e marquee: cravados em ~120 fps, commits amortizados.
 
 ## 8. Recomendações de fix (não implementar nesta branch)
 
+**Reescrita na 4ª rodada.** O programa do Probe 2 mandava atacar overlays como P1 das transições. A 4ª rodada testou a hipótese duas vezes, com dois métodos independentes, e a hipótese perdeu nas duas: o executor do bloco não é overlay (CPU profile, §6.5) e remover 70–86% da árvore sinalizada não move a janela (A/B, §6.6). Manter o #1 antigo como P1 seria implementar contra o dado. Abaixo, o programa corrigido.
+
 | # | O quê | Custo | Risco | Ganho esperado |
 | --- | --- | --- | --- | --- |
-| 1 | **Overlays fechados fora da árvore viva**: desmontar painel de settings, menus e popovers quando fechados (ou isolá-los — memo/barreira — para o re-render do pai não descer). Hoje eles re-renderizam a cada mudança de estado: 8–12k fibers por gesto de navegação (§6.3) e o re-commit de hidratação do boot carrega 683 fibers incluindo Settings fechado (§6.1). **Tática nova do Probe 2** | M | M (flash na 1ª abertura — mitigável com warm-up em idle) | Ataca diretamente o sintoma reportado: transições travadas (§6.3) e parte do bloco de boot (§5). **P1** |
-| 2 | **Quebrar o bloco pós-DCL**: montar subtrees não-críticas (clock, greeting, quick-links, diálogos, painel de settings) só depois do primeiro paint (`requestIdleCallback`/rAF escalonado) e resolver a hidratação do persist em idle — o re-commit de hidratação custa 58–145 ms e re-renderiza a árvore inteira (§5, §6.1) | S/M | Baixo/M (flash de widgets atrasados; borda de hidratação) | Ataca diretamente a long task dominante (122–370 ms que atravessa os dois commits). **P1** |
-| 3 | Code-split do chunk newtab (import dinâmico das mesmas subtrees) | M | M (borda de hidratação; flash de widgets atrasados) | **Complemento, não fix**: module eval contribui com ≤53 ms e V8 compile já é ~0 — split sozinho não elimina a long task medida (§5). Reduz bytes no caminho crítico (incl. a 1ª abertura de Preferences, que bloqueia 309 ms — §6.3) e habilita o lazy-mount do #2. **P1-complemento** |
-| 4 | Renome inline: input uncontrolled até commit (Enter) em vez de escrever no store por tecla | S | Baixo | 25 → ~2 commits por rename. **P3** |
-| 5 | Quando o grid crescer: virtualização de linhas fora do viewport | M | M | Somente se card count → 100+. **P4** |
+| 1 | **Atacar a fase de commit/efeitos das transições (alvo novo, vindo do dado)**: (a) eliminar leituras forçadas de layout dentro de efeitos — `LiquidGlass.measure` (`getBoundingClientRect` + `getComputedStyle` por superfície a cada commit que a toca) e `GoToTopButton.measureScroll`/`secondRowCells` (`offsetTop`); medir uma vez por geometria e assinar `ResizeObserver` só onde muda; (b) conter a regeneração de displacement maps do glass (`createDisplacementMap` + `toDataURL` por geometria nova em cada navegação que monta cards — cache por chave já existe, mas misses em massa no mount; considerar mapa compartilhado por classe de tamanho ou caminho GPU); (c) reduzir a cascata 8→menos commits por gesto, agrupando atualizações de store que hoje se encadeiam via efeitos passivos (o espaçamento dos commits não mudou com árvore 86% menor — é agendamento, não trabalho); (d) tirar a cauda de `storage.set` do caminho crítico percebido (a rep anômala de 231 ms em abrir-pasta é espera pós-write). Instrumentar com o próprio `bench-transition-cpuprofile.mjs`: o fix funciona se o self `(program)`+efeitos por gap cair, não se as flags caírem | M | M (regressão visual do glass se o mapa for reutilizado errado; batching de store muda semântica de undo — cobrir com os testes de history) | Único candidato com apoio causal ao sintoma reportado (transições travadas): ataca o executor medido em §6.5. **P1 nova** |
+| 2 | **Quebrar o bloco pós-DCL**: montar subtrees não-críticas (clock, greeting, quick-links, diálogos, painel de settings) só depois do primeiro paint (`requestIdleCallback`/rAF escalonado) e resolver a hidratação do persist em idle — o re-commit de hidratação custa 58–145 ms e re-renderiza a árvore inteira (§5, §6.1) | S/M | Baixo/M (flash de widgets atrasados; borda de hidratação) | Ataca diretamente a long task dominante (122–370 ms que atravessa os dois commits). **P1 (mantida)** |
+| 3 | Code-split do chunk newtab (import dinâmico das mesmas subtrees) | M | M (borda de hidratação; flash de widgets atrasados) | **Complemento, não fix**: module eval contribui com ≤53 ms e V8 compile já é ~0 — split sozinho não elimina a long task medida (§5). Reduz bytes no caminho crítico e habilita o lazy-mount do #2. **P1-complemento (mantido)** |
+| 4 | **Higiene de árvore: desmontar overlays fechados, estilo V1 (rebaixado de P1 para P2)**: vence a 1ª abertura de Preferences (−30% janela, −27% bloqueado) e não regride a re-abertura morna; encolhe a árvore sinalizada 70–86%. NÃO esperar ganho em transições (medido: 0). Condições de embarque: resolver o acoplamento com o ciclo `inert`/transição (mount-aberto sem `transitionend` = painel morto — footgun documentado em §6.6), medir a latência de abertura de menu de contexto (não coberta por este probe) e decidir warm-up em idle com dado, não com medo | S (a variante throwaway tem ~15 linhas em 2 arquivos) | M (os três itens das condições de embarque) | Ganho real porém localizado: abertura de Preferences + árvore menor para o commit atravessar. **P2** |
+| 5 | Renome inline: input uncontrolled até commit (Enter) em vez de escrever no store por tecla | S | Baixo | 25 → ~2 commits por rename. **P3 (mantido)** |
+| 6 | Quando o grid crescer: virtualização de linhas fora do viewport | M | M | Somente se card count → 100+. **P4 (mantido)** |
 
-**Unificação (resposta ao Probe 2):** cold load e transições compartilham a causa-raiz — árvore larga com overlays fechados montados e conectados. Os fixes #1 e #2 são as duas táticas do mesmo programa (§6.4): #1 ataca o sintoma reportado (transições), #2 ataca o boot; #3 é complemento de ambos.
+**Unificação (resposta à 4ª rodada):** cold load e transições NÃO compartilham o alvo — compartilham apenas o tema "árvore larga". O boot é bloco render→commit→hidratação (atacar com #2); as transições são cascata agendada + efeitos de commit + nativo (atacar com a nova #1). Overlays viraram #4 (P2): higiene válida, sem promessa de transição. A correção metodológica da §6.7 redefine como medir o progresso: **o critério de um fix de transição é a janela input→settle e o self por gap no CPU profile, nunca a contagem de flags** — flags caem 86% sem o relógio se mover.
+
+**Riscos residuais honestos:** (a) o `(idle)` majoritário no gap (20–90% por rep) não está distinguido entre espera em fence do compositor e ociosidade do agendador — um trace (`chrome://tracing`) decide, fora do escopo; se for fence de raster em software (headless), parte do gap pode evaporar em hardware real; (b) latência de abertura de menu de contexto nas variantes: não medida; (c) warm-up em idle da V1: não testado; (d) `blockedMs` do watchdog tem variância alta com n=3 (ex.: tabbar baseline 108 ms vs V1 0 ms) — as janelas são o sinal robusto, os gaps são contexto.
 
 ## 9. O que NÃO vale otimizar (evita trabalho desperdiçado)
 
@@ -264,6 +340,14 @@ Menu de contexto (ContextMenuItem — 700–2 800 fibers por gesto), internos de
 - **FPS**: drag/scroll sintéticos com input trusted do Playwright em janela headed; display a 120 Hz como teto. Padrões de mão humana podem variar ±.
 - **Empty grid-interactive** não capturado (proxy depende de cards existirem — §3 nota 1).
 - **`dark-light-toggle`**: única interação com long task (72 ms, 1 ocorrência em 3 reps) — não reproduzida o suficiente para atribuir causa.
+- **Flags `PerformedWork` antigas (4ª rodada, §6.7)** — correção aplicada: contagens de fibers das rodadas anteriores misturam renders frescos com flags de mount em fibers não revisitadas (evidência: 0 execuções vs 2 820 sinalizações no mesmo build/gesto; aritmética exata 188 itens × 2 fibers × 5 commits). Timings, CPU profile e conclusões de tree-shrink não são afetados; a linguagem "fibers re-renderizados" das §6.1/§6.3 deve ser lida como "árvore sinalizada".
+- **`(idle)` vs rAF-bloqueado (4ª rodada)** — paradoxo aberto: o watchdog não vê rAF no gap (thread ocupada) enquanto o profiler vê 20–90% de amostras sem pilha JS. Candidatos: espera em fence do compositor/GPU (headless usa raster em software) vs ociosidade do agendador entre efeitos. Distinguir exige trace de sistema, fora do escopo — o veredito "não é overlay" independe da resposta.
+- **Mapeamento de relógio do CPU profile** — interpolação linear start/stop com skew IPC de ~5 ms nas bordas; amostras a <5 ms da borda do gap são limítrofes. O gap tem 93–147 ms; o skew não move shares.
+- **Cauda de storage em abrir-pasta rep 3 (unminified)** — gap dominante de 231 ms pós-write, 90% idle, natureza distinta do bloco inter-commit (reps 1–2: 93/140 ms). Mantida no agregado sem cherry-pick; a mediana (140 ms) a absorve sem distorcer.
+- **Nomes minificados entre builds** — a atribuição de nomes a letras minificadas muda com o grafo de módulos (ex.: `E_`↔`D_` permutam entre baseline e V2); comparar contagens por posto, nunca letras entre builds. Identidades de componente vêm do run unminified (§6.3/§6.5).
+- **`blockedMs` com n=3** — variância alta (tabbar baseline 108 ms, V1 0 ms, V2 25 ms); janelas input→settle são o sinal, gaps são contexto.
+- **Contadores de execução n=1 por condição** — suficientes para o veredito qualitativo (0 vs 60 vs 118), insuficientes para quantificar o bloqueio da V2 com precisão.
+- **Abertura de menu de contexto e warm-up em idle da V1** — não medidos (nenhum gesto do bench abre menu); risco residual registrado na §8.
 
 ## 11. Ambiente e reprodutibilidade
 
@@ -286,6 +370,17 @@ node scripts/bench-rerender-names.mjs 3
 # 3c. timeline das transições (5 interações × 3 reps)
 node scripts/bench-transition-timeline.mjs 3
 
+# 3d. atribuição do bloco dominante por CPU profile — 3 interações × 3 reps
+# (nomes legíveis exigem o build unminified throwaway; janelas desse run NÃO
+# são canônicas). Saída: results/transition-cpuprofile-<sufixo>.json
+node scripts/bench-transition-cpuprofile.mjs 3 names
+
+# 3e. A/B de isolamento de overlays — um build limpo por condição, mesmo bench
+node scripts/bench-transition-timeline.mjs 3 baseline
+node scripts/bench-transition-timeline.mjs 3 unmount
+node scripts/bench-transition-timeline.mjs 3 isolate
+node scripts/bench-overlay-ab.mjs baseline unmount isolate
+
 # 4. interações (3 reps × 12 interações)
 node scripts/bench-interactions.mjs 3
 
@@ -299,3 +394,12 @@ node scripts/bench-glass-fps.mjs 3 3
 Saídas JSON: `apps/extension/scripts/results/{cold-load,decompose,rerender-names,transition-timeline,interactions,pointer-storm,glass-fps}.json` (regeneráveis, não commitados). Todos os scripts são read-only sobre o produto: instrumentação via `addInitScript` no page world, sem tocar código da extensão.
 
 **Identidade de componentes (nomes legíveis)** — build throwaway: a partir de `perf/probe-rerender`, criar branch throwaway, adicionar `build: { minify: false }` em `vite()` no `wxt.config.ts`, `bun run build`, rodar `bench-rerender-names.mjs 3` e `bench-transition-timeline.mjs 3 names` (sufixo separa os JSONs), descartar a branch sem commitar. O build de produção (minificado) permanece o canônico para timings.
+
+**Throwaways da 4ª rodada (todas partindo de `perf/probe-rerender`, nenhuma mergeada, nenhuma com efeito sobre esta branch):**
+
+| Branch | Conteúdo (commits próprios) | Propósito |
+| --- | --- | --- |
+| `perf/probe-cpuprofile-unminified` | sem commits — só `minify: false` não commitado + build | nomes legíveis p/ §6.5; descartada após `transition-cpuprofile-names.json` |
+| `perf/probe-overlay-unmount` | `2c6374c` (+16/−1 em 3 arquivos) | variante V1 p/ §6.6 (`transition-timeline-unmount.json`) |
+| `perf/probe-overlay-isolate` | `313aac0`, `959cf23`, `2ec8a4b`, `d7168aa`, `aeb0701` | variante V2 + marcadores + contadores de diagnóstico p/ §6.6/§6.7 |
+| `perf/probe-baseline-counters` | `9ba6a27` (só contadores, sem mudança de comportamento) | referência de execuções baseline + `transition-timeline-baseline.json` |
