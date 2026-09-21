@@ -178,8 +178,56 @@ async function measure(page, gesture) {
 // main
 // ---------------------------------------------------------------------------
 
-async function main() {
+// PROBE glass-transition (Front C): SEED_MODE selects the folder-2 content
+// to correlate gap size with freshly-mounted glass surfaces.
+//   default: stock seed (folder-2 = 12 site cards, no glass)
+//   seedA:   folder-2 = 30 SITE cards (0 new glass surfaces on nav)
+//   seedB:   folder-2 = 30 SUBFOLDERS (30 new glass folder-cards on nav)
+// folder-1 (reset state, 30 cards + folder-4) and folder-3 are untouched.
+// Usage: SEED_MODE=seedA node scripts/bench-transition-timeline.mjs 3 seedA
+function buildSeedVariant() {
+	const mode = process.env.SEED_MODE ?? "default";
 	const seed = buildInteractionSeed();
+	if (mode !== "seedA" && mode !== "seedB") return { seed, mode };
+	// Strip folder-2's stock 12 site cards; folder-1/3 untouched.
+	seed.state.cards = seed.state.cards.filter((c) => c.folderId !== "folder-2");
+	if (mode === "seedA") {
+		seed.state.itemOrder["folder-2"] = [];
+		for (let c = 0; c < 30; c += 1) {
+			const id = `card-sA-${c + 1}`;
+			seed.state.cards.push({
+				id,
+				folderId: "folder-2",
+				title: `Site A${c + 1}`,
+				url: `https://example.com/a${c + 1}`,
+				favicon: null,
+				thumbId: null,
+				order: c,
+				titleSource: null,
+				origin: "local",
+				capturedAt: null,
+			});
+			seed.state.itemOrder["folder-2"].push(`card:${id}`);
+		}
+	} else {
+		seed.state.itemOrder["folder-2"] = [];
+		for (let c = 0; c < 30; c += 1) {
+			const id = `sf-${c + 1}`;
+			seed.state.folders.push({
+				id,
+				name: `Glass ${c + 1}`,
+				order: c,
+				parentId: "folder-2",
+			});
+			seed.state.itemOrder["folder-2"].push(`folder:${id}`);
+			seed.state.itemOrder[id] = [];
+		}
+	}
+	return { seed, mode };
+}
+
+async function main() {
+	const { seed, mode } = buildSeedVariant();
 	const { context, extensionId, userDataDir } = await launchExtension({
 		headless: !HEADED,
 	});
@@ -290,6 +338,8 @@ async function main() {
 		note: SUFFIX
 			? `Suffix "${SUFFIX.slice(1)}" run — see script header for what the suffix denotes.`
 			: "Canonical run against the production (minified) build.",
+		seedMode: mode,
+		headed: HEADED,
 		medians,
 		raw: results,
 	});
