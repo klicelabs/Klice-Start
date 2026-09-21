@@ -8,6 +8,8 @@
 
 **Atualização (2026-09-21, 4ª rodada — probe de atribuição + A/B de overlays, branch `perf/probe-overlay-isolation`):** o bloco dominante de ~110–145 ms foi atribuído por CPU profile fatiado ao gap inter-commit (§6.5) e as duas variantes de isolamento de overlays (unmount vs isolate) foram medidas em branches throwaway contra baseline fresco (§6.6). O probe também revelou um erro metodológico do probe anterior, corrigido em §6.7: a contagem de fibers por `PerformedWork` inclui flags antigas (stale) de fibers não revisitadas — ela mede largura de árvore (fresh+stale), não re-renders do gesto. Nenhum arquivo de produto foi commitado nesta branch (`git diff main --name-only` = só `docs/` e `apps/extension/scripts/bench-*`).
 
+**Atualização (2026-09-21, 5ª rodada — probe do glass em transição, branch `perf/probe-glass-transition`):** testada a hipótese de que o bloco dominante seria raster de backdrop + regeneração de displacement em superfícies recém-montadas (§6.8). Front A (kill total do glass em throwaway `perf/probe-glass-kill`): gap e janela imóveis — hipótese descartada para as transições atuais. Front B (headed com GPU real): gap persiste — custo real, não artefato do headless. Front C (seeds com/sem superfícies glass + cross com glasskill): montar 30 cards de pasta com glass custa +120 ms/+184 ms bloqueados vs 30 sites, e o kill remove ~105/~110 ms — raster de backdrop custa ~4 ms/superfície em software. Glass não será removido do produto em nenhuma hipótese (decisão de produto). Nenhum arquivo de produto commitado nesta branch.
+
 ---
 
 ## 1. Sumário executivo
@@ -289,10 +291,67 @@ Por rep, o `(idle)` varia 64–80% (close), 23–52% (tabbar), 20–90% (abrir-p
 
 **Impacto no relatório anterior:** as contagens "fibers re-renderizados" da §6.1/§6.3 são na verdade **largura de árvore sinalizada (fresh+stale)** — superestimam o trabalho de re-render do gesto. O que sobrevive: a árvore larga existe e permanece montada (a V1 prova a composição ao encolhê-la 70–86%); os timings (janelas, gaps, commits) e o CPU profile (§6.5, que mede execução real por amostragem) **não são afetados**. A identidade dos componentes por janela continua válida como "quem está montado e ativo na janela", não como "quem executou no gesto". Para execução real, usar contadores (§6.6) ou profile.
 
+### 6.8 Glass em transição — A/B do kill, headed vs headless, correlação por seed
+
+**Premissa de produto (fora de revisão):** glass é semântico — só cards de subpasta têm glass (backdrop-filter via `glassCardMaterial` em liquid/card), sites têm screenshot/gradiente sem glass. Glass **não será removido** em nenhuma hipótese; este probe mede custo, não decide existência. Consequência metodológica: o custo do glass, se existir, aparece quando superfícies glass **montam** — o H1 (drag sobre superfícies já rasterizadas, sem custo) é irrelevante aqui.
+
+**Onde o glass mora:** `LiquidGlass` (backdrop inline + SVG displacement com `createDisplacementMap` → canvas `toDataURL`) no chrome do toolbar/search/settings e no empty-landing (2 nós); Tailwind `backdrop-blur-*` (só raster, sem displacement) nos cards de subpasta, menus (`glassMenu` denso) e dialogs. Na seed padrão, cada transição medida monta ~0 superfícies glass de pasta (cards de site não têm glass; só o `back` monta 1 card de subpasta e o `open-folder` monta o empty-landing).
+
+#### Frente A — matar o glass na throwaway e medir
+
+**Variante** (`perf/probe-glass-kill`, nunca mergeada): `backdrop-filter: none !important` global em `tokens.css` (regra única não-prefixada — o minificador funde a forma pareada e derruba a não-prefixada, e a saída só-`-webkit-` não sobrescreve inline no Chromium; verificado ao vivo: 45→0 nós com backdrop em folder-1, 25→0 em folder-2) + chamada `createDisplacementMap` comentada no `LiquidGlass` (sem `toDataURL`, sem escrita no cache). O toggle glass/flat do produto **não** serve aqui (mantém o displacement ativo). Um build minificado limpo por condição (`.output/` apagado), mesma máquina/era.
+
+**Tabela — gap dominante e janela, baseline fresco vs glasskill (medianas de 3 reps, minificado):**
+
+| Interação | gap baseline → glasskill | janela baseline → glasskill |
+|---|---:|---:|
+| fechar-prefs | 141 → 145 ms (+3%) | 248 → 246 ms (−1%) |
+| tabbar-nav | 114 → 117 ms (+3%) | 216 → 216 ms (0%) |
+| abrir-pasta | 139 → 138 ms (−1%) | 222 → 214 ms (−4%, ruído) |
+| voltar (timeline) | — | 231 → 225 ms (−3%, ruído; reps-1 anômalas nos dois lados: 387/480 ms) |
+| abrir-prefs 1ª | — | 360 → 311 ms (−14%, variância alta de chunk-load; cautela) |
+
+**Self no gap:** o kill removeu cirurgicamente o `toDataURL` (tabbar 34 amostras/6,8 ms → 0; abrir-pasta 90/18 ms → 0, sob `J_` = `createDisplacementMap` minificado; close 0 → 0) — e **nada mais se moveu**: idle 74–79%→79% (close), program ~30–37%→32% (tabbar), `measureScroll`/`getBoundingClientRect` intactos, subtree `glass-material` some de ~0,6% para residual. O trabalho de displacement era real e media 2–6 ms/rep — duas ordens de grandeza abaixo do bloco.
+
+**Veredito da Frente A: glass descartado como gargalo destas transições.** O critério (>50% de queda no gap) falha em todas as interações (movimento máximo: −4% numa janela, dentro do ruído). Remover TODO o backdrop raster + TODO o displacement da página não move nem o gap nem a janela. A P1 atual (§8: fase de commit/efeitos) volta a ser o alvo — com a nota "hipótese glass descartada por dado" (§8).
+
+#### Frente B — headed com GPU real vs headless
+
+**Método:** flag `--headed` adicionada aos benches de timeline e cpuprofile (commit `9dcf46f`, só bench); mesmo seed, interações e reps, build baseline; `timeline 3 headed --headed` + `cpuprofile 3 headed --headed`.
+
+**Tabela — headless vs headed (medianas de 3 reps):**
+
+| Interação | gap headless → headed | janela headless → headed |
+|---|---:|---:|
+| fechar-prefs | 141 → 145 ms | 248 → 248 ms |
+| tabbar-nav | 114 → 119 ms | 216 → 216 ms |
+| abrir-pasta | 139 → 142 ms | 222 → 215 ms |
+| voltar | — | 231 → 226 ms |
+
+Self no gap idêntico em forma (close: idle 507→528, program 74→67, gBCR 49→43; tabbar: idle 185→298, program 214→190, toDataURL 34→16, measureScroll 30→28; abrir-pasta: idle 650→681 com a mesma cauda tardia de storage nas reps-3). A cascata (8 commits, mesmos espaçamentos) persiste integralmente.
+
+**Veredito da Frente B: custo real, não artefato.** O gap sobrevive com GPU real (deltas de 0–4%, ruído). O `(idle)` majoritário não é espera de fence do raster em software — continua a incógnita agendador-vs-fence da §6.5, agora sem o headless como suspeito. A percepção do usuário (que usa headed) corresponde ao número medido.
+
+#### Frente C — correlação com superfícies glass montadas (rodou)
+
+**Método:** `SEED_MODE` no bench de timeline (commit `36f5085`): `seedA` = folder-2 com 30 cards de site (0 superfícies glass novas); `seedB` = folder-2 com 30 subpastas (30 cards de pasta com glass montando). folder-1/3 e folder-4 intactos. Citado o rep 1 (nav →folder-2); a mediana dos 3 reps dilui alvos diferentes e não serve aqui.
+
+**Tabela — rep 1 nav →folder-2:**
+
+| Condição | janela | bloqueado | maxGap | espaçamento | fibers |
+|---|---:|---:|---:|---|---:|
+| seedA (30 sites) | 218 ms | 108 ms | 58 ms | [39,1,106,4,23,27,0] | 14 258 |
+| seedB (30 glass) | 338 ms | 292 ms | 175 ms | [104,1,43,1,72,7,1] | 16 658 |
+| seedB × glasskill | 233 ms | 182 ms | 83 ms | — | 16 658 |
+
+**Veredito da Frente C: correlação confirmada E atribuída ao raster de backdrop.** 30 superfícies glass montando custam +120 ms de janela / +184 ms bloqueados vs 30 sites, com estrutura distinta (três trechos bloqueados, maxGap 175 ms). O cross com o glasskill remove ~105 ms de janela / ~110 ms bloqueados (338→233, 292→182), restando ~15 ms acima do seedA — dentro do ruído (DOM mais pesado do folder-card não provado em nenhuma direção). Como cards de pasta não usam `LiquidGlass` (só Tailwind backdrop, sem displacement), o custo removido é **raster de backdrop puro**: ~3,5–4 ms por superfície de pasta em raster software (headless). Em GPU real o número por superfície deve ser menor — não medido por superfície no headed (residual honesto).
+
+**Síntese da §6.8:** o glass não explica as transições atuais (A: kill total não move nada; B: custo real mas não é raster), e ao mesmo tempo o raster de backdrop é genuinamente caro por superfície montada (C: ~4 ms/superfície em software). Sem contradição: as transições medidas montam ~0 superfícies glass. Implicação em §8: P1 mantida, mais um item escopado para pastas com muitas subpastas.
+
 ## 7. Gargalos ranqueados por impacto
 
 1. **Long task de startup (122–370 ms conforme a variante, 6/6 runs)** — bloco contínuo pós-DCL: render → commit → efeitos → hidratação do persist → re-commit; module eval pesa ≤53 ms. Um dos dois achados que sustentam a percepção de "travamento". *Efeito percebido:* abertura trava ~¼–⅓ de segundo. Code-split sozinho não resolve (§5, §8).
-2. **Cascata de commits nas transições (Probes 2–4, §6.5–§6.7)** — abrir/fechar Preferences, navegar tabbar, abrir pasta e voltar: 4–9 commits com um trecho contínuo de ~110–145 ms no meio; janelas reais de 165–405 ms; 0 long tasks >50 ms (por isso invisível à métrica antiga). O bloco dominante **não é JS de overlay**: o CPU profile (§6.5) mostra travessia de efeitos do react-dom + trabalho nativo (style/layout/paint) + maioria idle/agendamento, com componentes de produto em ≤1% das amostras; e o A/B (§6.6) mostra que encolher a árvore sinalizada em 70–86% não move a janela. A árvore larga com overlays montados existe e custa mount/commit (combustível), mas o relógio é dirigido por agendamento e fase de commit — e as contagens de fibers da §6 incluem flags antigas (§6.7). *Efeito percebido:* cada transição engasga ~¼ de segundo. Alvo do fix: §8 nova P1.
+2. **Cascata de commits nas transições (Probes 2–5, §6.5–§6.8)** — abrir/fechar Preferences, navegar tabbar, abrir pasta e voltar: 4–9 commits com um trecho contínuo de ~110–145 ms no meio; janelas reais de 165–405 ms; 0 long tasks >50 ms (por isso invisível à métrica antiga). O bloco dominante **não é JS de overlay nem raster de glass**: o CPU profile (§6.5) mostra travessia de efeitos do react-dom + trabalho nativo (style/layout/paint) + maioria idle/agendamento, com componentes de produto em ≤1% das amostras; o A/B de overlays (§6.6) mostra que encolher a árvore sinalizada em 70–86% não move a janela; o kill total do glass (§6.8, Frente A) não move gap nem janela; e o gap persiste com GPU real (§6.8, Frente B). O raster de backdrop é caro por superfície montada (~4 ms em software, §6.8 Frente C), mas as transições medidas montam ~0 superfícies glass. A árvore larga com overlays montados existe e custa mount/commit (combustível), mas o relógio é dirigido por agendamento e fase de commit — e as contagens de fibers da §6 incluem flags antigas (§6.7). *Efeito percebido:* cada transição engasga ~¼ de segundo. Alvo do fix: §8 P1 (confirmada).
 3. **Re-renders em drag e rename (26–27 commits, 44–46k fibers por gesto)** — alto em contagem, mas sem long tasks, 104–120 fps, e provadamente amortizado por guards (H3). Impacto percebido hoje: baixo. Vale atenção se o grid crescer (100+ cards).
 4. **Rename dispara ~25 commits/38k fibers para ~10 teclas** — provável commit por tecla com subscribers largos. Sem long tasks; dor futura em máquinas fracas.
 5. **Nada mais** — scroll e marquee: cravados em ~120 fps, commits amortizados.
@@ -301,22 +360,25 @@ Por rep, o `(idle)` varia 64–80% (close), 23–52% (tabbar), 20–90% (abrir-p
 
 **Reescrita na 4ª rodada.** O programa do Probe 2 mandava atacar overlays como P1 das transições. A 4ª rodada testou a hipótese duas vezes, com dois métodos independentes, e a hipótese perdeu nas duas: o executor do bloco não é overlay (CPU profile, §6.5) e remover 70–86% da árvore sinalizada não move a janela (A/B, §6.6). Manter o #1 antigo como P1 seria implementar contra o dado. Abaixo, o programa corrigido.
 
+**Confirmação na 5ª rodada (§6.8).** A hipótese alternativa (raster de glass no bloco) foi testada em três frentes e descartada para as transições atuais: kill total do glass não move gap nem janela (A), o gap persiste com GPU real (B). A P1 abaixo **está confirmada** — com a nota "hipótese glass descartada por dado". O que a 5ª rodada adicionou de novo é um item escopado (#7): raster de backdrop custa ~4 ms por superfície de pasta montada em software — irrelevante nas transições medidas (~0 superfícies), relevante em pastas com dezenas de subpastas. Glass não será removido do produto em nenhuma hipótese (decisão de produto); otimização, se vier, é de mount Estratégia, não de remoção.
+
 | # | O quê | Custo | Risco | Ganho esperado |
 | --- | --- | --- | --- | --- |
-| 1 | **Atacar a fase de commit/efeitos das transições (alvo novo, vindo do dado)**: (a) eliminar leituras forçadas de layout dentro de efeitos — `LiquidGlass.measure` (`getBoundingClientRect` + `getComputedStyle` por superfície a cada commit que a toca) e `GoToTopButton.measureScroll`/`secondRowCells` (`offsetTop`); medir uma vez por geometria e assinar `ResizeObserver` só onde muda; (b) conter a regeneração de displacement maps do glass (`createDisplacementMap` + `toDataURL` por geometria nova em cada navegação que monta cards — cache por chave já existe, mas misses em massa no mount; considerar mapa compartilhado por classe de tamanho ou caminho GPU); (c) reduzir a cascata 8→menos commits por gesto, agrupando atualizações de store que hoje se encadeiam via efeitos passivos (o espaçamento dos commits não mudou com árvore 86% menor — é agendamento, não trabalho); (d) tirar a cauda de `storage.set` do caminho crítico percebido (a rep anômala de 231 ms em abrir-pasta é espera pós-write). Instrumentar com o próprio `bench-transition-cpuprofile.mjs`: o fix funciona se o self `(program)`+efeitos por gap cair, não se as flags caírem | M | M (regressão visual do glass se o mapa for reutilizado errado; batching de store muda semântica de undo — cobrir com os testes de history) | Único candidato com apoio causal ao sintoma reportado (transições travadas): ataca o executor medido em §6.5. **P1 nova** |
+| 1 | **Atacar a fase de commit/efeitos das transições (P1 confirmada na 5ª rodada)**: (a) eliminar leituras forçadas de layout dentro de efeitos — `LiquidGlass.measure` (`getBoundingClientRect` + `getComputedStyle` por superfície a cada commit que a toca) e `GoToTopButton.measureScroll`/`secondRowCells` (`offsetTop`); medir uma vez por geometria e assinar `ResizeObserver` só onde muda; (b) displacement maps: conter regeneração em massa no mount é higiene válida, mas **não é o driver da transição** — o kill total remove 2–6 ms/rep e o gap não se move (§6.8 Frente A); manter o cache por geometria, sem prometer janela; (c) reduzir a cascata 8→menos commits por gesto, agrupando atualizações de store que hoje se encadeiam via efeitos passivos (o espaçamento dos commits não mudou com árvore 86% menor — é agendamento, não trabalho); (d) tirar a cauda de `storage.set` do caminho crítico percebido (reps anômalas de 231–283 ms em abrir-pasta são espera pós-write). Instrumentar com o próprio `bench-transition-cpuprofile.mjs`: o fix funciona se o self `(program)`+efeitos por gap cair, não se as flags caírem | M | M (batching de store muda semântica de undo — cobrir com os testes de history) | Único candidato com apoio causal ao sintoma reportado (transições travadas): ataca o executor medido em §6.5, com glass descartado em §6.8. **P1 (confirmada)** |
 | 2 | **Quebrar o bloco pós-DCL**: montar subtrees não-críticas (clock, greeting, quick-links, diálogos, painel de settings) só depois do primeiro paint (`requestIdleCallback`/rAF escalonado) e resolver a hidratação do persist em idle — o re-commit de hidratação custa 58–145 ms e re-renderiza a árvore inteira (§5, §6.1) | S/M | Baixo/M (flash de widgets atrasados; borda de hidratação) | Ataca diretamente a long task dominante (122–370 ms que atravessa os dois commits). **P1 (mantida)** |
 | 3 | Code-split do chunk newtab (import dinâmico das mesmas subtrees) | M | M (borda de hidratação; flash de widgets atrasados) | **Complemento, não fix**: module eval contribui com ≤53 ms e V8 compile já é ~0 — split sozinho não elimina a long task medida (§5). Reduz bytes no caminho crítico e habilita o lazy-mount do #2. **P1-complemento (mantido)** |
 | 4 | **Higiene de árvore: desmontar overlays fechados, estilo V1 (rebaixado de P1 para P2)**: vence a 1ª abertura de Preferences (−30% janela, −27% bloqueado) e não regride a re-abertura morna; encolhe a árvore sinalizada 70–86%. NÃO esperar ganho em transições (medido: 0). Condições de embarque: resolver o acoplamento com o ciclo `inert`/transição (mount-aberto sem `transitionend` = painel morto — footgun documentado em §6.6), medir a latência de abertura de menu de contexto (não coberta por este probe) e decidir warm-up em idle com dado, não com medo | S (a variante throwaway tem ~15 linhas em 2 arquivos) | M (os três itens das condições de embarque) | Ganho real porém localizado: abertura de Preferences + árvore menor para o commit atravessar. **P2** |
 | 5 | Renome inline: input uncontrolled até commit (Enter) em vez de escrever no store por tecla | S | Baixo | 25 → ~2 commits por rename. **P3 (mantido)** |
 | 6 | Quando o grid crescer: virtualização de linhas fora do viewport | M | M | Somente se card count → 100+. **P4 (mantido)** |
+| 7 | **Custo de mount de superfícies glass (novo, escopado — 5ª rodada, §6.8 Frente C)**: navegar para pasta com 30 subpastas custa +120 ms/+184 ms bloqueados vs 30 sites; o kill remove ~105/~110 ms → ~4 ms por superfície em raster software. **Não é P1** (transições medidas montam ~0 superfícies) e **não envolve remover glass**. Se pastas densas em subpastas virarem queixa: (i) reduzir regeneração de displacement a uma vez por geometria/superfície; (ii) mapa compartilhado por classe de tamanho; (iii) caminho GPU p/ displacement em vez de canvas `toDataURL` | S/M | Baixo (otimização contida no material; glass preservado por construção) | Só paga em pastas com muitas subpastas. **P3 escopado (novo)** |
 
-**Unificação (resposta à 4ª rodada):** cold load e transições NÃO compartilham o alvo — compartilham apenas o tema "árvore larga". O boot é bloco render→commit→hidratação (atacar com #2); as transições são cascata agendada + efeitos de commit + nativo (atacar com a nova #1). Overlays viraram #4 (P2): higiene válida, sem promessa de transição. A correção metodológica da §6.7 redefine como medir o progresso: **o critério de um fix de transição é a janela input→settle e o self por gap no CPU profile, nunca a contagem de flags** — flags caem 86% sem o relógio se mover.
+**Unificação (resposta à 4ª rodada, confirmada na 5ª):** cold load e transições NÃO compartilham o alvo — compartilham apenas o tema "árvore larga". O boot é bloco render→commit→hidratação (atacar com #2); as transições são cascata agendada + efeitos de commit + nativo (atacar com a #1, confirmada). Overlays viraram #4 (P2): higiene válida, sem promessa de transição. Glass virou #7 (P3 escopado): custo real por superfície montada, irrelevante nas transições atuais. A correção metodológica da §6.7 redefine como medir o progresso: **o critério de um fix de transição é a janela input→settle e o self por gap no CPU profile, nunca a contagem de flags** — flags caem 86% sem o relógio se mover.
 
-**Riscos residuais honestos:** (a) o `(idle)` majoritário no gap (20–90% por rep) não está distinguido entre espera em fence do compositor e ociosidade do agendador — um trace (`chrome://tracing`) decide, fora do escopo; se for fence de raster em software (headless), parte do gap pode evaporar em hardware real; (b) latência de abertura de menu de contexto nas variantes: não medida; (c) warm-up em idle da V1: não testado; (d) `blockedMs` do watchdog tem variância alta com n=3 (ex.: tabbar baseline 108 ms vs V1 0 ms) — as janelas são o sinal robusto, os gaps são contexto.
+**Riscos residuais honestos:** (a) o `(idle)` majoritário no gap (20–90% por rep) não está distinguido entre espera em fence do compositor e ociosidade do agendador — um trace (`chrome://tracing`) decide, fora do escopo; a suspeita de artefato do headless foi **descartada** (gap persiste headed, §6.8 Frente B); (b) latência de abertura de menu de contexto nas variantes: não medida; (c) warm-up em idle da V1: não testado; (d) `blockedMs` do watchdog tem variância alta com n=3 (ex.: tabbar baseline 108 ms vs V1 0 ms; reps-1 anômalas de 387–480 ms em `back` nos dois lados do A/B do glass) — as janelas são o sinal robusto, os gaps são contexto; (e) custo por superfície glass medido só em raster software (headless) — o número em GPU real deve ser menor, não medido por superfície no headed.
 
 ## 9. O que NÃO vale otimizar (evita trabalho desperdiçado)
 
-- **Remover/reduzir glass** — custo zero medido, inclusive em hardware 4× mais lento (H1).
+- **Remover/reduzir glass** — custo zero nas transições medidas: drag sem custo em superfícies rasterizadas (H1, inclusive com CPU 4× mais lenta) e kill total do glass sem mover gap nem janela (§6.8 Frente A). Glass é decisão de produto e não está em revisão. (Nuance §6.8 Frente C: montar superfícies glass custa ~4 ms cada em software — irrelevante nas transições atuais, ver #7 em §8 para pastas densas.)
 - **Adicionar selectors Zustand** — já estão em 100% dos 159 pontos de consumo (H2).
 - **Throttle de pointermove/dragover ou "rAF-izar" o dnd** — drag nativo não gera flood (2–3 pointermove/drag) e os guards já colapsam dragover×4,2 em commits×1,0 (H3).
 - **Mexer no persist/coalescing** — 1 write por gesto, trailing 200 ms, comprovado em 12 drags (H4).
@@ -331,7 +393,7 @@ Por rep, o `(idle)` varia 64–80% (close), 23–52% (tabbar), 20–90% (abrir-p
 - **FCP no bench-decompose** só capturou parte das runs (paint entry ausente) e, no empty, caiu depois do duplo rAF (884 ms vs T3 516 ms) — rAF não garante paint efetivo. Os FCPs canônicos do relatório são os do cold-load (paint entries lidas ao fim da run).
 - **O decompose não tem a variante `seeded-cold`** — a interação codecache × hidratação dentro dos segmentos não foi isolada; a alocação de long tasks por janela não depende disso.
 - **Componentes re-renderizados** — **resolvido na 3ª rodada**: a identidade foi obtida com build unminified throwaway (`perf/probe-rerender-sourcemap`, `minify: false` — desvio do plano de sourcemap: `function.name` em runtime dá a mesma identidade sem maquinaria de source-map). Contagens verificadas idênticas entre os builds (fibers iguais run a run); **nenhum número de timing é citado do build throwaway** (§6).
-- **O bloco dominante de ~110–145 ms entre commits não está atribuído a funções** — a timeline mostra QUANDO o trabalho acontece, não QUEM o executa (sem CPU profile na janela das interações). O harness já tem `startCpuProfile` pronto para esse próximo probe.
+- **O bloco dominante de ~110–145 ms entre commits não está atribuído a funções** — **resolvido na 4ª rodada** (travessia de efeitos do react-dom + nativo + idle, produto em ≤1% — §6.5) e com o glass descartado na 5ª (§6.8).
 - **n=3 reps por interação, com variância alta no tempo bloqueado** (tabbar 0–159 ms; voltar 65–115 ms). O padrão estrutural — cascata de 4–9 commits + bloco dominante + elenco de overlays fechados — é consistente em todas as reps e nos dois builds.
 - **input→commit1 tem piso de latência CDP** (~5–15 ms entre o dispatch do Playwright e o pointerdown visto no page world) — os 3–19 ms medidos são teto aproximado, não valor absoluto.
 - **Settle = última atividade instrumentada** (commit, gap de frame, write de storage, long task); o paint efetivo por janela não é observado diretamente (o duplo rAF do decompose cobre só o startup).
@@ -341,13 +403,17 @@ Por rep, o `(idle)` varia 64–80% (close), 23–52% (tabbar), 20–90% (abrir-p
 - **Empty grid-interactive** não capturado (proxy depende de cards existirem — §3 nota 1).
 - **`dark-light-toggle`**: única interação com long task (72 ms, 1 ocorrência em 3 reps) — não reproduzida o suficiente para atribuir causa.
 - **Flags `PerformedWork` antigas (4ª rodada, §6.7)** — correção aplicada: contagens de fibers das rodadas anteriores misturam renders frescos com flags de mount em fibers não revisitadas (evidência: 0 execuções vs 2 820 sinalizações no mesmo build/gesto; aritmética exata 188 itens × 2 fibers × 5 commits). Timings, CPU profile e conclusões de tree-shrink não são afetados; a linguagem "fibers re-renderizados" das §6.1/§6.3 deve ser lida como "árvore sinalizada".
-- **`(idle)` vs rAF-bloqueado (4ª rodada)** — paradoxo aberto: o watchdog não vê rAF no gap (thread ocupada) enquanto o profiler vê 20–90% de amostras sem pilha JS. Candidatos: espera em fence do compositor/GPU (headless usa raster em software) vs ociosidade do agendador entre efeitos. Distinguir exige trace de sistema, fora do escopo — o veredito "não é overlay" independe da resposta.
+- **`(idle)` vs rAF-bloqueado (4ª/5ª rodada)** — paradoxo aberto: o watchdog não vê rAF no gap (thread ocupada) enquanto o profiler vê 20–90% de amostras sem pilha JS. Candidatos: espera em fence do compositor/GPU vs ociosidade do agendador entre efeitos. A suspeita de artefato do headless foi **descartada** (gap persiste headed com GPU real, §6.8 Frente B). Distinguir fence de scheduler exige trace de sistema, fora do escopo — os vereditos "não é overlay" e "não é glass" independem da resposta.
 - **Mapeamento de relógio do CPU profile** — interpolação linear start/stop com skew IPC de ~5 ms nas bordas; amostras a <5 ms da borda do gap são limítrofes. O gap tem 93–147 ms; o skew não move shares.
 - **Cauda de storage em abrir-pasta rep 3 (unminified)** — gap dominante de 231 ms pós-write, 90% idle, natureza distinta do bloco inter-commit (reps 1–2: 93/140 ms). Mantida no agregado sem cherry-pick; a mediana (140 ms) a absorve sem distorcer.
 - **Nomes minificados entre builds** — a atribuição de nomes a letras minificadas muda com o grafo de módulos (ex.: `E_`↔`D_` permutam entre baseline e V2); comparar contagens por posto, nunca letras entre builds. Identidades de componente vêm do run unminified (§6.3/§6.5).
 - **`blockedMs` com n=3** — variância alta (tabbar baseline 108 ms, V1 0 ms, V2 25 ms); janelas input→settle são o sinal, gaps são contexto.
 - **Contadores de execução n=1 por condição** — suficientes para o veredito qualitativo (0 vs 60 vs 118), insuficientes para quantificar o bloqueio da V2 com precisão.
 - **Abertura de menu de contexto e warm-up em idle da V1** — não medidos (nenhum gesto do bench abre menu); risco residual registrado na §8.
+- **Glasskill e o minificador (5ª rodada)** — o LightningCSS funde `backdrop-filter` + `-webkit-backdrop-filter` de mesmo valor e derruba a não-prefixada; a saída só-`-webkit-` não sobrescreve inline no Chromium. O kill válido usa só a declaração não-prefixada (verificado ao vivo: 45→0 nós, sintético inline→`none`).
+- **Seeds A/B com n=3 mas alvos distintos por rep** — a mediana do tabbar dilui folder-2/3/1; a Frente C cita o rep 1 (nav →folder-2, o alvo variante). Reps 2–3 servem de controle (iguais nas duas seeds).
+- **Custo por superfície glass só em raster software** — ~4 ms/superfície medidos headless; o número headed com GPU real deve ser menor (não medido por superfície).
+- **Runs headed roubam a tela** — Chromium visível com GPU real; mesma máquina dos runs headless, janelas sob foco. builds idênticos (sem rebuild entre headless/headed).
 
 ## 11. Ambiente e reprodutibilidade
 
@@ -381,6 +447,18 @@ node scripts/bench-transition-timeline.mjs 3 unmount
 node scripts/bench-transition-timeline.mjs 3 isolate
 node scripts/bench-overlay-ab.mjs baseline unmount isolate
 
+# 3f. glass em transição (5ª rodada) — kill, headed, seeds
+node scripts/bench-transition-timeline.mjs 3 glasskill      # throwaway perf/probe-glass-kill
+node scripts/bench-transition-cpuprofile.mjs 3 glasskill
+node scripts/bench-transition-timeline.mjs 3 baseline       # mesma era, build limpo
+node scripts/bench-transition-cpuprofile.mjs 3 baseline
+node scripts/bench-transition-timeline.mjs 3 headed --headed
+node scripts/bench-transition-cpuprofile.mjs 3 headed --headed
+SEED_MODE=seedA node scripts/bench-transition-timeline.mjs 3 seedA
+SEED_MODE=seedB node scripts/bench-transition-timeline.mjs 3 seedB
+# cross seedB × glasskill (no throwaway, com o bench da branch + SEED_MODE):
+#   SEED_MODE=seedB node scripts/bench-transition-timeline.mjs 3 seedB-glasskill
+
 # 4. interações (3 reps × 12 interações)
 node scripts/bench-interactions.mjs 3
 
@@ -391,7 +469,7 @@ node scripts/bench-pointer-storm.mjs 3
 node scripts/bench-glass-fps.mjs 3 3
 ```
 
-Saídas JSON: `apps/extension/scripts/results/{cold-load,decompose,rerender-names,transition-timeline,interactions,pointer-storm,glass-fps}.json` (regeneráveis, não commitados). Todos os scripts são read-only sobre o produto: instrumentação via `addInitScript` no page world, sem tocar código da extensão.
+Saídas JSON: `apps/extension/scripts/results/{cold-load,decompose,rerender-names,transition-timeline[-baseline|-unmount|-isolate|-glasskill|-headed|-seedA|-seedB|-seedB-glasskill],transition-cpuprofile[-baseline|-glasskill|-headed|-names],interactions,pointer-storm,glass-fps}.json` (regeneráveis, não commitados). Todos os scripts são read-only sobre o produto: instrumentação via `addInitScript` no page world, sem tocar código da extensão.
 
 **Identidade de componentes (nomes legíveis)** — build throwaway: a partir de `perf/probe-rerender`, criar branch throwaway, adicionar `build: { minify: false }` em `vite()` no `wxt.config.ts`, `bun run build`, rodar `bench-rerender-names.mjs 3` e `bench-transition-timeline.mjs 3 names` (sufixo separa os JSONs), descartar a branch sem commitar. O build de produção (minificado) permanece o canônico para timings.
 
@@ -403,3 +481,9 @@ Saídas JSON: `apps/extension/scripts/results/{cold-load,decompose,rerender-name
 | `perf/probe-overlay-unmount` | `2c6374c` (+16/−1 em 3 arquivos) | variante V1 p/ §6.6 (`transition-timeline-unmount.json`) |
 | `perf/probe-overlay-isolate` | `313aac0`, `959cf23`, `2ec8a4b`, `d7168aa`, `aeb0701` | variante V2 + marcadores + contadores de diagnóstico p/ §6.6/§6.7 |
 | `perf/probe-baseline-counters` | `9ba6a27` (só contadores, sem mudança de comportamento) | referência de execuções baseline + `transition-timeline-baseline.json` |
+
+**Throwaway da 5ª rodada (partindo de `perf/probe-glass-transition`, nunca mergeada, sem efeito sobre esta branch):**
+
+| Branch | Conteúdo (commits próprios) | Propósito |
+| --- | --- | --- |
+| `perf/probe-glass-kill` | `df46a0f`, `b8cfba7`, `02eaab6` (kill: backdrop `none` global + `createDisplacementMap` comentado) + `950bbc1` (bench do cross, sem produto) | variante glasskill p/ §6.8 Frentes A e C (`transition-timeline-glasskill.json`, `transition-cpuprofile-glasskill.json`, `transition-timeline-seedB-glasskill.json`) |
