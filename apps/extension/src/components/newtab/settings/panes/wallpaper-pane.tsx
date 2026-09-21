@@ -1,8 +1,8 @@
+import { Input } from "@klice-start/ui/components/input";
 import {
 	FileUpload,
 	type FileUploadItem,
 } from "@klice-start/ui/components/motion/file-upload";
-import { Input } from "@klice-start/ui/components/input";
 import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
@@ -55,6 +55,15 @@ const WALLPAPER_TILE = cn(
 	SETTINGS_RADIUS.surface,
 );
 const TILE_SELECTED = "ring-2 ring-inset ring-[var(--klice-accent)]";
+
+/**
+ * Temporary UI gate. Pexels photography is hidden from the picker while the
+ * source is reworked, but the code path, the persisted settings and the proxy
+ * in `apps/web/api/pexels` all stay in place — flip this back to `true` to
+ * restore the section. A background already set to `pexels` keeps rendering:
+ * hiding the picker must never change what the user sees.
+ */
+const SHOW_PEXELS = false;
 
 const PEXELS_FREQUENCY_OPTIONS: readonly {
 	value: WallpaperFrequency;
@@ -227,15 +236,32 @@ interface WallpaperTileProps {
 	item: WallpaperLibraryItem;
 	selected: boolean;
 	onSelect: (item: WallpaperLibraryItem) => void;
+	/**
+	 * Solid tiles own the colour picker themselves, so they need the live
+	 * setter instead of going through `onSelect`. Called on click (to activate
+	 * the tile with its current colour) and on every `input` (to preview live).
+	 */
+	onColorChange?: (color: string) => void;
 }
 
-function WallpaperTile({ item, selected, onSelect }: WallpaperTileProps) {
+function WallpaperTile({
+	item,
+	selected,
+	onSelect,
+	onColorChange,
+}: WallpaperTileProps) {
 	const tileLabel =
 		item.kind === "gradient"
 			? `Use ${item.label} gradient`
 			: item.kind === "solid"
 				? "Use solid colour background"
 				: `Use ${item.label} wallpaper`;
+
+	// Solid is the one source whose value IS a control: the tile doubles as the
+	// colour input, so clicking it opens the picker instead of merely selecting
+	// the type. The swatch under it renders `item.css`, which is the live
+	// background colour — so the tile always shows what is applied.
+	const isSolid = item.kind === "solid";
 
 	return (
 		<div
@@ -245,38 +271,63 @@ function WallpaperTile({ item, selected, onSelect }: WallpaperTileProps) {
 			)}
 			data-wallpaper-tile={item.id}
 		>
-			<button
-				type="button"
-				onClick={() => onSelect(item)}
-				aria-label={tileLabel}
-				aria-pressed={selected}
-				className={cn(
-					"absolute inset-0 flex flex-col justify-end text-left focus-visible:outline-none",
-					SETTINGS_FOCUS_RING,
-				)}
-			>
-				{item.kind === "wallpaper" ? (
-					<img
-						src={item.thumb}
-						alt=""
-						className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
-						loading="lazy"
-					/>
-				) : (
+			{isSolid ? (
+				<>
 					<span
 						aria-hidden="true"
 						className="absolute inset-0 size-full"
 						style={{ background: item.css }}
 					/>
-				)}
-				<div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-				<span className="relative z-10 truncate px-2.5 pb-2 font-medium text-[11px] text-white/95 drop-shadow-xs">
-					{item.label}
-				</span>
-			</button>
+					<input
+						type="color"
+						value={item.css}
+						onClick={() => onColorChange?.(item.css)}
+						onInput={(e) => onColorChange?.(e.currentTarget.value)}
+						onChange={(e) => onColorChange?.(e.currentTarget.value)}
+						aria-label={tileLabel}
+						className={cn(
+							"absolute inset-0 size-full cursor-pointer appearance-none border-0 bg-transparent p-0 opacity-0",
+							SETTINGS_FOCUS_RING,
+						)}
+					/>
+				</>
+			) : (
+				<button
+					type="button"
+					onClick={() => onSelect(item)}
+					aria-label={tileLabel}
+					aria-pressed={selected}
+					className={cn(
+						"absolute inset-0 flex flex-col justify-end text-left focus-visible:outline-none",
+						SETTINGS_FOCUS_RING,
+					)}
+				>
+					{item.kind === "wallpaper" ? (
+						<img
+							src={item.thumb}
+							alt=""
+							className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+							loading="lazy"
+						/>
+					) : (
+						<span
+							aria-hidden="true"
+							className="absolute inset-0 size-full"
+							style={{ background: item.css }}
+						/>
+					)}
+				</button>
+			)}
+
+			{/* Scrim and label sit above whichever control is active, and must
+			    never swallow its clicks. */}
+			<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+			<span className="pointer-events-none relative z-10 truncate px-2.5 pb-2 font-medium text-[11px] text-white/95 drop-shadow-xs">
+				{item.label}
+			</span>
 
 			{selected ? (
-				<span className="absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
+				<span className="pointer-events-none absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
 					<Icon name="check" size={12} strokeWidth={3} aria-hidden="true" />
 				</span>
 			) : null}
@@ -400,27 +451,33 @@ export function WallpaperPane() {
 				gradientId: null,
 				imageId: null,
 			} as Partial<Settings["background"]>);
-			return;
-		}
-		if (item.kind === "gradient") {
+		} else if (item.kind === "gradient") {
 			updateBackground({
 				type: "gradient",
 				gradientId: item.id,
 				wallpaperId: null,
 				imageId: null,
 			} as Partial<Settings["background"]>);
-			return;
 		}
-		if (item.kind === "solid") {
-			updateBackground({
-				type: "solid",
-				color: bg.color,
-				wallpaperId: null,
-				gradientId: null,
-				imageId: null,
-			} as Partial<Settings["background"]>);
-			return;
-		}
+		// Solid is deliberately absent: its tile is a colour input, not a
+		// button, so it never reaches `onSelect` — see `handleSolidColor`.
+	}
+
+	/**
+	 * The solid tile owns its colour picker, so both the activating click and
+	 * every live `input` land here. Applying `type: "solid"` on the first call
+	 * makes opening the picker the selection gesture itself — there is no
+	 * separate step to activate the swatch.
+	 */
+	function handleSolidColor(color: string) {
+		if (pending) clearPending();
+		updateBackground({
+			type: "solid",
+			color,
+			wallpaperId: null,
+			gradientId: null,
+			imageId: null,
+		} as Partial<Settings["background"]>);
 	}
 
 	function handleSelectCustom() {
@@ -712,115 +769,97 @@ export function WallpaperPane() {
 						) : null}
 					</div>
 
-				{libraryItems.map((item) => (
-					<WallpaperTile
-						key={`${item.kind}-${item.id}`}
-						item={item}
-						selected={isSelected(item)}
-						onSelect={handleSelect}
-					/>
-				))}
+					{libraryItems.map((item) => (
+						<WallpaperTile
+							key={`${item.kind}-${item.id}`}
+							item={item}
+							selected={isSelected(item)}
+							onSelect={handleSelect}
+							onColorChange={handleSolidColor}
+						/>
+					))}
 				</div>
 			</SectionCard>
 
-			{/* Solid colour is another background source: pick the hue here,
-			which also activates it. */}
-			<SectionCard>
-				<SettingRow label="Solid colour" icon="droplet">
-					<div className="flex items-center gap-2">
-						<input
-							type="color"
-							value={bg.color}
-							onChange={(e) =>
-								updateBackground({
-									type: "solid",
-									color: e.target.value,
-									wallpaperId: null,
-									gradientId: null,
-									imageId: null,
-								} as Partial<Settings["background"]>)
-							}
-							className="size-7 rounded-full border border-neutral-900/20 bg-transparent p-0 dark:border-white/20"
-							aria-label="Solid background colour"
-						/>
-						<span className="font-mono text-[11px] text-neutral-500 dark:text-neutral-400">
-							{bg.color}
-						</span>
-					</div>
-				</SettingRow>
-			</SectionCard>
+			{/* Solid colour has no row of its own: the library tile IS the control
+			(see WallpaperTile), so a picker here would set the same value twice. */}
 
 			{/* Pexels is a wallpaper source: enable it here, tune the photo
-			theme and refresh cadence inside its sub-area. */}
-			<SectionCard>
-				<SettingRow
-					label="Pexels photography"
-					icon="camera"
-					tooltip="Fresh photos on a schedule, instead of a fixed wallpaper."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Use Pexels photography"
-						checked={bg.type === "pexels"}
-						onCheckedChange={(enabled: boolean) => {
-							if (enabled) {
-								updateBackground({ type: "pexels" } as Partial<
-									Settings["background"]
-								>);
-								refreshWallpaper(true).catch(() => undefined);
-							} else {
-								updateBackground({
-									type: "wallpaper",
-									wallpaperId: "tokyo-skyline",
-								} as Partial<Settings["background"]>);
-							}
-						}}
-					/>
-				</SettingRow>
-
-				<SettingsExpandable
-					expanded={bg.type === "pexels"}
-					label="Pexels photography options"
-				>
-					<SettingRow label="Photo theme" icon="search">
-						<Input
-							id="pexels-query-input"
-							aria-label="Photo theme keywords"
-							placeholder="minimalist landscape"
-							value={bg.pexelsQuery}
-							onChange={(e) =>
-								updateBackground({ pexelsQuery: e.target.value })
-							}
-							onBlur={(e) => {
-								if (e.target.value === lastAppliedPexelsQuery.current) return;
-								lastAppliedPexelsQuery.current = e.target.value;
-								refreshWallpaper(true).catch(() => undefined);
+			theme and refresh cadence inside its sub-area. Gated behind
+			SHOW_PEXELS while the source is reworked — the code, the persisted
+			settings and the proxy in apps/web/api/pexels all stay in place, and a
+			background already set to "pexels" keeps rendering. */}
+			{SHOW_PEXELS && (
+				<SectionCard>
+					<SettingRow
+						label="Pexels photography"
+						icon="camera"
+						tooltip="Fresh photos on a schedule, instead of a fixed wallpaper."
+					>
+						<Switch
+							className={SETTINGS_SWITCH}
+							aria-label="Use Pexels photography"
+							checked={bg.type === "pexels"}
+							onCheckedChange={(enabled: boolean) => {
+								if (enabled) {
+									updateBackground({ type: "pexels" } as Partial<
+										Settings["background"]
+									>);
+									refreshWallpaper(true).catch(() => undefined);
+								} else {
+									updateBackground({
+										type: "wallpaper",
+										wallpaperId: "tokyo-skyline",
+									} as Partial<Settings["background"]>);
+								}
 							}}
-							className={cn(
-								cn(
-									SETTINGS_CONTROL_WIDTH,
-									SETTINGS_RADIUS.control,
-									"h-9 px-3 text-sm",
-								),
-								SETTINGS_INPUT,
-							)}
 						/>
 					</SettingRow>
 
-					<SelectRow
-						label="Refresh"
-						icon="timer"
-						value={bg.pexelsFrequency}
-						options={PEXELS_FREQUENCY_OPTIONS}
-						onChange={(val) => {
-							const next = val as WallpaperFrequency;
-							updateBackground({ pexelsFrequency: next });
-							if (next !== "locked")
-								refreshWallpaper(true).catch(() => undefined);
-						}}
-					/>
-				</SettingsExpandable>
-			</SectionCard>
+					<SettingsExpandable
+						expanded={bg.type === "pexels"}
+						label="Pexels photography options"
+					>
+						<SettingRow label="Photo theme" icon="search">
+							<Input
+								id="pexels-query-input"
+								aria-label="Photo theme keywords"
+								placeholder="minimalist landscape"
+								value={bg.pexelsQuery}
+								onChange={(e) =>
+									updateBackground({ pexelsQuery: e.target.value })
+								}
+								onBlur={(e) => {
+									if (e.target.value === lastAppliedPexelsQuery.current) return;
+									lastAppliedPexelsQuery.current = e.target.value;
+									refreshWallpaper(true).catch(() => undefined);
+								}}
+								className={cn(
+									cn(
+										SETTINGS_CONTROL_WIDTH,
+										SETTINGS_RADIUS.control,
+										"h-9 px-3 text-sm",
+									),
+									SETTINGS_INPUT,
+								)}
+							/>
+						</SettingRow>
+
+						<SelectRow
+							label="Refresh"
+							icon="timer"
+							value={bg.pexelsFrequency}
+							options={PEXELS_FREQUENCY_OPTIONS}
+							onChange={(val) => {
+								const next = val as WallpaperFrequency;
+								updateBackground({ pexelsFrequency: next });
+								if (next !== "locked")
+									refreshWallpaper(true).catch(() => undefined);
+							}}
+						/>
+					</SettingsExpandable>
+				</SectionCard>
+			)}
 		</div>
 	);
 }
