@@ -28,6 +28,7 @@ import { extApi } from "./extension-api";
 import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
+import { writeFirstPaintSnapshot } from "./first-paint-snapshot";
 import { isAbsoluteHttpUrl } from "./url";
 
 /**
@@ -778,6 +779,10 @@ function _doWrite(
 					"QuotaExceededError",
 				);
 			}
+			// polish/first-paint-snapshot: mirror the display-affecting flags
+			// on the same tick, so the next newtab seeds its first render.
+			// Best-effort (never throws); chrome.storage stays source of truth.
+			writeFirstPaintSnapshot(value.state);
 			_ownWriteEchoes.set(json, (_ownWriteEchoes.get(json) ?? 0) + 1);
 			try {
 				await extApi().storage.local.set({ [name]: json });
