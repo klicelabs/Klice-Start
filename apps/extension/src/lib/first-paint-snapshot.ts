@@ -109,7 +109,8 @@ export function readFirstPaintSnapshot(): Partial<FirstPaintSnapshot> | null {
 		const raw = localStorage.getItem(FIRST_PAINT_SNAPSHOT_KEY);
 		if (!raw) return null;
 		const parsed: unknown = JSON.parse(raw);
-		if (!parsed || typeof parsed !== "object") return null;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+			return null;
 		return parseFirstPaintSnapshot(parsed);
 	} catch {
 		return null;
