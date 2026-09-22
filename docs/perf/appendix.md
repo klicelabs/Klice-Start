@@ -1,6 +1,6 @@
 # Diagnóstico de performance — Klice Start (newtab) — Apêndice
 
-> **Decision record:** [`perf-diagnosis.md`](perf-diagnosis.md) (§1 sumário executivo, §7 gargalos, §8 recomendações de fix). Este arquivo guarda a evidência: metodologia, tabelas, hipóteses mortas, probes e ambiente. A numeração original do relatório foi preservada (§2–§6, §9–§11) para que referências cruzadas (§5, §6.5, §6.9) continuem resolvendo.
+> **Decision record:** [`diagnosis.md`](diagnosis.md) (§1 sumário executivo, §7 gargalos, §8 recomendações de fix). Este arquivo guarda a evidência: metodologia, tabelas, hipóteses mortas, probes e ambiente. A numeração original do relatório foi preservada (§2–§6, §9–§11) para que referências cruzadas (§5, §6.5, §6.9) continuem resolvendo.
 
 **Branch:** `perf/diagnosis` · **Data:** 2026-09-21 · **Modo:** medição apenas — nenhum arquivo de produto foi modificado (`git diff main --name-only` = vazio antes deste commit).
 
