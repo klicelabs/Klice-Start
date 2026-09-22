@@ -1,5 +1,5 @@
 import type { BackgroundSettings } from "../types";
-import { WALLPAPERS } from "./constants";
+import { DEFAULT_BACKGROUND, WALLPAPERS } from "./constants";
 import { cssUrl } from "./utils";
 
 /**
@@ -25,6 +25,14 @@ export type WallpaperSnapshot =
 /** Only strict hex colours may reach a <style> payload (stored data is untrusted). */
 const HEX_COLOR = /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/;
 
+/**
+ * Neutral first-frame surface while a custom blob loads async from IDB.
+ * Deliberately == DEFAULT_BACKGROUND.color: a plain dark surface, never
+ * the default wallpaper image. A brief neutral frame is acceptable; a
+ * brief wrong-wallpaper frame is the bug.
+ */
+export const WALLPAPER_SNAPSHOT_NEUTRAL: string = DEFAULT_BACKGROUND.color;
+
 /** Derive the mirror value. Returns null when there is nothing worth mirroring. */
 export function snapshotFromBackground(bg: unknown): WallpaperSnapshot | null {
 	if (!bg || typeof bg !== "object") return null;
@@ -43,8 +51,14 @@ export function snapshotFromBackground(bg: unknown): WallpaperSnapshot | null {
 	) {
 		return { type: "solid", color: b.color };
 	}
-	// NOTE (polish/wallpaper-flash): custom/image maps to a neutral surface
-	// in a follow-up commit; gradient/pexels keep no mirror (status quo ante).
+	if (
+		b.type === "image" &&
+		typeof b.imageId === "string" &&
+		b.imageId.length > 0
+	) {
+		return { type: "custom", id: b.imageId };
+	}
+	// gradient/pexels keep no mirror (status quo ante).
 	return null;
 }
 
@@ -85,9 +99,14 @@ export function readWallpaperSnapshot(): WallpaperSnapshot | null {
 	}
 }
 
-/** CSS `background` value for frame 1. Unknown bundled id → null (default path). */
+/**
+ * CSS `background` value for frame 1. Custom blobs load async, so frame 1
+ * is the neutral surface (never the default image). Unknown bundled id →
+ * null (default path).
+ */
 export function snapshotToCss(snap: WallpaperSnapshot): string | null {
 	if (snap.type === "solid") return snap.color;
+	if (snap.type === "custom") return WALLPAPER_SNAPSHOT_NEUTRAL;
 	if (snap.type === "bundled") {
 		const w = WALLPAPERS.find((x) => x.id === snap.id);
 		return w ? `${cssUrl(w.src)} center / cover no-repeat` : null;
