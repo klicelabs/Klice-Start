@@ -494,6 +494,12 @@ export function ContextMenuContent({
 
 	if (!mounted) return null;
 
+	// P2 (perf/p2-unmount-overlays): unmount the menu portal + items while
+	// closed instead of keeping them hidden-mounted. First open after each
+	// close re-mounts; Base UI still mounts Popup on demand. Measured with
+	// the settings unmount as V1 (§6.6).
+	if (!context.open) return null;
+
 	const visualOpen = context.open && morphReady;
 	const clipHidden = collapsedClip(origin, size);
 	const clipShown = "inset(0px 0px 0px 0px)";
