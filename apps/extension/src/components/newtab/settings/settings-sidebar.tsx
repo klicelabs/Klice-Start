@@ -166,8 +166,12 @@ export function SettingsSidebar({
 	// Keep the subtree inert while it is offscreen. During motion, changing
 	// inert would invalidate every descendant's style tree; the transition
 	// boundary toggles it after the panel is no longer moving.
+	// P2: a fresh mount that starts open never runs the enter transform
+	// transition, so no transitionend would ever lift `inert` — the panel
+	// would stay visible-but-dead. Only arm inert when mounting closed.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: mount-only arm; `open` is read intentionally once, transitions own it afterwards.
 	useLayoutEffect(() => {
-		slotRef.current?.setAttribute("inert", "");
+		if (!open) slotRef.current?.setAttribute("inert", "");
 	}, []);
 
 	useEffect(() => {
