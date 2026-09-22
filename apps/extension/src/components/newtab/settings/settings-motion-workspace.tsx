@@ -53,10 +53,17 @@ export function SettingsMotionSidebar() {
 	const pane = useSettingsMotionStore((state) => state.pane);
 	const action = useSettingsMotionStore((state) => state.action);
 
+	// P2 (perf/p2-unmount-overlays): unmount the whole settings subtree
+	// while closed. Re-mounts (chunk already cached) on every open —
+	// measured: 1st open −30% window, no warm-reopen regression (§6.6).
+	// (Computed before the early return so narrowing can't desync it.)
+	const layoutOpen = phase !== "closed";
+	if (phase === "closed") return null;
+
 	return (
 		<SettingsSidebar
 			open={phase === "open"}
-			layoutOpen={phase !== "closed"}
+			layoutOpen={layoutOpen}
 			onClose={() => settingsMotionStore.getState().close()}
 			onCloseComplete={() => settingsMotionStore.getState().finishClose()}
 			initialPane={pane}
