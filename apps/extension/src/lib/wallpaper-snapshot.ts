@@ -94,3 +94,92 @@ export function snapshotToCss(snap: WallpaperSnapshot): string | null {
 	}
 	return null;
 }
+
+/** Id of the throwaway <style> that carries frame 1 over React's inline default. */
+export const WALLPAPER_PREHYDRATE_STYLE_ID = "klice-wallpaper-prehydrate";
+
+/**
+ * Paint frame 1 before React mounts. `#bg-layer` does not exist yet, and
+ * React will own its inline style — so the snapshot rides a stylesheet rule
+ * with `!important`, which wins over the inline default. Removed by
+ * clearPrehydrateWhenLive once the runtime value lands (or by backstop).
+ * Empty/malformed mirror → no-op → current default first paint.
+ */
+export function applyWallpaperPrehydrate(): void {
+	try {
+		if (typeof document === "undefined") return;
+		if (document.getElementById(WALLPAPER_PREHYDRATE_STYLE_ID)) return;
+		const snap = readWallpaperSnapshot();
+		if (!snap) return;
+		const css = snapshotToCss(snap);
+		if (!css) return;
+		const el = document.createElement("style");
+		el.id = WALLPAPER_PREHYDRATE_STYLE_ID;
+		el.textContent = `#bg-layer{background:${css} !important;}`;
+		document.head.appendChild(el);
+	} catch {
+		// Fall back to the default first paint.
+	}
+}
+
+export function clearWallpaperPrehydrate(): void {
+	try {
+		if (typeof document === "undefined") return;
+		document.getElementById(WALLPAPER_PREHYDRATE_STYLE_ID)?.remove();
+	} catch {
+		// No-op.
+	}
+}
+
+/**
+ * Lift the shim exactly when `#bg-layer` carries its runtime background —
+ * i.e. once storage has resolved AND BackgroundLayer applied a value that
+ * differs from the first-mounted default. React only writes the style
+ * attribute on change, so any mutation past the first-seen value means the
+ * runtime took over (identical values need no lift: same pixels). A 5 s
+ * backstop guarantees the `!important` can never stick forever (a stale
+ * mirror must always yield to storage).
+ */
+export function clearPrehydrateWhenLive(
+	hasHydrated: () => boolean,
+	onHydrated: (cb: () => void) => void,
+): void {
+	try {
+		if (typeof document === "undefined" || typeof window === "undefined") {
+			clearWallpaperPrehydrate();
+			return;
+		}
+		if (!document.getElementById(WALLPAPER_PREHYDRATE_STYLE_ID)) return;
+		let settled = false;
+		let firstInline: string | undefined;
+		const readInline = (): string | null => {
+			const el = document.getElementById("bg-layer");
+			return el ? (el.getAttribute("style") ?? "") : null;
+		};
+		const done = () => {
+			if (settled) return;
+			settled = true;
+			mo.disconnect();
+			window.clearTimeout(backstop);
+			clearWallpaperPrehydrate();
+		};
+		const check = () => {
+			const cur = readInline();
+			if (cur === null) return;
+			if (firstInline === undefined) firstInline = cur;
+			if (hasHydrated() && cur !== firstInline) done();
+		};
+		const mo = new MutationObserver(check);
+		const backstop = window.setTimeout(done, 5000);
+		onHydrated(check);
+		check();
+		mo.observe(document.documentElement, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ["style"],
+		});
+	} catch {
+		clearWallpaperPrehydrate();
+	}
+}
