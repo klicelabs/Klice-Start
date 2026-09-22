@@ -7,6 +7,10 @@ import {
 	MIN_COLUMNS,
 	TILE_SIZE_DIMENSIONS,
 } from "../lib/constants";
+import {
+	readFirstPaintSnapshot,
+	snapshotPatch,
+} from "../lib/first-paint-snapshot";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
 import type { HistoryEntry, HistorySnapshot } from "../lib/history";
 import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
@@ -220,10 +224,25 @@ function applyNestedSettingsUpdate<K extends NestedSettingsKey>(
  * never drift apart. All multi-entity moves run inside a single `set()`,
  * making them atomic for persistence (one coalesced storage write).
  */
+/**
+ * polish/first-paint-snapshot: seed creation with the localStorage mirror so
+ * the first render already reflects the user's display flags. Creation-time
+ * seeding (not a post-creation setState) schedules NO persist write — a
+ * set() before hydration resolves could otherwise flush pre-hydration
+ * defaults over stored data on slow boots (data loss). Storage still wins
+ * once it resolves.
+ */
+function preHydratedInitialState(): Setup {
+	const base = normalizeState(null);
+	const snap = readFirstPaintSnapshot();
+	if (!snap || Object.keys(snap).length === 0) return base;
+	return { ...base, ...snapshotPatch(base, snap) };
+}
+
 export const useSetupStore = create<SetupStore>()(
 	persist(
 		(set, get) => ({
-			...normalizeState(null),
+			...preHydratedInitialState(),
 
 			addFolder: (name, parentId = null) => {
 				const id = generateId();
