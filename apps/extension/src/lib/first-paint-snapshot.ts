@@ -70,70 +70,89 @@ export function writeFirstPaintSnapshot(state: Setup): void {
 	}
 }
 
-function isFirstPaintSnapshot(value: unknown): value is FirstPaintSnapshot {
-	if (!value || typeof value !== "object") return false;
+/**
+ * Per-field parse: keeps every valid field, drops every invalid one.
+ * A missing field is not an error — the patch below falls back to that
+ * field's live store value (which is the store default at seed time), so
+ * a partial snapshot can never zero out state it doesn't cover.
+ */
+export function parseFirstPaintSnapshot(
+	value: unknown,
+): Partial<FirstPaintSnapshot> {
+	if (!value || typeof value !== "object") return {};
 	const v = value as Record<string, unknown>;
-	return (
-		typeof v.clockEnabled === "boolean" &&
-		typeof v.clockShowSeconds === "boolean" &&
-		typeof v.clockFormat24 === "boolean" &&
-		typeof v.dateEnabled === "boolean" &&
-		typeof v.greetingEnabled === "boolean" &&
-		typeof v.greetingText === "string" &&
-		typeof v.quickLinksVisible === "boolean" &&
-		(v.displayMode === "card" || v.displayMode === "icon") &&
-		typeof v.searchBarVisible === "boolean"
-	);
+	const out: Partial<FirstPaintSnapshot> = {};
+	if (typeof v.clockEnabled === "boolean") out.clockEnabled = v.clockEnabled;
+	if (typeof v.clockShowSeconds === "boolean")
+		out.clockShowSeconds = v.clockShowSeconds;
+	if (typeof v.clockFormat24 === "boolean") out.clockFormat24 = v.clockFormat24;
+	if (typeof v.dateEnabled === "boolean") out.dateEnabled = v.dateEnabled;
+	if (typeof v.greetingEnabled === "boolean")
+		out.greetingEnabled = v.greetingEnabled;
+	if (typeof v.greetingText === "string") out.greetingText = v.greetingText;
+	if (typeof v.quickLinksVisible === "boolean")
+		out.quickLinksVisible = v.quickLinksVisible;
+	if (v.displayMode === "card" || v.displayMode === "icon")
+		out.displayMode = v.displayMode;
+	if (typeof v.searchBarVisible === "boolean")
+		out.searchBarVisible = v.searchBarVisible;
+	return out;
 }
 
 /**
- * Strict read: empty (first install) or malformed → null → store defaults.
- * A follow-up commit upgrades this to per-field fallback (partial snapshots
- * keep their valid fields instead of dropping the whole mirror).
+ * Read: empty (first install) or malformed JSON → null → store defaults.
+ * A well-formed object with some bad fields → partial → per-field fallback.
  */
-export function readFirstPaintSnapshot(): FirstPaintSnapshot | null {
+export function readFirstPaintSnapshot(): Partial<FirstPaintSnapshot> | null {
 	try {
 		if (typeof localStorage === "undefined") return null;
 		const raw = localStorage.getItem(FIRST_PAINT_SNAPSHOT_KEY);
 		if (!raw) return null;
 		const parsed: unknown = JSON.parse(raw);
-		return isFirstPaintSnapshot(parsed) ? parsed : null;
+		if (!parsed || typeof parsed !== "object") return null;
+		return parseFirstPaintSnapshot(parsed);
 	} catch {
 		return null;
 	}
 }
 
 /**
- * Nested patch onto live state. Every non-flag field survives by spread —
- * the snapshot can never zero out state it doesn't cover.
+ * Nested patch onto live state. Each flag resolves to snapshot-first,
+ * live-state-second — every non-flag field (and every uncovered flag)
+ * survives by spread. Pre-mount callers have no subscribers yet, so this
+ * produces no commit; it only shapes the first render.
  */
 export function snapshotPatch(
 	current: Setup,
-	snap: FirstPaintSnapshot,
+	snap: Partial<FirstPaintSnapshot>,
 ): Partial<Setup> {
+	const clock = current.settings.clock;
+	const greeting = current.settings.greeting;
+	const quickLinks = current.settings.quickLinks;
+	const search = current.settings.search;
 	return {
 		settings: {
 			...current.settings,
 			clock: {
-				...current.settings.clock,
-				enabled: snap.clockEnabled,
-				showSeconds: snap.clockShowSeconds,
-				format24: snap.clockFormat24,
-				dateEnabled: snap.dateEnabled,
+				...clock,
+				enabled: snap.clockEnabled ?? clock.enabled,
+				showSeconds: snap.clockShowSeconds ?? clock.showSeconds,
+				format24: snap.clockFormat24 ?? clock.format24,
+				dateEnabled: snap.dateEnabled ?? clock.dateEnabled,
 			},
 			greeting: {
-				...current.settings.greeting,
-				enabled: snap.greetingEnabled,
-				name: snap.greetingText,
+				...greeting,
+				enabled: snap.greetingEnabled ?? greeting.enabled,
+				name: snap.greetingText ?? greeting.name,
 			},
 			quickLinks: {
-				...current.settings.quickLinks,
-				enabled: snap.quickLinksVisible,
+				...quickLinks,
+				enabled: snap.quickLinksVisible ?? quickLinks.enabled,
 			},
-			dialLayout: snap.displayMode,
+			dialLayout: snap.displayMode ?? current.settings.dialLayout,
 			search: {
-				...current.settings.search,
-				enabled: snap.searchBarVisible,
+				...search,
+				enabled: snap.searchBarVisible ?? search.enabled,
 			},
 		},
 	};

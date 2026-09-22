@@ -22,7 +22,7 @@ if (import.meta.env.DEV) {
 // that the user disabled). Pre-mount setState is silent — no subscribers yet,
 // so no commit fires; chrome.storage.local still wins once it resolves.
 const firstPaint = readFirstPaintSnapshot();
-if (firstPaint) {
+if (firstPaint && Object.keys(firstPaint).length > 0) {
 	useSetupStore.setState((s) => snapshotPatch(s, firstPaint));
 }
 
