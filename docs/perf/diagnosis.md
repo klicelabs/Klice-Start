@@ -2,7 +2,7 @@
 
 > **Phase closed.** Both dominant root-cause attempts failed with data: the transition gap (~110–146 ms) survived overlays-86%, glass kill-total, storage no-op, commit-phase P1, and async-data kill (§6.5–§6.10) — accepted as structural (scheduler/native, MV3 runtime). The cold-load block survived deferral (FCP halved, real content slower — parked unmerged). **Shipped: P2 overlay-unmount** (cold Preferences open −36%, no warm regression). **Parked unmerged:** P1 commit-phase (no movement), P1-defer (cosmetic FCP only), P3 rename-inline (24→15 commits, ≤5 missed — menu machinery is the floor). The appendix stays as historical evidence; do not extend this file without new measurements.
 
-> Evidence, methodology, and dead hypotheses live in [perf-diagnosis-appendix.md](perf-diagnosis-appendix.md). This file is the decision record.
+> Evidence, methodology, and dead hypotheses live in [appendix.md](appendix.md). This file is the decision record.
 > Sections keep their original numbers: §2–§6 and §9–§11 moved verbatim to the appendix; cross-refs from here use the form "see appendix §6.5".
 
 ---
