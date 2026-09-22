@@ -69,3 +69,72 @@ export function writeFirstPaintSnapshot(state: Setup): void {
 		// Mirror is best-effort only.
 	}
 }
+
+function isFirstPaintSnapshot(value: unknown): value is FirstPaintSnapshot {
+	if (!value || typeof value !== "object") return false;
+	const v = value as Record<string, unknown>;
+	return (
+		typeof v.clockEnabled === "boolean" &&
+		typeof v.clockShowSeconds === "boolean" &&
+		typeof v.clockFormat24 === "boolean" &&
+		typeof v.dateEnabled === "boolean" &&
+		typeof v.greetingEnabled === "boolean" &&
+		typeof v.greetingText === "string" &&
+		typeof v.quickLinksVisible === "boolean" &&
+		(v.displayMode === "card" || v.displayMode === "icon") &&
+		typeof v.searchBarVisible === "boolean"
+	);
+}
+
+/**
+ * Strict read: empty (first install) or malformed → null → store defaults.
+ * A follow-up commit upgrades this to per-field fallback (partial snapshots
+ * keep their valid fields instead of dropping the whole mirror).
+ */
+export function readFirstPaintSnapshot(): FirstPaintSnapshot | null {
+	try {
+		if (typeof localStorage === "undefined") return null;
+		const raw = localStorage.getItem(FIRST_PAINT_SNAPSHOT_KEY);
+		if (!raw) return null;
+		const parsed: unknown = JSON.parse(raw);
+		return isFirstPaintSnapshot(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Nested patch onto live state. Every non-flag field survives by spread —
+ * the snapshot can never zero out state it doesn't cover.
+ */
+export function snapshotPatch(
+	current: Setup,
+	snap: FirstPaintSnapshot,
+): Partial<Setup> {
+	return {
+		settings: {
+			...current.settings,
+			clock: {
+				...current.settings.clock,
+				enabled: snap.clockEnabled,
+				showSeconds: snap.clockShowSeconds,
+				format24: snap.clockFormat24,
+				dateEnabled: snap.dateEnabled,
+			},
+			greeting: {
+				...current.settings.greeting,
+				enabled: snap.greetingEnabled,
+				name: snap.greetingText,
+			},
+			quickLinks: {
+				...current.settings.quickLinks,
+				enabled: snap.quickLinksVisible,
+			},
+			dialLayout: snap.displayMode,
+			search: {
+				...current.settings.search,
+				enabled: snap.searchBarVisible,
+			},
+		},
+	};
+}
