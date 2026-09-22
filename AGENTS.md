@@ -25,14 +25,16 @@ Run at root: `bun run check` (Biome). There is no `bun run check` or `bun run te
 - `packages/ui/` — shared primitives. `packages/db/` — empty Drizzle scaffold. `packages/env/`, `packages/config/` — shared config.
 - `docs/` — PRODUCT, ARCHITECTURE, DECISIONS, perf/. Nothing else belongs there.
 
-## Read first
+## Docs
+
+Reference, not required reading. Consult on demand.
 
 | Question | File |
 |---|---|
-| What to build / refuse | `docs/PRODUCT.md` |
-| How it's built / stored | `docs/ARCHITECTURE.md` |
-| Open calls (backend, AI, billing, budget, i18n) | `docs/DECISIONS.md` |
-| Perf history and dead hypotheses | `docs/perf/diagnosis.md` |
+| What is this product? Vision, principles, requirements, tone | `docs/PRODUCT.md` |
+| Stack, data model, storage, MV3 specifics | `docs/ARCHITECTURE.md` |
+| Open decisions (backend, AI, billing, budget, i18n) | `docs/DECISIONS.md` |
+| Performance history and constraints | `docs/perf/diagnosis.md` |
 
 ## Workflow
 
