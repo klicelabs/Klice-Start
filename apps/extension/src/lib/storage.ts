@@ -29,6 +29,7 @@ import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
 import { isAbsoluteHttpUrl } from "./url";
+import { writeWallpaperSnapshot } from "./wallpaper-snapshot";
 
 /**
  * Repair folder hierarchy: coerce every folder to include a valid parentId,
@@ -778,6 +779,11 @@ function _doWrite(
 					"QuotaExceededError",
 				);
 			}
+			// polish/wallpaper-flash: mirror the wallpaper choice to read-fast
+			// localStorage on the same tick as the chrome write, so the next
+			// newtab can paint frame 1 without waiting for async hydration.
+			// Best-effort (never throws); chrome.storage stays source of truth.
+			writeWallpaperSnapshot(value.state.settings.background);
 			_ownWriteEchoes.set(json, (_ownWriteEchoes.get(json) ?? 0) + 1);
 			try {
 				await extApi().storage.local.set({ [name]: json });
