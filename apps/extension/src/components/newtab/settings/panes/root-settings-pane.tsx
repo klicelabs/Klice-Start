@@ -10,7 +10,6 @@ import {
 	SETTINGS_RADIUS,
 } from "../shared/settings-tokens";
 import { AppearancePane } from "./appearance-pane";
-import { BookmarkPreviewSettings } from "./bookmarks-pane";
 import { GeneralPane } from "./general-pane";
 import { SearchPane } from "./search-pane";
 
@@ -66,7 +65,9 @@ function SettingsNavigationRow({
 /**
  * The default Settings view is ordered by frequency, not by implementation
  * category. Existing panes supply the same controls and grouped cards; this
- * composition only removes the extra landing-page click.
+ * composition only removes the extra landing-page click. Thumbnail capture
+ * settings are intentionally absent here — they live only in the Manage
+ * bookmarks pane, their single home.
  */
 export const SettingsRootPane = memo(function SettingsRootPane({
 	onNavigate,
@@ -76,7 +77,6 @@ export const SettingsRootPane = memo(function SettingsRootPane({
 			<AppearancePane onOpenWallpaper={() => onNavigate("wallpaper")} />
 			<GeneralPane />
 			<SearchPane />
-			<BookmarkPreviewSettings />
 
 			<SectionCard>
 				<SettingsNavigationRow
