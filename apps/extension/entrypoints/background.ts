@@ -200,7 +200,11 @@ function captureVisible(
 		: ext.tabs.captureVisibleTab(options);
 }
 
-const THUMBNAIL_SETTLE_DELAY_MS = 1200;
+// Settle delay before an automatic capture. 1600ms sits inside the
+// 1500–2000ms debounce window: long enough for fonts/hero images to paint
+// after onCompleted, short enough that the user's own delayMs setting
+// (default 1200) still reads as "extra patience" rather than a no-op.
+const THUMBNAIL_SETTLE_DELAY_MS = 1600;
 const THUMBNAIL_FAILURE_COOLDOWN_MS = 10_000;
 
 interface PendingThumbnailCapture {
@@ -349,6 +353,19 @@ export default defineBackground(() => {
 			// Tab may not exist anymore
 		}
 	});
+
+	// webNavigation.onCompleted is the precise visit signal: it fires once per
+	// top-frame navigation for http(s) URLs only (url filter below), even when
+	// the tabs.onUpdated status stream skips or reorders events. It shares the
+	// same capture pipeline as tabs.onUpdated — queueMissingThumbnailCapture
+	// dedupes by canonical URL and navigation generation, so a navigation that
+	// both listeners observe schedules exactly one capture.
+	ext.webNavigation.onCompleted.addListener(
+		(details) => {
+			void handleNavigationCompleted(details);
+		},
+		{ url: [{ schemes: ["http", "https"] }] },
+	);
 
 	ext.tabs.onRemoved.addListener((tabId) => {
 		cancelPendingThumbnailCapture(tabId);
@@ -556,6 +573,36 @@ async function deleteUnreferencedThumbnails(
 	for (const thumbId of candidates) {
 		if (!referenced.has(thumbId)) await deletePendingThumbnail(thumbId);
 	}
+}
+
+/**
+ * webNavigation.onCompleted handler: the cheap synchronous gates run first so
+ * ordinary browsing that cannot produce a capture never pays for an async
+ * permission roundtrip. Anything that survives is handed to
+ * queueMissingThumbnailCapture, which owns the settle debounce, the
+ * active-tab/generation guards, and the capture itself — the same pipeline
+ * the tabs.onUpdated path uses (one implementation, two visit signals).
+ */
+async function handleNavigationCompleted(details: {
+	frameId: number;
+	tabId: number;
+	url: string;
+}): Promise<void> {
+	// Sub-frames never own the visible surface captureVisibleTab photographs;
+	// only a top-frame completed load can match a card.
+	if (details.frameId !== 0) return;
+	const url = details.url;
+	if (!url || !isThumbnailCaptureUrl(url)) return;
+	// The newtab override and any other extension page must never capture
+	// themselves. The url filter already excludes chrome:// and
+	// chrome-extension:// schemes; this guard keeps that guarantee explicit
+	// and future-proof against filter changes.
+	if (url.startsWith(ext.runtime.getURL("/"))) return;
+	// An automatic background capture has no user gesture, so only a granted
+	// <all_urls> (permissions.contains) may proceed. Silent skip — granting
+	// access in Settings must simply let the next visit capture.
+	if (!(await hasThumbnailCapturePermission())) return;
+	queueMissingThumbnailCapture(details.tabId, { url }, url);
 }
 
 function queueMissingThumbnailCapture(
