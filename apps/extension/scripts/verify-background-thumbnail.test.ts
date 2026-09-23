@@ -147,7 +147,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 			onAdded: onPermissionAdded,
 			onRemoved: onPermissionRemoved,
 			contains: async ({ origins }: { origins: string[] }) => {
-				expect(origins).toEqual(["<all_urls>"]);
+				expect(origins).toEqual(["http://*/*", "https://*/*"]);
 				return capturePermissionGranted;
 			},
 			request: async () => capturePermissionGranted,
@@ -215,10 +215,10 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	expect(captureCount).toBe(0);
 	expect(storedSetup.cards[0]?.thumbId).toBeNull();
 
-	// A manual bookmark remains eligible after the user grants optional site
-	// access. The denied visit must not have started a failure cooldown.
+	// A manual bookmark remains eligible after the user grants site access.
+	// The denied visit must not have started a failure cooldown.
 	capturePermissionGranted = true;
-	onPermissionAdded.emit({ origins: ["<all_urls>"] });
+	onPermissionAdded.emit({ origins: ["http://*/*", "https://*/*"] });
 	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
 	await new Promise((resolve) => setTimeout(resolve, 1750));
 
