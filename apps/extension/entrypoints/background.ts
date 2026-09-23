@@ -668,8 +668,11 @@ async function handleNavigationCompleted(details: {
 	await cardIndexReady;
 	if (!hasCardWithoutThumbnail(url)) return;
 	// An automatic background capture has no user gesture, so only a granted
-	// <all_urls> (permissions.contains) may proceed. Silent skip — granting
-	// access in Settings must simply let the next visit capture.
+	// optional "<all_urls>" (permissions.contains) may proceed — see
+	// thumbnail-permission.ts for why the http/https host grants do not
+	// qualify. Silent skip: an unconsented user gets no capture, never an
+	// error, and the Settings pane's "Allow access" flow offers the one-time
+	// consent that lets the next visit capture.
 	if (!(await hasThumbnailCapturePermission())) return;
 	queueMissingThumbnailCapture(details.tabId, { url }, url);
 }

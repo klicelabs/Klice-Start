@@ -15,19 +15,19 @@ import { launchExtension } from "./bench-lib.mjs";
 
 /**
  * Chromium auto-dismisses extension permission prompts for --load-extension
- * installs, so an automation profile can never reach the "user granted site
- * access" state through the real UI. Instead, patch the BUILT artifact's
- * manifest (gitignored, regenerable — product source untouched) so the
- * <all_urls> host permission is granted at install. permissions.contains()
- * then behaves exactly as the task's verified brave://extensions state
- * ("On all sites"), and the revoke/re-grant legs still run through the real
- * runtime permission API.
+ * installs, and the browser's native consent bubble cannot be driven by
+ * automation. To reach the post-consent state (the user accepted the
+ * "Allow access" prompt once in a real browser), promote the optional
+ * all-urls entry to a required host permission in the BUILT artifact only
+ * (gitignored, regenerable — product source untouched). The negative leg
+ * strips host permissions entirely to cover the ungranted state.
  */
 function patchBuiltManifestForGrantedAccess() {
 	const manifestPath = path.resolve("./.output/chrome-mv3/manifest.json");
 	const original = fs.readFileSync(manifestPath, "utf8");
 	const manifest = JSON.parse(original);
-	manifest.host_permissions = ["http://*/*", "https://*/*", "<all_urls>"];
+	const optional = manifest.optional_host_permissions ?? [];
+	manifest.host_permissions = [...(manifest.host_permissions ?? []), ...optional];
 	manifest.optional_host_permissions = [];
 	fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 	return () => fs.writeFileSync(manifestPath, original);
@@ -233,7 +233,9 @@ async function grantViaSettings(observer, sw) {
 	for (let i = 0; i < 20 && !granted; i += 1) {
 		await sleep(250);
 		granted = await sw.evaluate(() =>
-			chrome.permissions.contains({ origins: ["<all_urls>"] }),
+			chrome.permissions.contains({
+				origins: ["<all_urls>"],
+			}),
 		);
 	}
 	await observer.keyboard.press("Escape");
@@ -298,22 +300,12 @@ try {
 	let [sw] = context.serviceWorkers();
 	if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 15000 });
 
-	// Permission probe + grant ladder (automation profile may not persist grants).
+	// Permission probe: the post-consent state (fixture promoted optional
+	// all-urls to required in the built manifest, see file header).
 	let granted = await sw.evaluate(() =>
 		chrome.permissions.contains({ origins: ["<all_urls>"] }),
 	);
 	console.log(`permission probe: <all_urls> granted = ${granted}`);
-	if (!granted) {
-		granted = await sw
-			.evaluate(() => chrome.permissions.request({ origins: ["<all_urls>"] }))
-			.catch((e) => {
-				console.log(
-					`sw permissions.request failed: ${e.message.split("\n")[0]}`,
-				);
-				return false;
-			});
-		console.log(`after sw request: ${granted}`);
-	}
 
 	// Observer newtab.
 	const observer = await context.newPage();
@@ -412,7 +404,7 @@ try {
 
 	if (!granted) {
 		console.log(
-			"\n<all_urls> could not be granted in this automation profile — grant-dependent scenarios (3,4,5,8) cannot run here. Mechanism is covered by bun test scripts/verify-background-thumbnail.test.ts.",
+			"\nHost permissions could not be granted in this automation profile — grant-dependent scenarios (3,4,5,8) cannot run here. Mechanism is covered by bun test scripts/verify-background-thumbnail.test.ts.",
 		);
 	} else {
 		const visit = async (host, title, timeoutMs = 9000) => {
@@ -550,14 +542,21 @@ try {
 		await page.close();
 	}
 
-	// Scenario 8: a revoked/never-granted <all_urls> must skip silently.
-	// A second launch uses the UNPATCHED build (real manifest: optional
-	// <all_urls>, not granted at install) in a throwaway profile — the
-	// post-revoke permission state, with the runtime API as source of truth.
+	// Scenario 8 (negative control): a profile with NO host permissions must
+	// skip silently. Uses a second launch of the same build; the harness
+	// strips host_permissions from the gitignored built manifest to simulate
+	// revoked site access while keeping the runtime API as source of truth.
 	{
 		restoreManifest();
 		const resultsBackup = results.splice(0, results.length);
 		const swErrorsMain = swErrors.splice(0, swErrors.length);
+		// Simulate revoked site access: strip host_permissions from the
+		// gitignored built manifest (restored in the finally below).
+		const manifestPath = path.resolve("./.output/chrome-mv3/manifest.json");
+		const manifestOriginal = fs.readFileSync(manifestPath, "utf8");
+		const manifest = JSON.parse(manifestOriginal);
+		manifest.host_permissions = [];
+		fs.writeFileSync(manifestPath, JSON.stringify(manifest));
 		const context2 = (await launchExtension({ headless: false })).context;
 		try {
 			await context2.route("http://site-*.test/", (route) =>
@@ -635,7 +634,7 @@ try {
 			} = await noStateChange(observer2, keys8, before8, 3500);
 			const cardD = after8.find((c) => c.title === "site-d");
 			record(
-				"8. revoked/never-granted <all_urls> → silent skip (no capture)",
+				"8. revoked host permissions → silent skip (no capture)",
 				cardsEqual && keysEqual && cardD?.thumbId === null,
 				`cardD.thumbId=${cardD?.thumbId}, keys=[${keys8.join(",")}]`,
 			);
@@ -659,6 +658,7 @@ try {
 			await pageX.close();
 			await pageD.close();
 		} finally {
+			fs.writeFileSync(manifestPath, manifestOriginal);
 			await context2.close().catch(() => undefined);
 		}
 		results.unshift(...resultsBackup);

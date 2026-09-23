@@ -38,11 +38,13 @@ export default defineConfig({
 			// the http(s) top-frame loads that can match a card.
 			"webNavigation",
 		],
-		// Install-time host permissions for the pages the dashboard captures.
-		// permissions.contains() must be queried with these exact patterns
-		// (see src/lib/thumbnail-permission.ts) — '<all_urls>' is a distinct
-		// pattern and would report false even while these are granted.
+		// Install-time host permissions for the pages the dashboard reads
+		// (webNavigation events, tab URLs). Capturing requires the literal
+		// "<all_urls>" pattern (see src/lib/thumbnail-permission.ts), which is
+		// declared optional and granted once through the Settings pane's
+		// "Allow access" consent flow — keeping the install warning narrow.
 		host_permissions: ["http://*/*", "https://*/*"],
+		optional_host_permissions: ["<all_urls>"],
 		commands: {
 			"add-current-page": {
 				// Ctrl+Shift+D is Chrome's native "Bookmark all tabs" — it used
