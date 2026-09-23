@@ -110,6 +110,16 @@ export function GeneralPane() {
 						}
 					/>
 
+					<SelectRow
+						label="Tile size"
+						icon="grid"
+						value={tileSize}
+						options={TILE_SIZE_OPTIONS}
+						onChange={(v) =>
+							updateSettings({ tileSize: v as "small" | "medium" | "large" })
+						}
+					/>
+
 					{dialLayout === "card" ? (
 						<SettingRow label="Card shape" icon="rectangle-horizontal">
 							<SegmentedControl
@@ -162,16 +172,6 @@ export function GeneralPane() {
 					className="m-0 border-0 p-0"
 					aria-label="Bookmark grid density"
 				>
-					<SelectRow
-						label="Tile size"
-						icon="grid"
-						value={tileSize}
-						options={TILE_SIZE_OPTIONS}
-						onChange={(v) =>
-							updateSettings({ tileSize: v as "small" | "medium" | "large" })
-						}
-					/>
-
 					<SelectRow
 						label="Columns"
 						icon="columns"
