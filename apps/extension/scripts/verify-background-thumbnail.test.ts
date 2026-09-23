@@ -95,7 +95,7 @@ function createSetup(): Setup {
 }
 
 test("auto-captures any missing-thumbnail bookmark after navigation settles", {
-	timeout: 15_000,
+	timeout: 25_000,
 }, async () => {
 	const onInstalled = createEvent();
 	const onStartup = createEvent();
@@ -107,6 +107,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const onRemoved = createEvent();
 	const onPermissionAdded = createEvent();
 	const onPermissionRemoved = createEvent();
+	const onNavigationCompleted = createEvent();
 	let storedSetup = createSetup();
 	const tab = {
 		id: 7,
@@ -181,6 +182,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 			},
 		},
 		windows: { create: async () => undefined },
+		webNavigation: { onCompleted: onNavigationCompleted },
 		action: {
 			setBadgeBackgroundColor: async () => undefined,
 			setBadgeText: async () => undefined,
@@ -209,7 +211,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const activation = onActivated.emit({ tabId: tab.id })[0];
 	await activation;
 	tab.status = "complete";
-	await new Promise((resolve) => setTimeout(resolve, 1350));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 	expect(captureCount).toBe(0);
 	expect(storedSetup.cards[0]?.thumbId).toBeNull();
 
@@ -218,7 +220,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	capturePermissionGranted = true;
 	onPermissionAdded.emit({ origins: ["<all_urls>"] });
 	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
-	await new Promise((resolve) => setTimeout(resolve, 1350));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 
 	expect(captureCount).toBe(1);
 	expect(storedSetup.cards[0]?.thumbId).toBe("thumb-captured");
@@ -230,7 +232,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 		{ ...tab, status: "loading" },
 	);
 	onUpdated.emit(tab.id, { status: "complete" }, tab);
-	await new Promise((resolve) => setTimeout(resolve, 1350));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 
 	expect(captureCount).toBe(1);
 
@@ -256,7 +258,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	tab.status = "complete";
 	onUpdated.emit(tab.id, { status: "loading", url: tab.url }, { ...tab });
 	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
-	await new Promise((resolve) => setTimeout(resolve, 1300));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 	expect(captureCount).toBe(1);
 	expect(storedSetup.cards[0]?.thumbId).toBeNull();
 
@@ -274,12 +276,47 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	onUpdated.emit(tab.id, { status: "loading", url: tab.url }, { ...tab });
 	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
 	onActivated.emit({ tabId: tab.id });
-	await new Promise((resolve) => setTimeout(resolve, 1350));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 	expect(captureCount).toBe(2);
 	expect(storedSetup.cards[0]?.thumbId).toBeNull();
 	expect(storedSetup.cards[0]?.capturedAt).toBeNull();
 	onUpdated.emit(tab.id, { status: "complete" }, { ...tab });
 	onActivated.emit({ tabId: tab.id });
-	await new Promise((resolve) => setTimeout(resolve, 1300));
+	await new Promise((resolve) => setTimeout(resolve, 1750));
 	expect(captureCount).toBe(2);
+
+	// The webNavigation.onCompleted path funnels into the same pipeline:
+	// a top-frame visit of a thumbless card captures after the settle
+	// debounce, while sub-frames and the extension's own pages never do.
+	captureShouldFail = false;
+	tab.url = "https://example.com/";
+	tab.active = true;
+	tab.status = "complete";
+	storedSetup.cards = [{ ...createSetup().cards[0] }];
+	onNavigationCompleted.emit({
+		frameId: 0,
+		tabId: tab.id,
+		url: "https://example.com/",
+	});
+	await new Promise((resolve) => setTimeout(resolve, 1750));
+	expect(captureCount).toBe(3);
+	expect(storedSetup.cards[0]?.thumbId).toBe("thumb-captured");
+
+	// Sub-frame loads own no visible surface — no capture, no timer.
+	onNavigationCompleted.emit({
+		frameId: 1,
+		tabId: tab.id,
+		url: "https://example.com/",
+	});
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	expect(captureCount).toBe(3);
+
+	// The extension's own pages (the newtab override) never capture.
+	onNavigationCompleted.emit({
+		frameId: 0,
+		tabId: tab.id,
+		url: "extension:///newtab.html",
+	});
+	await new Promise((resolve) => setTimeout(resolve, 100));
+	expect(captureCount).toBe(3);
 });

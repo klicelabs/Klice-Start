@@ -26,7 +26,23 @@ export default defineConfig({
 		version: "1.2.3",
 		default_locale: "en",
 		description: "A personal browser dashboard for your new tab.",
-		permissions: ["storage", "activeTab", "tabs", "contextMenus", "bookmarks"],
+		permissions: [
+			"storage",
+			"activeTab",
+			"tabs",
+			"contextMenus",
+			"bookmarks",
+			// Auto-capturing thumbnails for saved-but-thumbless bookmarks needs
+			// to know when a relevant site finishes loading. The
+			// webNavigation.onCompleted url filter wakes the worker for exactly
+			// the http(s) top-frame loads that can match a card.
+			"webNavigation",
+		],
+		// Install-time host permissions for the pages the dashboard reads
+		// (webNavigation events, tab URLs). Capturing requires the literal
+		// "<all_urls>" pattern (see src/lib/thumbnail-permission.ts), which is
+		// declared optional and granted once through the Settings pane's
+		// "Allow access" consent flow — keeping the install warning narrow.
 		host_permissions: ["http://*/*", "https://*/*"],
 		optional_host_permissions: ["<all_urls>"],
 		commands: {

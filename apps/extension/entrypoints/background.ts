@@ -200,7 +200,11 @@ function captureVisible(
 		: ext.tabs.captureVisibleTab(options);
 }
 
-const THUMBNAIL_SETTLE_DELAY_MS = 1200;
+// Settle delay before an automatic capture. 1600ms sits inside the
+// 1500–2000ms debounce window: long enough for fonts/hero images to paint
+// after onCompleted, short enough that the user's own delayMs setting
+// (default 1200) still reads as "extra patience" rather than a no-op.
+const THUMBNAIL_SETTLE_DELAY_MS = 1600;
 const THUMBNAIL_FAILURE_COOLDOWN_MS = 10_000;
 
 interface PendingThumbnailCapture {
@@ -221,6 +225,61 @@ interface InFlightThumbnailCapture {
 // from starting parallel captures for the same navigation.
 const pendingThumbnailCaptures = new Map<number, PendingThumbnailCapture>();
 const inFlightThumbnailCaptures = new Map<number, InFlightThumbnailCapture>();
+
+/**
+ * In-memory card index for the cheap per-navigation pre-filter:
+ * canonicalUrl → every card stored under it (multiple cards may share a URL
+ * across folders). Keys use the same canonicalUrl the manual re-save path
+ * matches with, so index hits and capture-time matches agree by construction.
+ *
+ * The index is advisory only — it can skip work that would no-op, never
+ * approve work the fresh-state check in captureMissingThumbnail would
+ * reject. A stale "no thumb" entry costs one extra scheduled attempt that
+ * then finds nothing to update; a stale "has thumb" entry self-heals on the
+ * next perch-setup change because every write refreshes the index.
+ */
+interface CardIndexEntry {
+	id: string;
+	thumbId: string | null;
+}
+
+let cardIndex = new Map<string, CardIndexEntry[]>();
+let cardIndexReady: Promise<void> = Promise.resolve();
+
+async function refreshCardIndex(): Promise<void> {
+	const setup = await readSetup();
+	const next = new Map<string, CardIndexEntry[]>();
+	if (setup) {
+		for (const card of setup.cards) {
+			const key = canonicalUrl(card.url);
+			if (!key) continue;
+			const entry: CardIndexEntry = { id: card.id, thumbId: card.thumbId };
+			const entries = next.get(key);
+			if (entries) entries.push(entry);
+			else next.set(key, [entry]);
+		}
+	}
+	cardIndex = next;
+}
+
+/** Serialized rebuilds: a burst of setup writes converges to one fresh read. */
+function scheduleCardIndexRefresh(): void {
+	cardIndexReady = cardIndexReady.then(refreshCardIndex).catch(() => undefined);
+}
+
+/**
+ * True when at least one card for this URL still lacks a thumbnail. Cards
+ * that already have one never block the capture — the pipeline attaches the
+ * shot to thumbless matches only — but a URL whose every card already has a
+ * thumb skips scheduling entirely.
+ */
+function hasCardWithoutThumbnail(rawUrl: string): boolean {
+	const key = canonicalUrl(rawUrl);
+	if (!key) return false;
+	const entries = cardIndex.get(key);
+	if (!entries) return false;
+	return entries.some((entry) => !entry.thumbId);
+}
 const recentThumbnailAttempts = new Map<string, number>();
 /** One capture can satisfy every card that points at the same URL. */
 const inFlightThumbnailKeys = new Set<string>();
@@ -269,6 +328,11 @@ function tabCanBeCaptured(
 }
 
 export default defineBackground(() => {
+	// Worker startup: read the persisted setup once and warm the card index.
+	// Every later change flows through storage.onChanged above, so the index
+	// stays current without re-reading per navigation.
+	scheduleCardIndexRefresh();
+
 	ext.runtime.onInstalled.addListener(() => {
 		scheduleRebuild();
 	});
@@ -284,6 +348,9 @@ export default defineBackground(() => {
 	ext.storage.onChanged.addListener((changes, area) => {
 		if (area !== "local" || !(STORAGE_KEY in changes)) return;
 		scheduleRebuildDebounced();
+		// Same single key owns the cards: import, manual saves, resets, and
+		// the background's own capture writes all invalidate the index here.
+		scheduleCardIndexRefresh();
 	});
 
 	ext.contextMenus.onClicked.addListener((info, tab) => {
@@ -349,6 +416,19 @@ export default defineBackground(() => {
 			// Tab may not exist anymore
 		}
 	});
+
+	// webNavigation.onCompleted is the precise visit signal: it fires once per
+	// top-frame navigation for http(s) URLs only (url filter below), even when
+	// the tabs.onUpdated status stream skips or reorders events. It shares the
+	// same capture pipeline as tabs.onUpdated — queueMissingThumbnailCapture
+	// dedupes by canonical URL and navigation generation, so a navigation that
+	// both listeners observe schedules exactly one capture.
+	ext.webNavigation.onCompleted.addListener(
+		(details) => {
+			void handleNavigationCompleted(details);
+		},
+		{ url: [{ schemes: ["http", "https"] }] },
+	);
 
 	ext.tabs.onRemoved.addListener((tabId) => {
 		cancelPendingThumbnailCapture(tabId);
@@ -556,6 +636,45 @@ async function deleteUnreferencedThumbnails(
 	for (const thumbId of candidates) {
 		if (!referenced.has(thumbId)) await deletePendingThumbnail(thumbId);
 	}
+}
+
+/**
+ * webNavigation.onCompleted handler: the cheap synchronous gates run first so
+ * ordinary browsing that cannot produce a capture never pays for an async
+ * permission roundtrip. Anything that survives is handed to
+ * queueMissingThumbnailCapture, which owns the settle debounce, the
+ * active-tab/generation guards, and the capture itself — the same pipeline
+ * the tabs.onUpdated path uses (one implementation, two visit signals).
+ */
+async function handleNavigationCompleted(details: {
+	frameId: number;
+	tabId: number;
+	url: string;
+}): Promise<void> {
+	// Sub-frames never own the visible surface captureVisibleTab photographs;
+	// only a top-frame completed load can match a card.
+	if (details.frameId !== 0) return;
+	const url = details.url;
+	if (!url || !isThumbnailCaptureUrl(url)) return;
+	// The newtab override and any other extension page must never capture
+	// themselves. The url filter already excludes chrome:// and
+	// chrome-extension:// schemes; this guard keeps that guarantee explicit
+	// and future-proof against filter changes.
+	if (url.startsWith(ext.runtime.getURL("/"))) return;
+	// Cheap index pre-filter: no card for this URL, or every matching card
+	// already has a thumbnail — nothing this visit could update. Await the
+	// startup read first so a cold worker's first navigation cannot consult
+	// an empty index and silently skip a real match.
+	await cardIndexReady;
+	if (!hasCardWithoutThumbnail(url)) return;
+	// An automatic background capture has no user gesture, so only a granted
+	// optional "<all_urls>" (permissions.contains) may proceed — see
+	// thumbnail-permission.ts for why the http/https host grants do not
+	// qualify. Silent skip: an unconsented user gets no capture, never an
+	// error, and the Settings pane's "Allow access" flow offers the one-time
+	// consent that lets the next visit capture.
+	if (!(await hasThumbnailCapturePermission())) return;
+	queueMissingThumbnailCapture(details.tabId, { url }, url);
 }
 
 function queueMissingThumbnailCapture(
