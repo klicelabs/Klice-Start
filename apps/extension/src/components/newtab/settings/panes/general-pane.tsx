@@ -221,7 +221,9 @@ export function GeneralPane() {
 				</SettingRow>
 			</SectionCard>
 
-			{/* Clock — the whole widget lives in one place. */}
+			{/* Clock — one widget, one block: only its own settings live here.
+			    The date was split out below so each widget's block matches its
+			    scope (clock: enabled, format, seconds, size, timezone). */}
 			<SectionCard>
 				<SettingRow label="Clock" icon="clock">
 					<Switch
@@ -234,25 +236,7 @@ export function GeneralPane() {
 					/>
 				</SettingRow>
 
-				<SettingRow
-					label="Date"
-					icon="clock"
-					tooltip="Show the date independently from the clock."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Show date"
-						checked={clock.dateEnabled}
-						onCheckedChange={(checked: boolean) =>
-							updateClock({ dateEnabled: checked })
-						}
-					/>
-				</SettingRow>
-
-				<SettingsExpandable
-					expanded={clock.enabled || clock.dateEnabled}
-					label="Clock and date options"
-				>
+				<SettingsExpandable expanded={clock.enabled} label="Clock options">
 					<SelectRow
 						label="Time zone"
 						icon="globe"
@@ -300,19 +284,39 @@ export function GeneralPane() {
 							onChange={(v) => updateClock({ size: v })}
 						/>
 					) : null}
+				</SettingsExpandable>
+			</SectionCard>
 
-					{clock.dateEnabled ? (
-						<SliderRow
-							label="Date size"
-							icon="clock"
-							value={clock.dateSize}
-							suffix="%"
-							min={60}
-							max={200}
-							step={10}
-							onChange={(v) => updateClock({ dateSize: v })}
-						/>
-					) : null}
+			{/* Date — its own block, split from the clock: the date is toggled
+			    and sized independently of the clock, so its settings (enabled,
+			    size) live in a block that owns exactly that scope. */}
+			<SectionCard>
+				<SettingRow
+					label="Date"
+					icon="clock"
+					tooltip="Show the date independently from the clock."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Show date"
+						checked={clock.dateEnabled}
+						onCheckedChange={(checked: boolean) =>
+							updateClock({ dateEnabled: checked })
+						}
+					/>
+				</SettingRow>
+
+				<SettingsExpandable expanded={clock.dateEnabled} label="Date options">
+					<SliderRow
+						label="Date size"
+						icon="clock"
+						value={clock.dateSize}
+						suffix="%"
+						min={60}
+						max={200}
+						step={10}
+						onChange={(v) => updateClock({ dateSize: v })}
+					/>
 				</SettingsExpandable>
 			</SectionCard>
 

@@ -86,11 +86,11 @@ const FIELD_LABEL =
 	"text-[12px] font-medium leading-[1.35] text-neutral-600 dark:text-neutral-300";
 
 /**
- * The small, high-frequency part of Bookmarks belongs on the root Settings
- * view. The management workflow below stays behind its dedicated subpage,
- * while this component keeps one source of truth for preview preferences.
+ * Thumbnail capture preferences — the "how previews are captured" block of
+ * the Manage bookmarks workflow (block 3 below). This is the single home for
+ * these settings; the root Preferences view does not repeat them.
  */
-export function BookmarkPreviewSettings() {
+function BookmarkPreviewSettings() {
 	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
 	const [capturePermission, setCapturePermission] = useState<
@@ -134,13 +134,13 @@ export function BookmarkPreviewSettings() {
 	return (
 		<SectionCard>
 			<SettingRow
-				label="Automatically capture missing thumbnails"
+				label="Capture missing thumbnails"
 				icon="camera"
 				tooltip="Capture the visible page once when a bookmark has no thumbnail."
 			>
 				<Switch
 					className={SETTINGS_SWITCH}
-					aria-label="Automatically capture missing thumbnails"
+					aria-label="Capture missing thumbnails"
 					checked={thumbnailCapture.enabled}
 					onCheckedChange={(enabled: boolean) =>
 						updateThumbnailCapture({ enabled })
