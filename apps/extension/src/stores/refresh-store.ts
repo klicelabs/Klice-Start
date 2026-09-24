@@ -6,11 +6,35 @@ export interface RefreshSiteEntry {
 	title: string;
 	url: string;
 	ok: boolean;
+	/** Stage-tagged failure reason from the worker. Absent on success. */
+	error?: string;
 }
 
 export interface RefreshSummary {
 	updated: number;
 	failed: number;
+	/** Most common failure reason. Shown under the summary when anything failed. */
+	error?: string;
+}
+
+/** Most frequent error among failed entries (total-failure diagnosis). */
+function dominantError(
+	entries: readonly RefreshSiteEntry[],
+): string | undefined {
+	const counts = new Map<string, number>();
+	for (const entry of entries) {
+		if (entry.ok || !entry.error) continue;
+		counts.set(entry.error, (counts.get(entry.error) ?? 0) + 1);
+	}
+	let best: string | undefined;
+	let bestCount = 0;
+	for (const [error, count] of counts) {
+		if (count > bestCount) {
+			best = error;
+			bestCount = count;
+		}
+	}
+	return best;
 }
 
 interface RefreshStoreState {
@@ -85,6 +109,7 @@ export const useRefreshStore = create<RefreshStoreState>()((set) => ({
 								title: event.currentTitle ?? event.currentCardId,
 								url: event.currentUrl ?? "",
 								ok,
+								error: ok ? undefined : event.recent?.[0]?.error,
 							}
 						: null;
 					const finishedId = event.currentCardId;
@@ -104,7 +129,15 @@ export const useRefreshStore = create<RefreshStoreState>()((set) => ({
 					};
 				}
 				case "done":
-				case "cancelled":
+				case "cancelled": {
+					const sites =
+						event.recent?.map((item) => ({
+							cardId: item.cardId,
+							title: item.title,
+							url: item.url,
+							ok: item.ok,
+							error: item.error,
+						})) ?? state.sites;
 					return {
 						active: false,
 						total: event.total,
@@ -114,19 +147,16 @@ export const useRefreshStore = create<RefreshStoreState>()((set) => ({
 						currentCardId: null,
 						currentTitle: null,
 						queuedIds: [],
-						sites:
-							event.recent?.map((item) => ({
-								cardId: item.cardId,
-								title: item.title,
-								url: item.url,
-								ok: item.ok,
-							})) ?? state.sites,
+						sites,
 						summary: {
 							updated: event.updated,
 							failed: event.failed,
 							cancelled: event.status === "cancelled",
+							error:
+								event.status === "cancelled" ? undefined : dominantError(sites),
 						},
 					};
+				}
 				case "already-running":
 				case "needs-permission":
 					// Handled by the caller as a one-shot toast; the running

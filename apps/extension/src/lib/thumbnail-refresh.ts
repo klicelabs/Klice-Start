@@ -33,13 +33,14 @@ export const REFRESH_SESSION_KEY = "klice-refresh-batch";
 /**
  * Geometry for the reused batch capture window.
  *
- * NOTE — supersedes the classic offscreen pattern: current Chromium rejects
- * fully-offscreen windows ("Bounds must be at least 50% within visible
- * screen space"), so the window is created unfocused at the default position
- * and minimized immediately after (verified: captureVisibleTab photographs a
- * minimized window fine, headless and headed). One window per batch, closed
- * at the end; if minimizing ever fails the batch continues in the
- * unfocused window — still capturable, never focus-stealing.
+ * NOTE — two classic patterns are dead on current Chromium: fully-offscreen
+ * windows are rejected ("Bounds must be at least 50% within visible screen
+ * space"), and a minimized window is at the mercy of compositor suspension
+ * and Memory-Saver discard — it captures in lab conditions but is the
+ * highest-risk variable on real profiles. So the window is created
+ * visible-but-unfocused at the default position and kept unfocused: always
+ * composited, always capturable, never focus-stealing. One window per batch,
+ * closed at the end.
  */
 export const REFRESH_WINDOW_GEOMETRY = {
 	width: 800,
@@ -111,7 +112,14 @@ export interface RefreshProgressEvent {
 	currentUrl?: string;
 	currentTitle?: string;
 	/** Latest-first is a UI concern; the worker appends chronologically. */
-	recent?: Array<{ cardId: string; title: string; url: string; ok: boolean }>;
+	recent?: Array<{
+		cardId: string;
+		title: string;
+		url: string;
+		ok: boolean;
+		/** Stage-tagged failure reason (e.g. "capture: …"). Absent on success. */
+		error?: string;
+	}>;
 }
 
 export function isRefreshMessage(value: unknown): value is RefreshMessage {
@@ -131,7 +139,10 @@ export interface RefreshBatchState {
 	cardIds: string[];
 	doneIds: string[];
 	failedIds: string[];
-	sites: Record<string, { title: string; url: string; ok: boolean }>;
+	sites: Record<
+		string,
+		{ title: string; url: string; ok: boolean; error?: string }
+	>;
 	startedAt: number;
 }
 

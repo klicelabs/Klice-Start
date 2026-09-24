@@ -86,6 +86,8 @@ export function SelectionTray({
 	const clearSelection = useSelectionStore((s) => s.clear);
 	const cards = useSetupStore((s) => s.cards as Card[]);
 	const folders = useSetupStore((s) => s.folders as Folder[]);
+	// Preview refresh is card-mode only: icon tiles have no thumb surface.
+	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
 	const itemOrder = useSetupStore((s) => s.itemOrder);
@@ -456,7 +458,7 @@ export function SelectionTray({
 												<Icon name="folder-plus" size={14} aria-hidden="true" />
 												Create new subfolder
 											</DropdownMenuItem>
-											{selCards.length > 0 ? (
+											{dialLayout === "card" && selCards.length > 0 ? (
 												<DropdownMenuItem
 													className={glassMenuItem(isLiquid, resolvedDark)}
 													onClick={() =>

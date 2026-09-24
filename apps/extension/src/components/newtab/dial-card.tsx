@@ -7,7 +7,7 @@ import {
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
 import type { GridItemDragProps } from "../../lib/dnd";
@@ -20,7 +20,10 @@ import {
 	wallpaperText,
 } from "../../lib/glass";
 import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
-import { startSingleRefresh } from "../../lib/thumbnail-refresh-client";
+import {
+	startBatchRefresh,
+	startSingleRefresh,
+} from "../../lib/thumbnail-refresh-client";
 import { faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
@@ -80,6 +83,29 @@ export function DialCard({
 	// flips, never on every progress tick of the batch.
 	const refreshQueued = useRefreshStore((s) => s.queuedIds.includes(card.id));
 	const refreshCapturing = useRefreshStore((s) => s.currentCardId === card.id);
+	// Selection-aware refresh: a right-click on a selected card acts on the
+	// whole card selection (folders never have previews); anywhere else it
+	// acts on this card alone. Refresh is card-mode only — icon tiles have
+	// no thumb surface, so the entry (and the overlay below) hides there.
+	const selectionItems = useSelectionStore((s) => s.items);
+	const selectedCardIds = useMemo(
+		() =>
+			selectionItems
+				.filter((item) => item.kind === "card")
+				.map((item) => item.id),
+		[selectionItems],
+	);
+	const refreshIds =
+		selectedCardIds.includes(card.id) && selectedCardIds.length > 1
+			? selectedCardIds
+			: [card.id];
+	const showRefreshOverlay =
+		dialLayout === "card" && (refreshQueued || refreshCapturing);
+
+	function handleRefreshCard() {
+		if (refreshIds.length > 1) void startBatchRefresh(refreshIds);
+		else void startSingleRefresh(card.id);
+	}
 
 	useEffect(() => {
 		let cancelled = false;
@@ -271,18 +297,19 @@ export function DialCard({
 							)}
 						</>
 					)}
-					{/* Refresh state: a calm glass veil while queued, plus an
-					    animated pulse ring around the border while this card is
-					    under the camera. Transform + opacity only (beUI pattern),
-					    static when the user prefers reduced motion. The trigger
-					    owns positioning context; the veil never intercepts input. */}
-					{refreshQueued || refreshCapturing ? (
+					{/* Refresh state (card mode only): a calm glass veil while
+					    queued, plus an animated pulse ring around the border
+					    while this card is under the camera. Transform +
+					    opacity only (beUI pattern), static when the user
+					    prefers reduced motion. The trigger owns positioning
+					    context; the veil never intercepts input. */}
+					{showRefreshOverlay ? (
 						<span
 							aria-hidden={!refreshCapturing}
 							className="pointer-events-none absolute inset-0 rounded-2xl bg-foreground/10 backdrop-blur-[2px]"
 						/>
 					) : null}
-					{refreshCapturing ? (
+					{showRefreshOverlay && refreshCapturing ? (
 						<>
 							<span role="status" className="sr-only">
 								Refreshing preview
@@ -354,15 +381,19 @@ export function DialCard({
 					<Icon name="folder" size={14} />
 					Move to…
 				</ContextMenuItem>
-				<ContextMenuItem
-					className={glassDropdownItem(isLiquid, resolvedDark, {
-						pillOwned: true,
-					})}
-					onSelect={() => void startSingleRefresh(card.id)}
-				>
-					<Icon name="refresh" size={14} />
-					{REFRESH_STRINGS.singleItem}
-				</ContextMenuItem>
+				{dialLayout === "card" && (
+					<ContextMenuItem
+						className={glassDropdownItem(isLiquid, resolvedDark, {
+							pillOwned: true,
+						})}
+						onSelect={handleRefreshCard}
+					>
+						<Icon name="refresh" size={14} />
+						{refreshIds.length > 1
+							? REFRESH_STRINGS.batchAction(refreshIds.length)
+							: REFRESH_STRINGS.singleItem}
+					</ContextMenuItem>
+				)}
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid, resolvedDark, {

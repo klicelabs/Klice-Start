@@ -33,7 +33,7 @@ import {
 	requestThumbnailCapturePermission,
 } from "../../../../lib/thumbnail-permission";
 import { REFRESH_STRINGS } from "../../../../lib/thumbnail-refresh";
-import { startBatchRefresh } from "../../../../lib/thumbnail-refresh-client";
+import { requestMissingRefresh } from "../../../../lib/thumbnail-refresh-client";
 import {
 	deriveTitleFromUrl,
 	faviconUrl,
@@ -137,18 +137,7 @@ function BookmarkPreviewSettings() {
 	};
 
 	function handleRefreshMissing() {
-		const ids = useSetupStore
-			.getState()
-			.cards.filter((card) => !card.thumbId)
-			.map((card) => card.id);
-		if (ids.length === 0) return;
-		if (
-			ids.length > 20 &&
-			!window.confirm(REFRESH_STRINGS.confirmMany(ids.length))
-		) {
-			return;
-		}
-		void startBatchRefresh(ids);
+		void requestMissingRefresh();
 	}
 
 	return (

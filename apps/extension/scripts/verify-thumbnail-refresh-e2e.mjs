@@ -695,6 +695,181 @@ try {
 		);
 	}
 
+	// ── 8. main context menu carries the missing-previews entry ──
+	{
+		// Blank hero surface (clock/greeting/search/quicklinks are disabled
+		// in the seed): top-left of the scroll container hits no card.
+		await observer
+			.locator('[data-speed-dial-scroll="true"]')
+			.first()
+			.click({ button: "right", position: { x: 40, y: 100 } });
+		const missingItem = observer.getByRole("menuitem", {
+			name: /Refresh missing previews \(\d+\)/,
+		});
+		await missingItem.waitFor({ state: "visible", timeout: 8000 });
+		const label = await missingItem.innerText();
+		const count = Number(
+			label.match(/Refresh missing previews \((\d+)\)/)?.[1] ?? 0,
+		);
+		await observer.keyboard.press("Escape");
+		record(
+			"8. page menu shows Refresh missing previews (N)",
+			count > 0,
+			`label="${label}"`,
+		);
+	}
+
+	// ── 9a. right-click on a selected card refreshes the whole selection ──
+	{
+		const before = await readCards(observer);
+		// NOTE: scenario 5's form saved into the active folder (folder-10),
+		// so the count is dynamic, not the seeded 10.
+		const folderCount =
+			before?.filter((c) => c.folderId === "folder-10").length ?? 0;
+		const beforeIds = new Map(
+			before
+				.filter((c) => c.folderId === "folder-10")
+				.map((c) => [c.title, c.thumbId]),
+		);
+		const expectedLabel = `Refresh previews (${folderCount})`;
+		await observer.keyboard.press("Control+A");
+		await observer
+			.locator("[data-selection-tray]")
+			.waitFor({ state: "visible", timeout: 8000 });
+		const target = observer
+			.locator("[data-marquee-id]", { hasText: "c10-1" })
+			.first();
+		await target.click({ button: "right" });
+		const multiItem = observer.getByRole("menuitem", {
+			name: expectedLabel,
+		});
+		await multiItem.waitFor({ state: "visible", timeout: 8000 });
+		const singleItem = observer.getByRole("menuitem", {
+			name: "Refresh thumbnail",
+			exact: true,
+		});
+		const singleShown = await singleItem.count();
+		await multiItem.click();
+		const done = await waitFor(
+			async () => {
+				const cards = await readCards(observer);
+				const ten = cards?.filter((c) => c.folderId === "folder-10") ?? [];
+				return ten.length === folderCount && ten.every((c) => !!c.thumbId)
+					? ten
+					: null;
+			},
+			150000,
+			"selection right-click batch completion",
+		);
+		// Every card must HAVE a thumb now; count how many were replaced
+		// (a failed re-capture keeps its previous thumb and still counts).
+		const changedCount = done
+			? done.filter((c) => beforeIds.get(c.title) !== c.thumbId).length
+			: -1;
+		record(
+			`9a. right-click on selection refreshes all ${folderCount}`,
+			!!done && singleShown === 0,
+			`allThumbed=${!!done}, replaced=${changedCount}/${folderCount}, singleEntryShown=${singleShown}`,
+		);
+		await sleep(4500);
+	}
+
+	// ── 9b. toast log never holds more than current + previous ──
+	{
+		// Re-run a batch over the same folder via the tray and sample rows.
+		const cardsNow = await readCards(observer);
+		const nNow =
+			cardsNow?.filter((c) => c.folderId === "folder-10").length ?? 0;
+		await observer.keyboard.press("Control+A");
+		await observer
+			.locator("[data-selection-tray]")
+			.waitFor({ state: "visible", timeout: 8000 });
+		await observer.getByRole("button", { name: "Selection actions" }).click();
+		await observer
+			.getByRole("menuitem", { name: `Refresh previews (${nNow})` })
+			.click();
+		await waitFor(
+			async () => {
+				const text = await observer
+					.locator("[data-sonner-toaster]")
+					.innerText()
+					.catch(() => "");
+				return new RegExp(`Capturing [2-9] of ${nNow}`).test(text)
+					? text
+					: null;
+			},
+			60000,
+			"second batch mid-run",
+		);
+		let maxRows = 0;
+		let sawTwo = false;
+		for (let i = 0; i < 6; i += 1) {
+			const rows = await observer
+				.evaluate(() => document.querySelectorAll('[role="log"] > div').length)
+				.catch(() => -1);
+			if (rows === 2) sawTwo = true;
+			maxRows = Math.max(maxRows, rows);
+			await sleep(3000);
+		}
+		await observer.getByRole("button", { name: "Cancel refresh" }).click();
+		await sleep(1000);
+		record(
+			"9b. toast shows at most current + previous, no scroll list",
+			maxRows <= 2 && sawTwo,
+			`maxRows=${maxRows}, sawTwo=${sawTwo}`,
+		);
+		await sleep(4500);
+	}
+
+	// ── 10. icon mode hides every refresh entry ──
+	{
+		async function setDialLayout(mode) {
+			await observer.evaluate((m) => {
+				chrome.storage.local.get(["perch-setup"], (d) => {
+					const envelope = JSON.parse(d["perch-setup"]);
+					envelope.state.settings.dialLayout = m;
+					chrome.storage.local.set({ "perch-setup": JSON.stringify(envelope) });
+				});
+			}, mode);
+			await observer.reload({ waitUntil: "load" });
+			await observer
+				.waitForFunction(
+					() => document.querySelectorAll("[data-marquee-id]").length >= 10,
+					null,
+					{ timeout: 15000 },
+				)
+				.catch(() => {});
+			await sleep(500);
+		}
+		await setDialLayout("icon");
+		const tile = observer.locator("[data-marquee-id]").first();
+		await tile.click({ button: "right" });
+		await observer
+			.getByRole("menuitem", { name: "Rename" })
+			.waitFor({ state: "visible", timeout: 8000 });
+		const refreshEntries = await observer
+			.getByRole("menuitem", { name: /Refresh (thumbnail|previews)/ })
+			.count();
+		await observer.keyboard.press("Escape");
+		// Selection tray must not offer it either in icon mode.
+		await observer.keyboard.press("Control+A");
+		await observer
+			.locator("[data-selection-tray]")
+			.waitFor({ state: "visible", timeout: 8000 });
+		await observer.getByRole("button", { name: "Selection actions" }).click();
+		await sleep(600);
+		const trayRefresh = await observer
+			.getByRole("menuitem", { name: /Refresh (thumbnail|previews)/ })
+			.count();
+		await observer.keyboard.press("Escape");
+		record(
+			"10. icon mode shows no refresh entries (card menu + tray)",
+			refreshEntries === 0 && trayRefresh === 0,
+			`cardMenu=${refreshEntries}, tray=${trayRefresh}`,
+		);
+		await setDialLayout("card");
+	}
+
 	// ── 6. rate limit: no quota errors across the whole run ──
 	{
 		const quotaErrors = swErrors.filter((e) =>

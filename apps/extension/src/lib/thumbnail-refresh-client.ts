@@ -8,6 +8,7 @@
  */
 import { toast } from "sonner";
 import { useRefreshStore } from "../stores/refresh-store";
+import { useSetupStore } from "../stores/setup-store";
 import { extApi } from "./extension-api";
 import {
 	isRefreshMessage,
@@ -160,6 +161,25 @@ function notifyRefreshRejected(reason: RefreshSendResult["reason"]): void {
 	} else if (reason === "needs-permission") {
 		toast.error(REFRESH_STRINGS.needsPermission, { duration: 6000 });
 	}
+}
+
+/**
+ * Shared "refresh everything missing" action behind the Settings button and
+ * the page context-menu entry. Large libraries confirm first (N > 20).
+ */
+export async function requestMissingRefresh(): Promise<boolean> {
+	const ids = useSetupStore
+		.getState()
+		.cards.filter((card) => !card.thumbId)
+		.map((card) => card.id);
+	if (ids.length === 0) return false;
+	if (
+		ids.length > 20 &&
+		!window.confirm(REFRESH_STRINGS.confirmMany(ids.length))
+	) {
+		return false;
+	}
+	return startBatchRefresh(ids);
 }
 
 export { isRefreshMessage, REFRESH_SESSION_KEY };

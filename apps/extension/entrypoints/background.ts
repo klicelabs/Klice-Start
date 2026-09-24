@@ -1028,15 +1028,15 @@ async function ensureRefreshWindow(): Promise<{
 	}
 	const created = await ext.windows.create({ ...REFRESH_WINDOW_GEOMETRY });
 	if (!created || created.id === undefined)
-		throw new Error("hidden window denied");
+		throw new Error("window: capture window denied");
 	refreshHiddenWindowId = created.id;
-	// Tuck the batch window away: minimized captures fine and never covers
-	// the user's work. A failed minimize is non-fatal — the unfocused window
-	// still captures and still never steals focus.
+	// Never steal focus: creating unfocused is usually enough, but some
+	// window managers focus new windows anyway — push it back explicitly.
+	// Best-effort; a failure here never blocks the batch.
 	try {
-		await ext.windows.update(created.id, { state: "minimized" });
+		await ext.windows.update(created.id, { focused: false });
 	} catch {
-		// Best-effort; the batch continues in the unfocused window.
+		// Best-effort.
 	}
 	const tab = created.tabs?.[0];
 	let tabId = tab?.id;
@@ -1148,7 +1148,8 @@ async function runRefreshLoop(
 	snapshotById: Map<string, { id: string; title: string; url: string }>,
 ): Promise<void> {
 	try {
-		for (const cardId of queue) {
+		for (let index = 0; index < queue.length; index += 1) {
+			const cardId = queue[index];
 			if (refreshCancelRequested) break;
 
 			const waitMs = captureDelayMs(lastRefreshCaptureAt, Date.now());
@@ -1184,19 +1185,30 @@ async function runRefreshLoop(
 				currentTitle: card.title,
 			});
 
+			// `stage` names the exact failure point: the catch prefixes it
+			// to the reason, which travels in the progress event (UI error
+			// tint) and the SW log — a failed batch is always diagnosable.
+			let stage = "window";
 			try {
 				const { windowId, tabId } = await ensureRefreshWindow();
+				stage = "navigate";
 				await ext.tabs.update(tabId, { url: card.url });
 				await waitForRefreshTabComplete(tabId, 12_000);
 				await sleep(REFRESH_PAGE_SETTLE_MS);
 				if (refreshCancelRequested) break;
 
+				stage = "capture";
 				const dataUrl = await captureVisible(windowId, 82);
+				if (!dataUrl?.startsWith("data:image")) {
+					throw new Error(`capture: empty result (len=${dataUrl?.length ?? 0})`);
+				}
 				lastRefreshCaptureAt = Date.now();
+				stage = "persist-image";
 				const newThumbId = await saveThumbnail(dataUrl);
 				const capturedAt = Date.now();
 
 				// Re-read right before writing so a concurrent edit wins.
+				stage = "persist-state";
 				const fresh = await readSetup();
 				const target = fresh?.cards.find((entry) => entry.id === cardId);
 				if (fresh && target) {
@@ -1226,17 +1238,59 @@ async function runRefreshLoop(
 					});
 				} else {
 					await deletePendingThumbnail(newThumbId);
-					throw new Error("card removed mid-refresh");
+					throw new Error("persist-state: card removed mid-refresh");
 				}
-			} catch {
+			} catch (error) {
 				// One bad page (blocked navigation, denied capture) never
 				// stops the queue — it is recorded and the next card runs.
+				// The stage prefix names the exact failure point: it travels
+				// in the progress event (UI error tint) and the SW log.
+				const detail = error instanceof Error ? error.message : String(error);
+				const reason = detail.startsWith(`${stage}:`)
+					? detail
+					: `${stage}: ${detail}`;
+				console.warn(`[refresh] card failed (${cardId}): ${reason}`);
 				if (!state.failedIds.includes(cardId)) state.failedIds.push(cardId);
 				state.sites[cardId] = {
 					title: card.title,
 					url: card.url,
 					ok: false,
+					error: reason,
 				};
+				if (stage === "window") {
+					// The capture window itself is dead (creation denied by
+					// policy, removed underneath us) — it will not heal for
+					// the next card. Fail the rest with the same reason
+					// instead of repeating N identical failures.
+					for (const restId of queue.slice(index + 1)) {
+						if (!state.failedIds.includes(restId)) state.failedIds.push(restId);
+						const known = snapshotById.get(restId);
+						state.sites[restId] = {
+							title: known?.title ?? restId,
+							url: known?.url ?? "",
+							ok: false,
+							error: reason,
+						};
+					}
+					await writeRefreshState(state);
+					emitRefreshProgress({
+						...refreshProgressBase(state),
+						status: "card-failed",
+						currentCardId: cardId,
+						currentUrl: card.url,
+						currentTitle: card.title,
+						recent: [
+							{
+								cardId,
+								title: card.title,
+								url: card.url,
+								ok: false,
+								error: reason,
+							},
+						],
+					});
+					break;
+				}
 				await writeRefreshState(state);
 				emitRefreshProgress({
 					...refreshProgressBase(state),
@@ -1244,6 +1298,15 @@ async function runRefreshLoop(
 					currentCardId: cardId,
 					currentUrl: card.url,
 					currentTitle: card.title,
+					recent: [
+						{
+							cardId,
+							title: card.title,
+							url: card.url,
+							ok: false,
+							error: reason,
+						},
+					],
 				});
 			}
 		}
@@ -1263,6 +1326,7 @@ async function runRefreshLoop(
 			title: state.sites[id]?.title ?? snapshotById.get(id)?.title ?? id,
 			url: state.sites[id]?.url ?? snapshotById.get(id)?.url ?? "",
 			ok: state.doneIds.includes(id),
+			error: state.sites[id]?.error,
 		})),
 	});
 }

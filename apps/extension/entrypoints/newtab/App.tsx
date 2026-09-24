@@ -80,6 +80,7 @@ import {
 	traverseBack,
 	traverseForward,
 } from "../../src/lib/navigation";
+import { requestMissingRefresh } from "../../src/lib/thumbnail-refresh-client";
 import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useHistoryStore } from "../../src/stores/history-store";
@@ -433,6 +434,9 @@ export default function App() {
 	);
 
 	const allCards = useSetupStore((s) => s.cards as Card[]);
+	const missingPreviewCount = useSetupStore(
+		(s) => s.cards.filter((c) => !c.thumbId).length,
+	);
 	const cards = useMemo(
 		() =>
 			allCards
@@ -1128,6 +1132,8 @@ export default function App() {
 				}
 				onAddFolder={() => handleNewSubfolder(activeFolderId)}
 				onSelectAll={selectableItems.length > 0 ? handleSelectAll : undefined}
+				missingPreviewCount={missingPreviewCount}
+				onRefreshMissing={() => void requestMissingRefresh()}
 				onOpenHistory={() => setHistoryOpen(true)}
 				onOpenGeneralSettings={() => handleOpenSettings("general")}
 				onEnterRestMode={enterRestMode}

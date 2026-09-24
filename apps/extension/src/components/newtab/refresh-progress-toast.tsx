@@ -1,5 +1,6 @@
 import { Icon } from "@klice-start/ui/icons/icon";
-import { useEffect, useRef } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { glassForeground, glassMaterial, glassShape } from "../../lib/glass";
 import {
@@ -94,20 +95,27 @@ function toastSurface(isLiquid: boolean): string {
 	);
 }
 
+/**
+ * Motion language for the toast log: y-slide + opacity, 200ms, the repo's
+ * signature ease. Static when the user prefers reduced motion.
+ */
+const TOAST_ROW_TRANSITION = {
+	duration: 0.2,
+	ease: [0.23, 1, 0.32, 1] as const,
+};
+
 function RefreshRunningCard() {
 	const { isLiquid } = useAppearance();
+	const reduceMotion = useReducedMotion() ?? false;
 	const total = useRefreshStore((s) => s.total);
 	const completed = useRefreshStore((s) => s.completed);
 	const currentTitle = useRefreshStore((s) => s.currentTitle);
 	const sites = useRefreshStore((s) => s.sites);
-	const listRef = useRef<HTMLElement | null>(null);
 
 	const fraction = total > 0 ? Math.min(1, completed / total) : 0;
-
-	useEffect(() => {
-		const list = listRef.current;
-		if (list) list.scrollTop = list.scrollHeight;
-	}, [sites.length]);
+	// Two entries, never a scrolling log: the card under the camera at full
+	// opacity, the previous one fading behind it like smoke.
+	const visible = sites.slice(-2);
 
 	return (
 		<div className={toastSurface(isLiquid)}>
@@ -136,30 +144,53 @@ function RefreshRunningCard() {
 					<Icon name="x" size={15} aria-hidden="true" />
 				</button>
 			</div>
-			{sites.length > 0 ? (
-				<section
-					ref={listRef}
+			{visible.length > 0 ? (
+				<div
+					role="log"
 					aria-label="Capture log"
-					data-beui-smooth-scroll="true"
-					className="mt-2.5 flex max-h-40 flex-col gap-1 overflow-y-auto overscroll-contain pr-1"
+					className="mt-2.5 flex flex-col gap-1 overflow-hidden"
 				>
-					{sites.map((site) => (
-						<div
-							key={site.cardId}
-							className="flex min-w-0 items-center gap-2 text-[12px]"
-						>
-							<Icon
-								name={site.ok ? "check" : "alert"}
-								size={13}
-								aria-hidden="true"
-								className="shrink-0 opacity-70"
-							/>
-							<span className="min-w-0 flex-1 truncate opacity-80">
-								{site.title}
-							</span>
-						</div>
-					))}
-				</section>
+					{/* wait: the entering row mounts only after the outgoing
+					    one clears, so the log never holds more than two rows. */}
+					<AnimatePresence initial={false} mode="wait">
+						{visible.map((site, index) => {
+							const isCurrent = index === visible.length - 1;
+							return (
+								<motion.div
+									key={site.cardId}
+									initial={
+										reduceMotion
+											? { opacity: isCurrent ? 1 : 0.3 }
+											: { opacity: 0, y: 8 }
+									}
+									animate={{ opacity: isCurrent ? 1 : 0.3, y: 0 }}
+									exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+									transition={TOAST_ROW_TRANSITION}
+									className={cn(
+										"flex min-w-0 items-center gap-2 text-[12px]",
+										// The previous entry smokes out: motion fades it
+										// to ~30% (see animate above) with a gradient
+										// mask dissolving toward the top. Mask stops
+										// are an alpha technique, not theme colors.
+										!isCurrent &&
+											"[mask-image:linear-gradient(to_bottom,transparent,black)]",
+										!site.ok && "text-red-600 dark:text-red-400",
+									)}
+								>
+									<Icon
+										name={site.ok ? "check" : "alert"}
+										size={13}
+										aria-hidden="true"
+										className="shrink-0 opacity-70"
+									/>
+									<span className="min-w-0 flex-1 truncate opacity-80">
+										{site.title}
+									</span>
+								</motion.div>
+							);
+						})}
+					</AnimatePresence>
+				</div>
 			) : null}
 		</div>
 	);
@@ -222,7 +253,17 @@ function RefreshSummaryCard() {
 					aria-hidden="true"
 					className="shrink-0"
 				/>
-				<p className="font-medium text-[13px]">{text}</p>
+				<div className="min-w-0 flex-1">
+					<p className="font-medium text-[13px]">{text}</p>
+					{summary.error ? (
+						<p
+							className="truncate text-[12px] opacity-70"
+							title={summary.error}
+						>
+							{summary.error}
+						</p>
+					) : null}
+				</div>
 			</div>
 		</div>
 	);
