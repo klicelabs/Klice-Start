@@ -64,6 +64,82 @@ export function canonicalUrl(rawUrl: string): string | null {
 	}
 }
 
+/**
+ * Canonical form for ON-VISIT auto-capture: origin only (scheme + host +
+ * non-default port). Path, query, and hash are stripped, so any visit to
+ * the same site matches every card on that origin — e.g. a card saved at
+ * notebooklm.google.com/notebook/abc captures when the user later visits
+ * notebooklm.google.com/notebook/xyz. Hosts stay distinct: www. vs bare,
+ * subdomains, and http vs https never match each other. Returns null for
+ * non-http(s) URLs.
+ */
+/**
+ * A raw value carrying a non-http(s) scheme (chrome:, data:, file:, …) is
+ * not a web origin. normalizeUrl would mangle it into an https URL, so
+ * reject it before parsing. Bare hostnames (no scheme) still upgrade.
+ */
+function hasNonHttpScheme(rawUrl: string): boolean {
+	const trimmed = rawUrl.trim();
+	return (
+		/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(trimmed) && !/^https?:\/\//i.test(trimmed)
+	);
+}
+
+export function canonicalizeForAutoCapture(rawUrl: string): string | null {
+	if (hasNonHttpScheme(rawUrl)) return null;
+	try {
+		const url = new URL(normalizeUrl(rawUrl));
+		if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+		url.hostname = url.hostname.toLowerCase();
+		if (
+			(url.protocol === "http:" && url.port === "80") ||
+			(url.protocol === "https:" && url.port === "443")
+		) {
+			url.port = "";
+		}
+		return url.origin;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Canonical form for MANUAL-save identity: origin + pathname, with query,
+ * hash, and trailing slash stripped. Different paths stay different cards
+ * (saving /article/2 never overwrites /article/1) — the path-preserving
+ * counterpart to canonicalizeForAutoCapture.
+ *
+ * NOTE: the live manual-save path (findBookmarkInFolder) intentionally keeps
+ * the historical exact identity (canonicalUrl, query/hash-sensitive) so
+ * existing behavior does not shift under current users. This function names
+ * the path-level identity for future use and for tests of the refresh
+ * contract — do not swap it into findBookmarkInFolder without a product
+ * decision.
+ */
+export function canonicalizeForManualSave(rawUrl: string): string | null {
+	if (hasNonHttpScheme(rawUrl)) return null;
+	try {
+		const url = new URL(normalizeUrl(rawUrl));
+		if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+		url.hostname = url.hostname.toLowerCase();
+		if (
+			(url.protocol === "http:" && url.port === "80") ||
+			(url.protocol === "https:" && url.port === "443")
+		) {
+			url.port = "";
+		}
+		const path =
+			url.pathname.length > 1 && url.pathname.endsWith("/")
+				? url.pathname.slice(0, -1)
+				: url.pathname === "/"
+					? ""
+					: url.pathname;
+		return `${url.origin}${path}`;
+	} catch {
+		return null;
+	}
+}
+
 /** Hostname without the leading "www.", or "" when the URL is invalid. */
 export function getDomain(rawUrl: string): string {
 	try {

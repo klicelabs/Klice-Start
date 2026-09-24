@@ -32,6 +32,8 @@ import {
 	hasThumbnailCapturePermission,
 	requestThumbnailCapturePermission,
 } from "../../../../lib/thumbnail-permission";
+import { REFRESH_STRINGS } from "../../../../lib/thumbnail-refresh";
+import { startBatchRefresh } from "../../../../lib/thumbnail-refresh-client";
 import {
 	deriveTitleFromUrl,
 	faviconUrl,
@@ -93,6 +95,9 @@ const FIELD_LABEL =
 function BookmarkPreviewSettings() {
 	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
+	const missingCount = useSetupStore(
+		(s) => s.cards.filter((card) => !card.thumbId).length,
+	);
 	const [capturePermission, setCapturePermission] = useState<
 		"checking" | "granted" | "missing"
 	>("checking");
@@ -130,6 +135,21 @@ function BookmarkPreviewSettings() {
 			toast.error("Could not request site access. Try again in Settings.");
 		}
 	};
+
+	function handleRefreshMissing() {
+		const ids = useSetupStore
+			.getState()
+			.cards.filter((card) => !card.thumbId)
+			.map((card) => card.id);
+		if (ids.length === 0) return;
+		if (
+			ids.length > 20 &&
+			!window.confirm(REFRESH_STRINGS.confirmMany(ids.length))
+		) {
+			return;
+		}
+		void startBatchRefresh(ids);
+	}
 
 	return (
 		<SectionCard>
@@ -174,6 +194,19 @@ function BookmarkPreviewSettings() {
 					onChange={(v) => updateThumbnailCapture({ delayMs: v })}
 				/>
 			</SettingsExpandable>
+			<SettingRow
+				label="Missing previews"
+				icon="refresh"
+				tooltip="Re-photograph every bookmark that has no preview yet, one at a time in a hidden window."
+			>
+				<SettingsAction
+					icon="refresh"
+					disabled={missingCount === 0}
+					onClick={handleRefreshMissing}
+				>
+					{REFRESH_STRINGS.missingAction(missingCount)}
+				</SettingsAction>
+			</SettingRow>
 		</SectionCard>
 	);
 }

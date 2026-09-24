@@ -31,6 +31,8 @@ import {
 } from "../../lib/history-capture";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
 import { selectedAncestorOf } from "../../lib/selection-model";
+import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
+import { startBatchRefresh } from "../../lib/thumbnail-refresh-client";
 import { cn } from "../../lib/utils";
 import { useHistoryStore } from "../../stores/history-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -454,6 +456,19 @@ export function SelectionTray({
 												<Icon name="folder-plus" size={14} aria-hidden="true" />
 												Create new subfolder
 											</DropdownMenuItem>
+											{selCards.length > 0 ? (
+												<DropdownMenuItem
+													className={glassMenuItem(isLiquid, resolvedDark)}
+													onClick={() =>
+														void startBatchRefresh(
+															selCards.map((card) => card.id),
+														)
+													}
+												>
+													<Icon name="refresh" size={14} aria-hidden="true" />
+													{REFRESH_STRINGS.batchAction(selCards.length)}
+												</DropdownMenuItem>
+											) : null}
 										</DropdownMenuGroup>
 									</DropdownMenuContent>
 								</DropdownMenu>

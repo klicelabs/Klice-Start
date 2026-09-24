@@ -6,6 +6,7 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
@@ -18,10 +19,13 @@ import {
 	glassMenu,
 	wallpaperText,
 } from "../../lib/glass";
+import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
+import { startSingleRefresh } from "../../lib/thumbnail-refresh-client";
 import { faviconUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
+import { useRefreshStore } from "../../stores/refresh-store";
 import { useRenameStore } from "../../stores/rename-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
@@ -71,6 +75,11 @@ export function DialCard({
 	const beginRename = useRenameStore((s) => s.begin);
 	const cancelRename = useRenameStore((s) => s.cancel);
 	const openMoveDialog = useMoveDialogStore((s) => s.open);
+	const reduceMotion = useReducedMotion() ?? false;
+	// Boolean selectors: the card re-renders only when its own membership
+	// flips, never on every progress tick of the batch.
+	const refreshQueued = useRefreshStore((s) => s.queuedIds.includes(card.id));
+	const refreshCapturing = useRefreshStore((s) => s.currentCardId === card.id);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -262,6 +271,42 @@ export function DialCard({
 							)}
 						</>
 					)}
+					{/* Refresh state: a calm glass veil while queued, plus an
+					    animated pulse ring around the border while this card is
+					    under the camera. Transform + opacity only (beUI pattern),
+					    static when the user prefers reduced motion. The trigger
+					    owns positioning context; the veil never intercepts input. */}
+					{refreshQueued || refreshCapturing ? (
+						<span
+							aria-hidden={!refreshCapturing}
+							className="pointer-events-none absolute inset-0 rounded-2xl bg-foreground/10 backdrop-blur-[2px]"
+						/>
+					) : null}
+					{refreshCapturing ? (
+						<>
+							<span role="status" className="sr-only">
+								Refreshing preview
+							</span>
+							{reduceMotion ? (
+								<span
+									aria-hidden="true"
+									className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-[var(--klice-accent)]"
+								/>
+							) : (
+								<motion.span
+									aria-hidden="true"
+									className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-[var(--klice-accent)]"
+									initial={{ opacity: 0.35 }}
+									animate={{ opacity: [0.35, 1, 0.35] }}
+									transition={{
+										duration: 1.6,
+										repeat: Number.POSITIVE_INFINITY,
+										ease: "easeInOut",
+									}}
+								/>
+							)}
+						</>
+					) : null}
 				</a>
 			</ContextMenuTrigger>
 
@@ -308,6 +353,15 @@ export function DialCard({
 				>
 					<Icon name="folder" size={14} />
 					Move to…
+				</ContextMenuItem>
+				<ContextMenuItem
+					className={glassDropdownItem(isLiquid, resolvedDark, {
+						pillOwned: true,
+					})}
+					onSelect={() => void startSingleRefresh(card.id)}
+				>
+					<Icon name="refresh" size={14} />
+					{REFRESH_STRINGS.singleItem}
 				</ContextMenuItem>
 				<ContextMenuSeparator />
 				<ContextMenuItem

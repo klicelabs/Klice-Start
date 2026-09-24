@@ -108,6 +108,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const onPermissionAdded = createEvent();
 	const onPermissionRemoved = createEvent();
 	const onNavigationCompleted = createEvent();
+	const onMessage = createEvent();
 	let storedSetup = createSetup();
 	const tab = {
 		id: 7,
@@ -155,10 +156,19 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 		runtime: {
 			onInstalled,
 			onStartup,
+			onMessage,
 			lastError: undefined,
 			getURL: (path: string) => `extension://${path}`,
 		},
-		storage: { local: storageLocal, onChanged: onStorageChanged },
+		storage: {
+			local: storageLocal,
+			onChanged: onStorageChanged,
+			session: {
+				get: async () => ({}),
+				set: async () => undefined,
+				remove: async () => undefined,
+			},
+		},
 		contextMenus: {
 			onClicked: onContextMenu,
 			removeAll: async () => undefined,
