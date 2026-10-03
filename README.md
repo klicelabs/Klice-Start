@@ -1,145 +1,100 @@
+<div align="center">
+  <img src="apps/extension/public/icon/icon128.png" alt="Klice Start icon" width="96" />
+</div>
+
 # Klice Start
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Self, and more.
+Klice Start replaces the browser's new tab with a personal dashboard for saved pages. It combines visual cards, nested folders, search, and lightweight customization in a local-only browser extension.
 
-## Features
+## What it does
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Biome** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+- **Save pages as visual cards** from the extension popup, the page context menu, or the keyboard shortcut (`Alt+Shift+D`; `Command+Shift+D` on macOS).
+- **Organize with nested folders** and reorder cards and folders with drag and drop. Changes can be undone and redone.
+- **Find saved pages** by title or URL without opening them first.
+- **Show page previews** captured from the browser. Missing previews can be captured automatically when you visit a saved page, after granting optional `<all_urls>` site access in Settings. You can also refresh previews manually.
+- **Import browser bookmarks** from HTML files exported by Chromium, Firefox, or Vivaldi.
+- **Personalize the dashboard** with bundled or custom wallpapers, background styles, and controls for the clock, greeting, search, and cards.
 
-## Getting Started
+## Privacy and permissions
 
-First, install the dependencies:
+Klice Start is a single-device extension. It does not require an account, backend, or sync service. Dashboard setup is stored in browser local storage; image data such as captured previews is stored in IndexedDB.
 
-```bash
-bun install
-```
+Automatic preview capture requires optional `<all_urls>` site access. The extension asks for that access through its Settings consent flow; you can use the dashboard without enabling it. The build does not require environment variables or a database.
 
-## Database Setup
+## Architecture
 
-This project uses PostgreSQL with Drizzle ORM.
+The browser extension is the product. It is an MV3 extension built with WXT, Vite, React, TypeScript, and Zustand.
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/web/.env` file with your PostgreSQL connection details.
+- `apps/extension/entrypoints/newtab/` - new-tab dashboard.
+- `apps/extension/entrypoints/popup/` - save the current page.
+- `apps/extension/entrypoints/background.ts` - browser menus and screenshot capture.
+- `apps/extension/src/` - UI components, state, storage, and browser integrations.
+- `apps/extension/scripts/` - product tests, browser E2E harnesses, and separate diagnostic benchmarks.
+- `packages/ui/` - shared interface primitives.
 
-3. Apply the schema to your database:
+The repository also contains web and database workspaces for other development. `apps/web/` and `packages/db/` are not required to build or run the extension; the database workspace is an unused Drizzle/PostgreSQL scaffold. See [product notes](docs/PRODUCT.md) and [architecture notes](docs/ARCHITECTURE.md) for more detail.
 
-```bash
-bun run db:push
-```
+## Develop the extension
 
-Then, run the development server:
+Requirements: [Bun](https://bun.sh) 1.3.13 and Chrome/Chromium or Firefox.
 
-```bash
-bun run dev
-```
+Install dependencies from the repository root, then start the extension workspace:
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
+    bun install --frozen-lockfile
+    cd apps/extension
+    bun run dev
 
-## UI Customization
+WXT serves the development build on port `5555` and writes it under `.output/chrome-mv3-dev/`. For Firefox, run `bun run dev:firefox`; its development build is under `.output/firefox-mv3-dev/`.
 
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+To create a production build, run these commands from `apps/extension/`:
 
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
+    bun run build
+    bun run build:firefox
 
-### Add more shared components
+The unpacked builds are written to `.output/chrome-mv3/` and `.output/firefox-mv3/`. Load the matching directory as an unpacked/temporary extension in your browser (`chrome://extensions` in Chrome or `about:debugging` in Firefox).
 
-Run this from the project root to add more primitives to the shared UI package:
+To create browser store archives, run `bun run zip` for Chromium or `bun run zip:firefox` for Firefox. The Firefox command also creates a sources archive under `.output/`.
 
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
+## Tests and checks
 
-Import shared components like this:
+Run the extension checks from `apps/extension/`:
 
-```tsx
-import { Button } from "@klice-start/ui/components/button";
-```
+    bun run compile
+    bun test scripts/
 
-### Add app-specific blocks
+The browser E2E harnesses run against a production build and use Playwright with Chromium:
 
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
+    bun run build
+    bun scripts/verify-auto-capture-e2e.mjs
+    node scripts/verify-thumbnail-refresh-e2e.mjs
 
-## Deployment
+The auto-capture harness uses Bun; the thumbnail-refresh harness uses Node. These E2E scripts are manual browser checks, separate from the Bun unit tests. The `bench-*.mjs` scripts are diagnostic tools rather than tests; see [their notes](apps/extension/scripts/README.md).
 
-### Vercel Services
+From the repository root, `bun run check` runs Biome checks and applies its formatting fixes.
 
-- Target: web + server
-- Config: `vercel.json`
-- Link the project first: bun run deploy:setup
-- Local Vercel dev: bun run dev:vercel
-- Sync preview env: bun run env:preview
-- Sync production env: bun run env:production
-- Dry-run check (no upload): bun run deploy:check
-- Preview deploy: bun run deploy
-- Production deploy: bun run deploy:prod
-  Vercel Services share project environment variables, but deploys do not upload local `.env` files automatically. Link the project with `vercel link`, then run the env sync command before your first deploy (otherwise the deployment starts with no env vars), or pass one-off envs with `vercel deploy -e KEY=value`.
-  Pass Vercel CLI flags to the env sync command directly, for example: `bun run env:production --scope your-team`.
+<details>
+<summary>Other monorepo scripts</summary>
 
-For more details, see the guide on [Deploying to Vercel](https://www.better-t-stack.dev/docs/guides/vercel).
+These root-level commands support the other workspaces; they are not needed for extension development.
 
-## Git Hooks and Formatting
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start development tasks across workspaces with Turborepo. |
+| `bun run build` | Build workspaces with a build task. |
+| `bun run dev:web` | Start the `apps/web/` development server. |
+| `bun run check-types` | Run workspace type-check tasks. |
+| `bun run db:push` | Push the Drizzle schema. |
+| `bun run db:generate` | Generate Drizzle migrations. |
+| `bun run db:migrate` | Apply Drizzle migrations. |
+| `bun run db:studio` | Open Drizzle Studio. |
+| `bun run deploy:setup` | Link the web workspace to a Vercel project. |
+| `bun run dev:vercel` | Run Vercel's local development environment. |
+| `bun run env:preview` | Sync local environment variables to Vercel Preview. |
+| `bun run env:production` | Sync local environment variables to Vercel Production. |
+| `bun run deploy:check` | Preview a Vercel deployment without uploading. |
+| `bun run deploy` | Create a Vercel Preview deployment. |
+| `bun run deploy:prod` | Deploy to Vercel Production. |
 
-- Run checks: `bun run check`
+Vercel commands target the web workspace and require a linked Vercel project. Local `.env` files are not uploaded automatically; sync the relevant environment before deploying.
 
-## Project Structure
-
-```
-klice-start/
-├── apps/
-│   └── web/         # Fullstack application (Next.js)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   └── db/          # Database schema & queries
-```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
-- `bun run db:studio`: Open database studio UI
-- `bun run check`: Run Biome formatting and linting
-- `bun run deploy:setup`: Link this repo to a Vercel project (first-time setup)
-- `bun run dev:vercel`: Run the Vercel Services dev environment locally
-- `bun run env:preview`: Sync local env files to the Vercel preview environment
-- `bun run env:production`: Sync local env files to the Vercel production environment
-- `bun run deploy`: Create a Vercel preview deployment
-- `bun run deploy:prod`: Deploy to Vercel production
-
-- `bun run deploy:check`: Dry-run a deploy to preview framework detection and included files without uploading
-## Browser Extension (Firefox / AMO submission)
-
-The browser extension lives in `apps/extension` and is built with
-[WXT](https://wxt.dev) (Vite + React + TypeScript).
-
-To reproduce the extension ZIP submitted to Mozilla Add-ons:
-
-```bash
-# Requires Bun >= 1.3 (https://bun.sh)
-bun install --frozen-lockfile
-cd apps/extension
-bun run zip:firefox
-```
-
-This produces:
-
-- `.output/extension-<version>-firefox.zip` — the built extension (matches the submitted add-on file)
-- `.output/extension-<version>-sources.zip` — this source archive
-
-The build step bundles and minifies TypeScript/React sources with Vite/Rolldown;
-the minified output in the submitted XPI is generated entirely from the code in
-this repository. No additional environment variables or services are required to
-build it.
+</details>
