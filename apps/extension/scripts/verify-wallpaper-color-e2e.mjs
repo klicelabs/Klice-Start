@@ -36,6 +36,12 @@ try {
    const r = await picker.boundingBox(); const viewport = page.viewportSize();
    assert.ok(r.x >= 0 && r.y >= 0 && r.x + r.width <= viewport.width + 1 && r.y + r.height <= viewport.height + 1, JSON.stringify({ r, viewport }));
   }
+  // The %-translated Thumb glide boxes must never expand the popup's scroll
+  // region: any horizontal overflow here is a sizing bug, not content.
+  async function checkNoHorizontalOverflow() {
+   const sizes = await picker.evaluate(el => ({ scrollW: el.scrollWidth, clientW: el.clientWidth }));
+   assert.ok(sizes.scrollW <= sizes.clientW + 1, JSON.stringify(sizes));
+  }
  await openWallpaper();
  await check("beUI picker replaces the native dialog and remains viewport-bound", async () => {
   assert.equal(await page.locator('input[type="color"]').count(), 0);
@@ -43,6 +49,7 @@ try {
   await picker.getByRole("slider", { name: /saturation.*brightness/i }).waitFor();
    await picker.getByRole("slider", { name: /^hue$/i }).waitFor();
    await checkBounds();
+   await checkNoHorizontalOverflow();
    await page.screenshot({ path: path.join(screenshots, "picker-desktop.png") });
  });
  const initial = await stored();
@@ -69,6 +76,8 @@ try {
    await page.waitForTimeout(650);
    dragCss = await background.evaluate(el => getComputedStyle(el).backgroundColor);
    assert.notEqual(dragCss, initialCss);
+   // The drag loupe rides above the thumb: it must paint without opening a scrollbar.
+   await checkNoHorizontalOverflow();
   assert.equal(await page.evaluate(() => window.__pickerWrites), 0);
   assert.equal((await stored()).color, initial.color);
   await page.screenshot({ path: path.join(screenshots, "live-drag-preview.png") });
@@ -111,6 +120,7 @@ try {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 900, height: 720 });
    await trigger.click(); await picker.waitFor(); await settle(); await checkBounds();
+   await checkNoHorizontalOverflow();
   const hue = picker.getByRole("slider", { name: /^hue$/i });
   await hue.focus(); const before = await hue.getAttribute("aria-valuenow");
   await hue.press("ArrowRight");

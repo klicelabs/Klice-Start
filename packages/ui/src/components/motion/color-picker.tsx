@@ -497,7 +497,14 @@ export function ColorPickerArea({
 			{...handlers}
 			ref={railRef}
 			className={cn(
-				"relative h-40 w-full touch-none rounded-xl",
+				// contain-layout: the Thumb glide box is translated by % of
+				// its own full size (official beUI technique), so its box
+				// always extends past the rail. Layout containment keeps that
+				// invisible box from expanding ancestor scroll regions, while
+				// paint stays untouched — the edge thumb and the drag loupe
+				// remain fully visible. Never overflow-x: hidden here: that
+				// would clip the loupe instead of fixing the source.
+				"relative h-40 w-full touch-none rounded-xl contain-layout",
 				TOUCH_GESTURE_CLASS,
 				disabled ? "cursor-not-allowed" : "cursor-crosshair",
 				className,
@@ -580,7 +587,9 @@ function ChannelSlider({
 			{...props}
 			{...handlers}
 			className={cn(
-				"relative h-3.5 w-full touch-none rounded-full",
+				// Same glide-box containment as the area above: the Thumb is
+				// translated by % of its own full-size box.
+				"relative h-3.5 w-full touch-none rounded-full contain-layout",
 				TOUCH_GESTURE_CLASS,
 				disabled ? "cursor-not-allowed" : "cursor-pointer",
 				className,
