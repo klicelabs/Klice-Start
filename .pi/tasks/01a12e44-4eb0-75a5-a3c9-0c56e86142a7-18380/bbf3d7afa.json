@@ -1,0 +1,31 @@
+{
+  "id": "bbf3d7afa",
+  "name": "Final refresh E2E validation",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && set \"HEADFUL=1\" && node scripts/verify-thumbnail-refresh-e2e.mjs",
+  "description": "Run the complete headful suite with the corrected pixel-reading canvas.",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\bbf3d7afa.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791794635176,
+  "endTime": 1791794772290,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 13040,
+  "bytesWritten": 1945,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

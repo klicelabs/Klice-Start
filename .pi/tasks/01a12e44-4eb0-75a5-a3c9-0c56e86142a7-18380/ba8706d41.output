@@ -1,0 +1,24 @@
+permission probe: <all_urls> granted = true
+FAIL  1. single refresh replaces the thumbnail with the target page — thumbId thumb-manual-single → thumb_mv500hgfwx37sx, pixel={"width":1280,"height":759,"pixels":[{"label":"origin","rgb":[0,0,0]},{"label":"2%","rgb":[0,0,0]},{"label":"90%","rgb":[0,0,0]}],"sourceLength":22491}, target={"dom":{"href":"http://127.0.0.1:61996/","readyState":"complete","visibility":"visible","bodyBackground":"rgb(45, 127, 181)","htmlBackground":"rgb(45, 127, 181)"},"browserState":{"window":{"id":1524082250,"state":"normal","focused":false},"tab":{"id":1524082252,"active":false,"status":"complete","url":"http://127.0.0.1:61996/"},"focusedWindowId":null}}, screenshot=C:\Users\joao\AppData\Local\Temp\klice-refresh-single.jpg, localRequests=[{"name":"single","path":"/"}], ui=true
+PASS  1b. headful focus returns to the prior browser window — initial=1524082247, focused=1524082247, transitions=[1524082250,-1,1524082250,-1,1524082247]
+PASS  2a. batch starts (toast + worker state) — toast=true, workerSession=true
+PASS  2b. batch of 6 completes, every thumb replaced — allChanged=true, summary=true
+PASS  7. SW-sleep resume state persisted mid-batch — status=running, queued=10, done=2, active=card-c10-3
+PASS  7b. reload restores progress and only the active card shimmers — active=card-c10-3, shimmerCount=1, toast=Capturing 3 of 10…
+
+c10-3
+
+c10-1
+c10-2
+PASS  3. cancel stops the queue with an honest count — Cancelled at 2 of 10, session=cleared, windows=1/1, thumbsSettled=2
+PASS  4. visit to sibling path captures the thumbless card (domain match) — thumbId=thumb_mv501joaefvzop
+PASS  5. different path creates a new card (exact match preserved) — cards 20 → 21
+PASS  8. page menu shows Refresh missing previews (N) — label="Refresh missing previews (12)"
+PASS  9a. right-click on selection refreshes all 11 — allThumbed=true, replaced=11/11, singleEntryShown=0
+PASS  9b. toast shows at most current + previous, no scroll list — maxRows=2, sawTwo=true
+PASS  10. icon mode shows no refresh entries (card menu + tray) — cardMenu=0, tray=0
+PASS  11. concurrent URL edits are not overwritten by a capture — url=http://127.0.0.1:62013/edited, thumbId=null
+PASS  12. a deleted card is not recreated by an in-flight refresh — cardStillExists=false
+PASS  6. no capture rate-limit errors — swErrors=[]
+
+15/16 checks passed — FAILED: 1. single refresh replaces the thumbnail with the target page

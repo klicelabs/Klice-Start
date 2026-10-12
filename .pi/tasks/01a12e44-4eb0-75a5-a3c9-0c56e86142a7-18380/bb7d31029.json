@@ -1,0 +1,31 @@
+{
+  "id": "bb7d31029",
+  "name": "Final extension build",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && bun run build",
+  "description": "Rebuild after the focus-guard and test-harness adjustments.",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\bb7d31029.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791791175770,
+  "endTime": 1791791178568,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 21396,
+  "bytesWritten": 4203,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

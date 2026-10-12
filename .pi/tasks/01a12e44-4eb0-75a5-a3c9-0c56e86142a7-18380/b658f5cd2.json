@@ -1,0 +1,31 @@
+{
+  "id": "b658f5cd2",
+  "name": "Rebuild verified capture flow",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && bun run build",
+  "description": "Rebuild the minimal-focus implementation and corrected pixel assertion.",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\b658f5cd2.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791794594854,
+  "endTime": 1791794598590,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 26412,
+  "bytesWritten": 4203,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

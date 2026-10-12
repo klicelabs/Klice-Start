@@ -1,0 +1,32 @@
+{
+  "id": "ba8706d41",
+  "name": "Trace black capture E2E",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && set \"HEADFUL=1\" && node scripts/verify-thumbnail-refresh-e2e.mjs",
+  "description": "Capture the exact target-page DOM/window state and save the black thumbnail image for inspection.",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\ba8706d41.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791794211679,
+  "endTime": 1791794347651,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 5928,
+  "bytesWritten": 2463,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "b6d0a22a7",
+  "name": "Capture window matrix",
+  "command": "node C:\\Users\\joao\\AppData\\Local\\Temp\\klice-window-probe.mjs",
+  "description": "Compare headful capture results and focus for inactive, offscreen, and minimized windows.",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\b6d0a22a7.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791785186900,
+  "endTime": 1791785192308,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 3088,
+  "bytesWritten": 176,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 180,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

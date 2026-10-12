@@ -1,0 +1,218 @@
+{
+  "beforeFocus": 1099644801,
+  "events": [
+    {
+      "id": 1099644804,
+      "at": 1791786282182
+    },
+    {
+      "id": -1,
+      "at": 1791786282264
+    },
+    {
+      "id": 1099644801,
+      "at": 1791786282591
+    },
+    {
+      "id": -1,
+      "at": 1791786282922
+    },
+    {
+      "id": 1099644804,
+      "at": 1791786282922
+    }
+  ],
+  "created": {
+    "id": 1099644804,
+    "focused": false,
+    "state": "normal",
+    "activeWindow": null
+  },
+  "unfocused": {
+    "activeWindow": null,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 1099644804,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "greenLoaded": true,
+  "afterBackgroundNavigation": {
+    "activeWindow": 1099644804,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": true,
+      "height": 854,
+      "id": 1099644804,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": true,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 759,
+      "highlighted": true,
+      "id": 1099644805,
+      "incognito": false,
+      "index": 0,
+      "lastAccessed": 1791786282235.898,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": true,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:64576/green",
+      "url": "http://127.0.0.1:64576/green",
+      "width": 1280,
+      "windowId": 1099644804
+    }
+  },
+  "greenCapture": {
+    "bytes": 10598,
+    "pixel": {
+      "width": 1280,
+      "height": 759,
+      "rgba": [
+        255,
+        255,
+        255,
+        255
+      ]
+    },
+    "expected": [
+      30,
+      160,
+      74
+    ],
+    "matches": false
+  },
+  "minimized": {
+    "activeWindow": 1099644804,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": true,
+      "height": 854,
+      "id": 1099644804,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "blueLoaded": true,
+  "afterMinimizedNavigation": {
+    "activeWindow": 1099644804,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": true,
+      "height": 854,
+      "id": 1099644804,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": true,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 759,
+      "highlighted": true,
+      "id": 1099644805,
+      "incognito": false,
+      "index": 0,
+      "lastAccessed": 1791786282235.898,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": true,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:64576/blue",
+      "url": "http://127.0.0.1:64576/blue",
+      "width": 1280,
+      "windowId": 1099644804
+    }
+  },
+  "blueCapture": {
+    "bytes": 8678,
+    "pixel": {
+      "width": 1280,
+      "height": 720,
+      "rgba": [
+        255,
+        228,
+        236,
+        255
+      ]
+    },
+    "expected": [
+      30,
+      80,
+      200
+    ],
+    "matches": false
+  },
+  "mainWindowId": 1099644801,
+  "bothMinimizedFocus": null,
+  "greenAgainLoaded": true,
+  "afterBothMinimizedNavigation": {
+    "activeWindow": null,
+    "captureWindow": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 1099644804,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "bothMinimizedCapture": {
+    "bytes": 15070,
+    "pixel": {
+      "width": 1280,
+      "height": 720,
+      "rgba": [
+        255,
+        255,
+        255,
+        255
+      ]
+    },
+    "expected": [
+      30,
+      160,
+      74
+    ],
+    "matches": false
+  }
+}

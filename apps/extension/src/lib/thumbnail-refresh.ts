@@ -17,8 +17,14 @@
  */
 export const REFRESH_THROTTLE_MS = 1500;
 
-/** How long the hidden batch window waits for a page to settle per card. */
+/** How long an inactive target tab waits for the page to settle per card. */
 export const REFRESH_PAGE_SETTLE_MS = 1800;
+
+/** Allow an activated, background-window tab's first composited frame to reach captureVisibleTab. */
+export const REFRESH_CAPTURE_FRAME_SETTLE_MS = 500;
+
+/** A target tab that does not finish navigation is failed, never captured stale. */
+export const REFRESH_NAVIGATION_TIMEOUT_MS = 12_000;
 
 /**
  * A persisted "running" batch older than this is considered stale (crashed
@@ -31,16 +37,12 @@ export const REFRESH_BATCH_STALE_MS = 10 * 60 * 1000;
 export const REFRESH_SESSION_KEY = "klice-refresh-batch";
 
 /**
- * Geometry for the reused batch capture window.
- *
- * NOTE — two classic patterns are dead on current Chromium: fully-offscreen
- * windows are rejected ("Bounds must be at least 50% within visible screen
- * space"), and a minimized window is at the mercy of compositor suspension
- * and Memory-Saver discard — it captures in lab conditions but is the
- * highest-risk variable on real profiles. So the window is created
- * visible-but-unfocused at the default position and kept unfocused: always
- * composited, always capturable, never focus-stealing. One window per batch,
- * closed at the end.
+ * Geometry for the reused capture window. Chrome rejects windows that are
+ * more than half outside the visible work area; minimized-window capture is
+ * not a documented guarantee. Keep a normal, non-topmost window and load each
+ * target in an inactive tab. Some Chromium builds focus it when a target tab is
+ * activated; the queue restores prior focus promptly after activation if the
+ * user has not switched windows.
  */
 export const REFRESH_WINDOW_GEOMETRY = {
 	width: 800,
@@ -67,6 +69,7 @@ export type RefreshMessageType =
 	| "refresh:single"
 	| "refresh:batch"
 	| "refresh:cancel"
+	| "refresh:state"
 	| "refresh:progress";
 
 export interface RefreshSingleMessage {
@@ -83,10 +86,15 @@ export interface RefreshCancelMessage {
 	type: "refresh:cancel";
 }
 
+export interface RefreshStateMessage {
+	type: "refresh:state";
+}
+
 export type RefreshMessage =
 	| RefreshSingleMessage
 	| RefreshBatchMessage
-	| RefreshCancelMessage;
+	| RefreshCancelMessage
+	| RefreshStateMessage;
 
 export type RefreshProgressStatus =
 	| "started"
@@ -111,6 +119,8 @@ export interface RefreshProgressEvent {
 	currentCardId?: string;
 	currentUrl?: string;
 	currentTitle?: string;
+	/** Remaining queue ids let a newly opened New Tab reconstruct progress. */
+	queuedIds?: string[];
 	/** Latest-first is a UI concern; the worker appends chronologically. */
 	recent?: Array<{
 		cardId: string;
@@ -128,7 +138,8 @@ export function isRefreshMessage(value: unknown): value is RefreshMessage {
 	return (
 		type === "refresh:single" ||
 		type === "refresh:batch" ||
-		type === "refresh:cancel"
+		type === "refresh:cancel" ||
+		type === "refresh:state"
 	);
 }
 
@@ -144,6 +155,12 @@ export interface RefreshBatchState {
 		{ title: string; url: string; ok: boolean; error?: string }
 	>;
 	startedAt: number;
+	/** Card currently being prepared/captured; null between cards. */
+	activeCardId?: string | null;
+	/** Owned window/tab ids let a resumed worker reuse or clean its surface. */
+	captureWindowId?: number | null;
+	captureTabId?: number | null;
+	pendingCaptureTabId?: number | null;
 }
 
 export function emptyRefreshState(): RefreshBatchState {
@@ -154,6 +171,10 @@ export function emptyRefreshState(): RefreshBatchState {
 		failedIds: [],
 		sites: {},
 		startedAt: 0,
+		activeCardId: null,
+		captureWindowId: null,
+		captureTabId: null,
+		pendingCaptureTabId: null,
 	};
 }
 
@@ -163,8 +184,44 @@ export function isResumableRefreshState(value: unknown): boolean {
 	const state = value as Partial<RefreshBatchState>;
 	if (state.status !== "running") return false;
 	if (!Array.isArray(state.cardIds) || state.cardIds.length === 0) return false;
-	if (typeof state.startedAt !== "number") return false;
+	if (!state.cardIds.every((id) => typeof id === "string")) return false;
+	if (!Array.isArray(state.doneIds) || !Array.isArray(state.failedIds))
+		return false;
+	if (
+		!state.doneIds.every((id) => typeof id === "string") ||
+		!state.failedIds.every((id) => typeof id === "string")
+	)
+		return false;
+	if (
+		!state.sites ||
+		typeof state.sites !== "object" ||
+		Array.isArray(state.sites)
+	)
+		return false;
+	if (typeof state.startedAt !== "number" || !Number.isFinite(state.startedAt))
+		return false;
+	if (state.activeCardId != null && typeof state.activeCardId !== "string")
+		return false;
+	for (const id of [
+		state.captureWindowId,
+		state.captureTabId,
+		state.pendingCaptureTabId,
+	]) {
+		if (id != null && (!Number.isInteger(id) || id < 0)) return false;
+	}
 	return Date.now() - state.startedAt < REFRESH_BATCH_STALE_MS;
+}
+
+export function isRefreshTargetUnchanged(
+	initialUrl: string,
+	currentUrl: string,
+	initialThumbId: string | null | undefined,
+	currentThumbId: string | null | undefined,
+): boolean {
+	return (
+		initialUrl === currentUrl &&
+		(initialThumbId ?? null) === (currentThumbId ?? null)
+	);
 }
 
 // ── User-facing strings (single source; no copies in components) ─────────
@@ -174,7 +231,7 @@ export const REFRESH_STRINGS = {
 	batchAction: (n: number) => `Refresh previews (${n})`,
 	missingAction: (n: number) => `Refresh missing previews (${n})`,
 	confirmMany: (n: number) =>
-		`Refresh ${n} previews? This opens pages briefly in a hidden window.`,
+		`Refresh ${n} previews? Pages load in inactive tabs in a temporary window. Some browsers may briefly switch focus during each capture.`,
 	alreadyRunning: "A refresh is already running.",
 	needsPermission:
 		"Site access is needed to capture previews. Allow access in Settings → Manage bookmarks.",

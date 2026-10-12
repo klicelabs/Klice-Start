@@ -705,6 +705,49 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
+/* Only the card the worker is currently processing gets a clipped shimmer.
+   Transform-only motion keeps the image/layout stable and never intercepts input. */
+.dial-card .thumb[data-refreshing="true"]::after {
+	position: absolute;
+	inset-block: 0;
+	left: -55%;
+	width: 55%;
+	background: linear-gradient(
+		110deg,
+		transparent 0%,
+		rgb(var(--klice-accent-rgb) / 0.02) 30%,
+		rgb(var(--klice-accent-rgb) / 0.14) 50%,
+		rgb(var(--klice-accent-rgb) / 0.02) 70%,
+		transparent 100%
+	);
+	content: "";
+	pointer-events: none;
+	transform: translateX(0);
+	animation: klice-thumbnail-shimmer 1.25s linear infinite;
+	will-change: transform;
+}
+
+@keyframes klice-thumbnail-shimmer {
+	to {
+		transform: translateX(300%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.dial-card .thumb[data-refreshing="true"]::after {
+		left: 0;
+		width: 100%;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgb(var(--klice-accent-rgb) / 0.06) 50%,
+			transparent 100%
+		);
+		transform: none;
+		animation: none;
+	}
+}
+
 /* Card mode keeps its existing whole-card selection treatment. Icon mode uses
    the surface-only rules above so labels stay outside the blue outline. */
 .dial-grid[data-layout="card"] .dial-card[data-selected="true"]::before {

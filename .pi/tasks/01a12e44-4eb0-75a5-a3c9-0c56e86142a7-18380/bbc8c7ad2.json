@@ -1,0 +1,32 @@
+{
+  "id": "bbc8c7ad2",
+  "name": "Headful E2E with local pages",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && set \"HEADFUL=1\" && node scripts/verify-thumbnail-refresh-e2e.mjs",
+  "description": "Verify captures against real loopback HTTP pages on unique origins, plus all refresh edge cases.",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\bbc8c7ad2.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791792574204,
+  "endTime": 1791792644450,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 21432,
+  "bytesWritten": 5234,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

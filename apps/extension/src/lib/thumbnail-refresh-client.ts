@@ -11,9 +11,12 @@ import { useRefreshStore } from "../stores/refresh-store";
 import { useSetupStore } from "../stores/setup-store";
 import { extApi } from "./extension-api";
 import {
+	emptyRefreshState,
 	isRefreshMessage,
+	isResumableRefreshState,
 	REFRESH_SESSION_KEY,
 	REFRESH_STRINGS,
+	type RefreshBatchState,
 	type RefreshProgressEvent,
 } from "./thumbnail-refresh";
 
@@ -30,6 +33,7 @@ function runtime(): {
 	};
 } {
 	try {
+		// SAFETY: test shims may expose only part of the runtime; these optional members are checked before invocation.
 		return extApi().runtime as unknown as {
 			sendMessage?: (message: unknown) => Promise<unknown> | unknown;
 			onMessage?: {
@@ -87,6 +91,16 @@ export async function sendRefreshCancel(): Promise<void> {
 	await send({ type: "refresh:cancel" });
 }
 
+/** Read the session-backed batch snapshot so a reloaded New Tab can recover. */
+export async function requestRefreshSnapshot(): Promise<RefreshBatchState | null> {
+	const result = await send({ type: "refresh:state" });
+	if (result.ok !== true || !isResumableRefreshState(result.state)) return null;
+	return {
+		...emptyRefreshState(),
+		...(result.state as RefreshBatchState),
+	};
+}
+
 /** Non-refresh messages pass through untouched (listener returns nothing). */
 export function subscribeRefreshProgress(
 	onEvent: (event: RefreshProgressEvent) => void,
@@ -131,7 +145,8 @@ export function isRefreshProgressMessage(
  * Send-first starts: the worker accepts before any local state is touched,
  * so a rejected start (another batch running, missing permission) can never
  * clobber the running batch's toast. Accepted starts paint optimistically
- * via beginLocal; the worker's `started` event confirms a frame later.
+ * via beginLocal; the worker's `started` event confirms a frame later. If
+ * that event arrived before the response, do not overwrite its live state.
  */
 export async function startSingleRefresh(cardId: string): Promise<boolean> {
 	const result = await sendRefreshSingle(cardId);
@@ -139,7 +154,8 @@ export async function startSingleRefresh(cardId: string): Promise<boolean> {
 		notifyRefreshRejected(result.reason);
 		return false;
 	}
-	useRefreshStore.getState().beginLocal([cardId]);
+	if (!useRefreshStore.getState().active)
+		useRefreshStore.getState().beginLocal([cardId]);
 	return true;
 }
 
@@ -151,7 +167,8 @@ export async function startBatchRefresh(cardIds: string[]): Promise<boolean> {
 		notifyRefreshRejected(result.reason);
 		return false;
 	}
-	useRefreshStore.getState().beginLocal(unique);
+	if (!useRefreshStore.getState().active)
+		useRefreshStore.getState().beginLocal(unique);
 	return true;
 }
 

@@ -1,0 +1,31 @@
+{
+  "id": "b314e424f",
+  "name": "Capture pixel validation",
+  "command": "node C:\\Users\\joao\\AppData\\Local\\Temp\\klice-window-probe.mjs",
+  "description": "Test real target pixels and focus through window geometry variants.",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\b314e424f.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791785782022,
+  "endTime": 1791785801038,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 21056,
+  "bytesWritten": 9790,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 240,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

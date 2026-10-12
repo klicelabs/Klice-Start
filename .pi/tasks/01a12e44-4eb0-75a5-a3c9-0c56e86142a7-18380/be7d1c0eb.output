@@ -1,0 +1,29 @@
+seed { cardId: 'card-1', url: 'https://example.com/1' }
+start { ok: true, accepted: true, total: 1 }
+target {
+  activeCardId: 'card-1',
+  captureWindowId: 1442244422,
+  captureTabId: 1442244424,
+  dom: {
+    href: 'https://example.com/1',
+    title: 'Example Domain',
+    readyState: 'complete',
+    text: 'This domain is for use in documentation examples without needing permission. This is not a service; avoid relying on it for testing and monitoring purposes.',
+    bodyBg: 'rgba(0, 0, 0, 0)',
+    htmlBg: 'rgb(238, 238, 238)'
+  }
+}
+image {
+  width: 1280,
+  height: 759,
+  mime: 'data:image/jpeg',
+  pixels: [
+    { x: 0, y: 0, rgba: [Array] },
+    { x: 25, y: 15, rgba: [Array] },
+    { x: 128, y: 75, rgba: [Array] },
+    { x: 640, y: 379, rgba: [Array] },
+    { x: 1152, y: 683, rgba: [Array] }
+  ],
+  sourceLength: 26159,
+  screenshotPath: 'C:/Users/joao/AppData/Local/Temp/klice-refresh-capture.jpg'
+}

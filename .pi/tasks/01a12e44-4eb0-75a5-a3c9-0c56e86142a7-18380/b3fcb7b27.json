@@ -1,0 +1,31 @@
+{
+  "id": "b3fcb7b27",
+  "name": "Build capture focus fix",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && bun run build",
+  "description": "Build the capture-before-focus-restore behavior and updated user-facing caveat.",
+  "status": "completed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\b3fcb7b27.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791793694977,
+  "endTime": 1791793697800,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 22672,
+  "bytesWritten": 4203,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 300,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

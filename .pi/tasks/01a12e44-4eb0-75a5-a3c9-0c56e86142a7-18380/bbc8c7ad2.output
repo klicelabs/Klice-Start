@@ -1,0 +1,72 @@
+permission probe: <all_urls> granted = true
+FAIL  1. single refresh replaces the thumbnail with the target page — thumbId thumb-manual-single → thumb_mv4z1e3ae785da, pixel=0,0,0, ui=true
+FAIL  1b. headful focus returns to the prior browser window — initial=873957091, focused=null, transitions=[873957094,-1,873957094,-1,873957091]
+PASS  2a. batch starts (toast + worker state) — toast=true, workerSession=true
+PASS  2b. batch of 6 completes, every thumb replaced — allChanged=true, summary=true
+PASS  7. SW-sleep resume state persisted mid-batch — status=running, queued=10, done=2, active=card-c10-3
+PASS  7b. reload restores progress and only the active card shimmers — active=card-c10-3, shimmerCount=1, toast=Capturing 3 of 10…
+
+c10-3
+
+c10-1
+c10-2
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: 'Cancel refresh' })[22m
+[2m    - locator resolved to <button type="button" title="Cancel refresh" aria-label="Cancel refresh" class="inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-flat-sunken-raised text-flat-ink-muted hover:text-flat-ink">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is visible, enabled and stable[22m
+[2m      - scrolling into view if needed[22m
+[2m      - done scrolling[22m
+[2m      - <li tabindex="0" data-index="0" class="cn-toast" data-front="true" data-styled="false" data-mounted="true" data-swiped="false" data-removed="true" data-visible="true" data-sonner-toast="" data-promise="false" data-swiping="false" data-expanded="false" data-swipe-out="false" data-dismissible="true" data-y-position="bottom" data-x-position="center">…</li> intercepts pointer events[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+[2m    - element is visible, enabled and stable[22m
+[2m    - scrolling into view if needed[22m
+[2m    - done scrolling[22m
+[2m    - <li tabindex="0" data-index="0" class="cn-toast" data-front="true" data-styled="false" data-mounted="true" data-swiped="false" data-removed="true" data-visible="true" data-sonner-toast="" data-promise="false" data-swiping="false" data-expanded="false" data-swipe-out="false" data-dismissible="true" data-y-position="bottom" data-x-position="center">…</li> intercepts pointer events[22m
+[2m  - retrying click action[22m
+[2m    - waiting 100ms[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+[2m    - element is not stable[22m
+[2m  - retrying click action[22m
+[2m    - waiting 100ms[22m
+[2m    - waiting for element to be visible, enabled and stable[22m
+[2m  - element was detached from the DOM, retrying[22m
+
+    at C:\Dev\klice-start\apps\extension\scripts\verify-thumbnail-refresh-e2e.mjs:751:66 {
+  log: [
+    "  - waiting for getByRole('button', { name: 'Cancel refresh' })",
+    '    - locator resolved to <button type="button" title="Cancel refresh" aria-label="Cancel refresh" class="inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring bg-flat-sunken-raised text-flat-ink-muted hover:text-flat-ink">…</button>',
+    '  - attempting click action',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is visible, enabled and stable',
+    '      - scrolling into view if needed',
+    '      - done scrolling',
+    '      - <li tabindex="0" data-index="0" class="cn-toast" data-front="true" data-styled="false" data-mounted="true" data-swiped="false" data-removed="true" data-visible="true" data-sonner-toast="" data-promise="false" data-swiping="false" data-expanded="false" data-swipe-out="false" data-dismissible="true" data-y-position="bottom" data-x-position="center">…</li> intercepts pointer events',
+    '    - retrying click action',
+    '    - waiting 20ms',
+    '    - waiting for element to be visible, enabled and stable',
+    '    - element is visible, enabled and stable',
+    '    - scrolling into view if needed',
+    '    - done scrolling',
+    '    - <li tabindex="0" data-index="0" class="cn-toast" data-front="true" data-styled="false" data-mounted="true" data-swiped="false" data-removed="true" data-visible="true" data-sonner-toast="" data-promise="false" data-swiping="false" data-expanded="false" data-swipe-out="false" data-dismissible="true" data-y-position="bottom" data-x-position="center">…</li> intercepts pointer events',
+    '  - retrying click action',
+    '    - waiting 100ms',
+    '    - waiting for element to be visible, enabled and stable',
+    '    - element is not stable',
+    '  - retrying click action',
+    '    - waiting 100ms',
+    '    - waiting for element to be visible, enabled and stable',
+    '  - element was detached from the DOM, retrying'
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v24.18.0

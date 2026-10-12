@@ -1,0 +1,32 @@
+{
+  "id": "bedf135c4",
+  "name": "Repeat headful refresh E2E",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && set \"HEADFUL=1\" && node scripts/verify-thumbnail-refresh-e2e.mjs",
+  "description": "Re-run the complete headful E2E after capture-frame and mid-run sampling adjustments.",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\bedf135c4.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791791669548,
+  "endTime": 1791791807648,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 24120,
+  "bytesWritten": 1832,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}

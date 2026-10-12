@@ -1,0 +1,55 @@
+$ wxt build
+
+WXT 0.20.27
+[36mi[39m Building chrome-mv3 for production with Vite 8.1.4
+[33m-[39m Preparing...
+[33m[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[1G[32m√[39m Built extension in 1.802 s
+  ├─ .output\chrome-mv3\manifest.json                                  885 B    
+  ├─ .output\chrome-mv3\newtab.html                                    590 B    
+  ├─ .output\chrome-mv3\popup.html                                     572 B    
+  ├─ .output\chrome-mv3\background.js                                  37.31 kB 
+  ├─ .output\chrome-mv3\chunks\globals-CdL27RUN.js                     285.12 kB
+  ├─ .output\chrome-mv3\chunks\newtab-BgZVTJcj.js                      668.02 kB
+  ├─ .output\chrome-mv3\chunks\popup-0NiSpcYW.js                       10.34 kB 
+  ├─ .output\chrome-mv3\assets\globals-Czy9vK3F.css                    186.11 kB
+  ├─ .output\chrome-mv3\assets\newtab-DPtCY5dg.css                     24.28 kB 
+  ├─ .output\chrome-mv3\assets\popup-DWLhJBD_.css                      237 B    
+  ├─ .output\chrome-mv3\_locales\en\messages.json                      128 B    
+  ├─ .output\chrome-mv3\icon\128.png                                   3.07 kB  
+  ├─ .output\chrome-mv3\icon\16.png                                    559 B    
+  ├─ .output\chrome-mv3\icon\32.png                                    916 B    
+  ├─ .output\chrome-mv3\icon\48.png                                    1.33 kB  
+  ├─ .output\chrome-mv3\icon\96.png                                    2.37 kB  
+  ├─ .output\chrome-mv3\icon\icon128.png                               979 B    
+  ├─ .output\chrome-mv3\icon\icon16.png                                200 B    
+  ├─ .output\chrome-mv3\icon\icon32.png                                302 B    
+  ├─ .output\chrome-mv3\icon\icon48.png                                405 B    
+  ├─ .output\chrome-mv3\wallpapers\alpine-lake-sunbeams.avif           442.18 kB
+  ├─ .output\chrome-mv3\wallpapers\blue-moon-mountains.avif            156.16 kB
+  ├─ .output\chrome-mv3\wallpapers\bonsai-rock-milky-way.avif          107.92 kB
+  ├─ .output\chrome-mv3\wallpapers\matterhorn-at-dusk.avif             46.67 kB 
+  ├─ .output\chrome-mv3\wallpapers\mountain-lake.avif                  217.98 kB
+  ├─ .output\chrome-mv3\wallpapers\purple-mountain-summit.avif         297.14 kB
+  ├─ .output\chrome-mv3\wallpapers\red-sun-water.avif                  17.29 kB 
+  ├─ .output\chrome-mv3\wallpapers\starry-night-sky.avif               312.9 kB 
+  ├─ .output\chrome-mv3\wallpapers\thumbs\alpine-lake-sunbeams.avif    8.6 kB   
+  ├─ .output\chrome-mv3\wallpapers\thumbs\blue-moon-mountains.avif     3.1 kB   
+  ├─ .output\chrome-mv3\wallpapers\thumbs\bonsai-rock-milky-way.avif   1.59 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\matterhorn-at-dusk.avif      2.36 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\mountain-lake.avif           10.66 kB 
+  ├─ .output\chrome-mv3\wallpapers\thumbs\purple-mountain-summit.avif  7.46 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\red-sun-water.avif           1.25 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\starry-night-sky.avif        3.95 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\tokyo-skyline.avif           5.11 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\turquoise-alpine-lake.avif   8.67 kB  
+  ├─ .output\chrome-mv3\wallpapers\thumbs\violet-curves.avif           2.17 kB  
+  ├─ .output\chrome-mv3\wallpapers\tokyo-skyline.avif                  185.21 kB
+  ├─ .output\chrome-mv3\wallpapers\turquoise-alpine-lake.avif          496.53 kB
+  └─ .output\chrome-mv3\wallpapers\violet-curves.avif                  18.89 kB 
+Σ Total size: 3.58 MB                                                
+[32m√[39m Finished in 1.860 s

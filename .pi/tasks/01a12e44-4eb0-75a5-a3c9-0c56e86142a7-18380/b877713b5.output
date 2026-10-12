@@ -1,0 +1,76 @@
+{
+  "afterCreate": {
+    "windowId": 779055733,
+    "focused": false,
+    "state": "normal",
+    "focusedWindow": null
+  },
+  "afterMinimize": {
+    "focused": false,
+    "state": "normal",
+    "focusedWindow": null
+  },
+  "greenLoaded": true,
+  "greenWindow": {
+    "state": "normal",
+    "focused": true
+  },
+  "greenFocusedWindow": 779055733,
+  "greenCapture": {
+    "bytes": 10598,
+    "pixel": {
+      "width": 1280,
+      "height": 759,
+      "rgba": [
+        255,
+        255,
+        255,
+        255
+      ]
+    },
+    "matches": false
+  },
+  "bothMinimizedFocus": null,
+  "blueLoaded": true,
+  "blueWindow": {
+    "state": "normal",
+    "focused": false
+  },
+  "blueFocusedWindow": null,
+  "blueCapture": {
+    "bytes": 8678,
+    "pixel": {
+      "width": 1280,
+      "height": 720,
+      "rgba": [
+        255,
+        228,
+        236,
+        255
+      ]
+    },
+    "matches": false
+  },
+  "events": [
+    {
+      "id": 779055733,
+      "at": 1791786060372
+    },
+    {
+      "id": -1,
+      "at": 1791786060766
+    },
+    {
+      "id": 779055730,
+      "at": 1791786060770
+    },
+    {
+      "id": -1,
+      "at": 1791786061102
+    },
+    {
+      "id": 779055733,
+      "at": 1791786061102
+    }
+  ]
+}

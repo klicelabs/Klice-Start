@@ -1,0 +1,299 @@
+RESULT focused-false-no-update {"strategy":"focused-false-no-update","beforeFocus":1540873913,"focusAfterLoad":1540873916,"focusAfterCapture":1540873916,"focusEvents":[1540873916],"window":{"id":1540873916,"focused":true,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873917,"url":"http://127.0.0.1:52921/focused-false-no-update","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT focused-false-with-update {"strategy":"focused-false-with-update","beforeFocus":1540873913,"focusAfterLoad":1540873913,"focusAfterCapture":1540873913,"focusEvents":[-1,1540873920,1540873913],"window":{"id":1540873920,"focused":false,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873921,"url":"http://127.0.0.1:52921/focused-false-with-update","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT focused-true {"strategy":"focused-true","beforeFocus":1540873913,"focusAfterLoad":1540873924,"focusAfterCapture":1540873924,"focusEvents":[-1,1540873924],"window":{"id":1540873924,"focused":true,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873925,"url":"http://127.0.0.1:52921/focused-true","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT minimized-at-create {"strategy":"minimized-at-create","beforeFocus":1540873913,"focusAfterLoad":1540873928,"focusAfterCapture":1540873928,"focusEvents":[-1,1540873928],"window":{"id":1540873928,"focused":true,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873929,"url":"http://127.0.0.1:52921/minimized-at-create","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT minimized-after-load {"strategy":"minimized-after-load","beforeFocus":1540873913,"focusAfterLoad":1540873913,"focusAfterCapture":1540873913,"focusEvents":[-1,1540873932,-1,1540873913],"window":{"id":1540873932,"focused":false,"state":"minimized","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873933,"url":"http://127.0.0.1:52921/minimized-after-load","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT popup-focused-false {"strategy":"popup-focused-false","beforeFocus":1540873913,"focusAfterLoad":1540873936,"focusAfterCapture":1540873936,"focusEvents":[-1,1540873936],"window":{"id":1540873936,"focused":true,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":1540873937,"url":"http://127.0.0.1:52921/popup-focused-false","status":"complete"},"loaded":true,"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true,"primaryHasFocus":true}
+RESULT primary-minimized {"beforeFocus":1540873913,"focusAfterCapture":1540873941,"window":{"id":1540873941,"focused":true,"state":"normal"},"dataUrl":"[data-url 13470 chars]","content":{"width":1280,"height":720,"pixel":[30,160,74,255]},"expectedRgb":[30,160,74],"pixelMatches":true}
+{
+  "primaryWindowId": 1540873913,
+  "results": [
+    {
+      "strategy": "focused-false-no-update",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873916,
+      "focusAfterCapture": 1540873916,
+      "focusEvents": [
+        1540873916
+      ],
+      "window": {
+        "id": 1540873916,
+        "focused": true,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873917,
+        "url": "http://127.0.0.1:52921/focused-false-no-update",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "focused-false-with-update",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873913,
+      "focusAfterCapture": 1540873913,
+      "focusEvents": [
+        -1,
+        1540873920,
+        1540873913
+      ],
+      "window": {
+        "id": 1540873920,
+        "focused": false,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873921,
+        "url": "http://127.0.0.1:52921/focused-false-with-update",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "focused-true",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873924,
+      "focusAfterCapture": 1540873924,
+      "focusEvents": [
+        -1,
+        1540873924
+      ],
+      "window": {
+        "id": 1540873924,
+        "focused": true,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873925,
+        "url": "http://127.0.0.1:52921/focused-true",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "minimized-at-create",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873928,
+      "focusAfterCapture": 1540873928,
+      "focusEvents": [
+        -1,
+        1540873928
+      ],
+      "window": {
+        "id": 1540873928,
+        "focused": true,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873929,
+        "url": "http://127.0.0.1:52921/minimized-at-create",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "minimized-after-load",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873913,
+      "focusAfterCapture": 1540873913,
+      "focusEvents": [
+        -1,
+        1540873932,
+        -1,
+        1540873913
+      ],
+      "window": {
+        "id": 1540873932,
+        "focused": false,
+        "state": "minimized",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873933,
+        "url": "http://127.0.0.1:52921/minimized-after-load",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "popup-focused-false",
+      "beforeFocus": 1540873913,
+      "focusAfterLoad": 1540873936,
+      "focusAfterCapture": 1540873936,
+      "focusEvents": [
+        -1,
+        1540873936
+      ],
+      "window": {
+        "id": 1540873936,
+        "focused": true,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 1540873937,
+        "url": "http://127.0.0.1:52921/popup-focused-false",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true,
+      "primaryHasFocus": true
+    },
+    {
+      "strategy": "primary-minimized",
+      "beforeFocus": 1540873913,
+      "focusAfterCapture": 1540873941,
+      "window": {
+        "id": 1540873941,
+        "focused": true,
+        "state": "normal"
+      },
+      "dataUrl": "[data-url 13470 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          30,
+          160,
+          74,
+          255
+        ]
+      },
+      "expectedRgb": [
+        30,
+        160,
+        74
+      ],
+      "pixelMatches": true
+    }
+  ]
+}

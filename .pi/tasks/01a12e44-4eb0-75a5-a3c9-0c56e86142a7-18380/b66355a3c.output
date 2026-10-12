@@ -1,0 +1,195 @@
+{
+  "main": 2146114528,
+  "create": {
+    "id": 2146114531,
+    "focused": false,
+    "focus": null
+  },
+  "afterReturn": {
+    "focus": 2146114528,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 2146114531,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "backgroundTabCreated": {
+    "tabId": 2146114533,
+    "focus": 2146114528,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 2146114531,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": false,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 702,
+      "highlighted": false,
+      "id": 2146114533,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791786894141.69,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pendingUrl": "http://127.0.0.1:59522/green",
+      "pinned": false,
+      "selected": false,
+      "splitViewId": -1,
+      "status": "loading",
+      "title": "",
+      "url": "",
+      "width": 1280,
+      "windowId": 2146114531
+    }
+  },
+  "loaded": true,
+  "afterLoad": {
+    "focus": 2146114528,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 2146114531,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": false,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 702,
+      "highlighted": false,
+      "id": 2146114533,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791786894141.69,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": false,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:59522/green",
+      "url": "http://127.0.0.1:59522/green",
+      "width": 1280,
+      "windowId": 2146114531
+    }
+  },
+  "afterActivate": {
+    "focus": 2146114528,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 2146114531,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": true,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 759,
+      "highlighted": true,
+      "id": 2146114533,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791786894198.888,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": true,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:59522/green",
+      "url": "http://127.0.0.1:59522/green",
+      "width": 1280,
+      "windowId": 2146114531
+    }
+  },
+  "afterUnfocus": {
+    "focus": 2146114528,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 2146114531,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "capture": {
+    "bytes": 7098,
+    "pixel": {
+      "w": 1280,
+      "h": 759,
+      "rgba": [
+        30,
+        160,
+        74,
+        255
+      ]
+    },
+    "expected": [
+      30,
+      160,
+      74
+    ],
+    "matches": true
+  },
+  "events": [
+    {
+      "id": 2146114531,
+      "at": 1791786894012
+    },
+    {
+      "id": -1,
+      "at": 1791786894085
+    },
+    {
+      "id": 2146114528,
+      "at": 1791786894123
+    }
+  ],
+  "mainPageHasFocus": true
+}

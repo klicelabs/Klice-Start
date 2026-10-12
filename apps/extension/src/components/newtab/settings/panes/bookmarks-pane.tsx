@@ -186,7 +186,7 @@ function BookmarkPreviewSettings() {
 			<SettingRow
 				label="Missing previews"
 				icon="refresh"
-				tooltip="Re-photograph every bookmark that has no preview yet, one at a time in a hidden window."
+				tooltip="Re-photograph every bookmark that has no preview yet, one at a time in inactive tabs. Some systems may briefly switch focus during each capture."
 			>
 				<SettingsAction
 					icon="refresh"

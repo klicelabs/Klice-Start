@@ -4,10 +4,11 @@ import {
 	findBookmarksByDomain,
 } from "../src/lib/bookmark-match";
 import {
+	captureDelayMs,
+	isRefreshTargetUnchanged,
+	isResumableRefreshState,
 	REFRESH_BATCH_STALE_MS,
 	REFRESH_THROTTLE_MS,
-	captureDelayMs,
-	isResumableRefreshState,
 } from "../src/lib/thumbnail-refresh";
 import {
 	canonicalizeForAutoCapture,
@@ -218,6 +219,33 @@ test("captureDelayMs spaces captures at least the throttle apart", () => {
 	expect(captureDelayMs(now - 1499, now)).toBe(1);
 	expect(captureDelayMs(now - 200, now)).toBe(REFRESH_THROTTLE_MS - 200);
 	expect(captureDelayMs(null, now)).toBe(0);
+});
+
+test("refresh commit guard rejects an edited URL or concurrently replaced preview", () => {
+	expect(
+		isRefreshTargetUnchanged(
+			"https://example.test/a",
+			"https://example.test/a",
+			"old-thumb",
+			"old-thumb",
+		),
+	).toBe(true);
+	expect(
+		isRefreshTargetUnchanged(
+			"https://example.test/a",
+			"https://example.test/b",
+			"old-thumb",
+			"old-thumb",
+		),
+	).toBe(false);
+	expect(
+		isRefreshTargetUnchanged(
+			"https://example.test/a",
+			"https://example.test/a",
+			"old-thumb",
+			"new-thumb",
+		),
+	).toBe(false);
 });
 
 // ── Persisted batch state (SW sleep resume) ─────────────────────────────

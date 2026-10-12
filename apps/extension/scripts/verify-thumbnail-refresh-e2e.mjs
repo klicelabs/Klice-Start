@@ -4,15 +4,14 @@
  * Loads the built MV3 extension (.output/chrome-mv3) in a real Chromium via
  * Playwright (same launch pattern as bench-lib.mjs), seeds folders of cards,
  * and walks the refresh scenarios with real captureVisibleTab captures
- * (route-fulfilled local pages, no network, no mocked browser APIs):
+ * (local HTTP pages served per test origin, no external network or mocked APIs):
  *
- *   1. single refresh via card context menu → thumbId replaced
- *   2. batch of 5 via selection tray → progress toast → all thumbs updated
- *   3. batch of 10 cancelled mid-run → "Cancelled at N of 10" summary
- *   4. auto-capture on a DIFFERENT path of the same domain → thumbless card fills
- *   5. manual save of a different path → NEW card (exact match preserved)
- *   6. rate limit: batches complete with no MAX_CAPTURE_VISIBLE_TAB error
- *   7. SW sleep resume: mid-batch chrome.storage.session holds resumable state
+ *   1. single refresh uses the target page's actual pixels and updates its card
+ *   2. batches complete, cancel, and restore toast + active-card shimmer on reload
+ *   3. headful mode records focus transitions and checks focus returns to the user
+ *   4. edits and deletions made during page loading win over a stale screenshot
+ *   5. auto-capture matching and manual-save identity remain unchanged
+ *   6. no MAX_CAPTURE_VISIBLE_TAB quota errors; session state stays resumable
  *
  * Run: cd apps/extension && node scripts/verify-thumbnail-refresh-e2e.mjs
  * (node, not bun: Bun's launchPersistentContext pipe hangs in this
@@ -21,13 +20,19 @@
  * Read-only diagnostic harness — writes nothing to the repo (throwaway profile).
  */
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { launchExtension } from "./bench-lib.mjs";
 
 function patchBuiltManifestForGrantedAccess() {
 	const manifestPath = path.resolve("./.output/chrome-mv3/manifest.json");
 	const original = fs.readFileSync(manifestPath, "utf8");
-	const manifest = JSON.parse(original);
+	let manifest;
+	try {
+		manifest = JSON.parse(original);
+	} catch {
+		throw new Error("Built extension manifest is invalid JSON");
+	}
 	const optional = manifest.optional_host_permissions ?? [];
 	manifest.host_permissions = [
 		...(manifest.host_permissions ?? []),
@@ -58,7 +63,12 @@ const COLORS = {
 };
 
 const pageHtml = (url) => {
-	const u = new URL(url);
+	let u;
+	try {
+		u = new URL(url);
+	} catch {
+		throw new Error(`Invalid test page URL: ${url}`);
+	}
 	const key = u.hostname
 		.replace(/\.test$/, "")
 		.split("-")
@@ -66,10 +76,56 @@ const pageHtml = (url) => {
 		.join("-");
 	const color =
 		COLORS[key] ?? COLORS[u.hostname.replace(/\.test$/, "")] ?? COLORS.default;
-	return `<!doctype html><html><head><title>${u.hostname}${u.pathname}</title></head><body style="background:${color};color:#fff;font:48px sans-serif;padding:40px">${u.hostname}${u.pathname}</body></html>`;
+	return `<!doctype html><html style="margin:0;background:${color}"><head><title>${u.hostname}${u.pathname}</title><style>html,body{width:100%;height:100%;margin:0;background:${color}}</style></head><body style="color:#fff;font:48px sans-serif;padding:40px">${u.hostname}${u.pathname}</body></html>`;
 };
 
 const MANUAL_THUMB_ID = "thumb-manual-single";
+const TEST_SERVER_NAMES = [
+	"single",
+	...Array.from({ length: 5 }, (_, index) => `s5-r${index + 1}`),
+	...Array.from({ length: 10 }, (_, index) => `c10-${index + 1}`),
+	"dom",
+	"edit-mid",
+	"delete-mid",
+	"manual",
+];
+const localTestOrigins = new Map();
+const localTestServers = [];
+const localTestRequests = [];
+
+function testUrl(name, pathname = "/") {
+	const origin = localTestOrigins.get(name);
+	if (!origin) throw new Error(`Local test server is not ready: ${name}`);
+	return `${origin}${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
+}
+
+async function startLocalTestServers() {
+	for (const name of TEST_SERVER_NAMES) {
+		const server = http.createServer((request, response) => {
+			const requestPath = request.url ?? "/";
+			localTestRequests.push({ name, path: requestPath });
+			const syntheticUrl = `http://${name}.test${requestPath}`;
+			response.writeHead(200, {
+				"content-type": "text/html; charset=utf-8",
+				"cache-control": "no-store",
+			});
+			response.end(pageHtml(syntheticUrl));
+		});
+		localTestServers.push(server);
+		await new Promise((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(0, "127.0.0.1", () => {
+				server.off("error", reject);
+				resolve();
+			});
+		});
+		const address = server.address();
+		if (!address || typeof address === "string") {
+			throw new Error(`Could not bind local test server: ${name}`);
+		}
+		localTestOrigins.set(name, `http://127.0.0.1:${address.port}`);
+	}
+}
 
 function baseSettings() {
 	return {
@@ -152,15 +208,17 @@ function buildSeedState() {
 		itemOrder[folderId].push(`card:${id}`);
 	};
 	// folder-5: one card WITH a thumb (single-refresh target) + 4 thumbless.
-	push("folder-5", "single", "http://single.test/", MANUAL_THUMB_ID);
+	push("folder-5", "single", testUrl("single"), MANUAL_THUMB_ID);
 	for (let i = 1; i <= 4; i += 1)
-		push("folder-5", `s5-r${i}`, `http://s5-r${i}.test/`, null);
-	push("folder-5", "s5-r5", "http://s5-r5.test/", null);
+		push("folder-5", `s5-r${i}`, testUrl(`s5-r${i}`), null);
+	push("folder-5", "s5-r5", testUrl("s5-r5"), null);
 	// folder-10: ten thumbless cards for the cancel test.
 	for (let i = 1; i <= 10; i += 1)
-		push("folder-10", `c10-${i}`, `http://c10-${i}.test/`, null);
+		push("folder-10", `c10-${i}`, testUrl(`c10-${i}`), null);
 	// folder-dom: thumbless card on one path; the visit uses another path.
-	push("folder-dom", "domcard", "http://dom.test/notebook/abc", null);
+	push("folder-dom", "domcard", testUrl("dom", "/notebook/abc"), null);
+	push("folder-dom", "edit-mid-refresh", testUrl("edit-mid"), null);
+	push("folder-dom", "delete-mid-refresh", testUrl("delete-mid"), null);
 	return {
 		state: {
 			folders,
@@ -183,7 +241,11 @@ async function readCards(observer) {
 			),
 	);
 	if (!raw) return null;
-	return JSON.parse(raw).state.cards;
+	try {
+		return JSON.parse(raw).state.cards;
+	} catch {
+		return null;
+	}
 }
 
 async function readRefreshSession(observer) {
@@ -192,6 +254,56 @@ async function readRefreshSession(observer) {
 			.get("klice-refresh-batch")
 			.then((d) => d["klice-refresh-batch"] ?? null),
 	);
+}
+
+async function readThumbnailPixel(observer, thumbId) {
+	return observer.evaluate(async (id) => {
+		const db = await new Promise((resolve, reject) => {
+			const request = indexedDB.open("perch-db", 1);
+			request.onerror = () => reject(request.error);
+			request.onsuccess = () => resolve(request.result);
+		});
+		const dataUrl = await new Promise((resolve, reject) => {
+			const request = db
+				.transaction("thumbnails", "readonly")
+				.objectStore("thumbnails")
+				.get(id);
+			request.onerror = () => reject(request.error);
+			request.onsuccess = () => resolve(request.result);
+		});
+		db.close();
+		if (typeof dataUrl !== "string") return null;
+		const image = new Image();
+		image.src = dataUrl;
+		await image.decode();
+		const canvas = document.createElement("canvas");
+		canvas.width = image.naturalWidth;
+		canvas.height = image.naturalHeight;
+		const context = canvas.getContext("2d");
+		if (!context) return null;
+		context.drawImage(image, 0, 0);
+		const points = [
+			{ label: "origin", x: 0, y: 0 },
+			{
+				label: "2%",
+				x: Math.floor(canvas.width * 0.02),
+				y: Math.floor(canvas.height * 0.02),
+			},
+			{
+				label: "90%",
+				x: Math.floor(canvas.width * 0.9),
+				y: Math.floor(canvas.height * 0.9),
+			},
+		];
+		return {
+			width: canvas.width,
+			height: canvas.height,
+			pixels: points.map(({ label, x, y }) => ({
+				label,
+				rgb: [...context.getImageData(x, y, 1, 1).data].slice(0, 3),
+			})),
+		};
+	}, thumbId);
 }
 
 async function windowCount(observer) {
@@ -250,12 +362,7 @@ try {
 }
 
 try {
-	await context.route(/http:\/\/[^/]+\.test\//, (route) =>
-		route.fulfill({
-			contentType: "text/html",
-			body: pageHtml(route.request().url()),
-		}),
-	);
+	await startLocalTestServers();
 	await context.route("**/s2/favicons*", (route) =>
 		route.fulfill({ contentType: "image/png", body: FAVICON_PNG_1X1 }),
 	);
@@ -326,8 +433,17 @@ try {
 		.catch(() => {});
 	// Ground-truth event tap (independent of the product's own listener).
 	// Installed after the seed reload so navigation never wipes it.
-	await observer.evaluate(() => {
+	await observer.evaluate(async () => {
 		window.__refreshEvents = [];
+		window.__focusEvents = [];
+		window.__initiatingWindowId = (await chrome.windows.getCurrent()).id;
+		window.__initialFocusedWindowId =
+			(await chrome.windows.getAll({ populate: false })).find(
+				(candidate) => candidate.focused,
+			)?.id ?? null;
+		chrome.windows.onFocusChanged.addListener((id) =>
+			window.__focusEvents.push(id),
+		);
 		chrome.runtime.onMessage.addListener((m) => {
 			if (m?.type === "refresh:progress")
 				window.__refreshEvents.push(`${m.status}:${m.completed}/${m.total}`);
@@ -355,11 +471,44 @@ try {
 			25000,
 			"single refresh thumbId change",
 		);
+		await waitFor(
+			async () =>
+				(await readRefreshSession(observer).catch(() => null)) === null
+					? true
+					: null,
+			15000,
+			"single refresh finalization",
+		);
 		const ui = await cardShowsThumb(observer, "single");
+		const pixel = updated
+			? await readThumbnailPixel(observer, updated.thumbId).catch(() => null)
+			: null;
+		const sample = pixel?.pixels?.find((entry) => entry.label === "2%")?.rgb;
+		const rightPageCaptured =
+			Array.isArray(sample) &&
+			Math.abs(sample[0] - 45) <= 5 &&
+			Math.abs(sample[1] - 127) <= 5 &&
+			Math.abs(sample[2] - 181) <= 5;
+		const focus = await observer.evaluate(async () => ({
+			initiating: window.__initiatingWindowId,
+			initialFocused: window.__initialFocusedWindowId,
+			focused:
+				(await chrome.windows.getAll({ populate: false })).find(
+					(candidate) => candidate.focused,
+				)?.id ?? null,
+			events: window.__focusEvents,
+		}));
+		const focusRestored =
+			focus.focused === (focus.initialFocused ?? focus.initiating);
 		record(
-			"1. single refresh replaces the thumbnail",
-			!!updated && ui,
-			`thumbId ${thumbBefore} → ${updated?.thumbId}, ui=${ui}`,
+			"1. single refresh replaces the thumbnail with the target page",
+			!!updated && ui && rightPageCaptured,
+			`thumbId ${thumbBefore} → ${updated?.thumbId}, pixel=${JSON.stringify(pixel)}, localRequests=${JSON.stringify(localTestRequests.filter((request) => request.name === "single"))}, ui=${ui}`,
+		);
+		record(
+			"1b. headful focus returns to the prior browser window",
+			process.env.HEADFUL !== "1" || focusRestored,
+			`initial=${focus.initialFocused}, focused=${focus.focused}, transitions=${JSON.stringify(focus.events)}`,
 		);
 	}
 
@@ -397,8 +546,8 @@ try {
 			};
 		}
 		await clickTrayRefreshOnce();
-		// Progress toast appears with the ring + label (one retry: a click
-		// racing the menu's motion transition can land without selecting).
+		// Progress toast appears with its label and the active card shimmer
+		// (one retry: a click racing the menu transition can miss selection).
 		let running = await waitFor(
 			async () => {
 				const state = await batchRunning();
@@ -553,28 +702,82 @@ try {
 		}
 
 		// (7) mid-batch: the worker persisted resumable state to storage.session.
-		await waitFor(
+		const midRun = await waitFor(
 			async () => {
 				const text = await observer
 					.locator("[data-sonner-toaster]")
 					.innerText()
 					.catch(() => "");
-				return /Capturing [3-9] of 10/.test(text) ? text : null;
+				const state = await readRefreshSession(observer).catch(() => null);
+				return /Capturing [3-9] of 10/.test(text) &&
+					typeof state?.activeCardId === "string"
+					? state
+					: null;
 			},
 			60000,
-			"batch reaching mid-run",
+			"batch reaching an active mid-run capture",
 		);
-		const session = await readRefreshSession(observer);
+		const session = midRun ?? (await readRefreshSession(observer));
 		record(
 			"7. SW-sleep resume state persisted mid-batch",
 			!!session &&
 				session.status === "running" &&
-				session.cardIds?.length === 10,
-			`status=${session?.status}, queued=${session?.cardIds?.length}, done=${session?.doneIds?.length}`,
+				session.cardIds?.length === 10 &&
+				typeof session.activeCardId === "string",
+			`status=${session?.status}, queued=${session?.cardIds?.length}, done=${session?.doneIds?.length}, active=${session?.activeCardId}`,
+		);
+
+		// Reload this New Tab while the queue is running. It must reconstruct
+		// both the toast and the one-card shimmer from chrome.storage.session.
+		await observer.reload({ waitUntil: "load" });
+		await observer.waitForFunction(
+			() => document.querySelectorAll("[data-marquee-id]").length >= 10,
+			null,
+			{ timeout: 15000 },
+		);
+		const recoveredProgress = await waitFor(
+			async () => {
+				const currentSession = await readRefreshSession(observer).catch(
+					() => null,
+				);
+				const ui = await observer.evaluate(() => {
+					const active = [
+						...document.querySelectorAll('.thumb[data-refreshing="true"]'),
+					];
+					const cardId = active[0]
+						?.closest("[data-marquee-id]")
+						?.getAttribute("data-marquee-id");
+					return {
+						activeCount: active.length,
+						cardId,
+						toast:
+							document.querySelector("[data-sonner-toaster]")?.innerText ?? "",
+					};
+				});
+				if (
+					currentSession?.status === "running" &&
+					currentSession.activeCardId &&
+					ui.activeCount === 1 &&
+					ui.cardId === currentSession.activeCardId &&
+					/Capturing [0-9]+ of 10/.test(ui.toast)
+				) {
+					return { currentSession, ui };
+				}
+				return null;
+			},
+			30000,
+			"reloaded progress and active-card shimmer",
+		);
+		record(
+			"7b. reload restores progress and only the active card shimmers",
+			!!recoveredProgress,
+			`active=${recoveredProgress?.currentSession.activeCardId}, shimmerCount=${recoveredProgress?.ui.activeCount}, toast=${recoveredProgress?.ui.toast.slice(0, 60)}`,
 		);
 
 		// (3) cancel now; the toast must confirm with counts.
-		await observer.getByRole("button", { name: "Cancel refresh" }).click();
+		await observer
+			.getByRole("button", { name: "Cancel refresh" })
+			.evaluate((button) => button.click());
 		const cancelledText = await waitFor(
 			async () => {
 				const text = await observer
@@ -615,7 +818,7 @@ try {
 	{
 		const visit = await context.newPage();
 		await visit.bringToFront();
-		await visit.goto("http://dom.test/notebook/xyz", { waitUntil: "load" });
+		await visit.goto(testUrl("dom", "/notebook/xyz"), { waitUntil: "load" });
 		const captured = await waitFor(
 			async () => {
 				const cards = await readCards(observer);
@@ -638,14 +841,16 @@ try {
 	{
 		// Seed a same-folder card for site-m path /a, then add /b via the
 		// real Settings form (the exact-match path: findBookmarkInFolder).
-		await observer.evaluate(() => {
+		const manualAUrl = testUrl("manual", "/a");
+		const manualBUrl = testUrl("manual", "/b");
+		await observer.evaluate((manualAUrl) => {
 			chrome.storage.local.get(["perch-setup"], (d) => {
 				const envelope = JSON.parse(d["perch-setup"]);
 				envelope.state.cards.push({
 					id: "card-manual-m",
 					folderId: "folder-dom",
 					title: "manual-m",
-					url: "http://manual.test/a",
+					url: manualAUrl,
 					favicon: null,
 					thumbId: null,
 					order: 99,
@@ -656,13 +861,7 @@ try {
 				envelope.state.itemOrder["folder-dom"].push("card:card-manual-m");
 				chrome.storage.local.set({ "perch-setup": JSON.stringify(envelope) });
 			});
-		});
-		await context.route("http://manual.test/*", (route) =>
-			route.fulfill({
-				contentType: "text/html",
-				body: pageHtml(route.request().url()),
-			}),
-		);
+		}, manualAUrl);
 		const before = await readCards(observer);
 		const beforeCount = before?.length ?? 0;
 		await observer.click('[aria-label="Settings"]');
@@ -677,13 +876,13 @@ try {
 		await sleep(300);
 		await observer.keyboard.press("Escape").catch(() => undefined);
 		await observer.getByRole("button", { name: "Add link" }).first().click();
-		await observer.locator("#bookmark-url-input").fill("http://manual.test/b");
+		await observer.locator("#bookmark-url-input").fill(manualBUrl);
 		await observer.locator("#bookmark-title-input").fill("manual-b");
 		await observer.getByRole("button", { name: "Add link" }).last().click();
 		await sleep(1000);
 		const after = await readCards(observer);
-		const cardA = after?.find((c) => c.url === "http://manual.test/a");
-		const cardB = after?.find((c) => c.url === "http://manual.test/b");
+		const cardA = after?.find((c) => c.url === manualAUrl);
+		const cardB = after?.find((c) => c.url === manualBUrl);
 		await observer.keyboard.press("Escape").catch(() => undefined);
 		record(
 			"5. different path creates a new card (exact match preserved)",
@@ -811,7 +1010,9 @@ try {
 			maxRows = Math.max(maxRows, rows);
 			await sleep(3000);
 		}
-		await observer.getByRole("button", { name: "Cancel refresh" }).click();
+		await observer
+			.getByRole("button", { name: "Cancel refresh" })
+			.evaluate((button) => button.click());
 		await sleep(1000);
 		record(
 			"9b. toast shows at most current + previous, no scroll list",
@@ -870,6 +1071,135 @@ try {
 		await setDialLayout("card");
 	}
 
+	// ── 11. a concurrent URL edit wins over the queued screenshot ──
+	{
+		await observer.getByRole("tab", { name: "Domain" }).click();
+		const card = observer
+			.locator("[data-marquee-id]", { hasText: "edit-mid-refresh" })
+			.first();
+		await card.click({ button: "right" });
+		await observer.getByRole("menuitem", { name: "Refresh thumbnail" }).click();
+		const active = await waitFor(
+			async () => {
+				const session = await readRefreshSession(observer).catch(() => null);
+				return session?.activeCardId === "card-edit-mid-refresh"
+					? session
+					: null;
+			},
+			10000,
+			"edit test refresh start",
+		);
+		const editedUrl = testUrl("edit-mid", "/edited");
+		await observer.evaluate(
+			(editedUrl) =>
+				new Promise((resolve, reject) => {
+					chrome.storage.local.get(["perch-setup"], (data) => {
+						let envelope;
+						try {
+							envelope = JSON.parse(data["perch-setup"]);
+						} catch {
+							reject(new Error("invalid setup in edit test"));
+							return;
+						}
+						const target = envelope.state.cards.find(
+							(card) => card.id === "card-edit-mid-refresh",
+						);
+						if (!target) {
+							reject(new Error("edit test card missing"));
+							return;
+						}
+						target.url = editedUrl;
+						chrome.storage.local.set(
+							{ "perch-setup": JSON.stringify(envelope) },
+							() =>
+								chrome.runtime.lastError
+									? reject(chrome.runtime.lastError)
+									: resolve(),
+						);
+					});
+				}),
+			editedUrl,
+		);
+		await waitFor(
+			async () =>
+				(await readRefreshSession(observer).catch(() => null)) === null
+					? true
+					: null,
+			25000,
+			"edited card refresh finalization",
+		);
+		const edited = (await readCards(observer))?.find(
+			(entry) => entry.id === "card-edit-mid-refresh",
+		);
+		record(
+			"11. concurrent URL edits are not overwritten by a capture",
+			!!active && edited?.url === editedUrl && !edited.thumbId,
+			`url=${edited?.url}, thumbId=${edited?.thumbId}`,
+		);
+	}
+
+	// ── 12. deletion while the target page loads never recreates the card ──
+	{
+		const card = observer
+			.locator("[data-marquee-id]", { hasText: "delete-mid-refresh" })
+			.first();
+		await card.click({ button: "right" });
+		await observer.getByRole("menuitem", { name: "Refresh thumbnail" }).click();
+		const active = await waitFor(
+			async () => {
+				const session = await readRefreshSession(observer).catch(() => null);
+				return session?.activeCardId === "card-delete-mid-refresh"
+					? session
+					: null;
+			},
+			10000,
+			"delete test refresh start",
+		);
+		await observer.evaluate(
+			() =>
+				new Promise((resolve, reject) => {
+					chrome.storage.local.get(["perch-setup"], (data) => {
+						let envelope;
+						try {
+							envelope = JSON.parse(data["perch-setup"]);
+						} catch {
+							reject(new Error("invalid setup in delete test"));
+							return;
+						}
+						envelope.state.cards = envelope.state.cards.filter(
+							(card) => card.id !== "card-delete-mid-refresh",
+						);
+						envelope.state.itemOrder["folder-dom"] = envelope.state.itemOrder[
+							"folder-dom"
+						].filter((id) => id !== "card:card-delete-mid-refresh");
+						chrome.storage.local.set(
+							{ "perch-setup": JSON.stringify(envelope) },
+							() =>
+								chrome.runtime.lastError
+									? reject(chrome.runtime.lastError)
+									: resolve(),
+						);
+					});
+				}),
+		);
+		await waitFor(
+			async () =>
+				(await readRefreshSession(observer).catch(() => null)) === null
+					? true
+					: null,
+			25000,
+			"deleted card refresh finalization",
+		);
+		const deleted = (await readCards(observer))?.some(
+			(entry) => entry.id === "card-delete-mid-refresh",
+		);
+		record(
+			"12. a deleted card is not recreated by an in-flight refresh",
+			!!active && !deleted,
+			`cardStillExists=${deleted}`,
+		);
+	}
+
 	// ── 6. rate limit: no quota errors across the whole run ──
 	{
 		const quotaErrors = swErrors.filter((e) =>
@@ -883,6 +1213,15 @@ try {
 	}
 } finally {
 	await context.close().catch(() => undefined);
+	await Promise.all(
+		localTestServers.map(
+			(server) =>
+				new Promise((resolve) => {
+					if (!server.listening) return resolve();
+					server.close(() => resolve());
+				}),
+		),
+	);
 	restoreManifest();
 }
 

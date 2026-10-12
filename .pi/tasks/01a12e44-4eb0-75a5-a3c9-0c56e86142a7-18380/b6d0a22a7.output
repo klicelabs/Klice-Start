@@ -1,0 +1,2 @@
+worker.evaluate: Error: Invalid value for bounds. Bounds must be at least 50% within visible screen space.
+    at C:\Users\joao\AppData\Local\Temp\klice-window-probe.mjs:79:29

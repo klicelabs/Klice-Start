@@ -7,18 +7,6 @@ import { ext } from "../src/lib/extension-api";
 import { getChildren } from "../src/lib/folder-tree";
 import { idbDelete, STORE_THUMBS, saveThumbnail } from "../src/lib/idb";
 import {
-	captureDelayMs,
-	emptyRefreshState,
-	isRefreshMessage,
-	isResumableRefreshState,
-	REFRESH_PAGE_SETTLE_MS,
-	REFRESH_SESSION_KEY,
-	REFRESH_WINDOW_GEOMETRY,
-	type RefreshBatchState,
-	type RefreshMessage,
-	type RefreshProgressEvent,
-} from "../src/lib/thumbnail-refresh";
-import {
 	PENDING_SAVE_KEY,
 	PENDING_SAVE_QUERY_PARAM,
 	PENDING_SAVE_TTL_MS,
@@ -33,9 +21,21 @@ import {
 } from "../src/lib/storage";
 import { hasThumbnailCapturePermission } from "../src/lib/thumbnail-permission";
 import {
-	canonicalizeForAutoCapture,
-	isAbsoluteHttpUrl,
-} from "../src/lib/url";
+	captureDelayMs,
+	emptyRefreshState,
+	isRefreshMessage,
+	isRefreshTargetUnchanged,
+	isResumableRefreshState,
+	REFRESH_CAPTURE_FRAME_SETTLE_MS,
+	REFRESH_NAVIGATION_TIMEOUT_MS,
+	REFRESH_PAGE_SETTLE_MS,
+	REFRESH_SESSION_KEY,
+	REFRESH_WINDOW_GEOMETRY,
+	type RefreshBatchState,
+	type RefreshMessage,
+	type RefreshProgressEvent,
+} from "../src/lib/thumbnail-refresh";
+import { canonicalizeForAutoCapture, isAbsoluteHttpUrl } from "../src/lib/url";
 import { uid } from "../src/lib/utils";
 import type { Folder, Setup } from "../src/types";
 
@@ -348,6 +348,22 @@ function tabCanBeCaptured(
 }
 
 export default defineBackground(() => {
+	ext.windows.onFocusChanged?.addListener((windowId) => {
+		refreshFocusEventSequence += 1;
+		refreshFocusEventLog.push({
+			sequence: refreshFocusEventSequence,
+			windowId,
+		});
+		if (refreshFocusEventLog.length > 64) refreshFocusEventLog.shift();
+		if (refreshCaptureWindowIds.has(windowId)) return;
+		refreshFocusRevision += 1;
+		refreshLastNonCaptureWindowId = windowId >= 0 ? windowId : null;
+	});
+	ext.windows.onRemoved?.addListener((windowId) => {
+		refreshCaptureWindowIds.delete(windowId);
+		if (refreshHiddenWindowId === windowId) refreshHiddenWindowId = null;
+	});
+
 	// Worker startup: read the persisted setup once and warm the card index.
 	// Every later change flows through storage.onChanged above, so the index
 	// stays current without re-reading per navigation.
@@ -415,9 +431,8 @@ export default defineBackground(() => {
 	});
 
 	ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-		// The refresh queue owns its hidden window's tabs end to end
-		// (navigate → settle → captureVisibleTab). The visit pipeline must
-		// never schedule an auto-capture for them.
+		// Refresh-owned tabs are loaded and captured by the queue; the visit
+		// pipeline must never schedule an automatic capture for them.
 		if (refreshHiddenTabIds.has(tabId)) return;
 		if (changeInfo.status === "loading") {
 			const startUrl = changeInfo.url ?? tab.url;
@@ -698,8 +713,8 @@ async function handleNavigationCompleted(details: {
 	// Sub-frames never own the visible surface captureVisibleTab photographs;
 	// only a top-frame completed load can match a card.
 	if (details.frameId !== 0) return;
-	// Refresh-owned hidden tabs are driven by the queue, never the visit
-	// pipeline (same guard as tabs.onUpdated above).
+	// Refresh-owned tabs are driven by the queue, never the visit pipeline
+	// (same guard as tabs.onUpdated above).
 	if (refreshHiddenTabIds.has(details.tabId)) return;
 	const url = details.url;
 	if (!url || !isThumbnailCaptureUrl(url)) return;
@@ -896,8 +911,8 @@ async function captureMissingThumbnail(
 
 // ── Thumbnail refresh queue (single + batch) ─────────────────────────────
 //
-// A user-initiated, calm background operation: cards are re-photographed one
-// at a time in a reused offscreen window, spaced REFRESH_THROTTLE_MS apart
+// A user-initiated best-effort background operation: pages load in inactive
+// tabs inside one reused normal window, spaced REFRESH_THROTTLE_MS apart
 // (well inside the platform's 2 captures/second quota).
 //
 // Keep-alive: every loop iteration calls extension APIs (tabs.update,
@@ -913,17 +928,70 @@ let refreshCancelRequested = false;
 let lastRefreshCaptureAt: number | null = null;
 let refreshHiddenWindowId: number | null = null;
 const refreshHiddenTabIds = new Set<number>();
+const refreshCaptureWindowIds = new Set<number>();
+const refreshWaitCancelers = new Set<() => void>();
+const refreshFocusEventLog: Array<{ sequence: number; windowId: number }> = [];
+let refreshFocusEventSequence = 0;
+let refreshFocusRevision = 0;
+let refreshLastNonCaptureWindowId: number | null = null;
 
 function sleep(ms: number): Promise<void> {
 	return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function getFocusedWindowId(): Promise<number | null> {
+	try {
+		const windows = await ext.windows.getAll({ populate: false });
+		return windows.find((window) => window.focused)?.id ?? null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Restore only when the capture window is still focused. If a focus event
+ * arrived during our activation, prefer that newer window (or relinquish
+ * focus) rather than pulling the user back to a stale window id.
+ */
+async function restoreFocusAfterCaptureActivation(
+	captureWindowId: number,
+	previousWindowId: number | null,
+	focusRevisionBefore: number,
+): Promise<void> {
+	if ((await getFocusedWindowId()) !== captureWindowId) return;
+	const targetWindowId =
+		refreshFocusRevision === focusRevisionBefore
+			? previousWindowId
+			: refreshLastNonCaptureWindowId;
+	if (targetWindowId === captureWindowId) return;
+	if (targetWindowId !== null) {
+		try {
+			const target = await ext.windows.get(targetWindowId);
+			if (target.state !== "minimized") {
+				if ((await getFocusedWindowId()) !== captureWindowId) return;
+				await ext.windows.update(targetWindowId, { focused: true });
+				return;
+			}
+		} catch {
+			// The prior window may have closed while the page loaded.
+		}
+	}
+	try {
+		if ((await getFocusedWindowId()) === captureWindowId) {
+			await ext.windows.update(captureWindowId, { focused: false });
+		}
+	} catch {
+		// Best effort; capture still works if the window manager denies focus.
+	}
 }
 
 async function readRefreshState(): Promise<RefreshBatchState> {
 	try {
 		const data = await ext.storage.session.get(REFRESH_SESSION_KEY);
 		const raw = data[REFRESH_SESSION_KEY] as unknown;
-		if (raw && typeof raw === "object")
-			return { ...emptyRefreshState(), ...(raw as object) };
+		if (isResumableRefreshState(raw)) {
+			return { ...emptyRefreshState(), ...(raw as RefreshBatchState) };
+		}
 	} catch {
 		// Session storage unavailable — run without resume support.
 	}
@@ -950,10 +1018,7 @@ async function clearRefreshState(): Promise<void> {
 function emitRefreshProgress(event: RefreshProgressEvent): void {
 	try {
 		const result = ext.runtime.sendMessage(event) as unknown;
-		if (
-			result &&
-			typeof (result as Promise<unknown>).catch === "function"
-		) {
+		if (result && typeof (result as Promise<unknown>).catch === "function") {
 			(result as Promise<unknown>).catch(() => undefined);
 		}
 	} catch {
@@ -962,91 +1027,196 @@ function emitRefreshProgress(event: RefreshProgressEvent): void {
 }
 
 function refreshProgressBase(state: RefreshBatchState): RefreshProgressEvent {
+	const finished = new Set([...state.doneIds, ...state.failedIds]);
+	const activeSite = state.activeCardId
+		? state.sites[state.activeCardId]
+		: undefined;
 	return {
 		type: "refresh:progress",
 		status: "capturing",
 		total: state.cardIds.length,
-		completed: state.doneIds.length + state.failedIds.length,
+		completed: finished.size,
 		updated: state.doneIds.length,
 		failed: state.failedIds.length,
+		currentCardId: state.activeCardId ?? undefined,
+		currentUrl: activeSite?.url,
+		currentTitle: activeSite?.title,
+		queuedIds: state.cardIds.filter((cardId) => !finished.has(cardId)),
+		recent: state.cardIds.flatMap((cardId) => {
+			if (!finished.has(cardId)) return [];
+			const site = state.sites[cardId];
+			return site ? [{ cardId, ...site }] : [];
+		}),
 	};
 }
 
-/** Resolve when the tab reports a complete load, or after the timeout. */
-function waitForRefreshTabComplete(
+/** Resolve true on a complete load; timeout, removal, or cancellation fail. */
+async function waitForRefreshTabComplete(
 	tabId: number,
 	timeoutMs: number,
-): Promise<void> {
+): Promise<boolean> {
+	const current = await ext.tabs.get(tabId).catch(() => null);
+	if (current?.status === "complete") return true;
+	if (refreshCancelRequested) return false;
 	return new Promise((resolve) => {
 		let settled = false;
-		const finish = (): void => {
+		let timer: ReturnType<typeof setTimeout> | null = null;
+		const finish = (loaded: boolean): void => {
 			if (settled) return;
 			settled = true;
+			if (timer !== null) clearTimeout(timer);
+			refreshWaitCancelers.delete(cancel);
 			try {
 				ext.tabs.onUpdated.removeListener(listener);
 			} catch {
 				// Listener already gone.
 			}
-			resolve();
+			resolve(loaded);
 		};
+		const cancel = (): void => finish(false);
 		const listener = (
 			updatedTabId: number,
 			changeInfo: { status?: string },
 		): void => {
 			if (updatedTabId === tabId && changeInfo.status === "complete") {
-				finish();
+				finish(true);
 			}
 		};
 		try {
 			ext.tabs.onUpdated.addListener(listener);
 		} catch {
-			resolve();
+			finish(false);
 			return;
 		}
-		setTimeout(finish, timeoutMs);
+		refreshWaitCancelers.add(cancel);
+		timer = setTimeout(() => finish(false), timeoutMs);
+		// Close the race where navigation completed between the first read and
+		// listener registration.
+		void ext.tabs
+			.get(tabId)
+			.then((tab) => {
+				if (tab.status === "complete") finish(true);
+			})
+			.catch(() => finish(false));
 	});
 }
 
-/** Reuse one offscreen window for the whole batch; recreate if it died. */
-async function ensureRefreshWindow(): Promise<{
-	windowId: number;
-	tabId: number;
-}> {
-	if (refreshHiddenWindowId !== null) {
+/** Reuse one normal capture window for the batch; recreate it if it died. */
+async function ensureRefreshWindow(
+	state: RefreshBatchState,
+): Promise<{ windowId: number; tabId: number }> {
+	const preferredWindowId = state.captureWindowId ?? refreshHiddenWindowId;
+	if (preferredWindowId !== null && preferredWindowId !== undefined) {
 		try {
-			const existing = await ext.windows.get(refreshHiddenWindowId, {
+			const existing = await ext.windows.get(preferredWindowId, {
 				populate: true,
 			});
-			const tab = existing.tabs?.[0];
-			if (tab?.id !== undefined) {
-				refreshHiddenTabIds.add(tab.id);
-				return { windowId: refreshHiddenWindowId, tabId: tab.id };
+			const tabs = existing.tabs ?? [];
+			const activeTab = tabs.find((tab) => tab.active) ?? tabs[0];
+			if (activeTab?.id !== undefined) {
+				refreshHiddenWindowId = preferredWindowId;
+				refreshCaptureWindowIds.add(preferredWindowId);
+				for (const tab of tabs) {
+					if (tab.id !== undefined) refreshHiddenTabIds.add(tab.id);
+				}
+				state.captureWindowId = preferredWindowId;
+				state.captureTabId = activeTab.id;
+				if (
+					state.pendingCaptureTabId !== null &&
+					state.pendingCaptureTabId !== undefined &&
+					!tabs.some((tab) => tab.id === state.pendingCaptureTabId)
+				) {
+					state.pendingCaptureTabId = null;
+				}
+				await writeRefreshState(state);
+				return { windowId: preferredWindowId, tabId: activeTab.id };
 			}
 		} catch {
-			refreshHiddenWindowId = null;
+			// The worker or user may have closed the previously owned window.
 		}
+		refreshCaptureWindowIds.delete(preferredWindowId);
+		refreshHiddenWindowId = null;
+		state.captureWindowId = null;
+		state.captureTabId = null;
+		state.pendingCaptureTabId = null;
 	}
+
+	const focusEventCursor = refreshFocusEventSequence;
+	const focusedBefore = await getFocusedWindowId();
 	const created = await ext.windows.create({ ...REFRESH_WINDOW_GEOMETRY });
 	if (!created || created.id === undefined)
 		throw new Error("window: capture window denied");
 	refreshHiddenWindowId = created.id;
-	// Never steal focus: creating unfocused is usually enough, but some
-	// window managers focus new windows anyway — push it back explicitly.
-	// Best-effort; a failure here never blocks the batch.
-	try {
-		await ext.windows.update(created.id, { focused: false });
-	} catch {
-		// Best-effort.
+	refreshCaptureWindowIds.add(created.id);
+	// New-window focus events can arrive before the returned id is known.
+	// Ignore those events when choosing what to restore, but honor any later
+	// focus change to another browser window or to the OS desktop.
+	let restoreWindowId = focusedBefore;
+	for (const event of refreshFocusEventLog) {
+		if (event.sequence > focusEventCursor && event.windowId !== created.id) {
+			restoreWindowId = event.windowId >= 0 ? event.windowId : null;
+		}
 	}
+	await restoreFocusAfterCaptureActivation(
+		created.id,
+		restoreWindowId,
+		refreshFocusRevision,
+	);
+
 	const tab = created.tabs?.[0];
 	let tabId = tab?.id;
 	if (tabId === undefined) {
 		const fresh = await ext.tabs.query({ windowId: created.id });
 		tabId = fresh[0]?.id;
 	}
-	if (tabId === undefined) throw new Error("hidden tab denied");
+	if (tabId === undefined) throw new Error("capture tab denied");
 	refreshHiddenTabIds.add(tabId);
+	state.captureWindowId = created.id;
+	state.captureTabId = tabId;
+	state.pendingCaptureTabId = null;
+	await writeRefreshState(state);
 	return { windowId: created.id, tabId };
+}
+
+async function removeRefreshTab(tabId: number): Promise<void> {
+	refreshHiddenTabIds.delete(tabId);
+	try {
+		await ext.tabs.remove(tabId);
+	} catch {
+		// The tab may already have been closed with its window.
+	}
+}
+
+async function createRefreshTargetTab(
+	state: RefreshBatchState,
+	windowId: number,
+	cardId: string,
+	url: string,
+): Promise<number> {
+	const pendingId = state.pendingCaptureTabId;
+	if (
+		state.activeCardId === cardId &&
+		pendingId !== null &&
+		pendingId !== undefined &&
+		state.sites[cardId]?.url === url
+	) {
+		const pending = await ext.tabs.get(pendingId).catch(() => null);
+		if (pending?.windowId === windowId) {
+			refreshHiddenTabIds.add(pendingId);
+			return pendingId;
+		}
+	}
+	if (pendingId !== null && pendingId !== undefined) {
+		if (pendingId !== state.captureTabId) await removeRefreshTab(pendingId);
+		state.pendingCaptureTabId = null;
+	}
+	const created = await ext.tabs.create({ windowId, url, active: false });
+	if (created.id === undefined) throw new Error("navigate: capture tab denied");
+	refreshHiddenTabIds.add(created.id);
+	state.pendingCaptureTabId = created.id;
+	state.captureWindowId = windowId;
+	await writeRefreshState(state);
+	return created.id;
 }
 
 async function closeRefreshWindow(): Promise<void> {
@@ -1054,11 +1224,28 @@ async function closeRefreshWindow(): Promise<void> {
 	if (refreshHiddenWindowId === null) return;
 	const id = refreshHiddenWindowId;
 	refreshHiddenWindowId = null;
+	refreshCaptureWindowIds.delete(id);
 	try {
 		await ext.windows.remove(id);
 	} catch {
 		// Already closed by the user or the browser.
 	}
+}
+
+async function discardRefreshState(
+	state: Pick<RefreshBatchState, "captureWindowId">,
+): Promise<void> {
+	const windowId = state.captureWindowId;
+	if (windowId !== null && windowId !== undefined) {
+		refreshCaptureWindowIds.delete(windowId);
+		if (refreshHiddenWindowId === windowId) refreshHiddenWindowId = null;
+		try {
+			await ext.windows.remove(windowId);
+		} catch {
+			// The window may have closed with the browser already.
+		}
+	}
+	await clearRefreshState();
 }
 
 interface RefreshStartResult {
@@ -1099,6 +1286,7 @@ async function startRefreshBatch(
 	// auto-capture path uses. Fail loud (not silent): the UI offers the
 	// Settings consent flow.
 	if (!(await hasThumbnailCapturePermission())) {
+		if (resumeFrom) await discardRefreshState(resumeFrom);
 		refreshRunning = false;
 		emitRefreshProgress({
 			type: "refresh:progress",
@@ -1113,20 +1301,24 @@ async function startRefreshBatch(
 
 	const alreadyDone = new Set(resumeFrom?.doneIds ?? []);
 	const alreadyFailed = new Set(resumeFrom?.failedIds ?? []);
-	const queue = candidates.filter(
-		(id) => !alreadyDone.has(id) && !alreadyFailed.has(id),
-	);
 	const state: RefreshBatchState = {
 		status: "running",
-		cardIds: resumeFrom?.cardIds.length ? resumeFrom.cardIds : candidates,
+		cardIds: resumeFrom?.cardIds.length ? [...resumeFrom.cardIds] : candidates,
 		doneIds: [...alreadyDone],
 		failedIds: [...alreadyFailed],
 		sites: { ...(resumeFrom?.sites ?? {}) },
 		startedAt: resumeFrom?.startedAt ?? Date.now(),
+		activeCardId: resumeFrom?.activeCardId ?? null,
+		captureWindowId: resumeFrom?.captureWindowId ?? null,
+		captureTabId: resumeFrom?.captureTabId ?? null,
+		pendingCaptureTabId: resumeFrom?.pendingCaptureTabId ?? null,
 	};
+	const queue = state.cardIds.filter(
+		(id) => !alreadyDone.has(id) && !alreadyFailed.has(id),
+	);
 	if (queue.length === 0) {
+		await discardRefreshState(state);
 		refreshRunning = false;
-		await clearRefreshState();
 		emitRefreshProgress({ ...refreshProgressBase(state), status: "done" });
 		return { accepted: true, total: state.cardIds.length };
 	}
@@ -1156,27 +1348,42 @@ async function runRefreshLoop(
 			if (waitMs > 0) await sleep(waitMs);
 			if (refreshCancelRequested) break;
 
-			// Fresh read per card: the user may have edited or deleted it
-			// while the queue worked through earlier cards.
+			// Refresh the card record before each page load. A deleted or
+			// invalid card is a completed failure, not a stale queue entry.
 			const live = await readSetup();
 			const card = live?.cards.find((entry) => entry.id === cardId);
 			const known = snapshotById.get(cardId);
 			if (!card || !isThumbnailCaptureUrl(card.url)) {
-				state.failedIds.push(cardId);
+				const reason = card
+					? "validate: unsupported URL"
+					: "state: card removed";
+				if (!state.failedIds.includes(cardId)) state.failedIds.push(cardId);
+				state.activeCardId = null;
+				state.pendingCaptureTabId = null;
 				state.sites[cardId] = {
-					title: known?.title ?? cardId,
-					url: known?.url ?? "",
+					title: known?.title ?? card?.title ?? cardId,
+					url: known?.url ?? card?.url ?? "",
 					ok: false,
+					error: reason,
 				};
 				await writeRefreshState(state);
 				emitRefreshProgress({
 					...refreshProgressBase(state),
 					status: "card-failed",
 					currentCardId: cardId,
+					currentUrl: state.sites[cardId].url,
+					currentTitle: state.sites[cardId].title,
 				});
 				continue;
 			}
 
+			state.activeCardId = cardId;
+			state.sites[cardId] = {
+				title: card.title,
+				url: card.url,
+				ok: false,
+			};
+			await writeRefreshState(state);
 			emitRefreshProgress({
 				...refreshProgressBase(state),
 				status: "capturing",
@@ -1185,72 +1392,191 @@ async function runRefreshLoop(
 				currentTitle: card.title,
 			});
 
-			// `stage` names the exact failure point: the catch prefixes it
-			// to the reason, which travels in the progress event (UI error
-			// tint) and the SW log — a failed batch is always diagnosable.
+			// `stage` names the exact failure point for user-visible diagnosis.
 			let stage = "window";
+			let targetTabId: number | null = null;
+			let previousCaptureTabId: number | null = null;
+			let targetIsCurrent = false;
+			let newThumbId: string | null = null;
+			let imageCommitted = false;
 			try {
-				const { windowId, tabId } = await ensureRefreshWindow();
+				const { windowId, tabId: anchorTabId } =
+					await ensureRefreshWindow(state);
+				state.captureWindowId = windowId;
+				state.captureTabId ??= anchorTabId;
+				previousCaptureTabId = state.captureTabId ?? null;
+
 				stage = "navigate";
-				await ext.tabs.update(tabId, { url: card.url });
-				await waitForRefreshTabComplete(tabId, 12_000);
+				targetTabId = await createRefreshTargetTab(
+					state,
+					windowId,
+					cardId,
+					card.url,
+				);
+				const loaded = await waitForRefreshTabComplete(
+					targetTabId,
+					REFRESH_NAVIGATION_TIMEOUT_MS,
+				);
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					state.pendingCaptureTabId = null;
+					await writeRefreshState(state);
+					break;
+				}
+				if (!loaded) throw new Error("navigate: page load timed out");
 				await sleep(REFRESH_PAGE_SETTLE_MS);
-				if (refreshCancelRequested) break;
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					state.pendingCaptureTabId = null;
+					await writeRefreshState(state);
+					break;
+				}
+
+				const targetTab = await ext.tabs.get(targetTabId);
+				if (
+					targetTab.windowId !== windowId ||
+					!isThumbnailCaptureUrl(targetTab.url ?? "")
+				) {
+					throw new Error("navigate: target tab left the web page");
+				}
+				const beforeCaptureSetup = await readSetup();
+				const beforeCaptureCard = beforeCaptureSetup?.cards.find(
+					(entry) => entry.id === cardId,
+				);
+				if (!beforeCaptureCard) {
+					throw new Error("state: card removed before capture");
+				}
+				if (
+					!isRefreshTargetUnchanged(
+						card.url,
+						beforeCaptureCard.url,
+						card.thumbId,
+						beforeCaptureCard.thumbId,
+					)
+				) {
+					throw new Error("state: card edited before capture");
+				}
+
+				const focusRevisionBeforeQuery = refreshFocusRevision;
+				const focusedBefore = await getFocusedWindowId();
+				const focusRestoreTarget =
+					refreshFocusRevision === focusRevisionBeforeQuery
+						? focusedBefore
+						: refreshLastNonCaptureWindowId;
+				const focusRevisionBeforeActivation = refreshFocusRevision;
+				await ext.tabs.update(targetTabId, { active: true });
+				targetIsCurrent = true;
+				state.captureTabId = targetTabId;
+				state.pendingCaptureTabId = null;
+				await writeRefreshState(state);
+				await restoreFocusAfterCaptureActivation(
+					windowId,
+					focusRestoreTarget,
+					focusRevisionBeforeActivation,
+				);
+				await sleep(REFRESH_CAPTURE_FRAME_SETTLE_MS);
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					await writeRefreshState(state);
+					break;
+				}
+				const activeTab = await ext.tabs.get(targetTabId);
+				if (
+					activeTab.windowId !== windowId ||
+					!activeTab.active ||
+					activeTab.status !== "complete"
+				) {
+					throw new Error("capture: target tab is not ready");
+				}
 
 				stage = "capture";
 				const dataUrl = await captureVisible(windowId, 82);
 				if (!dataUrl?.startsWith("data:image")) {
-					throw new Error(`capture: empty result (len=${dataUrl?.length ?? 0})`);
+					throw new Error(
+						`capture: empty result (len=${dataUrl?.length ?? 0})`,
+					);
+				}
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					await writeRefreshState(state);
+					break;
 				}
 				lastRefreshCaptureAt = Date.now();
 				stage = "persist-image";
-				const newThumbId = await saveThumbnail(dataUrl);
+				newThumbId = await saveThumbnail(dataUrl);
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					await writeRefreshState(state);
+					break;
+				}
 				const capturedAt = Date.now();
 
-				// Re-read right before writing so a concurrent edit wins.
+				// Re-read at commit time. A concurrent edit, delete, or automatic
+				// capture wins rather than being overwritten by this screenshot.
 				stage = "persist-state";
 				const fresh = await readSetup();
 				const target = fresh?.cards.find((entry) => entry.id === cardId);
-				if (fresh && target) {
-					const previousThumbId = target.thumbId;
-					target.thumbId = newThumbId;
-					target.capturedAt = capturedAt;
-					await writeSetup(fresh);
-					snapshotById.set(cardId, target);
-					if (previousThumbId && previousThumbId !== newThumbId) {
-						await deleteUnreferencedThumbnails([previousThumbId]).catch(
-							() => undefined,
-						);
-					}
-					state.doneIds.push(cardId);
-					state.sites[cardId] = {
-						title: target.title,
-						url: target.url,
-						ok: true,
-					};
-					await writeRefreshState(state);
-					emitRefreshProgress({
-						...refreshProgressBase(state),
-						status: "card-done",
-						currentCardId: cardId,
-						currentUrl: target.url,
-						currentTitle: target.title,
-					});
-				} else {
-					await deletePendingThumbnail(newThumbId);
-					throw new Error("persist-state: card removed mid-refresh");
+				if (!fresh || !target) {
+					throw new Error("state: card removed during refresh");
 				}
+				if (
+					!isRefreshTargetUnchanged(
+						card.url,
+						target.url,
+						card.thumbId,
+						target.thumbId,
+					)
+				) {
+					throw new Error("state: card edited during refresh");
+				}
+				const previousThumbId = target.thumbId;
+				target.thumbId = newThumbId;
+				target.capturedAt = capturedAt;
+				await writeSetup(fresh);
+				imageCommitted = true;
+				snapshotById.set(cardId, target);
+				if (previousThumbId && previousThumbId !== newThumbId) {
+					await deleteUnreferencedThumbnails([previousThumbId]).catch(
+						() => undefined,
+					);
+				}
+				if (!state.doneIds.includes(cardId)) state.doneIds.push(cardId);
+				state.activeCardId = null;
+				state.pendingCaptureTabId = null;
+				state.sites[cardId] = {
+					title: target.title,
+					url: target.url,
+					ok: true,
+				};
+				await writeRefreshState(state);
+				emitRefreshProgress({
+					...refreshProgressBase(state),
+					status: "card-done",
+					currentCardId: cardId,
+					currentUrl: target.url,
+					currentTitle: target.title,
+				});
 			} catch (error) {
-				// One bad page (blocked navigation, denied capture) never
-				// stops the queue — it is recorded and the next card runs.
-				// The stage prefix names the exact failure point: it travels
-				// in the progress event (UI error tint) and the SW log.
+				if (refreshCancelRequested) {
+					state.activeCardId = null;
+					state.pendingCaptureTabId = null;
+					await writeRefreshState(state);
+					break;
+				}
 				const detail = error instanceof Error ? error.message : String(error);
 				const reason = detail.startsWith(`${stage}:`)
 					? detail
 					: `${stage}: ${detail}`;
-				console.warn(`[refresh] card failed (${cardId}): ${reason}`);
+				const expectedConcurrentChange =
+					/^state: card (?:removed|edited) (?:before capture|during refresh)$/.test(
+						detail,
+					);
+				if (!expectedConcurrentChange) {
+					console.error(`[refresh] card failed (${cardId}): ${reason}`);
+				}
 				if (!state.failedIds.includes(cardId)) state.failedIds.push(cardId);
+				state.activeCardId = null;
+				state.pendingCaptureTabId = null;
 				state.sites[cardId] = {
 					title: card.title,
 					url: card.url,
@@ -1258,16 +1584,14 @@ async function runRefreshLoop(
 					error: reason,
 				};
 				if (stage === "window") {
-					// The capture window itself is dead (creation denied by
-					// policy, removed underneath us) — it will not heal for
-					// the next card. Fail the rest with the same reason
-					// instead of repeating N identical failures.
+					// If creating or recovering the capture window failed, the
+					// rest of this batch cannot proceed either.
 					for (const restId of queue.slice(index + 1)) {
 						if (!state.failedIds.includes(restId)) state.failedIds.push(restId);
-						const known = snapshotById.get(restId);
+						const rest = snapshotById.get(restId);
 						state.sites[restId] = {
-							title: known?.title ?? restId,
-							url: known?.url ?? "",
+							title: rest?.title ?? restId,
+							url: rest?.url ?? "",
 							ok: false,
 							error: reason,
 						};
@@ -1279,15 +1603,6 @@ async function runRefreshLoop(
 						currentCardId: cardId,
 						currentUrl: card.url,
 						currentTitle: card.title,
-						recent: [
-							{
-								cardId,
-								title: card.title,
-								url: card.url,
-								ok: false,
-								error: reason,
-							},
-						],
 					});
 					break;
 				}
@@ -1298,22 +1613,27 @@ async function runRefreshLoop(
 					currentCardId: cardId,
 					currentUrl: card.url,
 					currentTitle: card.title,
-					recent: [
-						{
-							cardId,
-							title: card.title,
-							url: card.url,
-							ok: false,
-							error: reason,
-						},
-					],
 				});
+			} finally {
+				if (newThumbId && !imageCommitted) {
+					await deletePendingThumbnail(newThumbId);
+				}
+				if (targetTabId !== null && !targetIsCurrent) {
+					await removeRefreshTab(targetTabId);
+				}
+				if (
+					targetIsCurrent &&
+					previousCaptureTabId !== null &&
+					previousCaptureTabId !== targetTabId
+				) {
+					await removeRefreshTab(previousCaptureTabId);
+				}
 			}
 		}
 	} finally {
-		refreshRunning = false;
 		await closeRefreshWindow();
 		await clearRefreshState();
+		refreshRunning = false;
 	}
 
 	const cancelled = refreshCancelRequested;
@@ -1332,8 +1652,20 @@ async function runRefreshLoop(
 }
 
 function handleRefreshMessage(message: RefreshMessage): Promise<unknown> {
+	if (message.type === "refresh:state") {
+		return readRefreshState().then(async (state) => {
+			if (state.status === "running" && !isResumableRefreshState(state)) {
+				await discardRefreshState(state);
+				return { state: emptyRefreshState() };
+			}
+			return { state };
+		});
+	}
 	if (message.type === "refresh:cancel") {
-		if (refreshRunning) refreshCancelRequested = true;
+		if (refreshRunning) {
+			refreshCancelRequested = true;
+			for (const cancelWait of refreshWaitCancelers) cancelWait();
+		}
 		return Promise.resolve({ cancelled: true });
 	}
 	if (refreshRunning) {
@@ -1354,9 +1686,7 @@ function handleRefreshMessage(message: RefreshMessage): Promise<unknown> {
 	// validation below. Every failure path in startRefreshBatch releases it.
 	refreshRunning = true;
 	const ids =
-		message.type === "refresh:single"
-			? [message.cardId]
-			: [...message.cardIds];
+		message.type === "refresh:single" ? [message.cardId] : [...message.cardIds];
 	return startRefreshBatch(ids);
 }
 
@@ -1375,7 +1705,7 @@ async function resumeRefreshBatchIfNeeded(): Promise<void> {
 			typeof raw === "object" &&
 			(raw as { status?: unknown }).status === "running"
 		) {
-			await clearRefreshState();
+			await discardRefreshState(raw as RefreshBatchState);
 		}
 		return;
 	}

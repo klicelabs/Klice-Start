@@ -8,6 +8,7 @@ import {
 	type RefreshProgressEvent,
 } from "../../lib/thumbnail-refresh";
 import {
+	requestRefreshSnapshot,
 	sendRefreshCancel,
 	subscribeRefreshProgress,
 } from "../../lib/thumbnail-refresh-client";
@@ -34,7 +35,29 @@ export function RefreshProgressToast() {
 	const active = useRefreshStore((s) => s.active);
 	const summary = useRefreshStore((s) => s.summary);
 
-	useEffect(() => subscribeRefreshProgress(handleRefreshEvent), []);
+	useEffect(() => {
+		let disposed = false;
+		let receivedLiveProgress = false;
+		const unsubscribe = subscribeRefreshProgress((event) => {
+			receivedLiveProgress = true;
+			handleRefreshEvent(event);
+		});
+		void requestRefreshSnapshot().then((snapshot) => {
+			if (
+				disposed ||
+				receivedLiveProgress ||
+				useRefreshStore.getState().active ||
+				!snapshot
+			) {
+				return;
+			}
+			useRefreshStore.getState().hydrateFromSession(snapshot);
+		});
+		return () => {
+			disposed = true;
+			unsubscribe();
+		};
+	}, []);
 
 	// One toast id for the whole lifecycle: progress MORPHS into the summary
 	// via same-id update. Deliberately no effect cleanup that dismisses —

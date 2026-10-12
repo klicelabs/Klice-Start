@@ -1,0 +1,162 @@
+RESULT focused-false-no-update {"strategy":"focused-false-no-update","beforeFocus":335539863,"focusAfterLoad":335539863,"focusAfterCapture":335539863,"focusEvents":[],"window":{"id":335539866,"focused":false,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":335539867,"url":"http://capture.test/focused-false-no-update","status":"complete"},"loaded":true,"dataUrl":null,"captureError":"Error: Failed to capture tab: image readback failed","content":null,"primaryHasFocus":true,"inputValue":"typed-while-capturing"}
+RESULT focused-false-with-update {"strategy":"focused-false-with-update","beforeFocus":335539863,"focusAfterLoad":null,"focusAfterCapture":null,"focusEvents":[],"window":{"id":335539870,"focused":false,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":335539871,"url":"http://capture.test/focused-false-with-update","status":"complete"},"loaded":true,"dataUrl":"[data-url 25834 chars]","content":{"width":1280,"height":720,"pixel":[255,255,255,255]},"primaryHasFocus":true,"inputValue":"typed-while-capturing"}
+RESULT offscreen-bounds {"strategy":"offscreen-bounds","beforeFocus":335539863,"focusEvents":[],"setupError":"Error: Invalid value for bounds. Bounds must be at least 50% within visible screen space.","dataUrl":null,"content":null,"primaryHasFocus":true,"inputValue":"typed-while-capturing"}
+RESULT minimized-at-create {"strategy":"minimized-at-create","beforeFocus":335539863,"focusAfterLoad":335539863,"focusAfterCapture":335539863,"focusEvents":[],"window":{"id":335539874,"focused":false,"state":"normal","left":20,"top":44,"width":1296,"height":854},"activeTab":{"id":335539875,"url":"http://capture.test/minimized-at-create","status":"complete"},"loaded":true,"dataUrl":"[data-url 25834 chars]","content":{"width":1280,"height":720,"pixel":[255,255,255,255]},"primaryHasFocus":true,"inputValue":"typed-while-capturing"}
+RESULT minimized-after-load {"strategy":"minimized-after-load","beforeFocus":335539863,"focusAfterLoad":335539878,"focusAfterCapture":335539878,"focusEvents":[335539878],"window":{"id":335539878,"focused":true,"state":"normal","left":20,"top":44,"width":800,"height":600},"activeTab":{"id":335539879,"url":"http://capture.test/minimized-after-load","status":"complete"},"loaded":true,"dataUrl":"[data-url 25834 chars]","content":{"width":1280,"height":720,"pixel":[255,255,255,255]},"primaryHasFocus":true,"inputValue":"typed-while-capturing"}
+{
+  "primaryWindowId": 335539863,
+  "results": [
+    {
+      "strategy": "focused-false-no-update",
+      "beforeFocus": 335539863,
+      "focusAfterLoad": 335539863,
+      "focusAfterCapture": 335539863,
+      "focusEvents": [],
+      "window": {
+        "id": 335539866,
+        "focused": false,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 335539867,
+        "url": "http://capture.test/focused-false-no-update",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": null,
+      "captureError": "Error: Failed to capture tab: image readback failed",
+      "content": null,
+      "primaryHasFocus": true,
+      "inputValue": "typed-while-capturing"
+    },
+    {
+      "strategy": "focused-false-with-update",
+      "beforeFocus": 335539863,
+      "focusAfterLoad": null,
+      "focusAfterCapture": null,
+      "focusEvents": [],
+      "window": {
+        "id": 335539870,
+        "focused": false,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 335539871,
+        "url": "http://capture.test/focused-false-with-update",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 25834 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "primaryHasFocus": true,
+      "inputValue": "typed-while-capturing"
+    },
+    {
+      "strategy": "offscreen-bounds",
+      "beforeFocus": 335539863,
+      "focusEvents": [],
+      "setupError": "Error: Invalid value for bounds. Bounds must be at least 50% within visible screen space.",
+      "dataUrl": null,
+      "content": null,
+      "primaryHasFocus": true,
+      "inputValue": "typed-while-capturing"
+    },
+    {
+      "strategy": "minimized-at-create",
+      "beforeFocus": 335539863,
+      "focusAfterLoad": 335539863,
+      "focusAfterCapture": 335539863,
+      "focusEvents": [],
+      "window": {
+        "id": 335539874,
+        "focused": false,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 1296,
+        "height": 854
+      },
+      "activeTab": {
+        "id": 335539875,
+        "url": "http://capture.test/minimized-at-create",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 25834 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "primaryHasFocus": true,
+      "inputValue": "typed-while-capturing"
+    },
+    {
+      "strategy": "minimized-after-load",
+      "beforeFocus": 335539863,
+      "focusAfterLoad": 335539878,
+      "focusAfterCapture": 335539878,
+      "focusEvents": [
+        335539878
+      ],
+      "window": {
+        "id": 335539878,
+        "focused": true,
+        "state": "normal",
+        "left": 20,
+        "top": 44,
+        "width": 800,
+        "height": 600
+      },
+      "activeTab": {
+        "id": 335539879,
+        "url": "http://capture.test/minimized-after-load",
+        "status": "complete"
+      },
+      "loaded": true,
+      "dataUrl": "[data-url 25834 chars]",
+      "content": {
+        "width": 1280,
+        "height": 720,
+        "pixel": [
+          255,
+          255,
+          255,
+          255
+        ]
+      },
+      "primaryHasFocus": true,
+      "inputValue": "typed-while-capturing"
+    },
+    {
+      "strategy": "primary-minimized",
+      "before": 335539863,
+      "focus": null,
+      "dataUrl": null,
+      "captureError": "Error: Failed to capture tab: image readback failed",
+      "content": null
+    }
+  ]
+}

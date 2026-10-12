@@ -1,0 +1,15 @@
+permission probe: <all_urls> granted = true
+PASS  1. single refresh replaces the thumbnail — thumbId thumb-manual-single → thumb_mv4teb2g02929o, ui=true
+PASS  2a. batch starts (toast + worker state) — toast=true, workerSession=true
+PASS  2b. batch of 6 completes, every thumb replaced — allChanged=true, summary=true
+PASS  7. SW-sleep resume state persisted mid-batch — status=running, queued=10, done=2
+PASS  3. cancel stops the queue with an honest count — Cancelled at 2 of 10, session=cleared, windows=1/1, thumbsSettled=2
+PASS  4. visit to sibling path captures the thumbless card (domain match) — thumbId=thumb_mv4tf90o26pd9y
+PASS  5. different path creates a new card (exact match preserved) — cards 18 → 19
+PASS  8. page menu shows Refresh missing previews (N) — label="Refresh missing previews (10)"
+PASS  9a. right-click on selection refreshes all 11 — allThumbed=true, replaced=11/11, singleEntryShown=0
+PASS  9b. toast shows at most current + previous, no scroll list — maxRows=2, sawTwo=true
+PASS  10. icon mode shows no refresh entries (card menu + tray) — cardMenu=0, tray=0
+PASS  6. no capture rate-limit errors — swErrors=[]
+
+12/12 checks passed

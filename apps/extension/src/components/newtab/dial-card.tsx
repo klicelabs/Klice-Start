@@ -6,7 +6,6 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
@@ -24,7 +23,7 @@ import {
 	startBatchRefresh,
 	startSingleRefresh,
 } from "../../lib/thumbnail-refresh-client";
-import { faviconUrl } from "../../lib/url";
+import { faviconUrl, isAbsoluteHttpUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -78,10 +77,7 @@ export function DialCard({
 	const beginRename = useRenameStore((s) => s.begin);
 	const cancelRename = useRenameStore((s) => s.cancel);
 	const openMoveDialog = useMoveDialogStore((s) => s.open);
-	const reduceMotion = useReducedMotion() ?? false;
-	// Boolean selectors: the card re-renders only when its own membership
-	// flips, never on every progress tick of the batch.
-	const refreshQueued = useRefreshStore((s) => s.queuedIds.includes(card.id));
+	// Boolean selector: only the card actually being processed re-renders.
 	const refreshCapturing = useRefreshStore((s) => s.currentCardId === card.id);
 	// Selection-aware refresh: a right-click on a selected card acts on the
 	// whole card selection (folders never have previews); anywhere else it
@@ -99,9 +95,6 @@ export function DialCard({
 		selectedCardIds.includes(card.id) && selectedCardIds.length > 1
 			? selectedCardIds
 			: [card.id];
-	const showRefreshOverlay =
-		dialLayout === "card" && (refreshQueued || refreshCapturing);
-
 	function handleRefreshCard() {
 		if (refreshIds.length > 1) void startBatchRefresh(refreshIds);
 		else void startSingleRefresh(card.id);
@@ -127,7 +120,8 @@ export function DialCard({
 	const savedTitle = card.title || card.url;
 
 	function handleOpenNewTab() {
-		window.open(card.url, "_blank");
+		if (!isAbsoluteHttpUrl(card.url)) return;
+		window.open(card.url, "_blank", "noopener,noreferrer");
 	}
 
 	function handleCommitRename(name: string) {
@@ -229,6 +223,7 @@ export function DialCard({
 							    bands. The fallback keeps its gradient behind the site's favicon. */}
 							<div
 								className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+								data-refreshing={refreshCapturing ? "true" : undefined}
 								style={{ background: fallbackColor }}
 							>
 								{thumbUrl ? (
@@ -251,6 +246,11 @@ export function DialCard({
 										}}
 									/>
 								)}
+								{refreshCapturing ? (
+									<span role="status" className="sr-only">
+										Refreshing preview
+									</span>
+								) : null}
 							</div>
 
 							{(showTitle || editing) && (
@@ -297,43 +297,6 @@ export function DialCard({
 							)}
 						</>
 					)}
-					{/* Refresh state (card mode only): a calm glass veil while
-					    queued, plus an animated pulse ring around the border
-					    while this card is under the camera. Transform +
-					    opacity only (beUI pattern), static when the user
-					    prefers reduced motion. The trigger owns positioning
-					    context; the veil never intercepts input. */}
-					{showRefreshOverlay ? (
-						<span
-							aria-hidden={!refreshCapturing}
-							className="pointer-events-none absolute inset-0 rounded-2xl bg-foreground/10 backdrop-blur-[2px]"
-						/>
-					) : null}
-					{showRefreshOverlay && refreshCapturing ? (
-						<>
-							<span role="status" className="sr-only">
-								Refreshing preview
-							</span>
-							{reduceMotion ? (
-								<span
-									aria-hidden="true"
-									className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-[var(--klice-accent)]"
-								/>
-							) : (
-								<motion.span
-									aria-hidden="true"
-									className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-[var(--klice-accent)]"
-									initial={{ opacity: 0.35 }}
-									animate={{ opacity: [0.35, 1, 0.35] }}
-									transition={{
-										duration: 1.6,
-										repeat: Number.POSITIVE_INFINITY,
-										ease: "easeInOut",
-									}}
-								/>
-							)}
-						</>
-					) : null}
 				</a>
 			</ContextMenuTrigger>
 

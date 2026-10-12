@@ -1,0 +1,200 @@
+{
+  "main": 20581576,
+  "create": {
+    "id": 20581579,
+    "focused": false,
+    "focus": null
+  },
+  "afterReturn": {
+    "focus": 20581576,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 20581579,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "backgroundTabCreated": {
+    "tabId": 20581581,
+    "focus": 20581576,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 20581579,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": false,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 702,
+      "highlighted": false,
+      "id": 20581581,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791787431218.276,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pendingUrl": "http://127.0.0.1:59178/green",
+      "pinned": false,
+      "selected": false,
+      "splitViewId": -1,
+      "status": "loading",
+      "title": "",
+      "url": "",
+      "width": 1280,
+      "windowId": 20581579
+    }
+  },
+  "loaded": true,
+  "afterLoad": {
+    "focus": 20581576,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 20581579,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": false,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 702,
+      "highlighted": false,
+      "id": 20581581,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791787431218.276,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": false,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:59178/green",
+      "url": "http://127.0.0.1:59178/green",
+      "width": 1280,
+      "windowId": 20581579
+    }
+  },
+  "mainMinimizedFocus": 20581576,
+  "afterActivate": {
+    "focus": 20581576,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 20581579,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    },
+    "tab": {
+      "active": true,
+      "audible": false,
+      "autoDiscardable": true,
+      "discarded": false,
+      "frozen": false,
+      "groupId": -1,
+      "height": 759,
+      "highlighted": true,
+      "id": 20581581,
+      "incognito": false,
+      "index": 1,
+      "lastAccessed": 1791787431325.72,
+      "mutedInfo": {
+        "muted": false
+      },
+      "pinned": false,
+      "selected": true,
+      "splitViewId": -1,
+      "status": "complete",
+      "title": "127.0.0.1:59178/green",
+      "url": "http://127.0.0.1:59178/green",
+      "width": 1280,
+      "windowId": 20581579
+    }
+  },
+  "afterUnfocus": {
+    "focus": 20581576,
+    "window": {
+      "alwaysOnTop": false,
+      "focused": false,
+      "height": 854,
+      "id": 20581579,
+      "incognito": false,
+      "left": 20,
+      "state": "normal",
+      "top": 44,
+      "type": "normal",
+      "width": 1296
+    }
+  },
+  "capture": {
+    "bytes": 7098,
+    "pixel": {
+      "w": 1280,
+      "h": 759,
+      "rgba": [
+        30,
+        160,
+        74,
+        255
+      ]
+    },
+    "expected": [
+      30,
+      160,
+      74
+    ],
+    "matches": true
+  },
+  "events": [
+    {
+      "id": 20581579,
+      "at": 1791787431096
+    },
+    {
+      "id": -1,
+      "at": 1791787431169
+    },
+    {
+      "id": 20581576,
+      "at": 1791787431208
+    },
+    {
+      "id": -1,
+      "at": 1791787431314
+    }
+  ],
+  "mainPageHasFocus": true
+}

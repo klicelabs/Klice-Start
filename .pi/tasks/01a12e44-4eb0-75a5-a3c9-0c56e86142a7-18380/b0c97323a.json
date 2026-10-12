@@ -1,0 +1,32 @@
+{
+  "id": "b0c97323a",
+  "name": "Validate capture focus fix",
+  "command": "cd /d C:\\Dev\\klice-start\\apps\\extension && set \"HEADFUL=1\" && node scripts/verify-thumbnail-refresh-e2e.mjs",
+  "description": "Validate actual pixels and post-capture focus restoration with the updated flow.",
+  "status": "failed",
+  "outputPath": ".pi\\tasks\\01a12e44-4eb0-75a5-a3c9-0c56e86142a7-18380\\b0c97323a.output",
+  "cwd": "C:\\Dev\\klice-start",
+  "startTime": 1791793713564,
+  "endTime": 1791793850571,
+  "exitCode": 1,
+  "signal": null,
+  "pid": 22852,
+  "bytesWritten": 2004,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Exited with code 1",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "timeoutSeconds": 600,
+  "shellPolicy": {
+    "policy": "cmd",
+    "executable": "C:\\WINDOWS\\system32\\cmd.exe",
+    "argvPrefix": [
+      "/d",
+      "/s",
+      "/c"
+    ],
+    "dialect": "cmd"
+  }
+}
