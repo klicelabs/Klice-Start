@@ -14,16 +14,14 @@
  * No product code is modified: every instrument lives in the page via
  * addInitScript and the wrapper only forwards to the original API.
  */
-import { chromium } from "playwright";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-export const OUTPUT_DIR = path.resolve(
-	__dirname,
-	"../.output/chrome-mv3",
-);
+export const OUTPUT_DIR = path.resolve(__dirname, "../.output/chrome-mv3");
 
 /** Default dataset: 3 root folders + folders of cards, ~34 cards total. */
 export function buildSeed({ cardsPerFolder = 12, folders = 3 } = {}) {
@@ -477,7 +475,10 @@ export const TIMELINE_SCRIPT = `
  * Launch Chromium with the built extension loaded.
  * Returns { context, page, extensionId } where page is about:blank.
  */
-export async function launchExtension({ headless = true } = {}) {
+export async function launchExtension({
+	headless = true,
+	backgroundRenderingOverrides = true,
+} = {}) {
 	if (!fs.existsSync(OUTPUT_DIR)) {
 		throw new Error(
 			`Extension build not found at ${OUTPUT_DIR}. Run: cd apps/extension && bun run build`,
@@ -495,15 +496,21 @@ export async function launchExtension({ headless = true } = {}) {
 			`--disable-extensions-except=${OUTPUT_DIR}`,
 			`--load-extension=${OUTPUT_DIR}`,
 			"--no-first-run",
-			"--disable-background-timer-throttling",
-			"--disable-backgrounding-occluded-windows",
-			"--disable-renderer-backgrounding",
-			"--disable-features=CalculateNativeWinOcclusion",
+			...(backgroundRenderingOverrides
+				? [
+						"--disable-background-timer-throttling",
+						"--disable-backgrounding-occluded-windows",
+						"--disable-renderer-backgrounding",
+						"--disable-features=CalculateNativeWinOcclusion",
+					]
+				: []),
 		],
 	});
 	let [background] = context.serviceWorkers();
 	if (!background) {
-		background = await context.waitForEvent("serviceworker", { timeout: 15000 });
+		background = await context.waitForEvent("serviceworker", {
+			timeout: 15000,
+		});
 	}
 	let extensionId;
 	try {
@@ -517,7 +524,11 @@ export async function launchExtension({ headless = true } = {}) {
 }
 
 /** Open a newtab page, optionally seeding first (seed + reload for cold data). */
-export async function openNewtab(context, extensionId, { seed, initScripts = [] } = {}) {
+export async function openNewtab(
+	context,
+	extensionId,
+	{ seed, initScripts = [] } = {},
+) {
 	const page = await context.newPage();
 	await page.addInitScript(INSTRUMENT_SCRIPT);
 	for (const script of initScripts) await page.addInitScript(script);
@@ -525,10 +536,13 @@ export async function openNewtab(context, extensionId, { seed, initScripts = [] 
 	if (seed) {
 		await page.evaluate((data) => {
 			return new Promise((resolve, reject) => {
-				chrome.storage.local.set({ "perch-setup": JSON.stringify(data) }, () => {
-					if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
-					else resolve();
-				});
+				chrome.storage.local.set(
+					{ "perch-setup": JSON.stringify(data) },
+					() => {
+						if (chrome.runtime.lastError) reject(chrome.runtime.lastError);
+						else resolve();
+					},
+				);
 			});
 		}, seed);
 		await page.reload({ waitUntil: "load" });
@@ -655,7 +669,7 @@ export async function closeSettings(page) {
 		.waitForFunction(
 			() =>
 				document.querySelector('[data-settings-open="false"]') !== null ||
-				document.querySelector('[data-settings-open]') === null,
+				document.querySelector("[data-settings-open]") === null,
 			null,
 			{ timeout: 5000 },
 		)
@@ -690,7 +704,10 @@ export function summarizeCpuProfile(profile, topN = 18) {
 	let totalHits = 0;
 	for (const node of profile.nodes) {
 		const fn = node.callFrame.functionName || "(anonymous)";
-		const url = (node.callFrame.url || "").replace(/^.*\/(chunks|assets)\//, "");
+		const url = (node.callFrame.url || "").replace(
+			/^.*\/(chunks|assets)\//,
+			"",
+		);
 		const key = `${fn} @ ${url || "(vm)"}`;
 		byKey.set(key, (byKey.get(key) ?? 0) + (node.hitCount ?? 0));
 	}
