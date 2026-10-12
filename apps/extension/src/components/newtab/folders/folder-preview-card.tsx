@@ -36,6 +36,7 @@ import { useSetupStore } from "../../../stores/setup-store";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { IconAppTile } from "../icon-app-tile";
+import { SelectionCheckbox } from "../selection-checkbox";
 
 /** A single card's preview data for the folder mosaic. */
 export interface FolderPreviewItem {
@@ -59,6 +60,7 @@ interface FolderPreviewCardProps {
 	 */
 	showOpenAction?: boolean;
 	onClick?: (e: React.MouseEvent) => void;
+	onSelect?: (e: React.MouseEvent) => void;
 	onOpen: (id: string) => void;
 	onNewSubfolder: (id: string) => void;
 	onDelete: (id: string) => void;
@@ -96,6 +98,7 @@ export function FolderPreviewCard({
 	isSelected = false,
 	showOpenAction = false,
 	onClick,
+	onSelect,
 	onOpen,
 	onNewSubfolder,
 	onDelete,
@@ -177,6 +180,13 @@ export function FolderPreviewCard({
 				)}
 			>
 				<div className="relative flex h-full w-full min-w-0 flex-col">
+					{!editing && onSelect && (
+						<SelectionCheckbox
+							checked={isSelected}
+							label={`folder ${name}`}
+							onSelect={onSelect}
+						/>
+					)}
 					{dialLayout === "icon" ? (
 						<IconFolderBody
 							id={id}

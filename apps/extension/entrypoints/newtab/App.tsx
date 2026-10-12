@@ -61,7 +61,11 @@ import {
 	snapshotSetup,
 	takeGestureCapture,
 } from "../../src/lib/history-capture";
-import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
+import {
+	isInteractiveTarget,
+	isScrollGutterPress,
+	SPEED_DIAL_INTERACTIVE_SELECTOR,
+} from "../../src/lib/interaction-scope";
 import {
 	getOrderedRefs,
 	type ItemOrder,
@@ -1108,14 +1112,7 @@ export default function App() {
 	useEffect(() => {
 		function handlePointerDown(e: PointerEvent) {
 			if (e.pointerType === "mouse" && e.button !== 0) return;
-			const target = e.target as HTMLElement | null;
-			if (
-				target?.closest(
-					'.dial-cell, [data-local-context-menu], [data-settings-panel], [data-settings-ui], [data-selection-tray], [data-sonner-toaster], button, input, a, header, [role="dialog"], [role="menu"], [role="listbox"], [role="tree"]',
-				)
-			) {
-				return;
-			}
+			if (isInteractiveTarget(e.target) || isScrollGutterPress(e)) return;
 			useSelectionStore.getState().clear();
 		}
 		window.addEventListener("pointerdown", handlePointerDown);

@@ -46,6 +46,7 @@ html.dark body {
 	--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 	--motion-toolbar-duration: 180ms;
+	--motion-thumbnail-cycle: 1800ms;
 }
 
 /* Text painted directly on the Home wallpaper has its own contrast role. It
@@ -527,8 +528,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid[data-layout="icon"]
 	.dial-icon-folder-cell[data-selected="true"]
 	.icon-folder-tile {
-	outline: 2px solid var(--klice-accent);
-	outline-offset: 4px;
+	outline: 1px solid rgb(var(--klice-accent-rgb) / 0.65);
+	outline-offset: 3px;
 }
 
 .icon-app-tile-drop-active,
@@ -705,56 +706,116 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Only the card the worker is currently processing gets a clipped shimmer.
-   Transform-only motion keeps the image/layout stable and never intercepts input. */
-.dial-card .thumb[data-refreshing="true"]::after {
+/* A neutral skeleton, not an accent-coloured beam. Keep an existing preview
+   recognizable beneath a light matte; empty previews use a solid surface.
+   Only transform + opacity move. Exit immediately stops the previous sweep. */
+.thumbnail-refresh-mask {
 	position: absolute;
-	inset-block: 0;
-	left: -55%;
-	width: 55%;
-	background: linear-gradient(
-		110deg,
-		transparent 0%,
-		rgb(var(--klice-accent-rgb) / 0.02) 30%,
-		rgb(var(--klice-accent-rgb) / 0.14) 50%,
-		rgb(var(--klice-accent-rgb) / 0.02) 70%,
-		transparent 100%
-	);
-	content: "";
+	inset: 0;
 	pointer-events: none;
-	transform: translateX(0);
-	animation: klice-thumbnail-shimmer 1.25s linear infinite;
-	will-change: transform;
+	overflow: hidden;
+	background: var(--muted);
 }
-
+.thumbnail-refresh-mask[data-preview="true"] {
+	background: color-mix(in srgb, var(--background) 8%, transparent);
+}
+.thumbnail-refresh-light {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(
+		100deg,
+		transparent,
+		rgb(255 255 255 / 0.025) 25%,
+		rgb(255 255 255 / 0.11) 50%,
+		rgb(255 255 255 / 0.025) 75%,
+		transparent
+	);
+	transform: translateX(-100%);
+}
+.thumbnail-refresh-mask[data-active="true"] .thumbnail-refresh-light {
+	animation: klice-thumbnail-shimmer var(--motion-thumbnail-cycle) linear
+		infinite;
+}
 @keyframes klice-thumbnail-shimmer {
 	to {
-		transform: translateX(300%);
+		transform: translateX(100%);
 	}
 }
-
 @media (prefers-reduced-motion: reduce) {
-	.dial-card .thumb[data-refreshing="true"]::after {
-		left: 0;
-		width: 100%;
-		background: linear-gradient(
-			90deg,
-			transparent 0%,
-			rgb(var(--klice-accent-rgb) / 0.06) 50%,
-			transparent 100%
-		);
-		transform: none;
+	.thumbnail-refresh-mask[data-active="true"] .thumbnail-refresh-light {
 		animation: none;
 	}
 }
 
-/* Card mode keeps its existing whole-card selection treatment. Icon mode uses
-   the surface-only rules above so labels stay outside the blue outline. */
+/* Keep operation feedback clear of the selection shelf on compact windows. */
+@media (max-width: 960px) {
+	body:has([data-selection-tray]) .refresh-progress-surface {
+		margin-bottom: 250px;
+	}
+}
+
+/* SelectionCheckbox wrapper: absolute placement + visibility only. The
+   inner control stays the official beUI default (20px geometry, draw-on
+   mark, spring press) — this layer never touches its animation. */
+.dial-card .selection-checkbox {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 30;
+	display: inline-flex;
+	width: 20px;
+	height: 20px;
+	opacity: 0;
+	pointer-events: none;
+}
+/* Genuine 32px hit area owned by the control itself, so padding presses
+   land on the button (keeping focus) and bubble once to the wrapper.
+   A wrapper-level ::after would paint above the button and steal its
+   presses, blurring focus and dropping the toggle. */
+.dial-card .selection-checkbox [role="checkbox"] {
+	position: relative;
+}
+.dial-card .selection-checkbox [role="checkbox"]::after {
+	/* Padding box is 16px (20px control minus its 2px border), so -8px
+	   yields the genuine 32px pressed area the regression suite probes. */
+	position: absolute;
+	inset: -8px;
+	content: "";
+}
+/* Checked selection follows the Klice accent so the control reads as one
+   with the card's selected contour; unchecked keeps beUI's default face. */
+.dial-card .selection-checkbox [data-state="checked"] {
+	border-color: var(--klice-accent);
+	background: var(--klice-accent);
+	color: var(--klice-accent-foreground);
+}
+/* Visible while its card is selected, while any selection is active, or
+   while focus is inside the card — so a manually checked card keeps its
+   marked control after the pointer leaves. */
+.dial-card:focus-within .selection-checkbox,
+.dial-card[data-selected="true"] .selection-checkbox,
+.dial-grid-wrap[data-selection-active="true"] .selection-checkbox {
+	opacity: 1;
+	pointer-events: auto;
+}
+.dial-card:has(a:focus-visible) {
+	outline: 2px solid var(--klice-accent);
+	outline-offset: 3px;
+}
+@media (hover: none) {
+	.dial-card .selection-checkbox {
+		opacity: 1;
+		pointer-events: auto;
+	}
+}
+
+/* A quiet state layer + thin contour, not a competing drop/focus ring. */
 .dial-grid[data-layout="card"] .dial-card[data-selected="true"]::before {
 	position: absolute;
 	inset: 0;
 	z-index: 20;
-	border: 2px solid var(--klice-accent);
+	border: 1px solid rgb(var(--klice-accent-rgb) / 0.65);
+	background: rgb(var(--klice-accent-rgb) / 0.07);
 	border-radius: inherit;
 	corner-shape: inherit;
 	content: "";

@@ -45,7 +45,12 @@ export const DURATION = {
 	depth: 0.32,
 	/** App wake / Rest Mode exit choreography. */
 	wake: 0.42,
+	/** beUI's draw-on checkbox mark; the checked state changes immediately. */
+	checkmark: 0.3,
 } as const;
+
+/** Tiny sequencing delays for authored control feedback (seconds). */
+export const DELAY = { checkmark: 0.04 } as const;
 
 /** Cubic-bezier easings, as Motion expects them. */
 export const EASE = {

@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAutoscroll } from "../lib/autoscroll";
 import { getActiveDrag } from "../lib/dnd";
-import { isInteractiveTarget } from "../lib/interaction-scope";
+import {
+	isInteractiveTarget,
+	isScrollGutterPress,
+} from "../lib/interaction-scope";
 import {
 	type ClientRect,
 	MARQUEE_THRESHOLD_PX,
@@ -9,6 +12,7 @@ import {
 	normalizeRect,
 	pointerTravel,
 } from "../lib/marquee-geometry";
+import { mergeMarqueeSelection } from "../lib/marquee-selection";
 import {
 	materializeExcluding,
 	selectedAncestorOf,
@@ -74,9 +78,7 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 	const current = useRef({ x: 0, y: 0 });
 	const mode = useRef<MarqueeMode>("add");
 	const snapshot = useRef<SelectionItem[]>([]);
-	const touched = useRef<Set<string>>(new Set());
-	const touchOrder = useRef<string[]>([]);
-	const touchOrderIds = useRef<Set<string>>(new Set());
+	const crossed = useRef(new Map<string, SelectionItem>());
 	const cache = useRef(new Map<string, CachedSurface>());
 	const lastKey = useRef("");
 	const wrapEl = useRef<HTMLElement | null>(null);
@@ -135,26 +137,22 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 			}
 		}
 		const folder = folderIdRef.current;
-		const hits: SelectionItem[] = [];
 		for (const [id, surface] of cache.current) {
 			if (!marqueeHitsTile(surface.rect, marquee)) continue;
-			touched.current.add(id);
-			if (!touchOrderIds.current.has(id)) {
-				touchOrderIds.current.add(id);
-				touchOrder.current.push(id);
-			}
-			hits.push({ id, kind: surface.kind, sourceId: folder });
+			const item = { id, kind: surface.kind, sourceId: folder };
+			crossed.current.set(id, item);
 		}
 		let snap = snapshot.current;
-		if (hits.length > 0) {
+		const firstCrossed = crossed.current.values().next().value;
+		if (firstCrossed) {
 			const setup = useSetupStore.getState();
-			const ancestor = selectedAncestorOf(hits[0], snap, setup.folders);
+			const ancestor = selectedAncestorOf(firstCrossed, snap, setup.folders);
 			if (ancestor) {
 				snap = [
 					...snap.filter((item) => item.id !== ancestor),
 					...materializeExcluding(
 						ancestor,
-						hits[0],
+						firstCrossed,
 						setup.folders,
 						setup.cards,
 						setup.itemOrder,
@@ -163,35 +161,7 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 				];
 			}
 		}
-		const snapIds = new Set(snap.map((item) => item.id));
-		if (mode.current === "add") {
-			// Union with the gesture-start snapshot: the window
-			// blank-clearer already emptied the live store at pointerdown,
-			// so merging here is what keeps carried items selected.
-			const merged = [...snap];
-			for (const hit of hits) {
-				if (!snapIds.has(hit.id)) {
-					snapIds.add(hit.id);
-					merged.push(hit);
-				}
-			}
-			writeSelection(merged);
-			return;
-		}
-		// Toggle: latched flips relative to the gesture-start snapshot.
-		const touchedNow = touched.current;
-		const kept = snap.filter((item) => !touchedNow.has(item.id));
-		const keptIds = new Set(kept.map((item) => item.id));
-		const flipped: SelectionItem[] = [];
-		for (const id of touchOrder.current) {
-			if (snapIds.has(id) || keptIds.has(id)) continue;
-			const surface = cache.current.get(id);
-			if (surface) {
-				flipped.push({ id, kind: surface.kind, sourceId: folder });
-				keptIds.add(id);
-			}
-		}
-		writeSelection([...kept, ...flipped]);
+		writeSelection(mergeMarqueeSelection(snap, crossed.current, mode.current));
 	}, [paintOverlay, writeSelection]);
 
 	const pokeFrame = useCallback(() => {
@@ -232,9 +202,7 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 				else useSelectionStore.getState().selectAll([...snap]);
 			}
 			snapshot.current = [];
-			touched.current.clear();
-			touchOrder.current = [];
-			touchOrderIds.current.clear();
+			crossed.current.clear();
 			cache.current.clear();
 			lastKey.current = "";
 			releaseCapture();
@@ -279,7 +247,8 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 			if (!e.isPrimary || e.button !== 0) return;
 			if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
 			if (e.altKey) return;
-			if (isInteractiveTarget(e.target)) return;
+			if (isInteractiveTarget(e.target) || isScrollGutterPress(e.nativeEvent))
+				return;
 			// Plain and Shift drags both grow the selection; only
 			// Ctrl/Cmd flips. (Click without drag still clears via the
 			// window blank-clearer — threshold never commits.)
@@ -288,9 +257,7 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 			// precede native window listeners): toggle/add merge against
 			// pre-gesture state and Esc restores it.
 			snapshot.current = [...useSelectionStore.getState().items];
-			touched.current.clear();
-			touchOrder.current = [];
-			touchOrderIds.current.clear();
+			crossed.current.clear();
 			lastKey.current = "";
 			anchor.current = { x: e.clientX, y: e.clientY };
 			current.current = { x: e.clientX, y: e.clientY };
@@ -354,16 +321,32 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 		(e: React.PointerEvent<HTMLElement>) => {
 			// A secondary-button release must not settle the primary gesture.
 			if (e.button !== 0) return;
-			// Sub-threshold release = plain empty click (the window clearer
-			// already applied empty-click semantics at pointerdown).
+			// Flush the last pointer position before cancelling its pending frame.
+			// A quick release must not lose the last row of crossed cards.
+			if (phase.current === "selecting") {
+				current.current = { x: e.clientX, y: e.clientY };
+				if (raf.current !== null) cancelAnimationFrame(raf.current);
+				processFrame();
+			}
 			settle(false);
 		},
-		[settle],
+		[processFrame, settle],
 	);
 
 	const onPointerCancel = useCallback(() => {
 		settle(phase.current === "selecting");
 	}, [settle]);
+
+	// Wheel/native scroll can move content without a pointermove. It only
+	// updates hit geometry during a gesture; committed IDs remain untouched.
+	useEffect(() => {
+		if (!selecting) return;
+		const scroller = wrapEl.current?.closest<HTMLElement>(
+			"[data-speed-dial-scroll]",
+		);
+		scroller?.addEventListener("scroll", pokeFrame, { passive: true });
+		return () => scroller?.removeEventListener("scroll", pokeFrame);
+	}, [selecting, pokeFrame]);
 
 	// Esc cancels the live gesture and restores the pre-gesture snapshot.
 	// Capture-phase + stopPropagation preempts the grid's clear-selection
