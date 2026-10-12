@@ -774,6 +774,10 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    presses, blurring focus and dropping the toggle. */
 .dial-card .selection-checkbox [role="checkbox"] {
 	position: relative;
+	/* 5px matches the design-system checkbox (`rounded-[5px]`): the app
+	   theme scales `rounded-md` up to 8px, which reads circular at 20px.
+	   Motion, geometry and the draw-on mark stay beUI's. */
+	border-radius: 5px;
 }
 .dial-card .selection-checkbox [role="checkbox"]::after {
 	/* Padding box is 16px (20px control minus its 2px border), so -8px

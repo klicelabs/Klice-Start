@@ -292,15 +292,6 @@ export function FolderPreviewCard({
 									>
 										{itemCount}
 									</span>
-
-									{isSelected && (
-										<div
-											aria-hidden="true"
-											className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
-										>
-											<Icon name="check" size={11} strokeWidth={3} />
-										</div>
-									)}
 								</div>
 
 								<div
@@ -625,15 +616,6 @@ function IconFolderBody({
 				) : (
 					<div className="icon-folder-empty pointer-events-none relative z-10">
 						<Icon name="folder" size={42} strokeWidth={1.5} />
-					</div>
-				)}
-
-				{isSelected && (
-					<div
-						aria-hidden="true"
-						className="pointer-events-none absolute top-3 left-3 z-30 flex size-6 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
-					>
-						<Icon name="check" size={12} strokeWidth={3} />
 					</div>
 				)}
 			</div>
