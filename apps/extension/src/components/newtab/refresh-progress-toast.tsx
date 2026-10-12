@@ -1,4 +1,5 @@
 import { Icon } from "@klice-start/ui/icons/icon";
+import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
 import { toast } from "sonner";
@@ -69,7 +70,7 @@ export function RefreshProgressToast() {
 			toast.custom(() => <RefreshRunningCard />, {
 				id: REFRESH_TOAST_ID,
 				duration: Number.POSITIVE_INFINITY,
-				position: "bottom-center",
+				position: "bottom-right",
 			});
 			return undefined;
 		}
@@ -77,7 +78,7 @@ export function RefreshProgressToast() {
 			toast.custom(() => <RefreshSummaryCard />, {
 				id: REFRESH_TOAST_ID,
 				duration: SUMMARY_DURATION_MS,
-				position: "bottom-center",
+				position: "bottom-right",
 			});
 			const timer = setTimeout(
 				() => useRefreshStore.getState().dismissSummary(),
@@ -110,7 +111,7 @@ function handleRefreshEvent(event: RefreshProgressEvent): void {
 
 function toastSurface(isLiquid: boolean): string {
 	return cn(
-		"pointer-events-auto w-[min(22rem,calc(100vw-2rem))]",
+		"refresh-progress-surface pointer-events-auto w-[min(22rem,calc(100vw-2rem))]",
 		glassShape("panel"),
 		glassMaterial(isLiquid, "menu", "dense"),
 		isLiquid ? glassForeground() : "text-flat-ink",
@@ -123,8 +124,8 @@ function toastSurface(isLiquid: boolean): string {
  * signature ease. Static when the user prefers reduced motion.
  */
 const TOAST_ROW_TRANSITION = {
-	duration: 0.2,
-	ease: [0.23, 1, 0.32, 1] as const,
+	duration: DURATION.control,
+	ease: EASE.out,
 };
 
 function RefreshRunningCard() {
@@ -173,30 +174,25 @@ function RefreshRunningCard() {
 					aria-label="Capture log"
 					className="mt-2.5 flex flex-col gap-1 overflow-hidden"
 				>
-					{/* wait: the entering row mounts only after the outgoing
-					    one clears, so the log never holds more than two rows. */}
-					<AnimatePresence initial={false} mode="wait">
+					{/* Stable semantic slots keep the log bounded to two rows. */}
+					<AnimatePresence initial={false} mode="sync">
 						{visible.map((site, index) => {
 							const isCurrent = index === visible.length - 1;
 							return (
 								<motion.div
-									key={site.cardId}
+									key={isCurrent ? "latest" : "previous"}
 									initial={
 										reduceMotion
-											? { opacity: isCurrent ? 1 : 0.3 }
+											? { opacity: isCurrent ? 1 : 0.65 }
 											: { opacity: 0, y: 8 }
 									}
-									animate={{ opacity: isCurrent ? 1 : 0.3, y: 0 }}
+									animate={{ opacity: isCurrent ? 1 : 0.65, y: 0 }}
 									exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
 									transition={TOAST_ROW_TRANSITION}
 									className={cn(
 										"flex min-w-0 items-center gap-2 text-[12px]",
-										// The previous entry smokes out: motion fades it
-										// to ~30% (see animate above) with a gradient
-										// mask dissolving toward the top. Mask stops
-										// are an alpha technique, not theme colors.
-										!isCurrent &&
-											"[mask-image:linear-gradient(to_bottom,transparent,black)]",
+										// The previous result recedes without masking readable text.
+
 										!site.ok && "text-red-600 dark:text-red-400",
 									)}
 								>
@@ -223,6 +219,7 @@ function ProgressRing({ fraction }: { fraction: number }) {
 	return (
 		<div
 			role="progressbar"
+			aria-label="Preview refresh progress"
 			aria-valuemin={0}
 			aria-valuemax={100}
 			aria-valuenow={Math.round(fraction * 100)}

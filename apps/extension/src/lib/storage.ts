@@ -25,10 +25,10 @@ import {
 	WIDGET_SIZE_MIN,
 } from "./constants";
 import { extApi } from "./extension-api";
+import { writeFirstPaintSnapshot } from "./first-paint-snapshot";
 import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
-import { writeFirstPaintSnapshot } from "./first-paint-snapshot";
 import { isAbsoluteHttpUrl } from "./url";
 import { writeWallpaperSnapshot } from "./wallpaper-snapshot";
 
@@ -424,13 +424,8 @@ export async function cleanupLegacyCustomWallpaperImages(
 	await Promise.all(
 		legacyIds
 			.filter((id) => id !== retainedId)
-			.map(async (id) => {
-				try {
-					await idbDelete(STORE_BG, id);
-				} catch {
-					// Cleanup is intentionally non-blocking; the normalized state is safe.
-				}
-			}),
+			// Explicitly return each cleanup promise; failures remain non-blocking.
+			.map((id) => idbDelete(STORE_BG, id).catch(() => undefined)),
 	);
 }
 
@@ -780,6 +775,11 @@ function _doWrite(
 					"QuotaExceededError",
 				);
 			}
+			// A reset received while quota/predecessor writes were awaited must
+			// not promote an old snapshot into the new generation.
+			if (generation < _resetGeneration) {
+				throw new Error("Setup changed generation before persistence");
+			}
 			// polish/wallpaper-flash: mirror the wallpaper choice to read-fast
 			// localStorage on the same tick as the chrome write, so the next
 			// newtab can paint frame 1 without waiting for async hydration.
@@ -905,17 +905,19 @@ export async function readSetupEnvelope(name: string): Promise<Setup | null> {
 
 /**
  * Persist the setup envelope for a non-page context with the current
- * generation stamped (N1). Serialized on the same in-flight chain as page
- * writes so a background save cannot interleave with a coalesced page write.
+ * generation stamped (N1). The write chain is local to the calling context,
+ * not a cross-context transaction. Async captures may supply their original
+ * generation so a reset cannot promote an old snapshot into the new setup.
  */
 export async function writeSetupEnvelope(
 	name: string,
 	setup: Setup,
+	expectedGeneration?: number,
 ): Promise<void> {
 	if (!extApi() || !extApi().storage?.local) return;
 	if (!_resetGenerationLoaded) await _resetGenerationReady;
 	const value: StorageValue<Setup> = { state: setup };
-	await _doWrite(name, value, _resetGeneration);
+	await _doWrite(name, value, expectedGeneration ?? _resetGeneration);
 }
 
 /**

@@ -134,13 +134,19 @@ export interface RefreshProgressEvent {
 
 export function isRefreshMessage(value: unknown): value is RefreshMessage {
 	if (typeof value !== "object" || value === null) return false;
-	const type = (value as { type?: unknown }).type;
-	return (
-		type === "refresh:single" ||
-		type === "refresh:batch" ||
-		type === "refresh:cancel" ||
-		type === "refresh:state"
-	);
+	const message = value as {
+		type?: unknown;
+		cardId?: unknown;
+		cardIds?: unknown;
+	};
+	if (message.type === "refresh:single")
+		return typeof message.cardId === "string" && message.cardId.length > 0;
+	if (message.type === "refresh:batch")
+		return (
+			Array.isArray(message.cardIds) &&
+			message.cardIds.every((id) => typeof id === "string" && id.length > 0)
+		);
+	return message.type === "refresh:cancel" || message.type === "refresh:state";
 }
 
 // ── Persisted batch state (survives service-worker sleep) ────────────────
@@ -155,6 +161,14 @@ export interface RefreshBatchState {
 		{ title: string; url: string; ok: boolean; error?: string }
 	>;
 	startedAt: number;
+	/** Crash staleness follows activity, not the duration of a healthy batch. */
+	lastActivityAt?: number;
+	/** Identity of the page loaded into the pending tab, independent of UI progress. */
+	pendingTarget?: {
+		cardId: string;
+		url: string;
+		thumbId: string | null;
+	} | null;
 	/** Card currently being prepared/captured; null between cards. */
 	activeCardId?: string | null;
 	/** Owned window/tab ids let a resumed worker reuse or clean its surface. */
@@ -209,7 +223,25 @@ export function isResumableRefreshState(value: unknown): boolean {
 	]) {
 		if (id != null && (!Number.isInteger(id) || id < 0)) return false;
 	}
-	return Date.now() - state.startedAt < REFRESH_BATCH_STALE_MS;
+	const activity = state.lastActivityAt ?? state.startedAt;
+	return (
+		typeof activity === "number" &&
+		Number.isFinite(activity) &&
+		Date.now() - activity < REFRESH_BATCH_STALE_MS
+	);
+}
+
+export function isRefreshPendingTargetUnchanged(
+	pending: RefreshBatchState["pendingTarget"],
+	cardId: string,
+	url: string,
+	thumbId: string | null | undefined,
+): boolean {
+	return (
+		!!pending &&
+		pending.cardId === cardId &&
+		isRefreshTargetUnchanged(pending.url, url, pending.thumbId, thumbId)
+	);
 }
 
 export function isRefreshTargetUnchanged(

@@ -5,6 +5,8 @@ import {
 } from "../src/lib/bookmark-match";
 import {
 	captureDelayMs,
+	isRefreshMessage,
+	isRefreshPendingTargetUnchanged,
 	isRefreshTargetUnchanged,
 	isResumableRefreshState,
 	REFRESH_BATCH_STALE_MS,
@@ -245,6 +247,77 @@ test("refresh commit guard rejects an edited URL or concurrently replaced previe
 			"old-thumb",
 			"new-thumb",
 		),
+	).toBe(false);
+});
+
+test("refresh messages validate start payloads before acquiring a queue lock", () => {
+	for (const value of [
+		null,
+		{},
+		{ type: "refresh:single" },
+		{ type: "refresh:single", cardId: "" },
+		{ type: "refresh:batch" },
+		{ type: "refresh:batch", cardIds: "one" },
+		{ type: "refresh:batch", cardIds: ["one", 4] },
+	]) {
+		expect(isRefreshMessage(value)).toBe(false);
+	}
+	expect(isRefreshMessage({ type: "refresh:single", cardId: "one" })).toBe(
+		true,
+	);
+	expect(isRefreshMessage({ type: "refresh:batch", cardIds: ["one"] })).toBe(
+		true,
+	);
+	expect(isRefreshMessage({ type: "refresh:cancel" })).toBe(true);
+});
+
+test("resumed pending tab identity does not follow mutable progress metadata", () => {
+	const pending = {
+		cardId: "one",
+		url: "https://example.com/a",
+		thumbId: "old",
+	};
+	expect(
+		isRefreshPendingTargetUnchanged(pending, "one", pending.url, "old"),
+	).toBe(true);
+	expect(
+		isRefreshPendingTargetUnchanged(
+			pending,
+			"one",
+			"https://example.com/b",
+			"old",
+		),
+	).toBe(false);
+	expect(
+		isRefreshPendingTargetUnchanged(pending, "one", pending.url, "new"),
+	).toBe(false);
+	expect(
+		isRefreshPendingTargetUnchanged(pending, "two", pending.url, "old"),
+	).toBe(false);
+	expect(
+		isRefreshPendingTargetUnchanged(undefined, "one", pending.url, "old"),
+	).toBe(false);
+});
+
+test("long healthy batches resume based on recent activity", () => {
+	const state = {
+		status: "running",
+		cardIds: ["one"],
+		doneIds: [],
+		failedIds: [],
+		sites: {},
+		startedAt: Date.now() - REFRESH_BATCH_STALE_MS - 60_000,
+		lastActivityAt: Date.now(),
+	};
+	expect(isResumableRefreshState(state)).toBe(true);
+	expect(
+		isResumableRefreshState({
+			...state,
+			lastActivityAt: Date.now() - REFRESH_BATCH_STALE_MS - 1,
+		}),
+	).toBe(false);
+	expect(
+		isResumableRefreshState({ ...state, lastActivityAt: Number.NaN }),
 	).toBe(false);
 });
 

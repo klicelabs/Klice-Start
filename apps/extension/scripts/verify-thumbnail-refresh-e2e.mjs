@@ -343,12 +343,26 @@ const record = (scenario, pass, detail) => {
 // Headless by default (CI has no display; the chromium channel's new
 // headless still loads MV3 extensions and captureVisibleTab works there).
 // Set HEADFUL=1 to watch the run in a visible browser.
-const { context, extensionId } = await launchExtension({
-	headless: process.env.HEADFUL !== "1",
-});
-const swErrors = [];
+let context;
+let extensionId;
 try {
-	context.on("serviceworker", (worker) => {
+	({ context, extensionId } = await launchExtension({
+		headless: process.env.HEADFUL !== "1",
+		backgroundRenderingOverrides: process.env.NATIVE_CAPTURE !== "1",
+	}));
+} catch (error) {
+	restoreManifest();
+	throw error;
+}
+const swErrors = [];
+const artifactDir = fs.mkdtempSync(
+	path.join(process.env.TEMP ?? "/tmp", "klice-refresh-polish-"),
+);
+console.log(
+	`refresh screenshots: ${artifactDir}; native rendering=${process.env.NATIVE_CAPTURE === "1"}`,
+);
+try {
+	const attachWorker = (worker) => {
 		worker.on("console", (msg) => {
 			if (msg.type() === "error")
 				swErrors.push(`sw console error: ${msg.text()}`);
@@ -356,7 +370,9 @@ try {
 		worker.on("pageerror", (err) =>
 			swErrors.push(`sw pageerror: ${err.message}`),
 		);
-	});
+	};
+	context.serviceWorkers().forEach(attachWorker);
+	context.on("serviceworker", attachWorker);
 } catch {
 	// Event subscription unsupported — skip SW console capture.
 }
@@ -479,6 +495,9 @@ try {
 			15000,
 			"single refresh finalization",
 		);
+		await observer.screenshot({
+			path: path.join(artifactDir, "single-completed.png"),
+		});
 		const ui = await cardShowsThumb(observer, "single");
 		const pixel = updated
 			? await readThumbnailPixel(observer, updated.thumbId).catch(() => null)
@@ -512,6 +531,98 @@ try {
 		);
 	}
 
+	// Already-active matching pages use the supported no-window fast path.
+	{
+		const before = (await readCards(observer)).find(
+			(card) => card.title === "single",
+		);
+		const existingPage = await context.newPage();
+		await existingPage.goto(testUrl("single"));
+		const beforeWindows = await windowCount(observer);
+		const response = await observer.evaluate(
+			(cardId) =>
+				chrome.runtime.sendMessage({ type: "refresh:single", cardId }),
+			before.id,
+		);
+		const updated = await waitFor(
+			async () => {
+				const card = (await readCards(observer)).find(
+					(entry) => entry.id === before.id,
+				);
+				return card.thumbId !== before.thumbId ? card : null;
+			},
+			25000,
+			"active-tab capture",
+		);
+		await waitFor(
+			async () => (await readRefreshSession(observer)) === null,
+			15000,
+			"active-tab finalization",
+		);
+		const pixel = await readThumbnailPixel(observer, updated.thumbId);
+		const rgb = pixel.pixels.find((entry) => entry.label === "2%").rgb;
+		record(
+			"1c. already-active page refresh creates no secondary window",
+			response.accepted &&
+				(await windowCount(observer)) === beforeWindows &&
+				!existingPage.isClosed() &&
+				Math.abs(rgb[2] - 181) <= 5,
+			`windows=${beforeWindows}, pixel=${JSON.stringify(rgb)}`,
+		);
+		await observer.bringToFront();
+		await existingPage.close();
+	}
+
+	// One-shot permission failure proves initialization exceptions release the lock.
+	{
+		const target = (await readCards(observer)).find(
+			(card) => card.title === "single",
+		);
+		await sw.evaluate(() => {
+			const api = globalThis.browser ?? chrome;
+			const original = api.permissions.contains;
+			api.permissions.contains = () => {
+				api.permissions.contains = original;
+				return Promise.reject(new Error("initialization-failure-probe"));
+			};
+		});
+		const failed = await observer.evaluate(
+			(cardId) =>
+				chrome.runtime.sendMessage({ type: "refresh:single", cardId }),
+			target.id,
+		);
+		const responses = await observer.evaluate(async (cardId) => {
+			const start = chrome.runtime.sendMessage({
+				type: "refresh:single",
+				cardId,
+			});
+			const cancel = chrome.runtime.sendMessage({ type: "refresh:cancel" });
+			return Promise.all([start, cancel]);
+		}, target.id);
+		await waitFor(
+			async () => (await readRefreshSession(observer)) === null,
+			15000,
+			"early cancel cleanup",
+		);
+		record(
+			"1d. initialization failure releases the running lock",
+			failed.ok === false &&
+				failed.error?.includes("initialization-failure-probe") &&
+				responses[0].accepted === true,
+			JSON.stringify({ failed, responses }),
+		);
+		const current = (await readCards(observer)).find(
+			(card) => card.id === target.id,
+		);
+		record(
+			"1e. cancel during initialization is preserved",
+			responses[1].cancelled === true &&
+				current.thumbId === target.thumbId &&
+				(await windowCount(observer)) === windowsBefore,
+			`thumbnail unchanged=${current.thumbId === target.thumbId}`,
+		);
+	}
+
 	// ── 2. batch of 5 via selection tray ──
 	{
 		const before = await readCards(observer);
@@ -534,8 +645,7 @@ try {
 		}
 		async function batchRunning() {
 			const [text, session] = await Promise.all([
-				observer
-					.locator("[data-sonner-toaster]")
+				observer.locator('[data-sonner-toaster][data-x-position="right"]')
 					.innerText()
 					.catch(() => ""),
 				readRefreshSession(observer).catch(() => null),
@@ -594,8 +704,7 @@ try {
 			.then(() => true)
 			.catch(() => false);
 		if (!summaryVisible) {
-			const dbg = await observer
-				.locator("[data-sonner-toaster]")
+			const dbg = await observer.locator('[data-sonner-toaster][data-x-position="right"]')
 				.innerText()
 				.catch(() => "(no toaster)");
 			const sess = await readRefreshSession(observer).catch(() => "read-error");
@@ -659,8 +768,7 @@ try {
 		}
 		async function batch10Running() {
 			const [text, session] = await Promise.all([
-				observer
-					.locator("[data-sonner-toaster]")
+				observer.locator('[data-sonner-toaster][data-x-position="right"]')
 					.innerText()
 					.catch(() => ""),
 				readRefreshSession(observer).catch(() => null),
@@ -691,8 +799,7 @@ try {
 			).catch(() => null);
 		}
 		if (!running10) {
-			const dbg = await observer
-				.locator("[data-sonner-toaster]")
+			const dbg = await observer.locator('[data-sonner-toaster][data-x-position="right"]')
 				.innerText()
 				.catch(() => "(no toaster)");
 			const sess = await readRefreshSession(observer).catch(() => "read-error");
@@ -704,8 +811,7 @@ try {
 		// (7) mid-batch: the worker persisted resumable state to storage.session.
 		const midRun = await waitFor(
 			async () => {
-				const text = await observer
-					.locator("[data-sonner-toaster]")
+				const text = await observer.locator('[data-sonner-toaster][data-x-position="right"]')
 					.innerText()
 					.catch(() => "");
 				const state = await readRefreshSession(observer).catch(() => null);
@@ -717,6 +823,9 @@ try {
 			60000,
 			"batch reaching an active mid-run capture",
 		);
+		await observer.screenshot({
+			path: path.join(artifactDir, "queued-and-active.png"),
+		});
 		const session = midRun ?? (await readRefreshSession(observer));
 		record(
 			"7. SW-sleep resume state persisted mid-batch",
@@ -751,7 +860,7 @@ try {
 						activeCount: active.length,
 						cardId,
 						toast:
-							document.querySelector("[data-sonner-toaster]")?.innerText ?? "",
+							document.querySelector('[data-sonner-toaster][data-x-position="right"]')?.innerText ?? "",
 					};
 				});
 				if (
@@ -780,8 +889,7 @@ try {
 			.evaluate((button) => button.click());
 		const cancelledText = await waitFor(
 			async () => {
-				const text = await observer
-					.locator("[data-sonner-toaster]")
+				const text = await observer.locator('[data-sonner-toaster][data-x-position="right"]')
 					.innerText()
 					.catch(() => "");
 				const m = text.match(/Cancelled at (\d+) of 10/);
@@ -953,7 +1061,8 @@ try {
 			async () => {
 				const cards = await readCards(observer);
 				const ten = cards?.filter((c) => c.folderId === "folder-10") ?? [];
-				return ten.length === folderCount && ten.every((c) => !!c.thumbId)
+				return ten.length === folderCount &&
+					ten.every((c) => !!c.thumbId && beforeIds.get(c.title) !== c.thumbId)
 					? ten
 					: null;
 			},
@@ -967,7 +1076,7 @@ try {
 			: -1;
 		record(
 			`9a. right-click on selection refreshes all ${folderCount}`,
-			!!done && singleShown === 0,
+			!!done && changedCount === folderCount && singleShown === 0,
 			`allThumbed=${!!done}, replaced=${changedCount}/${folderCount}, singleEntryShown=${singleShown}`,
 		);
 		await sleep(4500);
@@ -989,8 +1098,7 @@ try {
 			.click();
 		await waitFor(
 			async () => {
-				const text = await observer
-					.locator("[data-sonner-toaster]")
+				const text = await observer.locator('[data-sonner-toaster][data-x-position="right"]')
 					.innerText()
 					.catch(() => "");
 				return new RegExp(`Capturing [2-9] of ${nNow}`).test(text)

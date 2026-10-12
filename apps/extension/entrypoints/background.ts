@@ -15,6 +15,7 @@ import {
 	pendingSaveThumbId,
 } from "../src/lib/pending-save";
 import {
+	getResetGeneration,
 	normalizeState,
 	readSetupEnvelope,
 	writeSetupEnvelope,
@@ -24,6 +25,7 @@ import {
 	captureDelayMs,
 	emptyRefreshState,
 	isRefreshMessage,
+	isRefreshPendingTargetUnchanged,
 	isRefreshTargetUnchanged,
 	isResumableRefreshState,
 	REFRESH_CAPTURE_FRAME_SETTLE_MS,
@@ -305,6 +307,8 @@ const recentThumbnailAttempts = new Map<string, number>();
 const inFlightThumbnailKeys = new Set<string>();
 const navigationStartUrls = new Map<number, string>();
 const navigationGenerations = new Map<number, number>();
+const tabActivationRevisions = new Map<number, number>();
+let refreshStartupReady: Promise<void> = Promise.resolve();
 
 function cancelPendingThumbnailCapture(tabId: number): void {
 	const pending = pendingThumbnailCaptures.get(tabId);
@@ -357,9 +361,12 @@ export default defineBackground(() => {
 		if (refreshFocusEventLog.length > 64) refreshFocusEventLog.shift();
 		if (refreshCaptureWindowIds.has(windowId)) return;
 		refreshFocusRevision += 1;
-		refreshLastNonCaptureWindowId = windowId >= 0 ? windowId : null;
+		// WINDOW_ID_NONE can be the first half of a window-manager transition.
+		// Keep the last concrete target; restoration still checks current focus.
+		if (windowId >= 0) refreshLastNonCaptureWindowId = windowId;
 	});
 	ext.windows.onRemoved?.addListener((windowId) => {
+		tabActivationRevisions.delete(windowId);
 		refreshCaptureWindowIds.delete(windowId);
 		if (refreshHiddenWindowId === windowId) refreshHiddenWindowId = null;
 	});
@@ -369,7 +376,7 @@ export default defineBackground(() => {
 	// stays current without re-reading per navigation.
 	scheduleCardIndexRefresh();
 	// A batch interrupted by a worker restart resumes its remaining cards.
-	void resumeRefreshBatchIfNeeded();
+	refreshStartupReady = resumeRefreshBatchIfNeeded();
 
 	// Refresh control plane: single, batch, cancel. Progress flows back as
 	// refresh:progress events (no polling). Unknown messages return false so
@@ -433,7 +440,6 @@ export default defineBackground(() => {
 	ext.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 		// Refresh-owned tabs are loaded and captured by the queue; the visit
 		// pipeline must never schedule an automatic capture for them.
-		if (refreshHiddenTabIds.has(tabId)) return;
 		if (changeInfo.status === "loading") {
 			const startUrl = changeInfo.url ?? tab.url;
 			if (startUrl) navigationStartUrls.set(tabId, startUrl);
@@ -448,6 +454,7 @@ export default defineBackground(() => {
 			nextNavigationGeneration(tabId);
 			cancelPendingThumbnailCapture(tabId);
 		}
+		if (refreshHiddenTabIds.has(tabId)) return;
 		if (changeInfo.status !== "complete") return;
 		const currentUrl = tab.url ?? changeInfo.url;
 		if (!currentUrl) return;
@@ -458,7 +465,11 @@ export default defineBackground(() => {
 		);
 	});
 
-	ext.tabs.onActivated.addListener(async ({ tabId }) => {
+	ext.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+		tabActivationRevisions.set(
+			windowId,
+			(tabActivationRevisions.get(windowId) ?? 0) + 1,
+		);
 		if (refreshHiddenTabIds.has(tabId)) return;
 		try {
 			const tab = await ext.tabs.get(tabId);
@@ -934,6 +945,7 @@ const refreshFocusEventLog: Array<{ sequence: number; windowId: number }> = [];
 let refreshFocusEventSequence = 0;
 let refreshFocusRevision = 0;
 let refreshLastNonCaptureWindowId: number | null = null;
+let refreshLiveState: RefreshBatchState | null = null;
 
 function sleep(ms: number): Promise<void> {
 	return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -986,6 +998,7 @@ async function restoreFocusAfterCaptureActivation(
 }
 
 async function readRefreshState(): Promise<RefreshBatchState> {
+	if (refreshRunning && refreshLiveState) return refreshLiveState;
 	try {
 		const data = await ext.storage.session.get(REFRESH_SESSION_KEY);
 		const raw = data[REFRESH_SESSION_KEY] as unknown;
@@ -999,6 +1012,8 @@ async function readRefreshState(): Promise<RefreshBatchState> {
 }
 
 async function writeRefreshState(state: RefreshBatchState): Promise<void> {
+	state.lastActivityAt = Date.now();
+	refreshLiveState = state;
 	try {
 		await ext.storage.session.set({ [REFRESH_SESSION_KEY]: state });
 	} catch {
@@ -1007,6 +1022,7 @@ async function writeRefreshState(state: RefreshBatchState): Promise<void> {
 }
 
 async function clearRefreshState(): Promise<void> {
+	refreshLiveState = null;
 	try {
 		await ext.storage.session.remove(REFRESH_SESSION_KEY);
 	} catch {
@@ -1143,7 +1159,10 @@ async function ensureRefreshWindow(
 
 	const focusEventCursor = refreshFocusEventSequence;
 	const focusedBefore = await getFocusedWindowId();
-	const created = await ext.windows.create({ ...REFRESH_WINDOW_GEOMETRY });
+	const created = await ext.windows.create({
+		...REFRESH_WINDOW_GEOMETRY,
+		url: "about:blank",
+	});
 	if (!created || created.id === undefined)
 		throw new Error("window: capture window denied");
 	refreshHiddenWindowId = created.id;
@@ -1153,8 +1172,12 @@ async function ensureRefreshWindow(
 	// focus change to another browser window or to the OS desktop.
 	let restoreWindowId = focusedBefore;
 	for (const event of refreshFocusEventLog) {
-		if (event.sequence > focusEventCursor && event.windowId !== created.id) {
-			restoreWindowId = event.windowId >= 0 ? event.windowId : null;
+		if (
+			event.sequence > focusEventCursor &&
+			event.windowId >= 0 &&
+			event.windowId !== created.id
+		) {
+			restoreWindowId = event.windowId;
 		}
 	}
 	await restoreFocusAfterCaptureActivation(
@@ -1192,13 +1215,13 @@ async function createRefreshTargetTab(
 	windowId: number,
 	cardId: string,
 	url: string,
+	thumbId: string | null | undefined,
 ): Promise<number> {
 	const pendingId = state.pendingCaptureTabId;
 	if (
-		state.activeCardId === cardId &&
 		pendingId !== null &&
 		pendingId !== undefined &&
-		state.sites[cardId]?.url === url
+		isRefreshPendingTargetUnchanged(state.pendingTarget, cardId, url, thumbId)
 	) {
 		const pending = await ext.tabs.get(pendingId).catch(() => null);
 		if (pending?.windowId === windowId) {
@@ -1214,9 +1237,51 @@ async function createRefreshTargetTab(
 	if (created.id === undefined) throw new Error("navigate: capture tab denied");
 	refreshHiddenTabIds.add(created.id);
 	state.pendingCaptureTabId = created.id;
+	state.pendingTarget = { cardId, url, thumbId: thumbId ?? null };
 	state.captureWindowId = windowId;
 	await writeRefreshState(state);
 	return created.id;
+}
+
+/** Supported fast path: no new window and no activation for an already-active page. */
+async function findActiveRefreshTarget(
+	url: string,
+	ownedWindowId?: number | null,
+) {
+	let requestedUrl: string;
+	try {
+		requestedUrl = new URL(url).href;
+	} catch {
+		return undefined;
+	}
+	const tabs = await ext.tabs.query({ active: true });
+	return tabs.find(
+		(tab) =>
+			tab.id !== undefined &&
+			tab.windowId !== ownedWindowId &&
+			!refreshHiddenTabIds.has(tab.id) &&
+			tab.status === "complete" &&
+			tab.url === requestedUrl,
+	);
+}
+
+async function refreshTabIsStable(
+	tabId: number,
+	windowId: number,
+	settledUrl: string,
+	navigationRevision: number | undefined,
+	activationRevision: number | undefined,
+): Promise<boolean> {
+	const tab = await ext.tabs.get(tabId).catch(() => null);
+	return (
+		!!tab &&
+		tab.windowId === windowId &&
+		tab.active === true &&
+		tab.status === "complete" &&
+		tab.url === settledUrl &&
+		navigationGenerations.get(tabId) === navigationRevision &&
+		tabActivationRevisions.get(windowId) === activationRevision
+	);
 }
 
 async function closeRefreshWindow(): Promise<void> {
@@ -1268,6 +1333,7 @@ async function startRefreshBatch(
 ): Promise<RefreshStartResult> {
 	const snapshot = await readSetup();
 	if (!snapshot) {
+		if (resumeFrom) await discardRefreshState(resumeFrom);
 		refreshRunning = false;
 		return { accepted: false, reason: "empty" };
 	}
@@ -1312,7 +1378,12 @@ async function startRefreshBatch(
 		captureWindowId: resumeFrom?.captureWindowId ?? null,
 		captureTabId: resumeFrom?.captureTabId ?? null,
 		pendingCaptureTabId: resumeFrom?.pendingCaptureTabId ?? null,
+		pendingTarget: resumeFrom?.pendingTarget ?? null,
 	};
+	if (state.captureWindowId != null) {
+		refreshHiddenWindowId = state.captureWindowId;
+		refreshCaptureWindowIds.add(state.captureWindowId);
+	}
 	const queue = state.cardIds.filter(
 		(id) => !alreadyDone.has(id) && !alreadyFailed.has(id),
 	);
@@ -1323,7 +1394,6 @@ async function startRefreshBatch(
 		return { accepted: true, total: state.cardIds.length };
 	}
 
-	refreshCancelRequested = false;
 	lastRefreshCaptureAt = null;
 	await writeRefreshState(state);
 	emitRefreshProgress({ ...refreshProgressBase(state), status: "started" });
@@ -1351,6 +1421,7 @@ async function runRefreshLoop(
 			// Refresh the card record before each page load. A deleted or
 			// invalid card is a completed failure, not a stale queue entry.
 			const live = await readSetup();
+			const captureResetGeneration = getResetGeneration();
 			const card = live?.cards.find((entry) => entry.id === cardId);
 			const known = snapshotById.get(cardId);
 			if (!card || !isThumbnailCaptureUrl(card.url)) {
@@ -1397,22 +1468,34 @@ async function runRefreshLoop(
 			let targetTabId: number | null = null;
 			let previousCaptureTabId: number | null = null;
 			let targetIsCurrent = false;
+			let borrowedTarget = false;
 			let newThumbId: string | null = null;
 			let imageCommitted = false;
 			try {
-				const { windowId, tabId: anchorTabId } =
-					await ensureRefreshWindow(state);
-				state.captureWindowId = windowId;
-				state.captureTabId ??= anchorTabId;
-				previousCaptureTabId = state.captureTabId ?? null;
-
-				stage = "navigate";
-				targetTabId = await createRefreshTargetTab(
-					state,
-					windowId,
-					cardId,
+				const existing = await findActiveRefreshTarget(
 					card.url,
+					state.captureWindowId,
 				);
+				let windowId: number;
+				if (existing?.id !== undefined) {
+					windowId = existing.windowId;
+					targetTabId = existing.id;
+					borrowedTarget = true;
+				} else {
+					const owned = await ensureRefreshWindow(state);
+					windowId = owned.windowId;
+					state.captureTabId ??= owned.tabId;
+					previousCaptureTabId = state.captureTabId ?? null;
+					stage = "navigate";
+					targetTabId = await createRefreshTargetTab(
+						state,
+						windowId,
+						cardId,
+						card.url,
+						card.thumbId,
+					);
+				}
+				stage = "navigate";
 				const loaded = await waitForRefreshTabComplete(
 					targetTabId,
 					REFRESH_NAVIGATION_TIMEOUT_MS,
@@ -1439,6 +1522,8 @@ async function runRefreshLoop(
 				) {
 					throw new Error("navigate: target tab left the web page");
 				}
+				const settledUrl = targetTab.url ?? "";
+				const navigationRevision = navigationGenerations.get(targetTabId);
 				const beforeCaptureSetup = await readSetup();
 				const beforeCaptureCard = beforeCaptureSetup?.cards.find(
 					(entry) => entry.id === cardId,
@@ -1457,34 +1542,40 @@ async function runRefreshLoop(
 					throw new Error("state: card edited before capture");
 				}
 
-				const focusRevisionBeforeQuery = refreshFocusRevision;
-				const focusedBefore = await getFocusedWindowId();
-				const focusRestoreTarget =
-					refreshFocusRevision === focusRevisionBeforeQuery
-						? focusedBefore
-						: refreshLastNonCaptureWindowId;
-				const focusRevisionBeforeActivation = refreshFocusRevision;
-				await ext.tabs.update(targetTabId, { active: true });
-				targetIsCurrent = true;
-				state.captureTabId = targetTabId;
-				state.pendingCaptureTabId = null;
-				await writeRefreshState(state);
-				await restoreFocusAfterCaptureActivation(
-					windowId,
-					focusRestoreTarget,
-					focusRevisionBeforeActivation,
-				);
+				if (!borrowedTarget) {
+					const focusRevisionBeforeQuery = refreshFocusRevision;
+					const focusedBefore = await getFocusedWindowId();
+					const focusRestoreTarget =
+						refreshFocusRevision === focusRevisionBeforeQuery
+							? focusedBefore
+							: refreshLastNonCaptureWindowId;
+					const focusRevisionBeforeActivation = refreshFocusRevision;
+					await ext.tabs.update(targetTabId, { active: true });
+					targetIsCurrent = true;
+					state.captureTabId = targetTabId;
+					state.pendingCaptureTabId = null;
+					await writeRefreshState(state);
+					await restoreFocusAfterCaptureActivation(
+						windowId,
+						focusRestoreTarget,
+						focusRevisionBeforeActivation,
+					);
+				}
 				await sleep(REFRESH_CAPTURE_FRAME_SETTLE_MS);
 				if (refreshCancelRequested) {
 					state.activeCardId = null;
 					await writeRefreshState(state);
 					break;
 				}
-				const activeTab = await ext.tabs.get(targetTabId);
+				const activationRevision = tabActivationRevisions.get(windowId);
 				if (
-					activeTab.windowId !== windowId ||
-					!activeTab.active ||
-					activeTab.status !== "complete"
+					!(await refreshTabIsStable(
+						targetTabId,
+						windowId,
+						settledUrl,
+						navigationRevision,
+						activationRevision,
+					))
 				) {
 					throw new Error("capture: target tab is not ready");
 				}
@@ -1509,10 +1600,22 @@ async function runRefreshLoop(
 					await writeRefreshState(state);
 					break;
 				}
+				if (
+					!(await refreshTabIsStable(
+						targetTabId,
+						windowId,
+						settledUrl,
+						navigationRevision,
+						activationRevision,
+					))
+				) {
+					throw new Error("capture: target changed during capture");
+				}
 				const capturedAt = Date.now();
 
-				// Re-read at commit time. A concurrent edit, delete, or automatic
-				// capture wins rather than being overwritten by this screenshot.
+				// Re-read at commit time and preserve the capture's reset generation.
+				// These guards reject observed edits/deletes; storage.local has no CAS
+				// and direct writers in other contexts are not an atomic transaction.
 				stage = "persist-state";
 				const fresh = await readSetup();
 				const target = fresh?.cards.find((entry) => entry.id === cardId);
@@ -1532,7 +1635,7 @@ async function runRefreshLoop(
 				const previousThumbId = target.thumbId;
 				target.thumbId = newThumbId;
 				target.capturedAt = capturedAt;
-				await writeSetup(fresh);
+				await writeSetupEnvelope(STORAGE_KEY, fresh, captureResetGeneration);
 				imageCommitted = true;
 				snapshotById.set(cardId, target);
 				if (previousThumbId && previousThumbId !== newThumbId) {
@@ -1618,7 +1721,7 @@ async function runRefreshLoop(
 				if (newThumbId && !imageCommitted) {
 					await deletePendingThumbnail(newThumbId);
 				}
-				if (targetTabId !== null && !targetIsCurrent) {
+				if (targetTabId !== null && !targetIsCurrent && !borrowedTarget) {
 					await removeRefreshTab(targetTabId);
 				}
 				if (
@@ -1651,7 +1754,8 @@ async function runRefreshLoop(
 	});
 }
 
-function handleRefreshMessage(message: RefreshMessage): Promise<unknown> {
+async function handleRefreshMessage(message: RefreshMessage): Promise<unknown> {
+	await refreshStartupReady;
 	if (message.type === "refresh:state") {
 		return readRefreshState().then(async (state) => {
 			if (state.status === "running" && !isResumableRefreshState(state)) {
@@ -1685,9 +1789,14 @@ function handleRefreshMessage(message: RefreshMessage): Promise<unknown> {
 	// Synchronous claim: two rapid starts can never both enter the async
 	// validation below. Every failure path in startRefreshBatch releases it.
 	refreshRunning = true;
+	refreshCancelRequested = false;
 	const ids =
 		message.type === "refresh:single" ? [message.cardId] : [...message.cardIds];
-	return startRefreshBatch(ids);
+	return startRefreshBatch(ids).catch((error: unknown) => {
+		refreshRunning = false;
+		refreshCancelRequested = false;
+		throw error;
+	});
 }
 
 /** A crashed worker's "running" batch resumes; a stale one is discarded. */
@@ -1711,10 +1820,12 @@ async function resumeRefreshBatchIfNeeded(): Promise<void> {
 	}
 	if (refreshRunning) return;
 	refreshRunning = true;
+	refreshCancelRequested = false;
 	await startRefreshBatch(
 		(raw as RefreshBatchState).cardIds,
 		raw as RefreshBatchState,
-	).catch(() => {
+	).catch(async () => {
+		await discardRefreshState(raw as RefreshBatchState);
 		refreshRunning = false;
 	});
 }

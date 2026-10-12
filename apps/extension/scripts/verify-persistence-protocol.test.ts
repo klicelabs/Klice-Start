@@ -80,6 +80,7 @@ const {
 	PERSIST_GENERATION_KEY,
 	subscribeToPersistHealth,
 	getPersistHealth,
+	getResetGeneration,
 	consumeOwnWriteEcho,
 	getLastWrittenJSON,
 } = await import("../src/lib/storage");
@@ -223,4 +224,18 @@ test("own storage change is recognized before the write promise resolves", async
 		area.storage.local.set = originalSet;
 	}
 	expect(observedEarlyEcho).toBe(true);
+});
+
+test("refresh cannot stamp a pre-reset snapshot into the new generation", async () => {
+	const capturedGeneration = getResetGeneration();
+	await writeSetupEnvelope("perch-setup", sampleSetup());
+	const before = mem.get("perch-setup");
+	mem.set(RESET_GENERATION_KEY, capturedGeneration + 1);
+	await readSetupEnvelope("perch-setup");
+	await expect(
+		writeSetupEnvelope("perch-setup", sampleSetup(), capturedGeneration),
+	).rejects.toThrow("Setup changed generation");
+	expect(mem.get("perch-setup")).toBe(before);
+	await writeSetupEnvelope("perch-setup", sampleSetup());
+	expect(getPersistHealth()).toBe("ok");
 });
