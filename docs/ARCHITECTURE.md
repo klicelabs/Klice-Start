@@ -48,6 +48,16 @@ Normalization is load-bearing: `normalizeState` repairs folders (orphans→root,
 
 Popup or auto-capture → `background.ts` queue (URL-canonicalized, 1200 ms settle, 10 s cooldown, pending→in-flight maps) → `captureVisibleTab` (the only capture API — no iframe/offscreen workarounds) → downscale → IDB `thumbnails` → card `thumbId`. Failures degrade to favicon/gradient, never blank.
 
+## Manual preview refresh and selection
+
+Manual single/batch refresh keeps its queue in `chrome.storage.session`. A matching already-active page can be captured without opening or activating another surface. Otherwise the worker reuses a temporary normal window (`focused:false`, blank anchor), loads targets inactive, activates only the target tab within that window, then captures. Pending-tab identity is separate from progress metadata; navigation/activation revisions and card URL/thumbnail identity guard the capture. Recent activity, not total batch duration, controls crash staleness.
+
+Focus restoration is best-effort and honors the currently focused window; some browser/window-manager combinations may still briefly focus a newly created window. Minimized/offscreen rendering is not relied on. The shared storage write chain is **per context**, not a cross-context transaction: reset generations prevent old captures being promoted after reset, but `storage.local` has no compare-and-swap for whole-envelope writes.
+
+Selection is session-only and keyed by item IDs with source-folder metadata. Marquee geometry only discovers crossings; crossed membership survives scroll and is committed independently of viewport rectangles. Cards expose sibling Base UI checkboxes with beUI Motion styling (20×20 px visual control, 32×32 px expanded hit area, shared press spring and draw-on checkmark), so selecting never nests a control inside a navigation link.
+
+Refresh feedback uses a single neutral skeleton shimmer on the worker's active card: a clipped, linear 1800 ms sweep, no secondary card spinner, and a static surface under reduced motion. Queued cards only have a status label. The previous decoded thumbnail stays opaque beneath the incoming image until its 220 ms opacity transition finishes; unreadable replacements preserve it. Local decoding remains `aria-busy` but does not start another shimmer after the worker advances to the next card.
+
 ## What is NOT here (SaaS target, unimplemented)
 
 Sync, auth, billing/entitlements, multi-device, AI, dashboard write-parity, RLS/schema beyond the empty scaffold. `bts.jsonc`: `auth:none payments:none api:none backend:self dbSetup:supabase database:postgres orm:drizzle frontend:[next]`.
