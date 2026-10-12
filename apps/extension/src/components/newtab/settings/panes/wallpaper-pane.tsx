@@ -1,12 +1,23 @@
 import { Input } from "@klice-start/ui/components/input";
 import {
+	ColorPicker,
+	ColorPickerArea,
+	ColorPickerChannels,
+	ColorPickerContent,
+	ColorPickerHexInput,
+	ColorPickerHue,
+	ColorPickerPreset,
+	ColorPickerPresets,
+	ColorPickerTrigger,
+} from "@klice-start/ui/components/motion/color-picker";
+import {
 	FileUpload,
 	type FileUploadItem,
 } from "@klice-start/ui/components/motion/file-upload";
 import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
 	GRADIENTS,
@@ -232,15 +243,142 @@ function CustomWallpaperSlotContent({
 	);
 }
 
+/** Only this tile subscribes to transient drag frames, never the library grid. */
+function SolidWallpaperTile({
+	color,
+	selected,
+	onActivate,
+}: {
+	color: string;
+	selected: boolean;
+	onActivate?: (color: string) => void;
+}) {
+	const draft = useImageStore((state) => state.previewBackgroundColor);
+	const [open, setOpen] = useState(false);
+	const pendingRef = useRef<{ color: string; persisted: string } | null>(null);
+
+	// Reads live stores, including during unmount: never resurrect another
+	// wallpaper (or a new staged image) from a stale settings closure.
+	const settle = useCallback(() => {
+		const pending = pendingRef.current;
+		pendingRef.current = null;
+		if (!pending) return;
+		const images = useImageStore.getState();
+		const setup = useSetupStore.getState();
+		const background = setup.settings.background;
+		if (
+			images.previewBackgroundColor === pending.color &&
+			!images.previewBackgroundImage &&
+			background.type === "solid" &&
+			background.color === pending.persisted &&
+			background.color.toLowerCase() !== pending.color.toLowerCase()
+		) {
+			setup.updateBackground({
+				type: "solid",
+				color: pending.color,
+				wallpaperId: null,
+				gradientId: null,
+				imageId: null,
+			});
+		}
+		if (images.previewBackgroundColor === pending.color) {
+			images.clearBackgroundColorPreview();
+		}
+	}, []);
+
+	useEffect(() => () => settle(), [settle]);
+	useEffect(() => {
+		if (!selected) {
+			settle();
+			setOpen(false);
+		}
+	}, [selected, settle]);
+
+	return (
+		<ColorPicker
+			value={draft ?? color}
+			alpha={false}
+			open={open}
+			onOpenChange={(next) => {
+				if (next)
+					onActivate?.(useSetupStore.getState().settings.background.color);
+				else settle();
+				setOpen(next);
+			}}
+			onValueChange={(next) => {
+				const background = useSetupStore.getState().settings.background;
+				if (background.type !== "solid") return;
+				pendingRef.current = {
+					color: next,
+					persisted: pendingRef.current?.persisted ?? background.color,
+				};
+				useImageStore.getState().setBackgroundColorPreview(next);
+			}}
+			onValueCommit={settle}
+			aria-label="Solid background colour"
+			className="h-full max-w-none"
+		>
+			<ColorPickerTrigger
+				aria-label="Use solid colour background"
+				aria-pressed={selected}
+				data-wallpaper-tile="solid"
+				className={cn(
+					WALLPAPER_TILE,
+					"w-full items-end text-left",
+					SETTINGS_FOCUS_RING,
+					selected ? TILE_SELECTED : "hover:brightness-105",
+				)}
+			>
+				<span
+					aria-hidden="true"
+					className="absolute inset-0 size-full"
+					style={{ background: draft ?? color }}
+				/>
+				<span
+					aria-hidden="true"
+					className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent"
+				/>
+				<span className="pointer-events-none relative z-10 truncate px-2.5 pb-2 font-medium text-[11px] text-white/95 drop-shadow-xs">
+					Solid colour
+				</span>
+				{selected && (
+					<span className="pointer-events-none absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
+						<Icon name="check" size={12} strokeWidth={3} aria-hidden="true" />
+					</span>
+				)}
+			</ColorPickerTrigger>
+			<ColorPickerContent aria-label="Solid background colour picker">
+				<ColorPickerArea />
+				<ColorPickerHue />
+				<ColorPickerHexInput />
+				<ColorPickerChannels />
+				<ColorPickerPresets aria-label="Colour presets">
+					{[
+						"#18181b",
+						"#ffffff",
+						"#3478f6",
+						"#22c55e",
+						"#f59e0b",
+						"#ef4444",
+						"#a855f7",
+					].map((value) => (
+						<ColorPickerPreset
+							key={value}
+							value={value}
+							label={`Use ${value} colour`}
+						/>
+					))}
+				</ColorPickerPresets>
+			</ColorPickerContent>
+		</ColorPicker>
+	);
+}
+
 interface WallpaperTileProps {
 	item: WallpaperLibraryItem;
 	selected: boolean;
 	onSelect: (item: WallpaperLibraryItem) => void;
-	/**
-	 * Solid tiles own the colour picker themselves, so they need the live
-	 * setter instead of going through `onSelect`. Called on click (to activate
-	 * the tile with its current colour) and on every `input` (to preview live).
-	 */
+	/** Select solid on opening; drag preview and settled commits stay local. */
 	onColorChange?: (color: string) => void;
 }
 
@@ -250,18 +388,19 @@ function WallpaperTile({
 	onSelect,
 	onColorChange,
 }: WallpaperTileProps) {
+	if (item.kind === "solid") {
+		return (
+			<SolidWallpaperTile
+				color={item.css}
+				selected={selected}
+				onActivate={onColorChange}
+			/>
+		);
+	}
 	const tileLabel =
 		item.kind === "gradient"
 			? `Use ${item.label} gradient`
-			: item.kind === "solid"
-				? "Use solid colour background"
-				: `Use ${item.label} wallpaper`;
-
-	// Solid is the one source whose value IS a control: the tile doubles as the
-	// colour input, so clicking it opens the picker instead of merely selecting
-	// the type. The swatch under it renders `item.css`, which is the live
-	// background colour — so the tile always shows what is applied.
-	const isSolid = item.kind === "solid";
+			: `Use ${item.label} wallpaper`;
 
 	return (
 		<div
@@ -271,53 +410,31 @@ function WallpaperTile({
 			)}
 			data-wallpaper-tile={item.id}
 		>
-			{isSolid ? (
-				<>
+			<button
+				type="button"
+				onClick={() => onSelect(item)}
+				aria-label={tileLabel}
+				aria-pressed={selected}
+				className={cn(
+					"absolute inset-0 flex flex-col justify-end text-left focus-visible:outline-none",
+					SETTINGS_FOCUS_RING,
+				)}
+			>
+				{item.kind === "wallpaper" ? (
+					<img
+						src={item.thumb}
+						alt=""
+						className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+						loading="lazy"
+					/>
+				) : (
 					<span
 						aria-hidden="true"
 						className="absolute inset-0 size-full"
 						style={{ background: item.css }}
 					/>
-					<input
-						type="color"
-						value={item.css}
-						onClick={() => onColorChange?.(item.css)}
-						onInput={(e) => onColorChange?.(e.currentTarget.value)}
-						onChange={(e) => onColorChange?.(e.currentTarget.value)}
-						aria-label={tileLabel}
-						className={cn(
-							"absolute inset-0 size-full cursor-pointer appearance-none border-0 bg-transparent p-0 opacity-0",
-							SETTINGS_FOCUS_RING,
-						)}
-					/>
-				</>
-			) : (
-				<button
-					type="button"
-					onClick={() => onSelect(item)}
-					aria-label={tileLabel}
-					aria-pressed={selected}
-					className={cn(
-						"absolute inset-0 flex flex-col justify-end text-left focus-visible:outline-none",
-						SETTINGS_FOCUS_RING,
-					)}
-				>
-					{item.kind === "wallpaper" ? (
-						<img
-							src={item.thumb}
-							alt=""
-							className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
-							loading="lazy"
-						/>
-					) : (
-						<span
-							aria-hidden="true"
-							className="absolute inset-0 size-full"
-							style={{ background: item.css }}
-						/>
-					)}
-				</button>
-			)}
+				)}
+			</button>
 
 			{/* Scrim and label sit above whichever control is active, and must
 			    never swallow its clicks. */}
@@ -459,18 +576,13 @@ export function WallpaperPane() {
 				imageId: null,
 			} as Partial<Settings["background"]>);
 		}
-		// Solid is deliberately absent: its tile is a colour input, not a
-		// button, so it never reaches `onSelect` — see `handleSolidColor`.
+		// Solid selection is owned by its picker opening gesture.
 	}
 
-	/**
-	 * The solid tile owns its colour picker, so both the activating click and
-	 * every live `input` land here. Applying `type: "solid"` on the first call
-	 * makes opening the picker the selection gesture itself — there is no
-	 * separate step to activate the swatch.
-	 */
+	/** Opening the picker selects solid once; dragging never persists here. */
 	function handleSolidColor(color: string) {
 		if (pending) clearPending();
+		if (useSetupStore.getState().settings.background.type === "solid") return;
 		updateBackground({
 			type: "solid",
 			color,

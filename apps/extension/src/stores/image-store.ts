@@ -13,6 +13,10 @@ import {
 interface ImageStoreState {
 	/** Temporary, non-persisted wallpaper preview used before upload confirmation. */
 	previewBackgroundImage: string | null;
+	/** Non-persisted solid color while a picker interaction is in progress. */
+	previewBackgroundColor: string | null;
+	setBackgroundColorPreview: (color: string) => void;
+	clearBackgroundColorPreview: () => void;
 	setBackgroundPreview: (dataUrl: string) => void;
 	clearBackgroundPreview: () => void;
 	getThumbnail: (id: string) => Promise<string | null>;
@@ -37,6 +41,9 @@ interface ImageStoreState {
 
 export const useImageStore = create<ImageStoreState>()((set) => ({
 	previewBackgroundImage: null,
+	previewBackgroundColor: null,
+	setBackgroundColorPreview: (color) => set({ previewBackgroundColor: color }),
+	clearBackgroundColorPreview: () => set({ previewBackgroundColor: null }),
 	setBackgroundPreview: (dataUrl) => set({ previewBackgroundImage: dataUrl }),
 	clearBackgroundPreview: () => set({ previewBackgroundImage: null }),
 	getThumbnail: async (id: string) => idbGet(STORE_THUMBS, id),
@@ -65,7 +72,7 @@ export const useImageStore = create<ImageStoreState>()((set) => ({
 	},
 	clearAll: async () => {
 		await idbClearStores([STORE_THUMBS, STORE_BG]);
-		set({ previewBackgroundImage: null });
+		set({ previewBackgroundImage: null, previewBackgroundColor: null });
 	},
 	sweepOrphanThumbnails: async (referencedIds, stagedIds) => {
 		// Why defensive filters: id guards against empty-string deletes.
@@ -82,9 +89,7 @@ export const useImageStore = create<ImageStoreState>()((set) => ({
 			// Best-effort hygiene: a failed sweep must never block startup.
 			return;
 		}
-		const orphans = keys
-			.map(String)
-			.filter((key) => !live.has(key));
+		const orphans = keys.map(String).filter((key) => !live.has(key));
 		if (orphans.length === 0) return;
 		await useImageStore.getState().deleteThumbnails(orphans);
 	},
