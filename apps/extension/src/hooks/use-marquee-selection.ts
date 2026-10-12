@@ -6,6 +6,7 @@ import {
 	isScrollGutterPress,
 } from "../lib/interaction-scope";
 import {
+	anchorForScroll,
 	type ClientRect,
 	MARQUEE_THRESHOLD_PX,
 	marqueeHitsTile,
@@ -56,7 +57,9 @@ interface CachedSurface {
  *
  * All geometry stays in client space (pointer events and
  * getBoundingClientRect share it): cached rects translate by scroll delta
- * per frame and the overlay is position:fixed. No scroll-offset math.
+ * per frame, the drag anchor translates by the total scroll since arming,
+ * and the overlay is position:fixed. No scroll-offset math leaks into the
+ * store — only the content-locked translation above.
  *
  * Growth model: any drag grows the selection (click clears, drag adds).
  * Plain and Shift drags union the region with the gesture-start snapshot,
@@ -76,6 +79,9 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 	const phase = useRef<Phase>("idle");
 	const anchor = useRef({ x: 0, y: 0 });
 	const current = useRef({ x: 0, y: 0 });
+	/** Scroll offset where the press armed, so the anchor stays glued to
+	    its content origin while the viewport scrolls underneath. */
+	const scrollBase = useRef(0);
 	const mode = useRef<MarqueeMode>("add");
 	const snapshot = useRef<SelectionItem[]>([]);
 	const crossed = useRef(new Map<string, SelectionItem>());
@@ -121,13 +127,20 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 	const processFrame = useCallback(() => {
 		raf.current = null;
 		if (phase.current !== "selecting") return;
-		const marquee = normalizeRect(anchor.current, current.current);
-		paintOverlay(marquee);
-		// Translate cached rects by the scroll delta: rigid, exact, and no
-		// layout reads while scrolling underneath a static pointer.
 		const scroller =
 			wrapEl.current?.closest<HTMLElement>("[data-speed-dial-scroll]") ?? null;
 		const scrollTop = scroller?.scrollTop ?? 0;
+		// The anchor tracks its content origin across scrolls while the live
+		// pointer stays viewport-fixed: the painted rect and the hit-test
+		// rect remain one content-space rectangle, naturally clipped by the
+		// viewport when an end scrolls out of view.
+		const marquee = normalizeRect(
+			anchorForScroll(anchor.current, scrollBase.current, scrollTop),
+			current.current,
+		);
+		paintOverlay(marquee);
+		// Translate cached rects by the scroll delta: rigid, exact, and no
+		// layout reads while scrolling underneath a static pointer.
 		const dy = scrollTop - lastScrollTop.current;
 		lastScrollTop.current = scrollTop;
 		if (dy !== 0) {
@@ -253,6 +266,12 @@ export function useMarqueeSelection(options: MarqueeOptions) {
 			// Ctrl/Cmd flips. (Click without drag still clears via the
 			// window blank-clearer — threshold never commits.)
 			mode.current = e.ctrlKey || e.metaKey ? "toggle" : "add";
+			// Content origin of this gesture: every later frame translates
+			// the anchor against it, so scrolling never detaches the rect
+			// from where the press started.
+			scrollBase.current =
+				e.currentTarget.closest<HTMLElement>("[data-speed-dial-scroll]")
+					?.scrollTop ?? 0;
 			// Snapshot BEFORE the window blank-clearer runs (React handlers
 			// precede native window listeners): toggle/add merge against
 			// pre-gesture state and Esc restores it.

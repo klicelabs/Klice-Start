@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { anchorForScroll } from "../src/lib/marquee-geometry";
 import { mergeMarqueeSelection } from "../src/lib/marquee-selection";
 import type { SelectionItem } from "../src/stores/selection-store";
 
@@ -51,4 +52,17 @@ test("empty hit geometry is not a clear-selection instruction", () => {
 	for (const mode of ["add", "toggle"] as const) {
 		expect(mergeMarqueeSelection(snapshot, new Map(), mode)).toEqual(snapshot);
 	}
+});
+
+test("anchor tracks its content origin across scroll", () => {
+	const anchor = { x: 8, y: 772 };
+	// Scrolling down moves content up: the anchor's client position rises.
+	expect(anchorForScroll(anchor, 200, 663)).toEqual({ x: 8, y: 309 });
+	// Scrolling back up returns it exactly — no origin drift.
+	expect(anchorForScroll(anchor, 200, 200)).toEqual(anchor);
+	// Horizontal presses never shift: only the scroll axis translates.
+	expect(anchorForScroll({ x: 300, y: 100 }, 0, 1000)).toEqual({
+		x: 300,
+		y: -900,
+	});
 });
