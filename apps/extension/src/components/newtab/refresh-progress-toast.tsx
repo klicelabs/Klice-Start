@@ -1,4 +1,5 @@
 import { Icon } from "@klice-start/ui/icons/icon";
+import { SPRING_PRESS } from "@klice-start/ui/lib/ease";
 import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
@@ -25,10 +26,11 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /**
  * Calm background-operation feedback for thumbnail refresh. A single
- * persistent bottom-center Sonner custom toast: circular progress ring +
- * "Capturing N of M", a real-time site log (latest at bottom, scrollable
- * past 5), and a keyboard-accessible cancel. On completion it morphs into a
- * short summary ("10 updated, 2 failed" / "Cancelled at 3 of 10").
+ * persistent bottom-right Sonner custom toast, always expanded and fixed
+ * to one shell: circular progress ring + "Capturing N of M", a two-row
+ * capture log band (latest at bottom, reserved space, never a scroller),
+ * and a keyboard-accessible cancel. On completion it crossfades in place
+ * into a short summary ("10 updated, 2 failed" / "Cancelled at 3 of 10").
  *
  * No modal, no blocking, no banners — invisible until a refresh runs.
  */
@@ -115,13 +117,17 @@ function toastSurface(isLiquid: boolean): string {
 		glassShape("panel"),
 		glassMaterial(isLiquid, "menu", "dense"),
 		isLiquid ? glassForeground() : "text-flat-ink",
-		"p-3.5 shadow-lg",
+		// Fixed shell: header + two log rows, always. Rows arrive, settle
+		// and swap inside reserved space, so hover, expansion and content
+		// updates never move the component — it only grows nowhere.
+		"min-h-[118px] p-3.5 shadow-lg",
 	);
 }
 
 /**
- * Motion language for the toast log: y-slide + opacity, 200ms, the repo's
- * signature ease. Static when the user prefers reduced motion.
+ * Motion language for the toast log: y-slide + opacity on the control
+ * token, popLayout exit (no sibling push), the repo's signature ease.
+ * Opacity-only when the user prefers reduced motion.
  */
 const TOAST_ROW_TRANSITION = {
 	duration: DURATION.control,
@@ -138,7 +144,10 @@ function RefreshRunningCard() {
 
 	const fraction = total > 0 ? Math.min(1, completed / total) : 0;
 	// Two entries, never a scrolling log: the card under the camera at full
-	// opacity, the previous one fading behind it like smoke.
+	// opacity, the previous one fading behind it like smoke. Keyed by card
+	// so each result visibly arrives and recedes instead of swapping text
+	// under stable slots; popLayout lifts the exiting row out of flow, so
+	// neighbours never get pushed mid-flight.
 	const visible = sites.slice(-2);
 
 	return (
@@ -153,11 +162,13 @@ function RefreshRunningCard() {
 						<p className="truncate text-[12px] opacity-70">{currentTitle}</p>
 					) : null}
 				</div>
-				<button
+				<motion.button
 					type="button"
 					onClick={() => void sendRefreshCancel()}
 					aria-label={REFRESH_STRINGS.cancelRefresh}
 					title={REFRESH_STRINGS.cancelRefresh}
+					whileTap={reduceMotion ? undefined : { scale: 0.96 }}
+					transition={SPRING_PRESS}
 					className={cn(
 						"inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
 						isLiquid
@@ -166,51 +177,48 @@ function RefreshRunningCard() {
 					)}
 				>
 					<Icon name="x" size={15} aria-hidden="true" />
-				</button>
+				</motion.button>
 			</div>
-			{visible.length > 0 ? (
-				<div
-					role="log"
-					aria-label="Capture log"
-					className="mt-2.5 flex flex-col gap-1 overflow-hidden"
-				>
-					{/* Stable semantic slots keep the log bounded to two rows. */}
-					<AnimatePresence initial={false} mode="sync">
-						{visible.map((site, index) => {
-							const isCurrent = index === visible.length - 1;
-							return (
-								<motion.div
-									key={isCurrent ? "latest" : "previous"}
-									initial={
-										reduceMotion
-											? { opacity: isCurrent ? 1 : 0.65 }
-											: { opacity: 0, y: 8 }
-									}
-									animate={{ opacity: isCurrent ? 1 : 0.65, y: 0 }}
-									exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-									transition={TOAST_ROW_TRANSITION}
-									className={cn(
-										"flex min-w-0 items-center gap-2 text-[12px]",
-										// The previous result recedes without masking readable text.
+			{/* Reserved log band: fixed height, bottom-anchored. Early in a
+			    run it holds empty space rather than growing the shell. */}
+			<div
+				role="log"
+				aria-label="Capture log"
+				className="mt-2.5 flex h-10 flex-col justify-end gap-1 overflow-hidden"
+			>
+				<AnimatePresence initial={false} mode="popLayout">
+					{visible.map((site, index) => (
+						<motion.div
+							key={site.cardId}
+							initial={
+								reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }
+							}
+							animate={{
+								opacity: index === visible.length - 1 ? 1 : 0.65,
+								y: 0,
+							}}
+							exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+							transition={TOAST_ROW_TRANSITION}
+							className={cn(
+								"flex min-w-0 items-center gap-2 text-[12px]",
+								// The previous result recedes without masking readable text.
 
-										!site.ok && "text-red-600 dark:text-red-400",
-									)}
-								>
-									<Icon
-										name={site.ok ? "check" : "alert"}
-										size={13}
-										aria-hidden="true"
-										className="shrink-0 opacity-70"
-									/>
-									<span className="min-w-0 flex-1 truncate opacity-80">
-										{site.title}
-									</span>
-								</motion.div>
-							);
-						})}
-					</AnimatePresence>
-				</div>
-			) : null}
+								!site.ok && "text-red-600 dark:text-red-400",
+							)}
+						>
+							<Icon
+								name={site.ok ? "check" : "alert"}
+								size={13}
+								aria-hidden="true"
+								className="shrink-0 opacity-70"
+							/>
+							<span className="min-w-0 flex-1 truncate opacity-80">
+								{site.title}
+							</span>
+						</motion.div>
+					))}
+				</AnimatePresence>
+			</div>
 		</div>
 	);
 }
@@ -256,6 +264,7 @@ function ProgressRing({ fraction }: { fraction: number }) {
 
 function RefreshSummaryCard() {
 	const { isLiquid } = useAppearance();
+	const reduceMotion = useReducedMotion() ?? false;
 	const summary = useRefreshStore((s) => s.summary);
 	if (!summary) return null;
 	const text = summary.cancelled
@@ -266,7 +275,15 @@ function RefreshSummaryCard() {
 		: REFRESH_STRINGS.completeSummary(summary.updated, summary.failed);
 	return (
 		<div className={toastSurface(isLiquid)}>
-			<div role="status" className="flex items-center gap-2.5">
+			{/* Same shell as the running card, content centered: the
+			    progress-to-summary morph is a crossfade, never a resize. */}
+			<motion.div
+				role="status"
+				initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={TOAST_ROW_TRANSITION}
+				className="flex min-h-[90px] items-center gap-2.5"
+			>
 				<Icon
 					name={summary.failed === 0 && !summary.cancelled ? "check" : "info"}
 					size={15}
@@ -284,7 +301,7 @@ function RefreshSummaryCard() {
 						</p>
 					) : null}
 				</div>
-			</div>
+			</motion.div>
 		</div>
 	);
 }

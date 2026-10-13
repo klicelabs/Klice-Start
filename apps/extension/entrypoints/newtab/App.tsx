@@ -111,6 +111,11 @@ function ThemedToaster() {
 			theme={resolvedDark ? "dark" : "light"}
 			position="bottom-center"
 			gap={8}
+			// Always expanded: Sonner's collapsed stack recalculates every
+			// toast's offset/scale on hover, which visibly shifts neighbours
+			// (notably the refresh progress shell). Concurrent newtab toasts
+			// are rare; fully-visible stacking is calmer and clearer.
+			expand
 		/>
 	);
 }
