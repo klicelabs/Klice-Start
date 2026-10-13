@@ -5,7 +5,7 @@ Local-only MV3 extension. No backend, accounts, billing, sync. What follows is t
 ## Stack
 
 - Runtime: React 19.2 + TypeScript 5.9, Zustand 5 (all state), motion 13 (animation), Base UI 1.6 + shadcn-style primitives (`@klice-start/ui`), Tailwind 4, sonner toasts, lucide icons.
-- Build: WXT 0.20 + Vite, `@wxt-dev/module-react`. Manifest V3, `manifest.version 1.2.4`.
+- Build: WXT 0.20 + Vite, `@wxt-dev/module-react`. Manifest V3, `manifest.version 1.3.0`.
 - Dev: `bun run dev` (WXT port 5555, strict). Typecheck: `bun run compile` (`tsc --noEmit`). Tests: `bun test scripts/` (bun:test, ~169). Lint/format: Biome via root `bun run check`.
 - Package manager: bun 1.3.13 (workspaces + catalog). Turbo orchestrates `apps/*`.
 

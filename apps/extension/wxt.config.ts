@@ -23,7 +23,7 @@ export default defineConfig({
 				data_collection_permissions: { required: ["none"] },
 			},
 		},
-		version: "1.2.4",
+		version: "1.3.0",
 		default_locale: "en",
 		description: "A personal browser dashboard for your new tab.",
 		permissions: [
@@ -65,6 +65,10 @@ export default defineConfig({
 			"apps/fumadocs/**",
 			"docs/**",
 			"ruvector.db",
+			// Agent working material, not build sources: knowledge-graph
+			// output and captured session transcripts.
+			"graphify-out/**",
+			"pi-session-*.html",
 		],
 	},
 	vite: () => ({
