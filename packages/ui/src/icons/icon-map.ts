@@ -34,6 +34,7 @@ import {
 	Image,
 	Import,
 	Info,
+	Layers,
 	LayoutGrid,
 	Link,
 	ListTree,
@@ -152,6 +153,8 @@ export const iconMap = {
 	refresh: RefreshCw,
 	// Settings refinement — the corner scale row (shape-role rounding).
 	shapes: Shapes,
+	// Icon mode — the optional glass tile wrapper (icon + label material).
+	stack: Layers,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof iconMap;

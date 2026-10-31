@@ -290,6 +290,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	dialLayout: "card",
 	cardAspect: "vertical",
 	iconShowLabel: true,
+	/** Icon + label tile surfaces are opt-in; the bare launcher look ships. */
+	iconTileSurface: false,
 	defaultTitleSource: "saved",
 	quickLinks: {
 		enabled: true,

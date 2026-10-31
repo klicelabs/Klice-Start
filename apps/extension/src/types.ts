@@ -158,6 +158,13 @@ export interface Settings {
 	cardAspect: CardAspect;
 	/** Show the site title under the icon in icon layout. */
 	iconShowLabel: boolean;
+	/**
+	 * Wrap each Icon-mode tile (icon + label) in one translucent glass panel.
+	 * Exclusive to the icon layout, off by default: the bare Home-Screen
+	 * silhouette is the shipped identity and the glass layer doubles the
+	 * page's backdrop-filter surface count (opt-in material).
+	 */
+	iconTileSurface: boolean;
 	/** Default display title source in both Card and Icon layouts. */
 	defaultTitleSource: TitleSource;
 	thumbnailCapture: ThumbnailCaptureSettings;

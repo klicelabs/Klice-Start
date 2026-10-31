@@ -21,7 +21,9 @@ function getStorage() {
 		const s = (chrome.storage as Record<string, unknown>).session;
 		if (s) {
 			return s as {
-				get(keys: string | string[] | Record<string, unknown>): Promise<Record<string, unknown>>;
+				get(
+					keys: string | string[] | Record<string, unknown>,
+				): Promise<Record<string, unknown>>;
 				set(items: Record<string, unknown>): Promise<void>;
 				remove(keys: string | string[]): Promise<void>;
 			};
@@ -102,6 +104,38 @@ export async function fetchAllSvgs(): Promise<SVGLItem[]> {
  * we pick the dark variant by default (Speed Dial is a dark canvas),
  * or the light variant if `forceLight` is true.
  */
+/**
+ * Route-XML session cache: tiles re-mount on folder open / layout changes and
+ * should not re-download the same brand file every time. Small, capped,
+ * positive-only — a failed route simply retries on the next mount.
+ */
+const xmlByRoute = new Map<string, string>();
+const XML_SESSION_CACHE_LIMIT = 120;
+
+/**
+ * Fetches the raw SVG XML for an exact SVGL route URL. The icon cache stores
+ * ROUTE URLs instead of XML so the persisted envelope stays tiny; the XML is
+ * re-fetched (and remembered) per session here, outside chrome.storage.
+ */
+export async function getSvgXmlByRoute(route: string): Promise<string | null> {
+	if (!route) return null;
+	const cached = xmlByRoute.get(route);
+	if (cached) return cached;
+	try {
+		const res = await fetch(route);
+		if (!res.ok) return null;
+		const xml = await res.text();
+		if (xmlByRoute.size >= XML_SESSION_CACHE_LIMIT) {
+			const oldest = xmlByRoute.keys().next().value;
+			if (oldest) xmlByRoute.delete(oldest);
+		}
+		xmlByRoute.set(route, xml);
+		return xml;
+	} catch {
+		return null;
+	}
+}
+
 export async function getSvgXml(
 	title: string,
 	forceLight = false,
@@ -117,7 +151,9 @@ export async function getSvgXml(
 			route = item.route;
 		} else if (item.route && typeof item.route === "object") {
 			const theme = item.route as SVGLThemeOptions;
-			route = forceLight ? theme.light || theme.dark : theme.dark || theme.light;
+			route = forceLight
+				? theme.light || theme.dark
+				: theme.dark || theme.light;
 		}
 
 		if (!route) return null;

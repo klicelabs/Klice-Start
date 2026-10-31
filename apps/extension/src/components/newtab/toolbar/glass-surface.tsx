@@ -40,6 +40,10 @@ const ROLE_SHAPE: Record<GlassTier, GlassShape> = {
 	search: "searchExpanded",
 	menu: "section",
 	tooltip: "control",
+	// The launcher tile pane carries the icon's own squircle (the icon radius
+	// plus the pane padding), so it starts from the surface role and the
+	// product CSS refines the radius.
+	tile: "surface",
 };
 
 /**

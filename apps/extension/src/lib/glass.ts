@@ -4,10 +4,7 @@ import {
 } from "@klice-start/ui/lib/glass-variants";
 import type { FlatElevation } from "@klice-start/ui/lib/surface";
 import { flatSunken, flatSurface } from "@klice-start/ui/lib/surface";
-import {
-	kliceShape,
-	type KliceShapeName,
-} from "@klice-start/ui/lib/shapes";
+import { kliceShape, type KliceShapeName } from "@klice-start/ui/lib/shapes";
 import { cn } from "./utils";
 
 export type GlassShape = KliceShapeName;
@@ -31,6 +28,9 @@ export type GlassShape = KliceShapeName;
  *   menu    context menus / dropdown menus: dense + accent active row,
  *           comfortable rows, subtle separators → liquid-menu.
  *   tooltip compact, high-contrast, never refractive → liquid-menu CSS only.
+ *   tile    launcher tile pane (icon + label on one pane): the quietest
+ *           member of the family — discreet veil, no lens, still driven by
+ *           the global glass intensity → liquid-tile.
  *   nested  ONLY a genuine second material layer; everywhere else prefer a
  *           plain hover/fill on the parent → subtle. Never Glass³.
  */
@@ -41,7 +41,8 @@ export type GlassTier =
 	| "nested"
 	| "search"
 	| "menu"
-	| "tooltip";
+	| "tooltip"
+	| "tile";
 
 const GLASS_TIER_VARIANTS = {
 	hero: "liquid-refract",
@@ -51,6 +52,7 @@ const GLASS_TIER_VARIANTS = {
 	search: "liquid-menu",
 	menu: "liquid-menu",
 	tooltip: "liquid-menu",
+	tile: "liquid-tile",
 } as const;
 
 /** Map product intent to the single glasscn material tier for that role. */
@@ -171,8 +173,8 @@ export function glassIntensityParams(
 		blurSurface: Math.min(GLASS_BLUR_CEILING, 8 + 4 * t),
 		refraction: 12 + 24 * t,
 		saturationClear: dark ? 1.04 + 0.28 * t : 1.01 + 0.08 * t,
-		saturationDense: dark ? 1.12 + 0.36 * t : 1.04 + 0.10 * t,
-		bezel: 0.26 + 0.10 * t,
+		saturationDense: dark ? 1.12 + 0.36 * t : 1.04 + 0.1 * t,
+		bezel: 0.26 + 0.1 * t,
 		brightnessHero: dark ? 0.94 - 0.12 * t : 1.02 + 0.01 * t,
 		// Dense surfaces need a veil for reading, not a black plate. Keep the
 		// Dark backdrop close to neutral so stronger glass preserves wallpaper
@@ -279,10 +281,7 @@ export function glassCardMaterial(isLiquid: boolean): string {
  *   only hero controls floating directly on the wallpaper keep fixed white ink.
  * Classic: standard opaque popover.
  */
-export function glassDropdown(
-	isLiquid: boolean,
-	resolvedDark = true,
-): string {
+export function glassDropdown(isLiquid: boolean, resolvedDark = true): string {
 	return cn(
 		glassMaterial(isLiquid, "menu", "dense"),
 		glassShape("section"),
@@ -365,11 +364,7 @@ export function glassMenu(isLiquid: boolean, resolvedDark = true): string {
 	const layout = cn("min-w-44 p-1", glassShape("section"));
 
 	if (isLiquid) {
-		return cn(
-			layout,
-			glassMaterial(true, "menu", "dense"),
-			glassForeground(),
-		);
+		return cn(layout, glassMaterial(true, "menu", "dense"), glassForeground());
 	}
 
 	return cn(layout, glassMaterial(false, "menu"), "text-flat-ink");
@@ -435,9 +430,7 @@ export function glassFieldPill(isLiquid: boolean): string {
  * Bodies are untouched: bookmark body stays glass-free content, subfolder
  * body keeps its surface role. Only the footer is unified.
  */
-export function glassCardFooter(
-	isLiquid: boolean,
-): string {
+export function glassCardFooter(isLiquid: boolean): string {
 	if (isLiquid) {
 		return cn(glassVariantStyles["liquid-menu"], glassForeground());
 	}
@@ -452,7 +445,9 @@ export function glassCardFooter(
 export function glassFocusRing(isLiquid: boolean): string {
 	return cn(
 		"focus-visible:outline-none focus-visible:ring-2",
-		isLiquid ? "focus-visible:ring-[var(--klice-accent)]/80" : "focus-visible:ring-ring",
+		isLiquid
+			? "focus-visible:ring-[var(--klice-accent)]/80"
+			: "focus-visible:ring-ring",
 	);
 }
 
@@ -461,7 +456,9 @@ export function glassFocusRing(isLiquid: boolean): string {
  * is mode-aware, while the shared surface underneath stays untouched.
  */
 export function glassDropRing(isLiquid: boolean): string {
-	return isLiquid ? "ring-2 ring-[var(--klice-accent)]/80" : "ring-2 ring-ring/80";
+	return isLiquid
+		? "ring-2 ring-[var(--klice-accent)]/80"
+		: "ring-2 ring-ring/80";
 }
 
 /**

@@ -190,3 +190,8 @@ export function faviconUrl(rawUrl: string, size = 64): string {
 	if (!domain) return "";
 	return `https://www.google.com/s2/favicons?sz=${size}&domain=${domain}`;
 }
+
+/** Uppercased first character of the derived icon label — letter-mark seed. */
+export function deriveInitialLetter(rawUrl: string): string {
+	return (deriveIconLabel(rawUrl).trim()[0] ?? "").toUpperCase();
+}

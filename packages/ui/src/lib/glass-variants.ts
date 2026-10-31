@@ -34,7 +34,8 @@ export type FrostGlassVariant =
 	| "subtle"
 	| "liquid"
 	| "liquid-menu"
-	| "liquid-refract";
+	| "liquid-refract"
+	| "liquid-tile";
 export type FrostGlassVariantProp = { glassVariant?: FrostGlassVariant };
 /** `regular` is the clear material; `dense` is reserved for content-heavy UI. */
 export type LiquidGlassDensity = "regular" | "dense";
@@ -97,6 +98,24 @@ export const liquidGlassCardStyles = [
 	LIQUID_GLASS_BEVEL,
 ].join(" ");
 
+/**
+ * Launcher tile pane — the quietest member of the family.
+ *
+ * A launcher tile is a SMALL surface floating on the wallpaper. It wants the
+ * family's blur/tint language, but the regular card veil (22 %+ white) reads
+ * as a heavy white square at that size. This recipe keeps the house optics
+ * (blur/saturation/brightness from the global intensity) and trims the fill
+ * to a discreet veil with a hairline edge — never a chunky glassmorphism
+ * block. Still parametric in `--klice-glass-intensity`, so the Appearance
+ * slider moves it with everything else.
+ */
+export const liquidTileStyles = [
+	"backdrop-blur-[var(--klice-glass-blur-clear)] backdrop-saturate-[var(--klice-glass-saturation-clear)] backdrop-brightness-[var(--klice-glass-brightness-clear)]",
+	"bg-[color-mix(in_srgb,white_calc(10%+var(--klice-glass-intensity)*8%),transparent)] dark:bg-[color-mix(in_srgb,black_calc(12%+var(--klice-glass-intensity)*8%),transparent)]",
+	"border-[0.5px] border-black/[0.08] dark:border-white/[0.10]",
+	"shadow-[inset_0_1px_0_0_rgba(255,255,255,0.20),0_6px_16px_-12px_rgba(0,0,0,0.45)] dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.12),0_8px_20px_-14px_rgba(0,0,0,0.7)]",
+].join(" ");
+
 export const glassVariantStyles: Record<FrostGlassVariant, string> = {
 	clear: [
 		"backdrop-blur-[2px] backdrop-saturate-[1.9]",
@@ -124,4 +143,6 @@ export const glassVariantStyles: Record<FrostGlassVariant, string> = {
 	// Preserve the named menu variant as the dense member of the same family.
 	"liquid-menu": liquidGlassStyles.dense,
 	"liquid-refract": "",
+	// Launcher tile pane: discreet, intensity-parametric, part of the family.
+	"liquid-tile": liquidTileStyles,
 };

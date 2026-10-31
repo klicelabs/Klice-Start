@@ -23,7 +23,6 @@ import {
 	glassForeground,
 	glassMaterial,
 	glassMenu,
-	wallpaperText,
 } from "../../../lib/glass";
 import { buildRenameEntry } from "../../../lib/history-capture";
 import { iconFolderPreviewSlots } from "../../../lib/icon-layout";
@@ -38,6 +37,7 @@ import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { IconAppTile } from "../icon-app-tile";
 import { SelectionCheckbox } from "../selection-checkbox";
+import { GlassSurface } from "../toolbar/glass-surface";
 
 /** A single card's preview data for the folder mosaic. */
 export interface FolderPreviewItem {
@@ -115,6 +115,8 @@ export function FolderPreviewCard({
 	const { isLiquid, resolvedDark } = useAppearance();
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
+	// The opt-in glass pane is shared with the app tiles (Icon mode only).
+	const tileSurface = useSetupStore((s) => s.settings.iconTileSurface);
 
 	const editing = useRenameStore((s) => s.isEditing("folder", id));
 	const beginRename = useRenameStore((s) => s.begin);
@@ -205,8 +207,8 @@ export function FolderPreviewCard({
 							insertion={insertion}
 							openInNewTab={openInNewTab}
 							isLiquid={isLiquid}
+							tileSurface={dialLayout === "icon" && tileSurface}
 							onClick={onClick}
-							onOpen={onOpen}
 							onCommitRename={handleCommitRename}
 							onCancelRename={cancelRename}
 							getPreviewDragProps={getPreviewDragProps}
@@ -441,8 +443,9 @@ interface IconFolderBodyProps {
 	insertion: "before" | "after" | null;
 	openInNewTab: boolean;
 	isLiquid: boolean;
+	/** The folder is wrapped in the shared glass pane (Icon mode, opt-in). */
+	tileSurface?: boolean;
 	onClick?: (e: React.MouseEvent) => void;
-	onOpen: (id: string) => void;
 	onCommitRename: (next: string) => void;
 	onCancelRename: () => void;
 	getPreviewDragProps?: (cardId: string) => GridItemDragProps;
@@ -461,7 +464,6 @@ function IconFolderBody({
 	name,
 	previewCards,
 	reordering,
-	itemCount,
 	isSelected,
 	editing,
 	showOpenAction,
@@ -469,16 +471,123 @@ function IconFolderBody({
 	insertion,
 	openInNewTab,
 	isLiquid,
+	tileSurface = false,
 	onClick,
-	onOpen,
 	onCommitRename,
 	onCancelRename,
 	getPreviewDragProps,
 	stackDragProps,
 	previewInsertion,
 }: IconFolderBodyProps) {
+	return (
+		<div className="icon-folder-layout flex h-full w-full min-w-0 flex-col items-center text-left">
+			{tileSurface ? ( // The opt-in surface wraps the folder like an app
+				// tile: one physical object carrying the icon-sized folder
+				// and its label (same house material, same geometry).
+				<GlassSurface
+					variant="tile"
+					shape="surface"
+					className="icon-glass-tile"
+				>
+					<IconFolderTile
+						id={id}
+						name={name}
+						previewCards={previewCards}
+						reordering={reordering}
+						isSelected={isSelected}
+						editing={editing}
+						showOpenAction={showOpenAction}
+						dropActive={dropActive}
+						insertion={insertion}
+						openInNewTab={openInNewTab}
+						isLiquid={isLiquid}
+						tileSurface={tileSurface}
+						onClick={onClick}
+						onCommitRename={onCommitRename}
+						onCancelRename={onCancelRename}
+						getPreviewDragProps={getPreviewDragProps}
+						stackDragProps={stackDragProps}
+						previewInsertion={previewInsertion}
+					/>
+				</GlassSurface>
+			) : (
+				<IconFolderTile
+					id={id}
+					name={name}
+					previewCards={previewCards}
+					reordering={reordering}
+					isSelected={isSelected}
+					editing={editing}
+					showOpenAction={showOpenAction}
+					dropActive={dropActive}
+					insertion={insertion}
+					openInNewTab={openInNewTab}
+					isLiquid={isLiquid}
+					tileSurface={tileSurface}
+					onClick={onClick}
+					onCommitRename={onCommitRename}
+					onCancelRename={onCancelRename}
+					getPreviewDragProps={getPreviewDragProps}
+					stackDragProps={stackDragProps}
+					previewInsertion={previewInsertion}
+				/>
+			)}
+		</div>
+	);
+}
+
+interface IconFolderTileProps {
+	id: string;
+	name: string;
+	previewCards: FolderPreviewItem[];
+	reordering: boolean;
+	isSelected: boolean;
+	editing: boolean;
+	showOpenAction: boolean;
+	dropActive: boolean;
+	insertion: "before" | "after" | null;
+	openInNewTab: boolean;
+	isLiquid: boolean;
+	/** The tile is wrapped in the shared glass pane (Icon mode, opt-in). */
+	tileSurface?: boolean;
+	onClick?: (e: React.MouseEvent) => void;
+	onCommitRename: (next: string) => void;
+	onCancelRename: () => void;
+	getPreviewDragProps?: (cardId: string) => GridItemDragProps;
+	stackDragProps?: Pick<
+		GridItemDragProps,
+		"onDragOver" | "onDragLeave" | "onDrop"
+	>;
+	previewInsertion?: {
+		targetCardId: string;
+		position: "before" | "after";
+	} | null;
+}
+
+/** The folder icon itself: one tile-sized squircle + the label below it. */
+function IconFolderTile({
+	id,
+	name,
+	previewCards,
+	reordering,
+	isSelected,
+	editing,
+	showOpenAction,
+	dropActive,
+	insertion,
+	openInNewTab,
+	isLiquid,
+	tileSurface = false,
+	onClick,
+	onCommitRename,
+	onCancelRename,
+	getPreviewDragProps,
+	stackDragProps,
+	previewInsertion,
+}: IconFolderTileProps) {
 	const hasPreviews = previewCards.length > 0;
-	const overflowCount = Math.max(0, itemCount - 10);
+	// A closed folder shows nine mini icons; the rest is a "+N" badge.
+	const overflowCount = Math.max(0, previewCards.length - 9);
 
 	function handleFolderKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
 		if (e.key === "Enter" || e.key === " ") {
@@ -488,7 +597,7 @@ function IconFolderBody({
 	}
 
 	return (
-		<div className="icon-folder-layout flex h-full w-full min-w-0 flex-col items-center text-left">
+		<>
 			<div
 				className={cn(
 					"icon-folder-tile squircle",
@@ -502,7 +611,7 @@ function IconFolderBody({
 					data-local-context-menu
 					type="button"
 					className={cn(
-						"icon-folder-open-surface absolute inset-0 z-0 size-full cursor-default rounded-[var(--icon-radius)] text-left",
+						"icon-folder-open-surface absolute inset-0 z-0 size-full cursor-default text-left",
 						glassFocusRing(isLiquid),
 					)}
 					aria-label={
@@ -518,65 +627,9 @@ function IconFolderBody({
 				{hasPreviews ? (
 					<div
 						className="icon-folder-preview relative z-10"
-						data-count={Math.min(previewCards.length, 10)}
+						data-count={Math.min(previewCards.length, 9)}
 					>
 						{iconFolderPreviewSlots(previewCards).map((slot, index) => {
-							if (slot.kind === "stack") {
-								const card = slot.front;
-								return (
-									<motion.div
-										key={card.id}
-										layout={reordering ? "position" : false}
-										transition={{ duration: 0.2, ease: EASE_OUT }}
-										className="icon-folder-preview-motion-cell"
-									>
-										<button
-											type="button"
-											aria-label={`Open folder ${name}`}
-											title={`Open ${name}`}
-											className="icon-folder-preview-stack"
-											onClick={() => onOpen(id)}
-											{...getPreviewDragProps?.(card.id)}
-											{...stackDragProps}
-										>
-											{slot.back ? (
-												<IconAppTile
-													url={slot.back.url}
-													favicon={slot.back.favicon}
-													mini
-													className="icon-folder-stack-back-tile"
-												/>
-											) : (
-												<IconAppTile
-													url={`${id}:stack-empty`}
-													favicon=""
-													mini
-													showFavicon={false}
-													className="icon-folder-stack-back-tile icon-folder-stack-back-empty"
-												/>
-											)}
-											<IconAppTile
-												url={card.url}
-												favicon={card.favicon}
-												mini
-												className="icon-folder-stack-front-tile"
-											/>
-											{slot.back && overflowCount > 0 ? (
-												<span
-													aria-hidden="true"
-													className={cn(
-														"icon-folder-stack-count rounded-full px-1.5 font-semibold text-[10px] tabular-nums leading-none",
-														glassMaterial(isLiquid, "menu", "dense"),
-														isLiquid ? glassForeground() : "text-flat-ink",
-													)}
-												>
-													+{overflowCount}
-												</span>
-											) : null}
-										</button>
-									</motion.div>
-								);
-							}
 							if (slot.kind === "empty") {
 								return (
 									<IconAppTile
@@ -596,6 +649,9 @@ function IconFolderBody({
 									layout={reordering ? "position" : false}
 									transition={{ duration: 0.2, ease: EASE_OUT }}
 									className="icon-folder-preview-motion-cell"
+									// The ninth slot keeps the spring-loaded "drop into
+									// this folder" target the old stack tile owned.
+									{...(index === 8 && stackDragProps ? stackDragProps : {})}
 								>
 									<a
 										href={card.url}
@@ -622,6 +678,15 @@ function IconFolderBody({
 						<Icon name="folder" size={42} strokeWidth={1.5} />
 					</div>
 				)}
+				{overflowCount > 0 && (
+					<span
+						aria-hidden="true"
+						className="icon-folder-overflow-badge"
+						{...(stackDragProps ? { ...stackDragProps } : {})}
+					>
+						+{overflowCount}
+					</span>
+				)}
 			</div>
 
 			{editing ? (
@@ -630,14 +695,22 @@ function IconFolderBody({
 					ariaLabel={`Rename folder ${name}`}
 					onCommit={onCommitRename}
 					onCancel={onCancelRename}
-					className={cn("icon-label", wallpaperText("primary"))}
+					className={cn(
+						"icon-label",
+						tileSurface ? "icon-label-glass" : "icon-label-wallpaper",
+					)}
 				/>
 			) : (
-				<span className={cn("icon-label", wallpaperText("primary"))}>
+				<span
+					className={cn(
+						"icon-label",
+						tileSurface ? "icon-label-glass" : "icon-label-wallpaper",
+					)}
+				>
 					{name}
 				</span>
 			)}
-		</div>
+		</>
 	);
 }
 

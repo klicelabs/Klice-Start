@@ -243,6 +243,10 @@ function normalizeSettings(
 				? raw.cardAspect
 				: defaults.cardAspect,
 		iconShowLabel: normalizeBoolean(raw.iconShowLabel, defaults.iconShowLabel),
+		iconTileSurface: normalizeBoolean(
+			raw.iconTileSurface ?? raw.iconGlassTile,
+			defaults.iconTileSurface,
+		),
 		defaultTitleSource:
 			normalizeTitleSource(raw.defaultTitleSource) ??
 			defaults.defaultTitleSource,

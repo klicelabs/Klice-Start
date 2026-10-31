@@ -73,7 +73,7 @@ html.dark body {
    Deliberately OUTSIDE the scale (intentional geometry):
    - toolbar surfaces and controls: always true capsules (--klice-toolbar-
      radius / KliceShape.toolbar*), the pill-shaped exception;
-   - icon-mode tiles: Home-Screen squircle geometry (--icon-radius);
+   - icon-mode tiles: Home-Screen squircle geometry (--icon-radius-ratio);
    - micro details inside thumbnails (favicons);
    - circles (rounded-full badges/icon buttons) and proportional marks.
 
@@ -109,6 +109,18 @@ html.dark body {
 	   field and the toolbar are ever full-rounded. Keep the ceiling in
 	   sync with h-14. */
 	--shape-search-collapsed: 22px;
+	/* Icon corner geometry — the one shape role that is a FRACTION of the
+	   icon size, because icons come in three sizes (64/76/92) and every
+	   corner tier has to move them together.
+
+	   Chromium renders `corner-shape: squircle`, whose curvature is
+	   perceptually softer than a circular corner of the same radius: a
+	   squircle needs a NUMERICALLY LARGER radius to read as equally rounded.
+	   The paired fallback ratio is the calibrated circular (Gecko) radius for
+	   the same perceived rounding — the same pairing contract the
+	   --shape-* roles use, at the icon's own scale. */
+	--icon-radius-ratio: 0.3;
+	--icon-radius-fallback-ratio: 0.18;
 }
 
 /* Discreet: furniture sits low; panels barely round off. */
@@ -130,6 +142,11 @@ html.dark body {
 	--shape-thumb: 8px;
 	--shape-thumb-fallback: 5px;
 	--shape-search-collapsed: 12px;
+	/* Icons stay rounder than furniture, but they follow the tier: a
+	   discreet icon is closer to a rounded square, a rounded one reads as a
+	   true squircle. */
+	--icon-radius-ratio: 0.22;
+	--icon-radius-fallback-ratio: 0.132;
 }
 
 /* Rounded: the expressive end of the scale. */
@@ -154,6 +171,10 @@ html.dark body {
 	   falls back to the surface role (24px here), which is never a capsule
 	   and is deliberately smaller than the field (see the root comment). */
 	--shape-search-collapsed: 28px;
+	/* The expressive end: icons become the roundest silhouette in the app,
+	   close to a home-screen icon. */
+	--icon-radius-ratio: 0.38;
+	--icon-radius-fallback-ratio: 0.228;
 }
 
 /* Rounded: the search surface renders circular (round) corners instead of
@@ -276,19 +297,43 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Icon layout: one measured Home Screen rhythm. Card layout stays separate. */
+/* Icon layout: one measured Home Screen rhythm. Card layout stays separate.
+   Gutter ≈ edge margin (launcher-grid research §5.1); hover/press scales and
+   glass-tile padding scale with the icon slot. */
 .dial-grid[data-layout="icon"] {
 	--icon-cell-w: 104px;
 	--icon-cell-h: 124px;
 	--icon-size: 76px;
 	--icon-favicon-size: 48px;
-	--icon-column-gap: 20px;
-	--icon-row-gap: 20px;
+	--icon-column-gap: 28px;
+	--icon-row-gap: 22px;
 	--icon-label-gap: 7px;
-	--icon-folder-span: 2;
-	--icon-radius: 24px;
+	--icon-folder-span: 1;
 	--icon-label-line-height: 14px;
+	/* Glass pane: the padding and the label gap are sized so the pane
+	   (icon + gap + label + 2×padding) always FITS the cell — otherwise the
+	   label is the flex item that gets squeezed out of existence. */
+	--icon-glass-pad: 12px;
+	--icon-glass-gap: 6px;
+	--icon-hover-scale: 1.045;
+	--icon-press-scale: 0.96;
 	grid-auto-rows: var(--icon-cell-h);
+}
+
+/* Small / large tiers shift the interaction physics + glass padding;
+   geometry (cells, icons) is injected inline by dial-grid.tsx. */
+.dial-grid[data-layout="icon"][data-tile="small"] {
+	--icon-glass-pad: 10px;
+	--icon-glass-gap: 5px;
+	--icon-hover-scale: 1.03;
+	--icon-press-scale: 0.965;
+}
+
+.dial-grid[data-layout="icon"][data-tile="large"] {
+	--icon-glass-pad: 14px;
+	--icon-glass-gap: 6px;
+	--icon-hover-scale: 1.05;
+	--icon-press-scale: 0.955;
 }
 
 /* The grid remains centered visually, but its context owns a generous full-
@@ -336,35 +381,31 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	contain-intrinsic-size: var(--icon-cell-w) var(--icon-cell-h);
 }
 
+/* A glass tile nearly fills its icon cell; its selected outline and hover
+   scale intentionally extend beyond that cell. `content-visibility: auto`
+   applies paint containment even while the cell is visible, clipping those
+   effects to the cell's border box (the corner fragments seen on selected
+   tiles). Keep virtualization for ordinary cells, but let glass surfaces
+   paint into the grid's measured safe padding. */
+.dial-grid[data-layout="icon"] .dial-cell:has(.icon-glass-tile) {
+	content-visibility: visible;
+}
+
+/* A folder occupies ONE cell, exactly like an app icon (iOS behaviour): the
+   3×3 preview lives INSIDE the icon-sized squircle, so the grid rhythm never
+   breaks. */
 .dial-grid[data-layout="icon"] .dial-icon-folder-cell {
-	width: calc(
-		var(--icon-cell-w) *
-		var(--icon-folder-span) +
-		var(--icon-column-gap)
-	);
-	height: calc(
-		var(--icon-cell-h) *
-		var(--icon-folder-span) +
-		var(--icon-row-gap)
-	);
-	min-width: calc(
-		var(--icon-cell-w) *
-		var(--icon-folder-span) +
-		var(--icon-column-gap)
-	);
-	min-height: calc(
-		var(--icon-cell-h) *
-		var(--icon-folder-span) +
-		var(--icon-row-gap)
-	);
-	grid-column: span var(--icon-folder-span);
-	grid-row: span var(--icon-folder-span);
 	overflow: visible;
 }
 
 .icon-bookmark-layout {
 	gap: var(--icon-label-gap);
+	justify-content: flex-start;
 	padding: 6px 2px;
+}
+
+.icon-bookmark-layout:has(.icon-glass-tile) {
+	padding: 0;
 }
 
 .icon-label {
@@ -378,11 +419,19 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	font-size: 12px;
 	font-weight: 500;
 	line-height: var(--icon-label-line-height);
-	letter-spacing: -0.01em;
+	letter-spacing: 0.2px; /* launcher-grid research §5.2: +0.2px at tiny sizes */
 	text-align: center;
 	text-shadow: 0 1px 3px rgb(0 0 0 / 0.32);
 	overflow-wrap: anywhere;
 	white-space: normal;
+}
+
+.icon-label-wallpaper {
+	color: #24272c;
+}
+
+.dark .icon-label-wallpaper {
+	color: #fff;
 }
 
 .dial-grid[data-layout="icon"][data-tile="small"] .icon-label {
@@ -394,38 +443,306 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid[data-layout="icon"][data-tile="large"] .icon-label {
 	--icon-label-line-height: 16px;
 	font-size: 13px;
+	letter-spacing: 0;
 }
 
+/* Icon face — the same soft-light neutral in both themes. A launcher tile is
+   the artwork's stage, never a coloured frame: marks sit on this face while
+   app-scale artwork covers it completely. */
 .icon-app-tile {
-	background: var(--icon-surface-light);
+	background: linear-gradient(180deg, #f8f9fb 0%, #edf0f4 100%);
+	/* Corner geometry follows the global corner scale — and the TILE's own
+	   size, not the grid's: the same component renders at 48px in the
+	   suggestion rail, 64/76/92 in the grid and a third of that inside a
+	   folder, so the radius is a PERCENTAGE of the box. Chromium renders
+	   the squircle from it, Gecko uses the calibrated circular fallback. */
+	border-radius: calc(var(--icon-radius-ratio) * 100%);
+	--squircle-r: calc(var(--icon-radius-fallback-ratio) * 100%);
 	box-shadow:
-		0 12px 24px -16px rgb(4 8 18 / 0.64),
-		0 2px 5px -3px rgb(4 8 18 / 0.34);
+		0 10px 20px -14px rgb(4 8 18 / 0.55),
+		0 1px 3px rgb(4 8 18 / 0.16),
+		inset 0 0 0 1px rgb(91 103 121 / 0.14);
+	/* Hover lift is a quick tween (research §5.3); press belongs to the
+	   surface below so the icon+label scale as one object. */
 	transition:
-		transform 160ms var(--ease-out),
+		transform 120ms var(--ease-out),
 		box-shadow 160ms var(--ease-out),
 		filter 160ms var(--ease-out);
 }
 
-.dark .icon-app-tile {
-	background: var(--icon-surface-dark);
-	box-shadow:
-		0 14px 28px -17px rgb(0 0 0 / 0.92),
-		0 2px 6px -3px rgb(0 0 0 / 0.68);
+/* Mini tiles (folder previews) are a third of the icon, so their corner
+   radius scales with them — the same ratio, never a fixed number. They also
+   drop the plate and the shadow: inside a folder the artwork speaks for
+   itself, and a plate per mini icon would read as noise. */
+.icon-app-tile[data-mini="true"] {
+	border-radius: calc(var(--icon-mini-size) * var(--icon-radius-ratio));
+	--squircle-r: calc(var(--icon-mini-size) * var(--icon-radius-fallback-ratio));
+	background: transparent;
+	box-shadow: none;
+}
+
+/* Resolved-icon media slots (see lib/icon-resolver.ts treatment classes).
+   An app tile paints edge-to-edge under the tile's own squircle clip; glyphs
+   keep their native cap when smaller and high-resolution marks share one
+   optical maximum. Folder previews use a slightly larger relative cap. */
+.icon-app-tile .icon-media-glyph {
+	width: min(64%, var(--icon-media-native, 64%));
+	height: min(64%, var(--icon-media-native, 64%));
+	object-fit: contain;
+	filter: drop-shadow(0 0 1px rgb(23 29 40 / 0.34));
+}
+
+/* Optical cap is shared with raster marks so vectors do not dominate. */
+.icon-app-tile .icon-media-vector {
+	width: 64%;
+	height: 64%;
+}
+
+/* Mini previews need a larger relative mark to remain recognizable. */
+.icon-app-tile[data-mini="true"] .icon-media-glyph {
+	width: min(86%, var(--icon-media-native, 86%));
+	height: min(86%, var(--icon-media-native, 86%));
+}
+
+.icon-app-tile[data-mini="true"] .icon-media-vector {
+	width: 82%;
+	height: 82%;
+}
+
+.icon-app-tile .icon-media-full {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: center;
+}
+
+/* Letter-mark: the deterministic fallback when a site has no icon at all.
+   It reads as a neutral monogram on the tile's face, never a colourful
+   badge. */
+.icon-fallback-letter {
+	font-size: calc(var(--icon-size, 76px) * 0.42);
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	color: rgb(0 0 0 / 0.46);
+}
+
+.dark .icon-fallback-letter {
+	color: rgb(255 255 255 / 0.6);
+}
+
+.icon-app-tile[data-mini="true"] .icon-fallback-letter {
+	font-size: calc(var(--icon-mini-size) * 0.5);
+}
+
+/* Letter-mark inside card-mode media too (theme-agnostic ink pair). */
+.icon-letter-mark {
+	font-size: 26px;
+	font-weight: 600;
+	letter-spacing: 0;
+	color: rgb(0 0 0 / 0.5);
+}
+
+.dark .icon-letter-mark {
+	color: rgb(255 255 255 / 0.62);
+}
+
+@keyframes klice-icon-swap {
+	from {
+		opacity: 0;
+		transform: scale(0.96);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+.icon-swap-in {
+	animation: klice-icon-swap 240ms var(--ease-out) both;
+}
+
+/* ── Opt-in glass tile (Icon Mode only, disabled by default) ────────────────
+   One physical pane carries icon + label. The MATERIAL is the shared house
+   glass (GlassSurface, role "tile") — this block only owns geometry: the
+   pane size, the padding and the double-radius rule that keeps the
+   curvature continuous from the icon face to the pane edge
+   (outer r = icon r + padding).
+
+   Backdrop-root ancestry contract (research §4.3): no painted ancestor of an
+   icon-mode tile may carry opacity<1, filter, or mask — wallpaper opacity
+   must stay on a dedicated layer for the pane's backdrop-filter to sample
+   through. content-visibility:auto on cells keeps paint deferred; the pane
+   renders on first visibility. */
+.icon-glass-tile {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
+	gap: var(--icon-glass-gap, 4px);
+	box-sizing: border-box;
+	width: calc(var(--icon-size) + var(--icon-glass-pad) * 2);
+	padding: var(--icon-glass-pad);
+	border-radius: calc(
+		var(--icon-size) *
+		var(--icon-radius-ratio) +
+		var(--icon-glass-pad)
+	);
+	--squircle-r: calc(
+		var(--icon-size) *
+		var(--icon-radius-fallback-ratio) +
+		var(--icon-glass-pad)
+	);
+	/* Panes lift as ONE object (research §5.3 applies transforms to the glass). */
+	transition: transform 120ms var(--ease-out);
+}
+
+/* Glass ink: theme ink instead of wallpaper text; one line with ellipsis
+   (research §5.4 — the pane is a label card, not a text block). The label
+   never shrinks: inside a fixed-size pane it is the icon that gives way. */
+.icon-label-glass {
+	display: block;
+	flex: 0 0 auto;
+	width: auto;
+	-webkit-line-clamp: unset;
+	max-height: calc(var(--icon-label-line-height) + 4px);
+	max-width: 100%;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: #fff;
+	-webkit-text-fill-color: #fff;
+	-webkit-text-stroke: 0.3px rgb(0 0 0 / 0.52);
+	text-shadow: 0 1px 2px rgb(0 0 0 / 0.7);
+}
+
+.icon-glass-tile[data-glass-tone="light"] .icon-label-glass {
+	padding: 2px 7px;
+	border: 1px solid rgb(255 255 255 / 0.18);
+	border-radius: 999px;
+	background: rgb(20 24 30 / 0.72);
+	box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
+	-webkit-text-stroke: 0;
+	text-shadow: none;
+}
+
+/* Hover: when glass panes exist, the tile keeps still inside the pane and
+   the pane takes the transform (:has is Chromium 105+ / Gecko 121+). */
+.dial-grid[data-layout="icon"]:has(.icon-glass-tile) .dial-icon-item:not(
+		[data-dragging="true"]
+	):hover
+	.icon-app-tile,
+.icon-mode-surface:has(.icon-glass-tile):not([data-dragging="true"]):hover
+	.icon-app-tile {
+	transform: none;
+}
+
+.dial-grid[data-layout="icon"]
+	.dial-icon-item:not([data-dragging="true"]):hover
+	.icon-glass-tile {
+	transform: scale(var(--icon-hover-scale));
+}
+
+.icon-mode-surface:not([data-dragging="true"]):hover .icon-glass-tile {
+	transform: scale(var(--icon-hover-scale));
+}
+
+/* Pressure: the surface class no longer hardcodes active:scale-[0.97] —
+   the press scale follows the tile tier. */
+.icon-mode-surface:active {
+	transform: scale(var(--icon-press-scale));
+}
+
+/* Selection rings move onto the pane when it owns the visual identity. */
+.dial-grid[data-layout="icon"] .dial-icon-item[data-selected="true"]
+	.icon-glass-tile,
+.icon-mode-surface[data-selected="true"] .icon-glass-tile {
+	outline: 1px solid rgb(var(--klice-accent-rgb) / 0.65);
+	outline-offset: 3px;
+}
+
+/* ...double-selecting both pane and inner tile is doubled ink; when the pane
+   exists, silence the tile's own ring. */
+.dial-grid[data-layout="icon"]:has(
+		.icon-glass-tile
+	) .dial-icon-item[data-selected="true"]
+	.icon-app-tile {
+	outline: none;
+}
+
+/* Reduced transparency: the house material loses its blur and the pane
+   becomes an opaque surface. The tile role paints no lens, so the
+   backdrop-filter comes from a class and can be switched off here. */
+@media (prefers-reduced-transparency: reduce) {
+	.icon-glass-tile {
+		backdrop-filter: none;
+		background: rgb(242 242 242 / 0.98);
+		border-color: transparent;
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.3),
+			0 4px 10px rgb(0 0 0 / 0.1);
+	}
+
+	.dark .icon-glass-tile {
+		background: rgb(21 23 26 / 0.98);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.1),
+			0 6px 14px rgb(0 0 0 / 0.25);
+	}
+}
+
+/* Motion-reduce: keep hover/press feedback as brightness only. */
+@media (prefers-reduced-motion: reduce) {
+	.dial-grid[data-layout="icon"] .dial-icon-item:hover .icon-app-tile,
+	.icon-mode-surface:hover .icon-app-tile,
+	.dial-grid[data-layout="icon"] .dial-icon-item:hover .icon-glass-tile,
+	.icon-mode-surface:hover .icon-glass-tile,
+	.icon-mode-surface:active {
+		transform: none;
+	}
+
+	.icon-swap-in {
+		animation: none;
+	}
 }
 
 .icon-folder-layout {
 	gap: var(--icon-label-gap);
+	justify-content: flex-start;
 	padding: 4px 0;
 }
 
+.icon-folder-layout:has(.icon-glass-tile) {
+	padding: 0;
+}
+
+/* A closed folder is ONE icon (iOS behaviour): an icon-sized squircle that
+   holds a 3×3 grid of mini icons. The tile keeps the app-icon silhouette,
+   so the grid rhythm never breaks and nothing looks "inflated".
+   Every dimension derives from --icon-size, so the folder scales with the
+   icon size setting and the corner scale like everything else. */
 .icon-folder-tile {
 	position: relative;
-	flex: 1 1 auto;
-	min-height: 0;
-	width: 100%;
-	--squircle-r: var(--icon-radius);
-	border-radius: var(--icon-radius);
+	flex: 0 0 auto;
+	width: var(--icon-size);
+	height: var(--icon-size);
+	--squircle-r: calc(var(--icon-size) * var(--icon-radius-fallback-ratio));
+	border-radius: calc(var(--icon-size) * var(--icon-radius-ratio));
+	--icon-folder-pad: calc(var(--icon-size) * 0.1);
+	--icon-folder-gap: calc(var(--icon-size) * 0.045);
+	--icon-mini-size: calc(
+		(
+			var(--icon-size) -
+			2 *
+			var(--icon-folder-pad) -
+			2 *
+			var(--icon-folder-gap)
+		) /
+		3
+	);
+	--icon-mini-radius: calc(var(--icon-mini-size) * var(--icon-radius-ratio));
+	--icon-mini-radius-fallback: calc(
+		var(--icon-mini-size) *
+		var(--icon-radius-fallback-ratio)
+	);
 }
 
 .icon-folder-open-surface {
@@ -435,13 +752,41 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 .icon-folder-preview {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	grid-template-rows: repeat(3, minmax(0, 1fr));
-	gap: clamp(5px, 0.8vw, 8px);
-	width: 100%;
-	height: 100%;
-	padding: clamp(12px, 1.8vw, 20px);
+	grid-template-columns: repeat(3, var(--icon-mini-size));
+	grid-template-rows: repeat(3, var(--icon-mini-size));
+	gap: var(--icon-folder-gap);
+	width: var(--icon-size);
+	height: var(--icon-size);
+	padding: var(--icon-folder-pad);
 	pointer-events: none;
+}
+
+/* "+N" badge: a closed folder can only show nine mini icons, so the
+   remainder is summarised on the tile itself. */
+.icon-folder-overflow-badge {
+	position: absolute;
+	right: calc(var(--icon-folder-pad) * 0.4);
+	bottom: calc(var(--icon-folder-pad) * 0.4);
+	z-index: 20;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: calc(var(--icon-size) * 0.26);
+	height: calc(var(--icon-size) * 0.26);
+	padding: 0 calc(var(--icon-size) * 0.05);
+	border-radius: 9999px;
+	font-size: calc(var(--icon-size) * 0.115);
+	font-weight: 600;
+	line-height: 1;
+	color: rgb(0 0 0 / 0.62);
+	background: color-mix(in srgb, #ffffff 78%, transparent);
+	box-shadow: 0 1px 4px rgb(0 0 0 / 0.28);
+	pointer-events: none;
+}
+
+.dark .icon-folder-overflow-badge {
+	color: rgb(255 255 255 / 0.82);
+	background: color-mix(in srgb, #101318 78%, transparent);
 }
 
 .icon-folder-preview > * {
@@ -468,18 +813,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	min-width: 0;
 	min-height: 0;
 	pointer-events: auto;
-	border-radius: var(--icon-radius);
+	border-radius: var(--icon-mini-radius);
 }
 
 .icon-folder-preview-link:hover .icon-app-tile {
 	filter: brightness(1.04) saturate(1.06);
-	transform: translateY(-1px) scale(1.025);
+	transform: scale(1.04);
 }
 
-.icon-folder-preview-link:focus-visible,
-.icon-folder-preview-stack:focus-visible {
+.icon-folder-preview-link:focus-visible {
 	outline: 2px solid var(--klice-accent);
-	outline-offset: 3px;
+	outline-offset: 2px;
 }
 
 .icon-folder-preview-insert-before,
@@ -538,9 +882,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	pointer-events: none;
 }
 
-.icon-folder-preview-empty,
-.icon-folder-stack-back-empty {
-	border-radius: var(--icon-radius);
+.icon-folder-preview-empty {
+	border-radius: var(--icon-mini-radius);
 	background: linear-gradient(
 		145deg,
 		rgb(255 255 255 / 0.56),
@@ -549,81 +892,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.48);
 }
 
-.dark .icon-folder-preview-empty,
-.dark .icon-folder-stack-back-empty {
+.dark .icon-folder-preview-empty {
 	background: linear-gradient(
 		145deg,
 		rgb(255 255 255 / 0.13),
 		rgb(0 0 0 / 0.2)
 	);
 	box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.1);
-}
-
-.icon-folder-preview-stack {
-	--icon-stack-back-offset: 20px;
-	position: relative;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 80%;
-	height: 80%;
-	margin: auto;
-	pointer-events: auto;
-	border: 0;
-	border-radius: var(--icon-radius);
-	background: transparent;
-	cursor: default;
-}
-
-.icon-folder-preview-stack .icon-folder-stack-back-tile {
-	position: absolute;
-	top: var(--icon-stack-back-offset);
-	right: 0;
-	bottom: 0;
-	left: var(--icon-stack-back-offset);
-	z-index: 0;
-	width: auto;
-	height: auto;
-	transform: rotate(5deg);
-	opacity: 0.86;
-}
-
-.icon-folder-preview-stack .icon-folder-stack-front-tile {
-	position: relative;
-	z-index: 1;
-	width: calc(100% - var(--icon-stack-back-offset));
-	height: calc(100% - var(--icon-stack-back-offset));
-	transform: translate(-2px, -2px) rotate(-3deg);
-}
-
-.icon-folder-stack-count {
-	position: absolute;
-	right: 0;
-	bottom: 0;
-	z-index: 3;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 22px;
-	height: 20px;
-	transform: translate(50%, 50%);
-	border: 1px solid rgb(0 0 0 / 0.14);
-	box-shadow: 0 3px 8px -4px rgb(0 0 0 / 0.7);
-	white-space: nowrap;
-	pointer-events: none;
-}
-
-.dark .icon-folder-stack-count {
-	border-color: rgb(255 255 255 / 0.16);
-	box-shadow: 0 4px 10px -4px rgb(0 0 0 / 0.92);
-}
-
-.icon-folder-preview-stack:hover .icon-folder-stack-front-tile {
-	transform: translate(-2px, -3px) rotate(-3deg) scale(1.03);
-}
-
-.icon-folder-preview-stack-hover {
-	transform: translateY(-2px) scale(1.04);
 }
 
 .icon-folder-empty {
@@ -671,11 +946,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid[data-layout="icon"]
 	.dial-icon-item:not([data-dragging="true"]):hover
 	.icon-app-tile {
+	transform: scale(var(--icon-hover-scale));
 	box-shadow:
 		0 16px 30px -17px rgb(4 8 18 / 0.68),
 		0 3px 8px -4px rgb(4 8 18 / 0.36);
 }
 .icon-mode-surface:not([data-dragging="true"]):hover .icon-app-tile {
+	transform: scale(var(--icon-hover-scale));
 	box-shadow:
 		0 16px 30px -17px rgb(4 8 18 / 0.68),
 		0 3px 8px -4px rgb(4 8 18 / 0.36);
@@ -911,10 +1188,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	background: var(--klice-accent);
 	color: var(--klice-accent-foreground);
 }
-/* Visible while its card is selected, while any selection is active, or
-   while focus is inside the card — so a manually checked card keeps its
-   marked control after the pointer leaves. */
-.dial-card:focus-within .selection-checkbox,
+/* Visible while selected, while selection mode is active, or when keyboard
+   focus is visible. Pointer focus from opening a bookmark does not reveal it. */
+.dial-card:focus-within:has(:focus-visible) .selection-checkbox,
 .dial-card[data-selected="true"] .selection-checkbox,
 .dial-grid-wrap[data-selection-active="true"] .selection-checkbox {
 	opacity: 1;
@@ -1486,7 +1762,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .speed-dial-quick-links {
 	--icon-size: 48px;
 	--icon-favicon-size: 30px;
-	--icon-radius: 16px;
 	--icon-cell-w: 76px;
 	--icon-label-gap: 4px;
 	--icon-label-lines: 1;

@@ -10,6 +10,7 @@ import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useResolvedIcon } from "../../hooks/use-resolved-icon";
 import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
 import type { GridItemDragProps } from "../../lib/dnd";
@@ -19,7 +20,6 @@ import {
 	glassDropRing,
 	glassFocusRing,
 	glassMenu,
-	wallpaperText,
 } from "../../lib/glass";
 import { expandSelectionToCards } from "../../lib/selection-model";
 import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
@@ -27,7 +27,11 @@ import {
 	startBatchRefresh,
 	startSingleRefresh,
 } from "../../lib/thumbnail-refresh-client";
-import { faviconUrl, isAbsoluteHttpUrl } from "../../lib/url";
+import {
+	deriveInitialLetter,
+	faviconUrl,
+	isAbsoluteHttpUrl,
+} from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -37,6 +41,7 @@ import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
 import type { Card, Folder } from "../../types";
 import { InlineRenameInput } from "../shared/inline-rename-input";
+import { SvgIcon } from "../shared/svg-icon";
 import { useAppearance } from "./appearance-provider";
 import { ICON_MODE_SURFACE_CLASS, IconModeTile } from "./icon-mode-tile";
 import { SelectionCheckbox } from "./selection-checkbox";
@@ -76,6 +81,7 @@ export function DialCard({
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
+	const iconTileSurface = useSetupStore((s) => s.settings.iconTileSurface);
 	const defaultTitleSource = useSetupStore(
 		(s) => s.settings.defaultTitleSource,
 	);
@@ -161,6 +167,12 @@ export function DialCard({
 
 	const fallbackColor = softGradientFromString(card.url);
 	const faviconSrc = card.favicon || faviconUrl(card.url);
+	// Card mode upgrades use the same resolver as the launcher, but stay
+	// presentation-only: thumbnails remain the primary body and card.favicon
+	// on disk is never rewritten.
+	const resolvedFavicon = useResolvedIcon(card.url, {
+		explicitFavicon: card.favicon ?? undefined,
+	});
 	const label = resolveCardTitle(card, defaultTitleSource);
 	const savedTitle = card.title || card.url;
 
@@ -194,8 +206,9 @@ export function DialCard({
 					// The silhouette is the semantic card role (--shape-card), so
 					// bookmark cards, folder cards and the drag image share one
 					// corner scale instead of three literals.
-					"dial-card group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden p-0 transition-[transform,box-shadow,opacity] duration-150 [-webkit-user-drag:element] active:scale-[0.97]",
+					"dial-card group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden p-0 transition-[transform,box-shadow,opacity] duration-150 [-webkit-user-drag:element]",
 					dialLayout === "card" && kliceShape("card"),
+					dialLayout === "card" && "active:scale-[0.97]",
 					dialLayout === "icon" && ICON_MODE_SURFACE_CLASS,
 					// Screenshot/gradient content is already the bookmark body surface.
 					// Keep classic elevation, but avoid a second Liquid Glass backdrop
@@ -252,9 +265,9 @@ export function DialCard({
 							<IconModeTile
 								url={card.url}
 								favicon={faviconSrc}
-								selected={isSelected}
 								label={label}
 								showLabel={iconShowLabel || editing}
+								tileSurface={iconTileSurface}
 								labelContent={
 									editing ? (
 										<InlineRenameInput
@@ -265,7 +278,7 @@ export function DialCard({
 											ariaLabel={`Rename ${label}`}
 											onCommit={handleCommitRename}
 											onCancel={cancelRename}
-											className={`w-full flex-none text-center ${wallpaperText("primary")}`}
+											className={`icon-label w-full flex-none text-center ${iconTileSurface ? "icon-label-glass" : "icon-label-wallpaper"}`}
 										/>
 									) : undefined
 								}
@@ -331,18 +344,44 @@ export function DialCard({
 										)}
 									</AnimatePresence>
 									{!thumbnail && (
-										<img
-											src={faviconSrc}
-											alt=""
-											draggable={false}
-											className="favicon size-10 shrink-0 rounded-full object-contain"
-											onError={(e) => {
-												(e.target as HTMLImageElement).onerror = null;
-												(e.target as HTMLImageElement).src = faviconUrl(
-													card.url,
-												);
-											}}
-										/>
+										<>
+											{resolvedFavicon.status === "svg" &&
+											resolvedFavicon.svgXml ? (
+												<SvgIcon
+													svgXml={resolvedFavicon.svgXml}
+													alt=""
+													className="favicon relative z-10 size-10 shrink-0"
+												/>
+											) : resolvedFavicon.status === "image" &&
+												resolvedFavicon.imageSrc ? (
+												<img
+													src={resolvedFavicon.imageSrc}
+													alt=""
+													draggable={false}
+													className="favicon size-10 shrink-0 rounded-full object-contain"
+												/>
+											) : resolvedFavicon.status === "letter" ? (
+												<span
+													aria-hidden="true"
+													className="icon-letter-mark favicon relative z-10 flex size-10 shrink-0 items-center justify-center"
+												>
+													{deriveInitialLetter(card.url)}
+												</span>
+											) : (
+												<img
+													src={faviconSrc}
+													alt=""
+													draggable={false}
+													className="favicon size-10 shrink-0 rounded-full object-contain"
+													onError={(e) => {
+														(e.target as HTMLImageElement).onerror = null;
+														(e.target as HTMLImageElement).src = faviconUrl(
+															card.url,
+														);
+													}}
+												/>
+											)}
+										</>
 									)}
 									<ThumbnailFeedback
 										active={refreshCapturing}
@@ -365,18 +404,32 @@ export function DialCard({
 												: undefined
 										}
 									>
-										<img
-											src={faviconSrc}
-											alt=""
-											draggable={false}
-											className="favicon h-4 w-4 shrink-0 rounded-full"
-											onError={(e) => {
-												(e.target as HTMLImageElement).onerror = null;
-												(e.target as HTMLImageElement).src = faviconUrl(
-													card.url,
-												);
-											}}
-										/>
+										{resolvedFavicon.status === "svg" &&
+										resolvedFavicon.svgXml ? (
+											<SvgIcon
+												svgXml={resolvedFavicon.svgXml}
+												alt=""
+												className="favicon relative z-10 h-4 w-4 shrink-0"
+											/>
+										) : (
+											<img
+												src={
+													resolvedFavicon.status === "image" &&
+													resolvedFavicon.imageSrc
+														? resolvedFavicon.imageSrc
+														: faviconSrc
+												}
+												alt=""
+												draggable={false}
+												className="favicon h-4 w-4 shrink-0 rounded-full"
+												onError={(e) => {
+													(e.target as HTMLImageElement).onerror = null;
+													(e.target as HTMLImageElement).src = faviconUrl(
+														card.url,
+													);
+												}}
+											/>
+										)}
 										{editing ? (
 											<InlineRenameInput
 												value={savedTitle}

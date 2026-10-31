@@ -82,3 +82,15 @@ test("defaults to the soft corner scale and rejects unknown scales", () => {
 	const repaired = normalizeState(legacy as never);
 	expect(repaired.settings.cornerScale).toBe("soft");
 });
+
+test("migrates the legacy icon glass flag to the icon surface setting", () => {
+	const legacy = structuredClone(DEFAULT_SETUP);
+	const legacySettings = legacy.settings as unknown as Record<string, unknown>;
+	delete legacySettings.iconTileSurface;
+	legacySettings.iconGlassTile = true;
+
+	expect(normalizeState(legacy).settings.iconTileSurface).toBe(true);
+
+	legacySettings.iconTileSurface = false;
+	expect(normalizeState(legacy).settings.iconTileSurface).toBe(false);
+});

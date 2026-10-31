@@ -661,15 +661,10 @@ export function DialGrid({
 	}
 
 	function handleCardClick(e: React.MouseEvent, id: string) {
-		// Enter is navigation, even while the pointer is in selection mode.
-		// Space and the sibling checkbox are explicit keyboard selection.
+		// Enter is navigation, and an ordinary click always follows the link.
+		// Selection is explicit: modifier-click, Space, or the sibling checkbox.
 		if (e.detail === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
-		if (
-			e.metaKey ||
-			e.ctrlKey ||
-			e.shiftKey ||
-			useSelectionStore.getState().scope !== null
-		) {
+		if (e.metaKey || e.ctrlKey || e.shiftKey) {
 			e.preventDefault();
 			e.stopPropagation();
 			handleSelect(e, id);
@@ -717,7 +712,8 @@ export function DialGrid({
 			<div
 				// Both layouts clip identically: transitions slide inside the
 				// stage, while outlines/shadows/feedback live in the safe
-				// padding (12px card, 24px icon) and never touch the edge.
+				// padding (12px card, size-specific icon padding) and never touch
+				// the edge.
 				className={
 					dialLayout === "icon"
 						? "dial-grid-stage dial-grid-stage-icon overflow-hidden"
@@ -729,6 +725,11 @@ export function DialGrid({
 				style={{
 					maxWidth: gridMaxWidth,
 					marginInline: "auto",
+					...(dialLayout === "icon"
+						? {
+							["--icon-safe-padding" as string]: `${iconGrid.safePadding}px`,
+						}
+						: {}),
 				}}
 			>
 				<AnimatePresence initial={false} mode="sync" custom={motionContext}>
@@ -770,8 +771,6 @@ export function DialGrid({
 										["--icon-row-gap" as string]: `${iconGrid.rowGap}px`,
 										["--icon-label-gap" as string]: `${iconGrid.labelGap}px`,
 										["--icon-folder-span" as string]: iconGrid.folderSpan,
-										["--icon-radius" as string]: `${iconGrid.radius}px`,
-										["--icon-safe-padding" as string]: `${iconGrid.safePadding}px`,
 									}
 								: {}),
 							...cellAspectStyle,

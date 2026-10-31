@@ -76,6 +76,7 @@ export function GeneralPane() {
 	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const cardAspect = useSetupStore((s) => s.settings.cardAspect);
 	const iconShowLabel = useSetupStore((s) => s.settings.iconShowLabel);
+	const iconTileSurface = useSetupStore((s) => s.settings.iconTileSurface);
 	const defaultTitleSource = useSetupStore(
 		(s) => s.settings.defaultTitleSource,
 	);
@@ -132,16 +133,32 @@ export function GeneralPane() {
 							/>
 						</SettingRow>
 					) : (
-						<SettingRow label="Show labels" icon="text">
-							<Switch
-								className={SETTINGS_SWITCH}
-								aria-label="Show labels"
-								checked={iconShowLabel}
-								onCheckedChange={(checked: boolean) =>
-									updateSettings({ iconShowLabel: checked })
-								}
-							/>
-						</SettingRow>
+						<>
+							<SettingRow label="Show labels" icon="text">
+								<Switch
+									className={SETTINGS_SWITCH}
+									aria-label="Show labels"
+									checked={iconShowLabel}
+									onCheckedChange={(checked: boolean) =>
+										updateSettings({ iconShowLabel: checked })
+									}
+								/>
+							</SettingRow>
+							<SettingRow
+								label="Icon surfaces"
+								icon="stack"
+								tooltip="Place each icon and label on a shared surface. Its material follows the glass appearance setting."
+							>
+								<Switch
+									className={SETTINGS_SWITCH}
+									aria-label="Icon surfaces"
+									checked={iconTileSurface}
+									onCheckedChange={(checked: boolean) =>
+										updateSettings({ iconTileSurface: checked })
+									}
+								/>
+							</SettingRow>
+						</>
 					)}
 
 					{dialLayout === "card" ? (

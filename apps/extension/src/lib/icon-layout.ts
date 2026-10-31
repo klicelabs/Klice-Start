@@ -1,42 +1,50 @@
 import { clampInt, safeTileSize } from "./utils";
 
-/** Shared geometry for the Home Screen-style icon layout. */
+/**
+ * Shared geometry for the Home Screen-style icon layout.
+ *
+ * Rhythm derived from the launcher-grid research (.pi/research/
+ * launcher-grid-glass-research.md §5.1): the icon never grows, the gutter
+ * does. Gutter ≈ edge margin keeps Apple's optical balance, and the row gap
+ * stays ~46% of the icon height like Springboard's 28pt row pitch.
+ *
+ * The corner RADIUS is not here: it is derived from the global corner scale
+ * (--icon-radius-ratio) and the icon size, so icons, folders, mini icons and
+ * the glass pane always agree with the appearance preference.
+ */
 export const ICON_GRID = {
 	small: {
 		cellWidth: 88,
 		cellHeight: 106,
 		iconSize: 64,
 		faviconSize: 40,
-		columnGap: 18,
-		rowGap: 18,
+		columnGap: 24,
+		rowGap: 20,
 		labelGap: 6,
-		folderSpan: 2,
-		radius: 24,
-		safePadding: 24,
+		folderSpan: 1,
+		safePadding: 28,
 	},
 	medium: {
 		cellWidth: 104,
 		cellHeight: 124,
 		iconSize: 76,
 		faviconSize: 48,
-		columnGap: 20,
-		rowGap: 20,
+		columnGap: 28,
+		rowGap: 22,
 		labelGap: 7,
-		folderSpan: 2,
-		radius: 28,
-		safePadding: 24,
+		folderSpan: 1,
+		safePadding: 32,
 	},
 	large: {
 		cellWidth: 128,
 		cellHeight: 150,
 		iconSize: 92,
 		faviconSize: 58,
-		columnGap: 24,
-		rowGap: 24,
+		columnGap: 32,
+		rowGap: 26,
 		labelGap: 8,
-		folderSpan: 2,
-		radius: 32,
-		safePadding: 24,
+		folderSpan: 1,
+		safePadding: 36,
 	},
 } as const;
 
@@ -61,76 +69,27 @@ export function computeIconGridMaxWidth(
 
 export type IconFolderPreviewSlot<T> =
 	| { kind: "item"; item: T }
-	| { kind: "empty" }
-	| { kind: "stack"; front: T; back: T | null };
+	| { kind: "empty" };
 
-/** Project folder contents into stable 3×3 launcher slots. */
+/**
+ * Project folder contents into stable 3×3 launcher slots.
+ *
+ * A closed folder is ONE icon: the preview is a 3×3 grid of mini icons
+ * inside the icon-sized tile (iOS behaviour). Items beyond the ninth are
+ * summarised by the "+N" badge on the tile.
+ */
 export function iconFolderPreviewSlots<T>(
 	items: readonly T[],
 ): IconFolderPreviewSlot<T>[] {
-	return Array.from({ length: 9 }, (_, index) => {
-		if (index === 8 && items[8] !== undefined) {
-			return {
-				kind: "stack",
-				front: items[8],
-				back: items[9] ?? null,
-			} as const;
-		}
-		return items[index] !== undefined
+	return Array.from({ length: ICON_FOLDER_PREVIEW_SLOTS }, (_, index) =>
+		items[index] !== undefined
 			? ({ kind: "item", item: items[index] as T } as const)
-			: ({ kind: "empty" } as const);
-	});
+			: ({ kind: "empty" } as const),
+	);
 }
 
-export interface IconSurfacePalette {
-	light: string;
-	dark: string;
-}
-
-/** Curated app-icon materials. Selection stays deterministic per URL. */
-const ICON_SURFACES: IconSurfacePalette[] = [
-	{
-		light: "linear-gradient(145deg, #ffffff 0%, #e8ebf1 100%)",
-		dark: "linear-gradient(145deg, #30343c 0%, #111318 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #f6f7fa 0%, #cfd5df 100%)",
-		dark: "linear-gradient(145deg, #252a33 0%, #0d0f14 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #dce9ff 0%, #9cbcf2 100%)",
-		dark: "linear-gradient(145deg, #315caa 0%, #15284e 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #f0e5ff 0%, #c1a4ee 100%)",
-		dark: "linear-gradient(145deg, #67449e 0%, #2b1d4e 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #ffe8dc 0%, #f1ad91 100%)",
-		dark: "linear-gradient(145deg, #a64f38 0%, #4a211c 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #e0f5eb 0%, #8fd1b1 100%)",
-		dark: "linear-gradient(145deg, #28735b 0%, #12392f 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #fff2c8 0%, #e8c46d 100%)",
-		dark: "linear-gradient(145deg, #896d27 0%, #3c2d10 100%)",
-	},
-	{
-		light: "linear-gradient(145deg, #e8e5ff 0%, #a8b4ff 100%)",
-		dark: "linear-gradient(145deg, #4656b2 0%, #1d2454 100%)",
-	},
-];
-
-function iconSurfaceIndex(value: string): number {
-	let hash = 0;
-	for (let index = 0; index < value.length; index += 1) {
-		hash = value.charCodeAt(index) + ((hash << 5) - hash);
-	}
-	return Math.abs(hash) % ICON_SURFACES.length;
-}
-
-export function iconSurfaceFromString(value: string): IconSurfacePalette {
-	return ICON_SURFACES[iconSurfaceIndex(value)] ?? ICON_SURFACES[0];
-}
+/**
+ * Number of items a closed folder can show in its 3×3 preview. Everything
+ * beyond that is summarised by the "+N" badge on the tile.
+ */
+export const ICON_FOLDER_PREVIEW_SLOTS = 9;

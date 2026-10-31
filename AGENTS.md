@@ -18,6 +18,12 @@ Run in `apps/extension/`:
 
 Run at root: `bun run check` (Biome). There is no `bun run check` or `bun run test` inside `apps/extension` — do not invent them.
 
+## Dev output freshness
+
+- At the end of every agent task, ensure both WXT outputs are current: `apps/extension/.output/chrome-mv3` and `apps/extension/.output/chrome-mv3-dev`.
+- Refresh production output with `bun run build` from `apps/extension/`. Refresh dev output with `bun run dev` from the same directory, wait for its successful build, and let its watcher rebuild after source changes.
+- Keep the dev server running between tasks on strict port 5555; if it is stopped, start it hidden and wait for the initial build. Leave it running when the task ends. Both directories are generated, ignored, and must not be committed. The separate legacy-looking `apps/extension/dev/.output` is not produced by these commands.
+
 ## Directory map
 
 - `apps/extension/` — the product. `entrypoints/` (newtab, popup, background worker), `src/` (components, stores, lib, hooks, services, styles), `scripts/` (verify-*.test.ts + bench harnesses).
@@ -38,6 +44,7 @@ Reference, not required reading. Consult on demand.
 
 ## Workflow
 
+- After every code update, run `bun test scripts/` and `bun run compile` from `apps/extension/` before reporting the task complete. Refresh both Chrome outputs after the update: run `bun run build`, then ensure `bun run dev` has successfully rebuilt `chrome-mv3-dev` and leave the dev server running on port 5555. If a check fails, report the failure and do not claim validation passed.
 - Branches: `feat/`, `fix/`, `chore/`, `docs/`, `perf/`, `polish/`, `refactor/`, `probe/`. Throwaway branches (`probe/`, `perf/probe-*`) never merge.
 - Conventional Commits in English: `feat|fix|ui|refactor|i18n|chore|docs(<scope>): <description>`. Present tense, <72 chars, no emojis.
 - Solo PR flow still applies: branch → commit → `compile` + `test` + `build` → merge → delete branch.
