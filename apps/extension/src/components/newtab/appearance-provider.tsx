@@ -11,6 +11,7 @@ import type {
 	AccentColor,
 	AppearanceMode,
 	ColorScheme,
+	CornerScale,
 	MaterialMode,
 } from "../../types";
 
@@ -25,6 +26,8 @@ export interface AppearanceContextValue {
 	resolvedDark: boolean;
 	/** prefers-contrast: more — forces dense veils + strong ink. */
 	prefersContrastMore: boolean;
+	/** Corner-scale preference; geometry consumers re-measure on change. */
+	cornerScale: CornerScale;
 }
 
 export interface GlassAppearanceContextValue {
@@ -42,6 +45,7 @@ const AppearanceContext = createContext<AppearanceContextValue>({
 	accentColor: "blue",
 	resolvedDark: true,
 	prefersContrastMore: false,
+	cornerScale: "soft",
 });
 
 const GlassAppearanceContext = createContext<GlassAppearanceContextValue>({
@@ -60,6 +64,7 @@ export function AppearanceProvider({
 	const glassIntensity = useSetupStore((s) =>
 		clampGlassIntensity(s.settings.glassIntensity),
 	);
+	const cornerScale = useSetupStore((s) => s.settings.cornerScale ?? "soft");
 
 	const [systemDark, setSystemDark] = useState<boolean>(() => {
 		if (typeof window === "undefined") return true;
@@ -136,6 +141,9 @@ export function AppearanceProvider({
 		// upgrades `surface` to the dense `menu` tier; helpers already pick
 		// the strong-ink branch off resolvedDark). Never a separate theme.
 		root.dataset.kliceContrast = prefersContrastMore ? "more" : "less";
+		// The corner scale drives tokens.css' --shape-* variables, so every
+		// semantic shape role re-renders instantly (live settings preview).
+		root.dataset.kliceCorner = cornerScale;
 		// Continuous intensity and optical values keep CSS-driven surfaces and
 		// inline SVG lens nodes on one recipe. This is the only runtime writer
 		// for Glass material variables.
@@ -148,7 +156,7 @@ export function AppearanceProvider({
 		)) {
 			root.style.setProperty(name, value);
 		}
-	}, [glassParams, glassIntensity, material, prefersContrastMore]);
+	}, [glassParams, glassIntensity, material, prefersContrastMore, cornerScale]);
 
 	const value = useMemo(
 		() => ({
@@ -159,6 +167,7 @@ export function AppearanceProvider({
 			accentColor,
 			resolvedDark,
 			prefersContrastMore,
+			cornerScale,
 		}),
 		[
 			mode,
@@ -167,6 +176,7 @@ export function AppearanceProvider({
 			accentColor,
 			resolvedDark,
 			prefersContrastMore,
+			cornerScale,
 		],
 	);
 	const glassValue = useMemo(

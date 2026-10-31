@@ -19,7 +19,28 @@ Object.assign(globalThis, {
 	Element: window.Element,
 	Node: window.Node,
 	Event: window.Event,
-	MutationObserver: window.MutationObserver,
+	// linkedom ships none of these; motion reads one, Base UI's click-trigger
+	// path reads the other. Neither result matters here.
+	ResizeObserver: class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	},
+	// linkedom also lacks MouseEvent; only `detail` is read.
+	MouseEvent: class extends window.Event {
+		detail: number;
+		constructor(type: string, init: { detail?: number } = {}) {
+			super(type, init);
+			this.detail = init.detail ?? 0;
+		}
+	},
+	// Base UI's click-trigger path reads computed styles on open.
+	getComputedStyle: () => ({ getPropertyValue: () => "" }),
+	matchMedia: () => ({
+		matches: false,
+		addEventListener() {},
+		removeEventListener() {},
+	}),
 	requestAnimationFrame: (callback: FrameRequestCallback) =>
 		setTimeout(() => callback(Date.now()), 0),
 	cancelAnimationFrame: (id: number) => clearTimeout(id),
@@ -51,14 +72,27 @@ function solidTile() {
 	return tile;
 }
 
-test("the solid tile is the only colour picker in the pane", async () => {
+/** The beUI picker trigger IS the solid tile button itself. */
+function solidTrigger() {
+	const tile = solidTile();
+	return (tile as HTMLElement).matches('[data-color-picker-trigger=""]')
+		? tile
+		: tile.querySelector('[data-color-picker-trigger=""]');
+}
+
+test("the solid tile is the only colour picker trigger in the pane", async () => {
 	await mountPane();
 
-	// The lower "Solid colour" row used to hold a second `<input type="color">`.
-	// Exactly one picker must exist, and it must live inside the solid tile.
-	const pickers = [...document.querySelectorAll('input[type="color"]')];
+	// The lower "Solid colour" row used to hold a second native
+	// `<input type="color">`. The beUI picker lives entirely inside the solid
+	// tile trigger; no colour control anywhere else in the pane.
+	const pickers = [
+		...document.querySelectorAll('[data-color-picker-trigger=""]'),
+	];
 	expect(pickers).toHaveLength(1);
 	expect(pickers[0]?.closest('[data-wallpaper-tile="solid"]')).not.toBeNull();
+	// The replaced native control must not linger in the pane.
+	expect(document.querySelectorAll('input[type="color"]')).toHaveLength(0);
 });
 
 test("the solid tile swatch and selected state track the applied colour", async () => {
@@ -75,16 +109,18 @@ test("the solid tile swatch and selected state track the applied colour", async 
 	await mountPane();
 
 	const tile = solidTile();
-	const picker = tile.querySelector('input[type="color"]');
-	if (!picker) throw new Error("colour picker missing");
+	const trigger = solidTrigger();
+	if (!trigger) throw new Error("colour picker trigger missing");
 
-	// The swatch renders the applied colour, and the picker agrees with it.
-	expect(picker.getAttribute("value")).toBe("#123456");
+	// The swatch renders the applied colour.
 	const swatch = tile.querySelector("span[aria-hidden]")?.getAttribute("style");
 	expect(swatch).toContain("#123456");
 	// Active tile carries the accent ring and the check badge.
 	expect(tile.className).toContain("ring-[var(--klice-accent)]");
 	expect(tile.querySelector("svg")).not.toBeNull();
+	// The toggle reads as selected (clicking the trigger opens the picker).
+	expect(trigger.getAttribute("aria-pressed")).toBe("true");
+	expect(trigger.getAttribute("aria-expanded")).toBe("false");
 });
 
 test("picking a colour on the solid tile applies it live", async () => {
@@ -100,18 +136,19 @@ test("picking a colour on the solid tile applies it live", async () => {
 	});
 	await mountPane();
 
-	const picker = solidTile().querySelector('input[type="color"]');
-	if (!picker) throw new Error("colour picker missing");
+	const trigger = solidTrigger();
+	if (!trigger) throw new Error("colour picker trigger missing");
 
+	// Opening the picker is the selection gesture: solid wins with the
+	// persisted colour and the other source ids are cleared.
 	await act(async () => {
-		picker.value = "#abcdef";
-		picker.dispatchEvent(new window.Event("input", { bubbles: true }));
+		trigger.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
 	});
 
 	const background = useSetupStore.getState().settings.background;
 	expect(background.type).toBe("solid");
-	expect(background.color).toBe("#abcdef");
-	// Applying solid must clear the other source ids so exactly one source wins.
 	expect(background.wallpaperId).toBeNull();
 	expect(background.gradientId).toBeNull();
 	expect(background.imageId).toBeNull();

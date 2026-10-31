@@ -46,9 +46,11 @@ import {
 	RectangleHorizontal,
 	RectangleVertical,
 	Redo2,
+	RefreshCw,
 	Scan,
 	Search,
 	Settings,
+	Shapes,
 	SlidersHorizontal,
 	Sparkles,
 	Square,
@@ -146,6 +148,10 @@ export const iconMap = {
 	undo: Undo2,
 	redo: Redo2,
 	history: History,
+	// Thumbnail refresh — single, batch, and missing-preview actions.
+	refresh: RefreshCw,
+	// Settings refinement — the corner scale row (shape-role rounding).
+	shapes: Shapes,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof iconMap;

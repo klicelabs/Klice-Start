@@ -38,7 +38,7 @@ function SelectTrigger({
 			data-slot="select-trigger"
 			data-size={size}
 			className={cn(
-				"face-control squircle flex w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-flat-ink text-xs shadow-control outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out [--squircle-r:7px] focus-visible:ring-1 focus-visible:ring-ring/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-8 data-[size=sm]:h-8 data-placeholder:text-flat-ink-muted",
+				"face-control squircle flex w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1 text-flat-ink text-xs shadow-control outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out [--squircle-r:calc(var(--radius)*0.6)] focus-visible:ring-1 focus-visible:ring-ring/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[size=default]:h-8 data-[size=sm]:h-8 data-placeholder:text-flat-ink-muted",
 				className,
 			)}
 			{...props}
@@ -81,7 +81,7 @@ function SelectContent({
 					data-slot="select-content"
 					data-align-trigger={alignItemWithTrigger}
 					className={cn(
-						"face-panel squircle data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-y-auto overflow-x-hidden rounded-xl p-1 text-flat-ink text-xs shadow-menu duration-100 [--squircle-r:8px] data-closed:animate-out data-open:animate-in",
+						"face-panel squircle data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-y-auto overflow-x-hidden rounded-xl p-1 text-flat-ink text-xs shadow-menu duration-100 [--squircle-r:calc((var(--radius)+4px)*0.6)] data-closed:animate-out data-open:animate-in",
 						className,
 					)}
 					{...props}
@@ -120,7 +120,7 @@ function SelectItem({
 		<SelectPrimitive.Item
 			data-slot="select-item"
 			className={cn(
-				"squircle relative flex w-full cursor-default select-none items-center gap-2 rounded-md py-1.5 pr-7 pl-2.5 font-normal text-xs outline-hidden [--squircle-r:6px] hover:bg-flat-sunken-raised focus:bg-flat-sunken-raised focus:text-flat-ink data-disabled:pointer-events-none data-disabled:opacity-50",
+				"squircle relative flex w-full cursor-default select-none items-center gap-2 rounded-md py-1.5 pr-7 pl-2.5 font-normal text-xs outline-hidden [--squircle-r:calc((var(--radius)-2px)*0.6)] hover:bg-flat-sunken-raised focus:bg-flat-sunken-raised focus:text-flat-ink data-disabled:pointer-events-none data-disabled:opacity-50",
 				className,
 			)}
 			{...props}

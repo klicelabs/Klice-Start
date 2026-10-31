@@ -119,6 +119,13 @@ export type AccentColor = "blue" | "yellow" | "green" | "purple" | "pink";
 /** Speed Dial display mode: full cards vs app-launcher icons. */
 export type DialLayout = "card" | "icon";
 
+/**
+ * Shared corner roundness for the semantic shape roles (panel, section,
+ * surface, control, pill and the search field). Toolbar capsules and card
+ * thumbnails keep their own intentional geometry and do not follow this.
+ */
+export type CornerScale = "discreet" | "soft" | "rounded";
+
 /** Card shape in card layout. Vertical is taller than wide (Vivaldi-style). */
 export type CardAspect = "square" | "horizontal" | "vertical";
 
@@ -164,6 +171,8 @@ export interface Settings {
 	accentColor: AccentColor;
 	/** Liquid Glass intensity 0 (Ultra Clear) … 100 (Fully Tinted). */
 	glassIntensity: GlassIntensity;
+	/** Shared corner roundness for the semantic shape roles. */
+	cornerScale: CornerScale;
 }
 
 export interface Setup {

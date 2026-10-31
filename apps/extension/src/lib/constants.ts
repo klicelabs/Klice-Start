@@ -305,6 +305,8 @@ export const DEFAULT_SETTINGS: Settings = {
 	accentColor: "blue",
 	/** Calibrated middle default: survives arbitrary wallpapers (see glass.ts). */
 	glassIntensity: 60,
+	/** "soft" reproduces the shipped panel geometry for existing installs. */
+	cornerScale: "soft",
 };
 
 export const DEFAULT_SETUP: Setup = {

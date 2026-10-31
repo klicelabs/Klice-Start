@@ -60,3 +60,25 @@ test("enables automatic missing-thumbnail capture by default and preserves opt-o
 		delayMs: 2000,
 	});
 });
+
+test("defaults to the soft corner scale and rejects unknown scales", () => {
+	const defaults = normalizeState(null);
+	expect(defaults.settings.cornerScale).toBe("soft");
+
+	// Persisted values round-trip ...
+	const rounded = normalizeState({
+		...structuredClone(DEFAULT_SETUP),
+		settings: {
+			...structuredClone(DEFAULT_SETUP.settings),
+			cornerScale: "rounded",
+		},
+	});
+	expect(rounded.settings.cornerScale).toBe("rounded");
+
+	// ... corrupted values fall back to the default tier instead of breaking
+	// the CSS contract (the tier attribute must always be a known value).
+	const legacy = structuredClone(DEFAULT_SETUP) as Record<string, unknown>;
+	(legacy.settings as Record<string, unknown>).cornerScale = "very-round";
+	const repaired = normalizeState(legacy as never);
+	expect(repaired.settings.cornerScale).toBe("soft");
+});

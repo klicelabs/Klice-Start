@@ -9,6 +9,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { type MouseEvent, type ReactNode, useCallback, useState } from "react";
 import { isInsideSettingsScope } from "../../lib/context-scope";
 import { glassDropdownItem, glassMenu } from "../../lib/glass";
+import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
 import { cn } from "../../lib/utils";
 import { refreshWallpaper } from "../../services/wallpaper";
 import { useHistoryStore } from "../../stores/history-store";
@@ -26,6 +27,9 @@ interface PageContextMenuProps {
 	onOpenHistory?: () => void;
 	onOpenGeneralSettings?: () => void;
 	onEnterRestMode?: () => void;
+	/** Library-wide thumbless count; the entry hides when 0. */
+	missingPreviewCount?: number;
+	onRefreshMissing?: () => void;
 	enabled?: boolean;
 }
 
@@ -38,6 +42,8 @@ export function PageContextMenu({
 	onOpenHistory,
 	onOpenGeneralSettings,
 	onEnterRestMode,
+	missingPreviewCount = 0,
+	onRefreshMissing,
 	enabled = true,
 }: PageContextMenuProps) {
 	const { isLiquid, resolvedDark } = useAppearance();
@@ -108,10 +114,13 @@ export function PageContextMenu({
 		}
 	}
 
-	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, { pillOwned: true });
+	const itemClassName = glassDropdownItem(isLiquid, resolvedDark, {
+		pillOwned: true,
+	});
 	// Single persistent history entry: Undo/Redo live in the post-action
 	// toast, shortcuts and here — never as a duplicate direct item.
-	const hasHistory = useHistoryStore((s) => s.past.length + s.future.length) > 0;
+	const hasHistory =
+		useHistoryStore((s) => s.past.length + s.future.length) > 0;
 
 	if (!enabled) return children;
 
@@ -127,7 +136,9 @@ export function PageContextMenu({
 				</div>
 			</ContextMenuTrigger>
 
-			<ContextMenuContent className={cn(glassMenu(isLiquid, resolvedDark), "min-w-48")}>
+			<ContextMenuContent
+				className={cn(glassMenu(isLiquid, resolvedDark), "min-w-48")}
+			>
 				{onAddFolder && (
 					<ContextMenuItem className={itemClassName} onSelect={onAddFolder}>
 						<Icon name="folder-plus" size={14} />
@@ -142,6 +153,15 @@ export function PageContextMenu({
 					<ContextMenuItem className={itemClassName} onSelect={onSelectAll}>
 						<Icon name="check-square" size={14} />
 						Select all
+					</ContextMenuItem>
+				)}
+				{onRefreshMissing && missingPreviewCount > 0 && (
+					<ContextMenuItem
+						className={itemClassName}
+						onSelect={onRefreshMissing}
+					>
+						<Icon name="refresh" size={14} />
+						{REFRESH_STRINGS.missingAction(missingPreviewCount)}
 					</ContextMenuItem>
 				)}
 

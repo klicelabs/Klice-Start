@@ -32,6 +32,8 @@ import {
 	hasThumbnailCapturePermission,
 	requestThumbnailCapturePermission,
 } from "../../../../lib/thumbnail-permission";
+import { REFRESH_STRINGS } from "../../../../lib/thumbnail-refresh";
+import { requestMissingRefresh } from "../../../../lib/thumbnail-refresh-client";
 import {
 	deriveTitleFromUrl,
 	faviconUrl,
@@ -93,6 +95,9 @@ const FIELD_LABEL =
 function BookmarkPreviewSettings() {
 	const thumbnailCapture = useSetupStore((s) => s.settings.thumbnailCapture);
 	const updateThumbnailCapture = useSetupStore((s) => s.updateThumbnailCapture);
+	const missingCount = useSetupStore(
+		(s) => s.cards.filter((card) => !card.thumbId).length,
+	);
 	const [capturePermission, setCapturePermission] = useState<
 		"checking" | "granted" | "missing"
 	>("checking");
@@ -130,6 +135,10 @@ function BookmarkPreviewSettings() {
 			toast.error("Could not request site access. Try again in Settings.");
 		}
 	};
+
+	function handleRefreshMissing() {
+		void requestMissingRefresh();
+	}
 
 	return (
 		<SectionCard>
@@ -174,6 +183,19 @@ function BookmarkPreviewSettings() {
 					onChange={(v) => updateThumbnailCapture({ delayMs: v })}
 				/>
 			</SettingsExpandable>
+			<SettingRow
+				label="Missing previews"
+				icon="refresh"
+				tooltip="Re-photograph every bookmark that has no preview yet, one at a time in inactive tabs. Some systems may briefly switch focus during each capture."
+			>
+				<SettingsAction
+					icon="refresh"
+					disabled={missingCount === 0}
+					onClick={handleRefreshMissing}
+				>
+					{REFRESH_STRINGS.missingAction(missingCount)}
+				</SettingsAction>
+			</SettingRow>
 		</SectionCard>
 	);
 }

@@ -1,6 +1,6 @@
 # Agent Rules
 
-Klice Start is a local-only MV3 browser dashboard (newtab replacement). React 19.2 + TS 5.9 + WXT 0.20, Zustand 5, Tailwind 4. Manifest 1.2.3. Pre-launch; targets Chrome Web Store + Firefox AMO.
+Klice Start is a local-only MV3 browser dashboard (newtab replacement). React 19.2 + TS 5.9 + WXT 0.20, Zustand 5, Tailwind 4. Manifest 1.2.4. Pre-launch; targets Chrome Web Store + Firefox AMO.
 
 ## Stack
 

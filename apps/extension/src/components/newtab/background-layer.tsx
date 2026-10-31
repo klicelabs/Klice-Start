@@ -57,6 +57,7 @@ export function BackgroundLayer({
 		(s) => s.settings.background.pexelsFrequency,
 	);
 	const previewBackgroundImage = useImageStore((s) => s.previewBackgroundImage);
+	const previewBackgroundColor = useImageStore((s) => s.previewBackgroundColor);
 
 	const blur = useSetupStore((s) => s.settings.background.blur);
 	const brightness = useSetupStore((s) => s.settings.background.brightness);
@@ -219,7 +220,13 @@ export function BackgroundLayer({
 				"inset-0 transition-[filter,opacity] duration-200 ease-out",
 			)}
 			style={{
-				background: bgCss,
+				// Staged images retain priority; solid commits paint synchronously,
+				// without waiting for the background-resolution effect.
+				background: previewBackgroundImage
+					? bgCss
+					: type === "solid"
+						? (previewBackgroundColor ?? (color || DEFAULT_BACKGROUND.color))
+						: bgCss,
 				filter: `blur(${blur || 0}px) brightness(${brightness || 100}%)`,
 				opacity: (opacity ?? 100) / 100,
 			}}

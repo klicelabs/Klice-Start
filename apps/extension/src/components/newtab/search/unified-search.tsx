@@ -649,9 +649,14 @@ export const UnifiedSearch = forwardRef<
 				style={{
 					// Keep input and results in one mounted material surface. The
 					// max-height transition clips the natural result list without a
-					// ResizeObserver/state feedback loop. Corner geometry comes
-					// from the shape role (concentric with the toolbar system),
-					// never an inline radius.
+					// ResizeObserver/state feedback loop. Height and border-radius
+					// share one timeline: the shape role swaps from the finite
+					// capsule token to the surface role (one step below the field,
+					// so focus reduces the radius), and both properties interpolate
+					// continuously (never rounded-full/infinity, which cannot
+					// transition and snaps at the end). In Gecko the surface
+					// fallback is calibrated, so the results container never
+					// inherits the resting field's capsule radius.
 					height: open ? "auto" : 56,
 					maxHeight: open ? "min(504px, calc(100vh - 10rem))" : 56,
 					transition: reduceMotion ? "none" : SEARCH_GEOMETRY_CSS,

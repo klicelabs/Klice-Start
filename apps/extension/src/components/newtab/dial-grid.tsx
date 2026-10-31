@@ -650,21 +650,29 @@ export function DialGrid({
 		items: orderedItems,
 	});
 
+	function handleSelect(e: React.MouseEvent, id: string) {
+		if (e.shiftKey) selectRange(id, orderedItems);
+		else
+			toggle({
+				id,
+				kind: cardById.has(id) ? "card" : "folder",
+				sourceId: folderId,
+			});
+	}
+
 	function handleCardClick(e: React.MouseEvent, id: string) {
-		const item = { id, kind: "card" as const, sourceId: folderId };
-		if (e.metaKey || e.ctrlKey) {
+		// Enter is navigation, even while the pointer is in selection mode.
+		// Space and the sibling checkbox are explicit keyboard selection.
+		if (e.detail === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey) return;
+		if (
+			e.metaKey ||
+			e.ctrlKey ||
+			e.shiftKey ||
+			useSelectionStore.getState().scope !== null
+		) {
 			e.preventDefault();
 			e.stopPropagation();
-			toggle(item);
-		} else if (e.shiftKey) {
-			e.preventDefault();
-			e.stopPropagation();
-			selectRange(id, orderedItems);
-		} else if (useSelectionStore.getState().scope !== null) {
-			// Content selection mode: plain clicks add/remove, no modifiers.
-			e.preventDefault();
-			e.stopPropagation();
-			toggle(item);
+			handleSelect(e, id);
 		}
 		// Otherwise the link navigates normally (mode not entered).
 	}
@@ -674,21 +682,16 @@ export function DialGrid({
 		id: string,
 		onOpen: () => void,
 	) {
-		const item = { id, kind: "folder" as const, sourceId: folderId };
-		if (e.metaKey || e.ctrlKey) {
+		if (
+			e.metaKey ||
+			e.ctrlKey ||
+			e.shiftKey ||
+			useSelectionStore.getState().scope !== null
+		) {
+			// Opening in selection mode uses the sibling chevron or context menu.
 			e.preventDefault();
 			e.stopPropagation();
-			toggle(item);
-		} else if (e.shiftKey) {
-			e.preventDefault();
-			e.stopPropagation();
-			selectRange(id, orderedItems);
-		} else if (useSelectionStore.getState().scope !== null) {
-			// Content selection mode: plain clicks add/remove. Opening uses
-			// the card's chevron affordance or the Open context action.
-			e.preventDefault();
-			e.stopPropagation();
-			toggle(item);
+			handleSelect(e, id);
 		} else {
 			onOpen();
 		}
@@ -698,6 +701,7 @@ export function DialGrid({
 		<section
 			className="dial-grid-wrap mx-auto w-full px-[var(--speed-dial-content-gutter)]"
 			data-layout={dialLayout}
+			data-selection-active={selectedIds.length > 0 ? "true" : undefined}
 			data-drag-active={dnd.drag ? "true" : undefined}
 			{...dnd.backgroundProps}
 			{...marquee.marqueeProps}
@@ -811,6 +815,7 @@ export function DialGrid({
 													reordering={Boolean(dnd.drag)}
 													dragging={dragGroupIds?.has(folder.id) ?? false}
 													isSelected={isSelected}
+													onSelect={(e) => handleSelect(e, folder.id)}
 													showOpenAction={selectedIds.length > 0}
 													insertion={
 														dnd.insertion?.key === folder.id
@@ -868,6 +873,7 @@ export function DialGrid({
 												onDelete={onDelete}
 												isSelected={isSelected}
 												onClick={(e) => handleCardClick(e, card.id)}
+												onSelect={(e) => handleSelect(e, card.id)}
 												dragProps={dnd.getItemDragProps({
 													kind: "card",
 													id: card.id,

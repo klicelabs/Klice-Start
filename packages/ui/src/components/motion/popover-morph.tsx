@@ -219,9 +219,24 @@ export interface MorphPopoverContentProps {
 	align?: Align;
 	/** Gap between trigger and panel, in px. Default 8. */
 	sideOffset?: number;
-	/** Panel corner radius, in px. Default 16. */
+	/**
+	 * Panel corner radius override, in px. When omitted the panel reads the
+	 * semantic --shape-section token (tier-aware, value in px) so it follows
+	 * Settings → Corner rounding. clip-path interpolation needs a number,
+	 * which is why this resolves through getComputedStyle instead of a CSS
+	 * variable reference.
+	 */
 	radius?: number;
 	className?: string;
+}
+
+/** Resolve a numeric token value from <html>; fall back to `fallback`. */
+function readRadiusToken(token: string, fallback: number): number {
+	if (typeof window === "undefined") return fallback;
+	const value = Number.parseFloat(
+		getComputedStyle(document.documentElement).getPropertyValue(token),
+	);
+	return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 export function MorphPopoverContent({
@@ -229,12 +244,16 @@ export function MorphPopoverContent({
 	side = "bottom",
 	align = "end",
 	sideOffset = 8,
-	radius = 16,
+	radius,
 	className,
 }: MorphPopoverContentProps) {
 	const ctx = useMorphContext("MorphPopoverContent");
 	const reduce = useReducedMotion() ?? false;
 	const [portalReady, setPortalReady] = useState(false);
+	// The content mounts on every open, so the token is re-read per opening
+	// and a Corner-rounding change is honoured on the next open.
+	const resolvedRadius =
+		radius ?? (portalReady ? readRadiusToken("--shape-section", 22) : 22);
 	const layout = usePopoverPortalPosition(
 		ctx.triggerRef,
 		ctx.contentRef,
@@ -265,11 +284,11 @@ export function MorphPopoverContent({
 		? undefined
 		: {
 				hidden: {
-					clipPath: clipHidden(side, align, radius),
+					clipPath: clipHidden(side, align, resolvedRadius),
 					transition: MORPH_CLIP_TRANSITION,
 				},
 				show: {
-					clipPath: clipShown(radius),
+					clipPath: clipShown(resolvedRadius),
 					transition: MORPH_CLIP_TRANSITION,
 				},
 			};
@@ -301,7 +320,7 @@ export function MorphPopoverContent({
 						role="dialog"
 						aria-labelledby={ctx.triggerId}
 						variants={clip}
-						style={{ borderRadius: radius }}
+						style={{ borderRadius: resolvedRadius }}
 						className={cn(
 							"overflow-hidden border border-border bg-background",
 							className,

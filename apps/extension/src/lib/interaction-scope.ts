@@ -9,6 +9,7 @@ export const SPEED_DIAL_INTERACTIVE_SELECTOR = [
 	"[data-speed-dial-app-toolbar]",
 	"[data-local-context-menu]",
 	"[data-selection-tray]",
+	"[data-selection-checkbox]",
 	"[data-context-menu-portal]",
 	"[data-morph-popover-portal]",
 	"[data-settings-sidebar-slot]",
@@ -37,6 +38,23 @@ export const MARQUEE_EXTRA_VETO_SELECTOR = [
 	"header",
 	'[role="dialog"]',
 ].join(",");
+
+/** Native scrollbar presses are scrolling intent, never blank-space selection. */
+export function isScrollGutterPress(event: PointerEvent): boolean {
+	const target = event.target;
+	if (!(target instanceof HTMLElement)) return false;
+	const scroller = target.closest<HTMLElement>("[data-speed-dial-scroll]");
+	if (!scroller || target !== scroller) return false;
+	const rect = scroller.getBoundingClientRect();
+	const x = event.clientX - rect.left;
+	const y = event.clientY - rect.top;
+	return (
+		x < scroller.clientLeft ||
+		x >= scroller.clientLeft + scroller.clientWidth ||
+		y < scroller.clientTop ||
+		y >= scroller.clientTop + scroller.clientHeight
+	);
+}
 
 export function isInteractiveTarget(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return true;

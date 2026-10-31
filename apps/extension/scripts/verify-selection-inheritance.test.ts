@@ -1,6 +1,9 @@
 import { beforeEach, expect, test } from "bun:test";
 import { buildItemOrder } from "../src/lib/item-order";
-import { selectedAncestorOf } from "../src/lib/selection-model";
+import {
+	expandSelectionToCards,
+	selectedAncestorOf,
+} from "../src/lib/selection-model";
 import { useSelectionStore } from "../src/stores/selection-store";
 import { useSetupStore } from "../src/stores/setup-store";
 import type { Card, Folder } from "../src/types";
@@ -118,4 +121,41 @@ test("adding a descendant to selected folder does not duplicate operation units"
 		.getState()
 		.addAll([{ id: "two", kind: "card", sourceId: "sub" }]);
 	expect(useSelectionStore.getState().selectedIds).toEqual(["root"]);
+});
+
+test("selection expansion walks the whole subtree", () => {
+	// root folder: own card plus sub's cards plus deep's card.
+	expect(expandSelectionToCards(["root"], cards, folders)).toEqual([
+		"one",
+		"two",
+		"three",
+		"four",
+	]);
+	// One nesting level.
+	expect(expandSelectionToCards(["sub"], cards, folders)).toEqual([
+		"two",
+		"three",
+		"four",
+	]);
+});
+
+test("mixed selection expands with dedupe by card id", () => {
+	// "two" is both directly selected and inside the selected folder.
+	expect(expandSelectionToCards(["two", "sub"], cards, folders)).toEqual([
+		"two",
+		"three",
+		"four",
+	]);
+	// Two disjoint branches: direct card before folders (selection order).
+	expect(
+		expandSelectionToCards(["one", "sub", "deep"], cards, folders),
+	).toEqual(["one", "two", "three", "four"]);
+});
+
+test("selection expansion ignores unknown ids and empty folders", () => {
+	expect(
+		expandSelectionToCards(["deleted-card", "deep"], cards, folders),
+	).toEqual(["four"]);
+	expect(expandSelectionToCards(["other"], cards, folders)).toEqual([]);
+	expect(expandSelectionToCards([], cards, folders)).toEqual([]);
 });

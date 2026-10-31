@@ -68,7 +68,8 @@ export function GlassSurface({
 	style,
 	...props
 }: GlassSurfaceProps) {
-	const { isLiquid, prefersContrastMore, resolvedDark } = useAppearance();
+	const { isLiquid, prefersContrastMore, resolvedDark, cornerScale } =
+		useAppearance();
 	const { glassParams } = useGlassAppearance();
 	// prefers-contrast: more upgrades broad `surface` panels to the dense
 	// `menu` tier so text survives any wallpaper. Hero keeps its lens.
@@ -107,6 +108,7 @@ export function GlassSurface({
 				brightness={optics.brightness}
 				bezel={optics.bezel}
 				shape={resolvedShape}
+				geometryKey={cornerScale}
 				data-glass-role={variant}
 				data-glass-tone={resolvedDark ? "dark" : "light"}
 				className={cn(

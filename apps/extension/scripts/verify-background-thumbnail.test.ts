@@ -1,4 +1,13 @@
-import { expect, mock, test } from "bun:test";
+import { afterEach, expect, mock, test } from "bun:test";
+
+const globals = globalThis as Record<string, unknown>;
+const originalGlobals = {
+	browser: globals.browser,
+	chrome: globals.chrome,
+	defineBackground: globals.defineBackground,
+};
+afterEach(() => Object.assign(globals, originalGlobals));
+
 // Static import resolves BEFORE mock.module registers, so the spread below
 // carries the REAL module surface (idbGet, idbPut, putImages, …). bun's
 // module mocks are global across the whole test run: an incomplete mock
@@ -108,6 +117,7 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	const onPermissionAdded = createEvent();
 	const onPermissionRemoved = createEvent();
 	const onNavigationCompleted = createEvent();
+	const onMessage = createEvent();
 	let storedSetup = createSetup();
 	const tab = {
 		id: 7,
@@ -155,10 +165,19 @@ test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 		runtime: {
 			onInstalled,
 			onStartup,
+			onMessage,
 			lastError: undefined,
 			getURL: (path: string) => `extension://${path}`,
 		},
-		storage: { local: storageLocal, onChanged: onStorageChanged },
+		storage: {
+			local: storageLocal,
+			onChanged: onStorageChanged,
+			session: {
+				get: async () => ({}),
+				set: async () => undefined,
+				remove: async () => undefined,
+			},
+		},
 		contextMenus: {
 			onClicked: onContextMenu,
 			removeAll: async () => undefined,

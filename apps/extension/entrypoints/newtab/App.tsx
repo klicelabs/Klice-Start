@@ -23,6 +23,7 @@ import { HistoryDialog } from "../../src/components/newtab/history-dialog";
 import { HistoryManager } from "../../src/components/newtab/history-manager";
 import { PageContextMenu } from "../../src/components/newtab/page-context-menu";
 import { QuickLinks } from "../../src/components/newtab/quick-links";
+import { RefreshProgressToast } from "../../src/components/newtab/refresh-progress-toast";
 import { RestMode } from "../../src/components/newtab/rest-mode";
 import {
 	UnifiedSearch,
@@ -60,7 +61,11 @@ import {
 	snapshotSetup,
 	takeGestureCapture,
 } from "../../src/lib/history-capture";
-import { SPEED_DIAL_INTERACTIVE_SELECTOR } from "../../src/lib/interaction-scope";
+import {
+	isInteractiveTarget,
+	isScrollGutterPress,
+	SPEED_DIAL_INTERACTIVE_SELECTOR,
+} from "../../src/lib/interaction-scope";
 import {
 	getOrderedRefs,
 	type ItemOrder,
@@ -79,6 +84,7 @@ import {
 	traverseBack,
 	traverseForward,
 } from "../../src/lib/navigation";
+import { requestMissingRefresh } from "../../src/lib/thumbnail-refresh-client";
 import { faviconUrl } from "../../src/lib/url";
 import { cn } from "../../src/lib/utils";
 import { useHistoryStore } from "../../src/stores/history-store";
@@ -105,6 +111,11 @@ function ThemedToaster() {
 			theme={resolvedDark ? "dark" : "light"}
 			position="bottom-center"
 			gap={8}
+			// Always expanded: Sonner's collapsed stack recalculates every
+			// toast's offset/scale on hover, which visibly shifts neighbours
+			// (notably the refresh progress shell). Concurrent newtab toasts
+			// are rare; fully-visible stacking is calmer and clearer.
+			expand
 		/>
 	);
 }
@@ -432,6 +443,9 @@ export default function App() {
 	);
 
 	const allCards = useSetupStore((s) => s.cards as Card[]);
+	const missingPreviewCount = useSetupStore(
+		(s) => s.cards.filter((c) => !c.thumbId).length,
+	);
 	const cards = useMemo(
 		() =>
 			allCards
@@ -1103,14 +1117,7 @@ export default function App() {
 	useEffect(() => {
 		function handlePointerDown(e: PointerEvent) {
 			if (e.pointerType === "mouse" && e.button !== 0) return;
-			const target = e.target as HTMLElement | null;
-			if (
-				target?.closest(
-					'.dial-cell, [data-local-context-menu], [data-settings-panel], [data-settings-ui], [data-selection-tray], [data-sonner-toaster], button, input, a, header, [role="dialog"], [role="menu"], [role="listbox"], [role="tree"]',
-				)
-			) {
-				return;
-			}
+			if (isInteractiveTarget(e.target) || isScrollGutterPress(e)) return;
 			useSelectionStore.getState().clear();
 		}
 		window.addEventListener("pointerdown", handlePointerDown);
@@ -1127,6 +1134,8 @@ export default function App() {
 				}
 				onAddFolder={() => handleNewSubfolder(activeFolderId)}
 				onSelectAll={selectableItems.length > 0 ? handleSelectAll : undefined}
+				missingPreviewCount={missingPreviewCount}
+				onRefreshMissing={() => void requestMissingRefresh()}
 				onOpenHistory={() => setHistoryOpen(true)}
 				onOpenGeneralSettings={() => handleOpenSettings("general")}
 				onEnterRestMode={enterRestMode}
@@ -1233,6 +1242,7 @@ export default function App() {
 					</div>
 
 					<ThemedToaster />
+					<RefreshProgressToast />
 				</SettingsMotionWorkspace>
 			</PageContextMenu>
 		</AppearanceProvider>

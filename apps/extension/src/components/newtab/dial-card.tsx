@@ -6,7 +6,10 @@ import {
 	ContextMenuTrigger,
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { useEffect, useState } from "react";
+import { DURATION, EASE } from "@klice-start/ui/lib/motion";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CARD_FOOTER_VARIANT, cardFooterMaterial } from "../../lib/card-footer";
 import { renameCardTitle, resolveCardTitle } from "../../lib/card-title";
 import type { GridItemDragProps } from "../../lib/dnd";
@@ -18,17 +21,26 @@ import {
 	glassMenu,
 	wallpaperText,
 } from "../../lib/glass";
-import { faviconUrl } from "../../lib/url";
+import { expandSelectionToCards } from "../../lib/selection-model";
+import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
+import {
+	startBatchRefresh,
+	startSingleRefresh,
+} from "../../lib/thumbnail-refresh-client";
+import { faviconUrl, isAbsoluteHttpUrl } from "../../lib/url";
 import { cn, softGradientFromString } from "../../lib/utils";
 import { useImageStore } from "../../stores/image-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
+import { useRefreshStore } from "../../stores/refresh-store";
 import { useRenameStore } from "../../stores/rename-store";
 import { useSelectionStore } from "../../stores/selection-store";
 import { useSetupStore } from "../../stores/setup-store";
-import type { Card } from "../../types";
+import type { Card, Folder } from "../../types";
 import { InlineRenameInput } from "../shared/inline-rename-input";
 import { useAppearance } from "./appearance-provider";
 import { ICON_MODE_SURFACE_CLASS, IconModeTile } from "./icon-mode-tile";
+import { SelectionCheckbox } from "./selection-checkbox";
+import { ThumbnailFeedback } from "./thumbnail-feedback";
 
 interface DialCardProps {
 	card: Card;
@@ -36,6 +48,7 @@ interface DialCardProps {
 	isSelected?: boolean;
 
 	onClick?: (e: React.MouseEvent) => void;
+	onSelect?: (e: React.MouseEvent) => void;
 	dragProps?: GridItemDragProps;
 	/** Live insertion marker drawn on the card's leading/trailing edge. */
 	insertion?: "before" | "after" | null;
@@ -50,6 +63,7 @@ export function DialCard({
 	onDelete,
 	isSelected = false,
 	onClick,
+	onSelect,
 	dragProps,
 	insertion = null,
 	combineActive = false,
@@ -65,22 +79,81 @@ export function DialCard({
 	const defaultTitleSource = useSetupStore(
 		(s) => s.settings.defaultTitleSource,
 	);
-	const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+	const initialThumbId = useRef(card.thumbId);
+	const [thumbnail, setThumbnail] = useState<{
+		id: string;
+		url: string;
+		previous?: { id: string; url: string };
+	} | null>(null);
+	const reduceMotion = useReducedMotion();
+	const [decoding, setDecoding] = useState(false);
 
 	const editing = useRenameStore((s) => s.isEditing("card", card.id));
 	const beginRename = useRenameStore((s) => s.begin);
 	const cancelRename = useRenameStore((s) => s.cancel);
 	const openMoveDialog = useMoveDialogStore((s) => s.open);
+	const refreshState = useRefreshStore((s) =>
+		s.currentCardId === card.id
+			? "capturing"
+			: s.queuedIds.includes(card.id)
+				? "queued"
+				: "idle",
+	);
+	const refreshCapturing = refreshState === "capturing";
+	// Selection-aware refresh: a right-click on a selected card acts on the
+	// whole selection — cards directly selected plus every bookmark inside
+	// selected folders (recursive expansion, same rule as the tray) — while
+	// anywhere else it acts on this card alone. Refresh is card-mode only —
+	// icon tiles have no thumb surface, so the entry (and the overlay below)
+	// hides there.
+	const selectionIds = useSelectionStore((s) => s.selectedIds);
+	const cards = useSetupStore((s) => s.cards as Card[]);
+	const folders = useSetupStore((s) => s.folders as Folder[]);
+	const instanceSelected = selectionIds.includes(card.id);
+	const refreshTargets = useMemo(
+		() =>
+			instanceSelected
+				? expandSelectionToCards(selectionIds, cards, folders)
+				: [],
+		[instanceSelected, selectionIds, cards, folders],
+	);
+	const refreshCount = refreshTargets.length || 1;
+	function handleRefreshCard() {
+		if (instanceSelected && refreshTargets.length > 1)
+			void startBatchRefresh(refreshTargets);
+		else void startSingleRefresh(card.id);
+	}
 
 	useEffect(() => {
 		let cancelled = false;
-		if (!card.thumbId) {
-			setThumbUrl(null);
+		const id = card.thumbId;
+		if (!id) {
+			setThumbnail(null);
+			setDecoding(false);
 			return;
 		}
-		getThumbnail(card.thumbId).then((url) => {
-			if (!cancelled) setThumbUrl(url);
-		});
+		setDecoding(true);
+		void getThumbnail(id)
+			.then(async (url) => {
+				if (!url || cancelled) return;
+				const image = new Image();
+				image.src = url;
+				await image.decode();
+				if (!cancelled)
+					setThumbnail((current) => ({
+						id,
+						url,
+						previous: current
+							? { id: current.id, url: current.url }
+							: undefined,
+					}));
+			})
+			.catch(() => {
+				// An unreadable replacement never removes a working preview.
+			})
+			.finally(() => {
+				if (!cancelled) setDecoding(false);
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -92,7 +165,9 @@ export function DialCard({
 	const savedTitle = card.title || card.url;
 
 	function handleOpenNewTab() {
-		window.open(card.url, "_blank");
+		if (!isAbsoluteHttpUrl(card.url)) return;
+		// pi-lens-ignore: no-open-redirect
+		window.open(card.url, "_blank", "noopener,noreferrer");
 	}
 
 	function handleCommitRename(name: string) {
@@ -116,7 +191,11 @@ export function DialCard({
 					// `cursor-default` is explicit because the card renders as an
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
-					"dial-card squircle group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden rounded-2xl p-0 transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element] active:scale-[0.97]",
+					// The silhouette is the semantic card role (--shape-card), so
+					// bookmark cards, folder cards and the drag image share one
+					// corner scale instead of three literals.
+					"dial-card group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden p-0 transition-[transform,box-shadow,opacity] duration-150 [-webkit-user-drag:element] active:scale-[0.97]",
+					dialLayout === "card" && kliceShape("card"),
 					dialLayout === "icon" && ICON_MODE_SURFACE_CLASS,
 					// Screenshot/gradient content is already the bookmark body surface.
 					// Keep classic elevation, but avoid a second Liquid Glass backdrop
@@ -133,117 +212,51 @@ export function DialCard({
 					className,
 				)}
 			>
-				<a
-					data-local-context-menu
-					href={card.url}
-					target={openInNewTab ? "_blank" : "_self"}
-					rel={openInNewTab ? "noopener noreferrer" : undefined}
-					aria-label={isSelected ? `${label}, selected` : label}
-					title={dialLayout === "icon" ? `${label} · ${card.url}` : label}
-					onClick={onClick}
-					onKeyDown={(e) => {
-						// Space toggles selection while selection mode is
-						// active (Enter keeps opening the link natively).
-						if (e.key === " " && useSelectionStore.getState().scope !== null) {
-							e.preventDefault();
-							useSelectionStore.getState().toggle({
-								id: card.id,
-								kind: "card",
-								sourceId: card.folderId,
-							});
-						}
-					}}
-					draggable={editing ? false : (dragProps?.draggable ?? true)}
-					onDragStart={editing ? undefined : dragProps?.onDragStart}
-					onDragEnd={dragProps?.onDragEnd}
-					onDragOver={dragProps?.onDragOver}
-					onDragLeave={dragProps?.onDragLeave}
-					onDrop={dragProps?.onDrop}
-				>
-					{dialLayout === "icon" ? (
-						<IconModeTile
-							url={card.url}
-							favicon={faviconSrc}
-							selected={isSelected}
+				<div>
+					{!editing && onSelect && (
+						<SelectionCheckbox
+							checked={isSelected}
 							label={label}
-							showLabel={iconShowLabel || editing}
-							labelContent={
-								editing ? (
-									<InlineRenameInput
-										value={savedTitle}
-										commitOnSame={
-											(card.titleSource ?? defaultTitleSource) !== "saved"
-										}
-										ariaLabel={`Rename ${label}`}
-										onCommit={handleCommitRename}
-										onCancel={cancelRename}
-										className={`w-full flex-none text-center ${wallpaperText("primary")}`}
-									/>
-								) : undefined
-							}
-							tileClassName={cn(
-								combineActive && "icon-app-tile-drop-active",
-								dragging && "icon-app-tile-dragging",
-								insertion === "before" && "icon-drop-insert-before",
-								insertion === "after" && "icon-drop-insert-after",
-							)}
+							onSelect={onSelect}
 						/>
-					) : (
-						<>
-							{/* Cover fills the bounded media box without stretching or letterbox
-							    bands. The fallback keeps its gradient behind the site's favicon. */}
-							<div
-								className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
-								style={{ background: fallbackColor }}
-							>
-								{thumbUrl ? (
-									<img
-										src={thumbUrl}
-										alt=""
-										className="thumb-media absolute inset-0 size-full object-cover object-center"
-										loading="lazy"
-										draggable={false}
-									/>
-								) : (
-									<img
-										src={faviconSrc}
-										alt=""
-										draggable={false}
-										className="favicon size-10 shrink-0 rounded-full object-contain"
-										onError={(e) => {
-											(e.target as HTMLImageElement).onerror = null;
-											(e.target as HTMLImageElement).src = faviconUrl(card.url);
-										}}
-									/>
-								)}
-							</div>
-
-							{(showTitle || editing) && (
-								<div
-									className={cn(
-										// Same squircle system as the outer card so the
-										// footer follows the card geometry in every
-										// browser (corner-shape aware or fallback).
-										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
-										cardFooterMaterial(isLiquid),
-									)}
-									style={
-										CARD_FOOTER_VARIANT === "glass"
-											? { height: "var(--card-footer-h, 30px)" }
-											: undefined
-									}
-								>
-									<img
-										src={faviconSrc}
-										alt=""
-										draggable={false}
-										className="favicon h-4 w-4 shrink-0 rounded-full"
-										onError={(e) => {
-											(e.target as HTMLImageElement).onerror = null;
-											(e.target as HTMLImageElement).src = faviconUrl(card.url);
-										}}
-									/>
-									{editing ? (
+					)}
+					<a
+						data-local-context-menu
+						className="flex h-full min-h-0 w-full flex-col focus-visible:outline-none"
+						href={card.url}
+						target={openInNewTab ? "_blank" : "_self"}
+						rel={openInNewTab ? "noopener noreferrer" : undefined}
+						aria-label={isSelected ? `${label}, selected` : label}
+						title={dialLayout === "icon" ? `${label} · ${card.url}` : label}
+						onClick={onClick}
+						onKeyDown={(e) => {
+							// Space toggles selection while selection mode is
+							// active (Enter keeps opening the link natively).
+							if (e.key === " ") {
+								e.preventDefault();
+								useSelectionStore.getState().toggle({
+									id: card.id,
+									kind: "card",
+									sourceId: card.folderId,
+								});
+							}
+						}}
+						draggable={editing ? false : (dragProps?.draggable ?? true)}
+						onDragStart={editing ? undefined : dragProps?.onDragStart}
+						onDragEnd={dragProps?.onDragEnd}
+						onDragOver={dragProps?.onDragOver}
+						onDragLeave={dragProps?.onDragLeave}
+						onDrop={dragProps?.onDrop}
+					>
+						{dialLayout === "icon" ? (
+							<IconModeTile
+								url={card.url}
+								favicon={faviconSrc}
+								selected={isSelected}
+								label={label}
+								showLabel={iconShowLabel || editing}
+								labelContent={
+									editing ? (
 										<InlineRenameInput
 											value={savedTitle}
 											commitOnSame={
@@ -252,17 +265,139 @@ export function DialCard({
 											ariaLabel={`Rename ${label}`}
 											onCommit={handleCommitRename}
 											onCancel={cancelRename}
+											className={`w-full flex-none text-center ${wallpaperText("primary")}`}
 										/>
-									) : (
-										<span className="title truncate font-medium text-[11px]">
-											{label}
-										</span>
+									) : undefined
+								}
+								tileClassName={cn(
+									combineActive && "icon-app-tile-drop-active",
+									dragging && "icon-app-tile-dragging",
+									insertion === "before" && "icon-drop-insert-before",
+									insertion === "after" && "icon-drop-insert-after",
+								)}
+							/>
+						) : (
+							<>
+								{/* Cover fills the bounded media box without stretching or letterbox
+							    bands. The fallback keeps its gradient behind the site's favicon. */}
+								<div
+									className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+									data-refreshing={refreshCapturing ? "true" : undefined}
+									aria-busy={refreshCapturing || decoding || undefined}
+									style={{ background: fallbackColor }}
+								>
+									{/* Retain an opaque decoded base until the replacement has
+									    faded in; fading both layers exposes the fallback mid-swap. */}
+									{thumbnail?.previous && (
+										<img
+											src={thumbnail.previous.url}
+											alt=""
+											data-thumbnail-previous
+											className="thumb-media absolute inset-0 size-full object-cover object-center"
+											draggable={false}
+										/>
 									)}
+									{/* A local presence boundary isolates replacements from the
+									    grid's initial=false, which otherwise skips their fade. */}
+									<AnimatePresence initial={false}>
+										{thumbnail && (
+											<motion.img
+												key={thumbnail.id}
+												src={thumbnail.url}
+												alt=""
+												className="thumb-media absolute inset-0 size-full object-cover object-center"
+												initial={
+													thumbnail.id === initialThumbId.current &&
+													!thumbnail.previous
+														? false
+														: { opacity: 0 }
+												}
+												animate={{ opacity: 1 }}
+												transition={{
+													duration: reduceMotion
+														? DURATION.instant
+														: DURATION.navigation,
+													ease: EASE.out,
+												}}
+												onAnimationComplete={() => {
+													setThumbnail((current) =>
+														current?.id === thumbnail.id && current.previous
+															? { id: current.id, url: current.url }
+															: current,
+													);
+												}}
+												draggable={false}
+											/>
+										)}
+									</AnimatePresence>
+									{!thumbnail && (
+										<img
+											src={faviconSrc}
+											alt=""
+											draggable={false}
+											className="favicon size-10 shrink-0 rounded-full object-contain"
+											onError={(e) => {
+												(e.target as HTMLImageElement).onerror = null;
+												(e.target as HTMLImageElement).src = faviconUrl(
+													card.url,
+												);
+											}}
+										/>
+									)}
+									<ThumbnailFeedback
+										active={refreshCapturing}
+										hasPreview={thumbnail !== null || Boolean(card.thumbId)}
+									/>
 								</div>
-							)}
-						</>
-					)}
-				</a>
+
+								{(showTitle || editing) && (
+									<div
+										className={cn(
+											// Same squircle system as the outer card so the
+											// footer follows the card geometry in every
+											// browser (corner-shape aware or fallback).
+											"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-[var(--shape-card,18px)] px-2.5 text-left [--squircle-r:var(--shape-card-fallback,10px)]",
+											cardFooterMaterial(isLiquid),
+										)}
+										style={
+											CARD_FOOTER_VARIANT === "glass"
+												? { height: "var(--card-footer-h, 30px)" }
+												: undefined
+										}
+									>
+										<img
+											src={faviconSrc}
+											alt=""
+											draggable={false}
+											className="favicon h-4 w-4 shrink-0 rounded-full"
+											onError={(e) => {
+												(e.target as HTMLImageElement).onerror = null;
+												(e.target as HTMLImageElement).src = faviconUrl(
+													card.url,
+												);
+											}}
+										/>
+										{editing ? (
+											<InlineRenameInput
+												value={savedTitle}
+												commitOnSame={
+													(card.titleSource ?? defaultTitleSource) !== "saved"
+												}
+												ariaLabel={`Rename ${label}`}
+												onCommit={handleCommitRename}
+												onCancel={cancelRename}
+											/>
+										) : (
+											<span className="title truncate font-medium text-[11px]">
+												{label}
+											</span>
+										)}
+									</div>
+								)}
+							</>
+						)}
+					</a>
+				</div>
 			</ContextMenuTrigger>
 
 			<ContextMenuContent className={glassMenu(isLiquid, resolvedDark)}>
@@ -309,6 +444,19 @@ export function DialCard({
 					<Icon name="folder" size={14} />
 					Move to…
 				</ContextMenuItem>
+				{dialLayout === "card" && (
+					<ContextMenuItem
+						className={glassDropdownItem(isLiquid, resolvedDark, {
+							pillOwned: true,
+						})}
+						onSelect={handleRefreshCard}
+					>
+						<Icon name="refresh" size={14} />
+						{refreshCount > 1
+							? REFRESH_STRINGS.batchAction(refreshCount)
+							: REFRESH_STRINGS.singleItem}
+					</ContextMenuItem>
+				)}
 				<ContextMenuSeparator />
 				<ContextMenuItem
 					className={glassDropdownItem(isLiquid, resolvedDark, {

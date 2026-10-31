@@ -7,6 +7,7 @@ import {
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { EASE_OUT } from "@klice-start/ui/lib/ease";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 import {
@@ -36,6 +37,7 @@ import { useSetupStore } from "../../../stores/setup-store";
 import { InlineRenameInput } from "../../shared/inline-rename-input";
 import { useAppearance } from "../appearance-provider";
 import { IconAppTile } from "../icon-app-tile";
+import { SelectionCheckbox } from "../selection-checkbox";
 
 /** A single card's preview data for the folder mosaic. */
 export interface FolderPreviewItem {
@@ -59,6 +61,7 @@ interface FolderPreviewCardProps {
 	 */
 	showOpenAction?: boolean;
 	onClick?: (e: React.MouseEvent) => void;
+	onSelect?: (e: React.MouseEvent) => void;
 	onOpen: (id: string) => void;
 	onNewSubfolder: (id: string) => void;
 	onDelete: (id: string) => void;
@@ -96,6 +99,7 @@ export function FolderPreviewCard({
 	isSelected = false,
 	showOpenAction = false,
 	onClick,
+	onSelect,
 	onOpen,
 	onNewSubfolder,
 	onDelete,
@@ -160,8 +164,11 @@ export function FolderPreviewCard({
 					// The single wrapper child below owns the card box; the
 					// open chevron lives beside the body button (never nested
 					// inside it) so both stay valid, focusable controls.
-					"dial-card squircle group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [--squircle-r:10px] [-webkit-user-drag:element]",
-					dialLayout === "card" && "overflow-hidden rounded-2xl",
+					// Card mode shares the semantic card silhouette with
+					// bookmark cards; icon mode keeps the Home-Screen tile.
+					"dial-card group/folder relative isolate flex h-full w-full select-none flex-col transition-[transform,box-shadow,opacity] duration-150 [-webkit-user-drag:element]",
+					dialLayout === "card" && kliceShape("card"),
+					dialLayout === "card" && "overflow-hidden",
 					// Sizing/span live on the grid-item wrapper (DialGrid); the
 					// inner card only fills it. Keeping the span class here would
 					// size a non-grid-item and overflow its cell.
@@ -177,6 +184,13 @@ export function FolderPreviewCard({
 				)}
 			>
 				<div className="relative flex h-full w-full min-w-0 flex-col">
+					{!editing && onSelect && (
+						<SelectionCheckbox
+							checked={isSelected}
+							label={`folder ${name}`}
+							onSelect={onSelect}
+						/>
+					)}
 					{dialLayout === "icon" ? (
 						<IconFolderBody
 							id={id}
@@ -253,7 +267,7 @@ export function FolderPreviewCard({
 												<div
 													key={`empty-${String(i)}`}
 													className={cn(
-														"rounded-[7px]",
+														kliceShape("thumbnail"),
 														isLiquid ? "bg-white/[0.05]" : "bg-muted",
 													)}
 												/>
@@ -282,20 +296,11 @@ export function FolderPreviewCard({
 									>
 										{itemCount}
 									</span>
-
-									{isSelected && (
-										<div
-											aria-hidden="true"
-											className="absolute top-1.5 left-1.5 z-30 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
-										>
-											<Icon name="check" size={11} strokeWidth={3} />
-										</div>
-									)}
 								</div>
 
 								<div
 									className={cn(
-										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-2xl px-2.5 text-left [--squircle-r:10px]",
+										"card-footer squircle flex shrink-0 items-center justify-start gap-1.5 rounded-b-[var(--shape-card,18px)] px-2.5 text-left [--squircle-r:var(--shape-card-fallback,10px)]",
 										cardFooterMaterial(isLiquid),
 										showOpenAction && !editing && "pr-8",
 									)}
@@ -617,15 +622,6 @@ function IconFolderBody({
 						<Icon name="folder" size={42} strokeWidth={1.5} />
 					</div>
 				)}
-
-				{isSelected && (
-					<div
-						aria-hidden="true"
-						className="pointer-events-none absolute top-3 left-3 z-30 flex size-6 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-md"
-					>
-						<Icon name="check" size={12} strokeWidth={3} />
-					</div>
-				)}
 			</div>
 
 			{editing ? (
@@ -667,7 +663,10 @@ function FolderMiniTile({ card }: { card: FolderPreviewItem }) {
 
 	return (
 		<div
-			className="relative flex size-full items-center justify-center overflow-hidden rounded-[7px]"
+			className={cn(
+				"relative flex size-full items-center justify-center overflow-hidden",
+				kliceShape("thumbnail"),
+			)}
 			style={{ background: fallback }}
 		>
 			{thumbUrl ? (

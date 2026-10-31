@@ -1,6 +1,7 @@
 import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
 import { Button as MotionButton } from "@klice-start/ui/components/motion/button/base";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import { Fragment } from "react";
 import {
 	glassFocusRing,
@@ -126,7 +127,8 @@ export function EmptyLanding({ folderName, onAdd }: EmptyLandingProps) {
 					) : (
 						<div
 							className={cn(
-								"squircle relative flex size-[68px] items-center justify-center rounded-[22px] [--squircle-r:14px]",
+								"relative flex size-[68px] items-center justify-center",
+								kliceShape("section"),
 								glassMaterial(false, "panel"),
 								"text-muted-foreground",
 							)}

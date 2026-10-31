@@ -171,6 +171,7 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 	);
 	const colorScheme = useSetupStore((s) => s.settings.colorScheme ?? "auto");
 	const accentColor = useSetupStore((s) => s.settings.accentColor ?? "blue");
+	const cornerScale = useSetupStore((s) => s.settings.cornerScale ?? "soft");
 	const bg = useSetupStore((s) => s.settings.background);
 
 	const updateSettings = useSetupStore((s) => s.updateSettings);
@@ -324,25 +325,44 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 					</div>
 				</SettingRow>
 
-			<SettingRow
-				label="Material"
-				icon="glass-water"
-				tooltip="Glass picks up the wallpaper; Flat stays opaque. Settings itself stays flat."
-			>
-				<SegmentedControl
+				<SettingRow
 					label="Material"
-					value={isLiquidGlass ? "glass" : "flat"}
-					options={[
-						{ value: "flat", label: "Flat" },
-						{ value: "glass", label: "Glass" },
-					]}
-					onChange={(next) =>
-						updateSettings({
-							appearanceMode: next === "glass" ? "liquid" : "classic",
-						})
-					}
-				/>
-			</SettingRow>
+					icon="glass-water"
+					tooltip="Glass picks up the wallpaper; Flat stays opaque. Settings itself stays flat."
+				>
+					<SegmentedControl
+						label="Material"
+						value={isLiquidGlass ? "glass" : "flat"}
+						options={[
+							{ value: "flat", label: "Flat" },
+							{ value: "glass", label: "Glass" },
+						]}
+						onChange={(next) =>
+							updateSettings({
+								appearanceMode: next === "glass" ? "liquid" : "classic",
+							})
+						}
+					/>
+				</SettingRow>
+
+				<SettingRow
+					label="Corner rounding"
+					icon="shapes"
+					tooltip="Shapes panels, menus and controls everywhere. Toolbars stay capsules and cards keep their own edges."
+				>
+					<SegmentedControl
+						label="Corner rounding"
+						value={cornerScale}
+						options={[
+							{ value: "discreet", label: "Discreet" },
+							{ value: "soft", label: "Soft" },
+							{ value: "rounded", label: "Rounded" },
+						]}
+						onChange={(next) => {
+							updateSettings({ cornerScale: next });
+						}}
+					/>
+				</SettingRow>
 			</SectionCard>
 
 			{/* Wallpaper: compact preview is the entry point (title lives
@@ -476,7 +496,6 @@ export function AppearancePane({ onOpenWallpaper }: AppearancePaneProps) {
 						>)
 					}
 				/>
-
 			</SectionCard>
 		</div>
 	);

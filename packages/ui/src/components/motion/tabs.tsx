@@ -112,7 +112,10 @@ export function Tabs({
 const listClasses: Record<Variant, string> = {
 	pill: cn("inline-flex items-center gap-1 bg-card p-1", kliceShape("toolbar")),
 	underline: "inline-flex items-center gap-1 border-b border-border",
-	segment: cn("inline-flex items-center gap-0 bg-card p-0.5", kliceShape("control")),
+	segment: cn(
+		"inline-flex items-center gap-0 bg-card p-0.5",
+		kliceShape("control"),
+	),
 };
 
 export function TabsList({
@@ -254,7 +257,10 @@ export function TabsTrigger({
 				<motion.span
 					layoutId={layoutId}
 					layout="position"
-					style={{ borderRadius: variant === "pill" ? 9999 : 8 }}
+					// No inline radius: the role class below already resolves
+					// --shape-control (or the toolbar capsule) per corner tier,
+					// so the sliding surface stays concentric with the trigger
+					// and follows the preference.
 					className={cn(
 						"pointer-events-none absolute inset-0 bg-primary",
 						radius,

@@ -1,7 +1,9 @@
 /**
  * Pure marquee (rubber-band) geometry. Everything here is client-space
- * pixels: pointer events and getBoundingClientRect share that space, so no
- * scroll-offset math ever enters hit-testing. Units are trivially testable.
+ * pixels: pointer events and getBoundingClientRect share that space. Tiles
+ * and the drag anchor are translated by the scroll delta so hit-testing
+ * stays in one content-locked frame — never a viewport-fixed rect against
+ * scrolled tiles. Units are trivially testable.
  */
 
 /** Pointer travel before a press becomes a marquee (clicks stay clicks). */
@@ -89,4 +91,19 @@ export function marqueeHitsTile(
 
 export function pointerTravel(a: ClientPoint, b: ClientPoint): number {
 	return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/**
+ * Content-locked drag anchor. A content point's client position shifts
+ * opposite the scroll delta, so the anchor keeps pointing at the content
+ * where the press started while the viewport (and the live pointer) move.
+ * Without this the painted rect and the hit-test rect disagree mid-scroll:
+ * tiles scroll into a viewport-fixed rect they were never dragged across.
+ */
+export function anchorForScroll(
+	anchor: ClientPoint,
+	scrollBase: number,
+	scrollNow: number,
+): ClientPoint {
+	return { x: anchor.x, y: anchor.y - (scrollNow - scrollBase) };
 }

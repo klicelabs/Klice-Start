@@ -7,7 +7,7 @@ import { extApi } from "./extension-api";
 // requirement (verified empirically: contains(http+https) = true yet the API
 // still throws "Either the '<all_urls>' or 'activeTab' permission is
 // required"). "<all_urls>" is declared optional and granted exactly once
-// through the Settings pane's "Allow access" consent flow (below); both
+// through a refresh click or the Settings consent flow (below); both
 // contains() and request() must query that same literal pattern.
 const CAPTURE_ORIGINS = ["<all_urls>"];
 
@@ -15,7 +15,7 @@ export async function hasThumbnailCapturePermission(): Promise<boolean> {
 	return extApi().permissions.contains({ origins: CAPTURE_ORIGINS });
 }
 
-/** Call only from a Settings click so the browser can show its permission UI. */
+/** Invoke directly in the click stack, before awaiting any other API. */
 export async function requestThumbnailCapturePermission(): Promise<boolean> {
 	return extApi().permissions.request({ origins: CAPTURE_ORIGINS });
 }

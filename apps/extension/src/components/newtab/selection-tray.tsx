@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from "@klice-start/ui/components/dropdown-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
+import { DURATION, EASE } from "@klice-start/ui/lib/motion";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -30,7 +31,12 @@ import {
 	snapshotSetup,
 } from "../../lib/history-capture";
 import { describeMoveGroup, resolveMoveGroup } from "../../lib/move-selection";
-import { selectedAncestorOf } from "../../lib/selection-model";
+import {
+	expandSelectionToCards,
+	selectedAncestorOf,
+} from "../../lib/selection-model";
+import { REFRESH_STRINGS } from "../../lib/thumbnail-refresh";
+import { startBatchRefresh } from "../../lib/thumbnail-refresh-client";
 import { cn } from "../../lib/utils";
 import { useHistoryStore } from "../../stores/history-store";
 import { useMoveDialogStore } from "../../stores/move-dialog-store";
@@ -84,6 +90,8 @@ export function SelectionTray({
 	const clearSelection = useSelectionStore((s) => s.clear);
 	const cards = useSetupStore((s) => s.cards as Card[]);
 	const folders = useSetupStore((s) => s.folders as Folder[]);
+	// Preview refresh is card-mode only: icon tiles have no thumb surface.
+	const dialLayout = useSetupStore((s) => s.settings.dialLayout);
 	const activeFolderId = useSetupStore((s) => s.activeFolderId);
 	const moveItemsToContainer = useSetupStore((s) => s.moveItemsToContainer);
 	const itemOrder = useSetupStore((s) => s.itemOrder);
@@ -118,6 +126,13 @@ export function SelectionTray({
 				.map((id) => folderById.get(id))
 				.filter((f): f is Folder => f !== undefined),
 		[selectedIds, folderById],
+	);
+	// Preview refresh targets the whole selection: directly selected cards
+	// plus every bookmark inside selected folders, at any depth. Selected
+	// folders alone therefore still offer refresh (their subtree is the batch).
+	const refreshTargets = useMemo(
+		() => expandSelectionToCards(selectedIds, cards, folders),
+		[selectedIds, cards, folders],
 	);
 	const total = selCards.length + selFolders.length;
 	const totalLabel = `${total} ${total === 1 ? "item" : "items"}`;
@@ -454,13 +469,22 @@ export function SelectionTray({
 												<Icon name="folder-plus" size={14} aria-hidden="true" />
 												Create new subfolder
 											</DropdownMenuItem>
+											{dialLayout === "card" && refreshTargets.length > 0 ? (
+												<DropdownMenuItem
+													className={glassMenuItem(isLiquid, resolvedDark)}
+													onClick={() => void startBatchRefresh(refreshTargets)}
+												>
+													<Icon name="refresh" size={14} aria-hidden="true" />
+													{REFRESH_STRINGS.batchAction(refreshTargets.length)}
+												</DropdownMenuItem>
+											) : null}
 										</DropdownMenuGroup>
 									</DropdownMenuContent>
 								</DropdownMenu>
 							</div>
 
 							{/* Preview cluster — the shelf's visual protagonist and group drag handle. */}
-							<div className="flex h-[100px] items-center justify-center">
+							<div className="flex h-[64px] items-center justify-center">
 								<button
 									type="button"
 									draggable
@@ -470,18 +494,19 @@ export function SelectionTray({
 										handleTrayDragStart(event, true);
 									}}
 									onDragEnd={handleTrayDragEnd}
+									onClick={() => openMoveDialog(selectedIds)}
 									title={
 										total > 1
 											? `Drag to move ${total} items`
 											: "Drag to move this item"
 									}
 									aria-label={
-										"Drag to move " +
+										"Move " +
 										total +
 										" selected " +
 										(total === 1 ? "item" : "items")
 									}
-									className="relative h-[100px] w-[116px] shrink-0 cursor-grab touch-none border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:cursor-grabbing"
+									className="relative h-[64px] w-[100px] shrink-0 cursor-grab touch-none rounded-xl border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-transparent active:cursor-grabbing"
 								>
 									<AnimatePresence initial={false} mode="popLayout">
 										{previewItems.map((item, i) => (
@@ -661,7 +686,7 @@ function selectionPillLabel(cardCount: number, folderCount: number) {
 		return describeMoveGroup(cardCount, folderCount);
 	}
 	if (cardCount > 0) {
-		return `${String(cardCount)} bookmark${cardCount === 1 ? "" : "s"}`;
+		return `${String(cardCount)} card${cardCount === 1 ? "" : "s"} selected`;
 	}
 	if (folderCount > 0) {
 		return `${String(folderCount)} folder${folderCount === 1 ? "" : "s"}`;
@@ -670,9 +695,9 @@ function selectionPillLabel(cardCount: number, folderCount: number) {
 }
 
 const MINI_POS = [
-	"left-[4px] top-[18px] -rotate-6",
+	"left-[4px] top-[12px] -rotate-6",
 	"left-[26px] top-0 rotate-[4deg]",
-	"left-[48px] top-[18px] -rotate-3",
+	"left-[48px] top-[12px] -rotate-3",
 ] as const;
 
 function TrayMini({
@@ -696,11 +721,11 @@ function TrayMini({
 			exit={{ opacity: 0 }}
 			transition={
 				reduceMotion
-					? { duration: 0.1 }
-					: { duration: 0.18, ease: [0.23, 1, 0.32, 1] }
+					? { duration: DURATION.instant }
+					: { duration: DURATION.control, ease: EASE.out }
 			}
 			className={cn(
-				"absolute flex size-[64px] items-center justify-center",
+				"absolute flex size-[48px] items-center justify-center",
 				"[filter:drop-shadow(0_5px_7px_rgba(15,23,42,0.28))]",
 				MINI_POS[index],
 			)}
@@ -709,7 +734,7 @@ function TrayMini({
 				<>
 					<Icon
 						name="globe"
-						size={52}
+						size={40}
 						className={
 							isLiquid ? glassForeground("secondary") : "text-flat-ink-muted/70"
 						}
@@ -721,7 +746,7 @@ function TrayMini({
 							alt=""
 							draggable={false}
 							className={cn(
-								"absolute size-14 object-contain",
+								"absolute size-10 object-contain",
 								glassShape("thumbnail"),
 							)}
 							onError={(e) => {
@@ -733,7 +758,7 @@ function TrayMini({
 			) : folder ? (
 				<Icon
 					name="folder"
-					size={52}
+					size={40}
 					fill="currentColor"
 					className="text-[var(--klice-accent)]"
 					aria-hidden="true"

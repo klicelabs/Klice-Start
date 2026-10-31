@@ -30,6 +30,8 @@ import type { Browser } from "wxt/browser";
  * their direct `chrome.*` uses for now.
  */
 
+// SAFETY: extension contexts supply these native namespaces; optional fields
+// also allow tests to install a partial shim after this module is imported.
 const scope = globalThis as unknown as {
 	browser?: typeof Browser;
 	chrome?: typeof Browser;
@@ -46,7 +48,8 @@ export const ext: typeof Browser =
  * In a real extension context both resolve to the same object.
  */
 export function extApi(): typeof Browser {
-	// chrome-first mirrors the direct `chrome.*` reads these callers had
-	// before the migration — same global, same call-time resolution.
-	return (scope.chrome as typeof Browser) ?? scope.browser ?? ext;
+	// Firefox exposes both namespaces; only its native browser surface is
+	// consistently promise-based. Resolve late for test shims, but use the
+	// same precedence as the background worker in every context.
+	return scope.browser ?? (scope.chrome as typeof Browser) ?? ext;
 }
