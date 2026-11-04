@@ -560,7 +560,7 @@ function HistoryButton({
 			onDragLeave={disabled ? undefined : handleDragLeave}
 			onDrop={disabled ? undefined : handleDrop}
 			className={cn(
-				"relative h-full hover:bg-transparent",
+				"relative h-full hover:bg-transparent active:bg-transparent",
 				TOOLBAR.controlWidth,
 				// Same wash tint as the tabbar items. The seam and the outer
 				// capsule ends stay native to the group.
@@ -570,7 +570,7 @@ function HistoryButton({
 				// washed the thin glyph out on light faces). 25% reads
 				// clearly inactive without disappearing.
 				isLiquid
-					? `${glassForeground()} hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
+					? `${glassForeground()} hover:text-[var(--klice-glass-foreground-primary)]`
 					: "text-flat-ink disabled:opacity-25",
 				// Active DnD dwell: the button's own hover wash so the target
 				// reads "listening — hold here to navigate". Restrained by

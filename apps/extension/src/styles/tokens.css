@@ -1975,6 +1975,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 [data-history-control]:not(:disabled):hover [data-history-hover-face],
+[data-history-control]:not(:disabled):active [data-history-hover-face],
 [data-history-control]:not(:disabled):focus-visible [data-history-hover-face] {
 	opacity: 1;
 }
