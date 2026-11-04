@@ -1,9 +1,11 @@
 import { SidebarProvider } from "@klice-start/ui/components/sidebar";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
+	isSettingsLayoutOpen,
 	settingsMotionStore,
 	useSettingsMotionStore,
 } from "../../../stores/settings-motion-store";
+import { BackgroundLayer } from "../background-layer";
 import { SettingsSidebar } from "./settings-sidebar";
 
 type SettingsMotionWorkspaceProps = {
@@ -15,7 +17,7 @@ export function SettingsMotionWorkspace({
 	children,
 }: SettingsMotionWorkspaceProps) {
 	const phase = useSettingsMotionStore((state) => state.phase);
-	const layoutOpen = phase !== "closed";
+	const layoutOpen = isSettingsLayoutOpen(phase);
 
 	return (
 		// SidebarProvider is intentionally uncontrolled here. Its generic open
@@ -27,7 +29,7 @@ export function SettingsMotionWorkspace({
 					"--sidebar-width": "var(--settings-sidebar-width)",
 				} as CSSProperties
 			}
-			className={`settings-workspace h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525] ${layoutOpen ? "p-[var(--workspace-gutter)]" : "p-0"}`}
+			className="settings-workspace relative h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]"
 			data-settings-layout-open={layoutOpen ? "true" : "false"}
 		>
 			{children}
@@ -39,10 +41,12 @@ export function SettingsMotionFrame({
 	children,
 	...props
 }: ComponentProps<"div">) {
-	const open = useSettingsMotionStore((state) => state.phase !== "closed");
+	const phase = useSettingsMotionStore((state) => state.phase);
+	const open = isSettingsLayoutOpen(phase);
 
 	return (
 		<div {...props} data-settings-open={open ? "true" : "false"}>
+			<BackgroundLayer contained />
 			{children}
 		</div>
 	);
@@ -57,7 +61,7 @@ export function SettingsMotionSidebar() {
 	// while closed. Re-mounts (chunk already cached) on every open —
 	// measured: 1st open −30% window, no warm-reopen regression (§6.6).
 	// (Computed before the early return so narrowing can't desync it.)
-	const layoutOpen = phase !== "closed";
+	const layoutOpen = isSettingsLayoutOpen(phase);
 	if (phase === "closed") return null;
 
 	return (

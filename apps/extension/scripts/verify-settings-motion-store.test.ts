@@ -1,4 +1,7 @@
-import { settingsMotionStore } from "../src/stores/settings-motion-store";
+import {
+	isSettingsLayoutOpen,
+	settingsMotionStore,
+} from "../src/stores/settings-motion-store";
 
 beforeEach(() => {
 	settingsMotionStore.getState().finishClose();
@@ -26,11 +29,15 @@ test("uses one reversible phase path for open and close", () => {
 	});
 });
 
-test("releases the layout only after the close transition completes", () => {
+test("starts the Home return while keeping Settings mounted through its exit", () => {
 	settingsMotionStore.getState().open();
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(true);
+
 	settingsMotionStore.getState().close();
 	expect(settingsMotionStore.getState().phase).toBe("closing");
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(false);
 
 	settingsMotionStore.getState().finishClose();
 	expect(settingsMotionStore.getState().phase).toBe("closed");
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(false);
 });

@@ -13,7 +13,6 @@ import {
 	AppearanceProvider,
 	useAppearance,
 } from "../../src/components/newtab/appearance-provider";
-import { BackgroundLayer } from "../../src/components/newtab/background-layer";
 import { ClockWidget } from "../../src/components/newtab/clock-widget";
 import { DialGrid } from "../../src/components/newtab/dial-grid";
 import { EmptyLanding } from "../../src/components/newtab/empty-landing";
@@ -224,7 +223,6 @@ const HomeSurface = memo(function HomeSurface({
 }: HomeSurfaceProps) {
 	return (
 		<>
-			<BackgroundLayer contained />
 			{restMode && <RestMode onExit={onExitRestMode} />}
 
 			<div
@@ -1143,7 +1141,7 @@ export default function App() {
 			>
 				<SettingsMotionWorkspace>
 					<div
-						className="flex h-full min-h-0 min-w-0 flex-1"
+						className="relative flex h-full min-h-0 min-w-0 flex-1"
 						data-settings-workspace-panels="true"
 					>
 						<SidebarInset

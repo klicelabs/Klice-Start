@@ -70,7 +70,7 @@ export interface SettingsPaneProps {
 export interface SettingsSidebarProps {
 	open: boolean;
 	onClose: () => void;
-	/** Keeps the in-flow footprint until the closing transform has finished. */
+	/** Whether the Home frame currently reserves the Settings lane. */
 	layoutOpen?: boolean;
 	onCloseComplete?: () => void;
 	initialPane?: SettingsPaneId;

@@ -1446,31 +1446,50 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    trackpad, keyboard and touch scrolling all still work, and
    `overscroll-behavior` keeps a scroll from escaping the inner frame. */
 .settings-workspace {
+	/* Toolbar/sidebar layers are local to the workspace. Body-portaled
+	   controls (selects, menus, tooltips, dialogs) must paint above them.
+	   Isolation establishes that boundary without transforming their anchors. */
+	isolation: isolate;
 	--settings-sidebar-width: clamp(320px, 29vw, 408px);
 	--workspace-gutter: 8px;
 	/* One timing token keeps the panel and shell radius motion cohesive. */
-	--workspace-motion-duration: 220ms;
-	--workspace-motion-ease: var(--ease-out-expo, var(--ease-out));
+	--workspace-motion-duration: 280ms;
+	--workspace-motion-ease: var(--ease-drawer);
 }
 
-/* The slot owns the sidebar's structural footprint. It includes the
-   inter-panel gutter, so the closed layout has no phantom gap. Its width is a
-   discrete layout commit; animating it would reflow the Home grid every frame.
-   The already-mounted panel moves below on the compositor instead. */
-[data-settings-sidebar-slot] {
-	width: 0;
-	pointer-events: none;
+/* Interpolate the actual inset rather than scaling a finished Home bitmap.
+   Layout work is bounded to this short shell transition; the wallpaper and
+   glass surfaces keep their native coordinate system and original squircle. */
+[data-settings-workspace-panels] {
+	position: relative;
+	padding: 0;
+	transition:
+		padding-top var(--workspace-motion-duration) var(--workspace-motion-ease),
+		padding-right var(--workspace-motion-duration) var(--workspace-motion-ease),
+		padding-bottom var(--workspace-motion-duration) var(--workspace-motion-ease),
+		padding-left var(--workspace-motion-duration) var(--workspace-motion-ease);
 }
-[data-settings-sidebar-slot][data-settings-layout-open="true"] {
+.settings-workspace[data-settings-layout-open="true"]
+	[data-settings-workspace-panels] {
+	padding: var(--workspace-gutter);
+	padding-inline-end: calc(
+		var(--settings-sidebar-width) + 2 * var(--workspace-gutter)
+	);
+}
+
+[data-settings-sidebar-slot] {
+	position: absolute;
+	inset-block: var(--workspace-gutter);
+	right: var(--workspace-gutter);
+	z-index: var(--speed-dial-layer-app-toolbar);
 	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
+	pointer-events: none;
 }
 [data-settings-sidebar-slot][data-settings-open="true"] {
 	pointer-events: auto;
 }
 
-/* Geometry settles once at the start/end of the workspace transition. Only
-   the already-mounted, opaque Settings surface moves on the compositor path;
-   the Speed Dial never changes width on animation frames. */
+/* Panel travel and Home inset use the same clock and curve in both directions. */
 [data-settings-sidebar-slot] > [data-slot="sidebar"] {
 	transform: translate3d(100%, 0, 0);
 	transition: transform var(--workspace-motion-duration)
@@ -1481,12 +1500,23 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transform: translate3d(0, 0, 0);
 }
 
+/* The Settings subtree mounts on open, so give its first visible frame the
+   same off-canvas starting position as the existing close transition. */
+@starting-style {
+	[data-settings-sidebar-slot][data-settings-open="true"]
+		> [data-slot="sidebar"] {
+		transform: translate3d(100%, 0, 0);
+	}
+}
+
 /* Keep the frame radius discrete with the layout commit. Gecko gets its
    calibrated fallback radius while Chromium uses the larger radius with
    corner-shape:squircle. The frame IS a panel-scale surface, so it follows
    the semantic panel token instead of a private literal. */
 [data-speed-dial-frame] {
 	border-radius: 0;
+	transition: border-radius var(--workspace-motion-duration)
+		var(--workspace-motion-ease);
 }
 [data-speed-dial-frame][data-settings-open="true"] {
 	border-radius: var(--shape-panel, 28px);
@@ -1499,6 +1529,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 @media (prefers-reduced-motion: reduce) {
 	.settings-workspace,
+	[data-settings-workspace-panels],
 	[data-settings-sidebar-slot],
 	[data-speed-dial-frame],
 	[data-settings-sidebar-slot] > [data-slot="sidebar"] {

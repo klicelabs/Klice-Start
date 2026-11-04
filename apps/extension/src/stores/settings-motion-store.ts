@@ -6,6 +6,11 @@ import type {
 
 export type SettingsMotionPhase = "closed" | "open" | "closing";
 
+/** The Home frame and its Settings-space reservation transition together. */
+export function isSettingsLayoutOpen(phase: SettingsMotionPhase): boolean {
+	return phase === "open";
+}
+
 type SettingsMotionState = {
 	phase: SettingsMotionPhase;
 	pane: SettingsPaneId | undefined;
