@@ -354,17 +354,21 @@ function HistoryControls({
 				onSpringNavigate={onBack}
 				springGate={springGate}
 			/>
-			<HistoryDivider isLiquid={isLiquid} />
-			<HistoryButton
-				icon="chevron-right"
-				label="Forward"
-				disabled={!canGoForward}
-				isLiquid={isLiquid}
-				onClick={onForward}
-				springEnabled={canGoForward}
-				onSpringNavigate={onForward}
-				springGate={springGate}
-			/>
+			{canGoForward && (
+				<>
+					<HistoryDivider isLiquid={isLiquid} />
+					<HistoryButton
+						icon="chevron-right"
+						label="Forward"
+						disabled={false}
+						isLiquid={isLiquid}
+						onClick={onForward}
+						springEnabled={canGoForward}
+						onSpringNavigate={onForward}
+						springGate={springGate}
+					/>
+				</>
+			)}
 		</>
 	);
 
@@ -376,6 +380,7 @@ function HistoryControls({
 				aria-label="Navigation history"
 				aria-orientation="horizontal"
 				className={groupClassName}
+				data-history-controls="true"
 				surfaceClassName={glassLensVeil("toolbar", resolvedDark)}
 				liquidProps={{
 					blur: optics.blur,
@@ -402,6 +407,7 @@ function HistoryControls({
 				"shadow-none",
 				groupClassName,
 			)}
+			data-history-controls="true"
 		>
 			{groupButtons}
 		</ButtonGroup>
@@ -445,8 +451,9 @@ function HistoryDivider({ isLiquid }: { isLiquid: boolean }) {
 	return (
 		<span
 			aria-hidden="true"
+			data-history-divider="true"
 			className={cn(
-				"h-[18px] w-px shrink-0 self-center",
+				"h-[18px] w-px shrink-0 self-center transition-opacity duration-150",
 				isLiquid ? "bg-foreground/15" : flatSeparator("vertical"),
 			)}
 		/>
@@ -553,7 +560,7 @@ function HistoryButton({
 			onDragLeave={disabled ? undefined : handleDragLeave}
 			onDrop={disabled ? undefined : handleDrop}
 			className={cn(
-				"relative h-full",
+				"relative h-full hover:bg-transparent",
 				TOOLBAR.controlWidth,
 				// Same wash tint as the tabbar items. The seam and the outer
 				// capsule ends stay native to the group.
@@ -563,7 +570,7 @@ function HistoryButton({
 				// washed the thin glyph out on light faces). 25% reads
 				// clearly inactive without disappearing.
 				isLiquid
-					? `${glassForeground()} hover:bg-foreground/[0.10] hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
+					? `${glassForeground()} hover:text-[var(--klice-glass-foreground-primary)] active:bg-foreground/15`
 					: "text-flat-ink disabled:opacity-25",
 				// Active DnD dwell: the button's own hover wash so the target
 				// reads "listening — hold here to navigate". Restrained by
@@ -574,12 +581,21 @@ function HistoryButton({
 						: "bg-flat-sunken-raised ring-1 ring-flat-edge-strong ring-inset"),
 			)}
 			data-slot="button"
+			data-history-control="true"
 		>
+			<span
+				aria-hidden="true"
+				data-history-hover-face="true"
+				className={cn(
+					"pointer-events-none absolute inset-[2px] rounded-full opacity-0 transition-opacity duration-150",
+					isLiquid ? "bg-foreground/[0.10]" : "bg-flat-sunken-raised",
+				)}
+			/>
 			<Icon
 				name={icon}
 				size={toolbarIconSize(icon)}
 				strokeWidth={TOOLBAR_ICON.strokeWidth}
-				className={toolbarIconClass(icon)}
+				className={cn("relative z-[1]", toolbarIconClass(icon))}
 				aria-hidden="true"
 			/>
 			{dwelling && (

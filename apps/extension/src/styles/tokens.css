@@ -1936,6 +1936,25 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		transform: scaleX(1);
 	}
 }
+
+/* History controls keep their segmented layout; only the interaction wash is
+   circular. The seam fades while a usable segment is hovered or focused. */
+[data-history-control] [data-history-hover-face] {
+	opacity: 0;
+}
+
+[data-history-control]:not(:disabled):hover [data-history-hover-face],
+[data-history-control]:not(:disabled):focus-visible [data-history-hover-face] {
+	opacity: 1;
+}
+
+[data-history-controls]:has(> [data-history-control]:not(:disabled):hover)
+	[data-history-divider],
+[data-history-controls]:has(> [data-history-control]:not(:disabled):focus-visible)
+	[data-history-divider] {
+	opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.drop-insert-before::after,
 	.drop-insert-after::after,
