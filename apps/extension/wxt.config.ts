@@ -23,7 +23,7 @@ export default defineConfig({
 				data_collection_permissions: { required: ["none"] },
 			},
 		},
-		version: "1.3.0",
+		version: "1.3.1",
 		default_locale: "en",
 		description: "A personal browser dashboard for your new tab.",
 		permissions: [
@@ -69,6 +69,8 @@ export default defineConfig({
 			// output and captured session transcripts.
 			"graphify-out/**",
 			"pi-session-*.html",
+			// Local legacy artifact, not part of the extension's source tree.
+			"apps/_old-background.ts",
 		],
 	},
 	vite: () => ({
