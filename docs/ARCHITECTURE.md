@@ -52,6 +52,8 @@ Popup or auto-capture → `background.ts` queue (URL-canonicalized, 1600 ms sett
 
 Launcher icons (Icon Mode tiles, Card Mode favicon fallbacks) resolve **once per domain** through a quality-first ladder in `src/lib/icon-resolver.ts`; the verdict is persisted as metadata-only in `chrome.storage.local` key `klice-icon-cache` (own adapter + 400 ms debounce — never the `perch-setup` envelope; ≤600 entries, positive TTL 14 d, negative 3 d). No image bytes are stored: assets ride the browser HTTP cache between sessions, and a stale entry cheaply re-probes after its TTL.
 
+Inline SVG artwork uses an explicit 100% viewport and instance-local resource IDs (`SvgIcon`). Gradients, clipping, filters, local references and embedded ID selectors stay with their own icon, so an invisible search launcher cannot hide the same brand in the overlay or Quick Links.
+
 The ladder is ordered by what the USER sees on a home screen — the site's own app icon first:
 
 1. **The site's own app icon** — an `apple-touch-icon` or a Web App Manifest `"any"` icon at app scale. This is the asset iOS/Android actually put on a home screen, so it is the one that reads as a real app. Manifest intent is respected: a `"monochrome"` entry is an **alpha mask** (the spec discards its colour) and is never shown; a `"maskable"` entry is padded artwork and ranks just below an `"any"` icon of the same size. The manifest is always consulted (GitHub ships its whole icon set only there), and scoring is quality-based, not a rigid order: apple-touch = 90 > manifest ≥192 = 86 > manifest maskable = 84 > rel svg = 82 > manifest ≥96 = 74 > … , with `apple-touch-icon*` filenames getting a small bonus (that file *is* the app icon by web convention).
@@ -86,7 +88,7 @@ One preference drives three coordinate systems, so every radius in the product m
 
 Deliberately outside the scale (intentional geometry): toolbar surfaces and controls are always true capsules (`--klice-toolbar-radius`), icon-mode tiles keep the Home-Screen squircle (`--icon-radius`), and micro details inside thumbnails (favicons) plus circles stay fixed.
 
-The search field reads `--shape-search-collapsed` (12/22/28px). Discreet and Soft use the section role's calibrated squircle fallback; Rounded is a true 28px capsule in both engines. The detached list keeps squircle geometry via `searchResults` (18/32/42px, calibrated Gecko fallback 11/20/26px), and rows use the control role. The list opens and closes with a reversible 160ms opacity/transform transition, without animating layout or changing the input's shape; reduced motion closes immediately.
+The search field reads `--shape-search-collapsed` (12/22/28px). Discreet and Soft use the section role's calibrated squircle fallback; Rounded is a true 28px capsule in both engines. The detached list keeps squircle geometry via `searchResults` (20/36/46px, calibrated Gecko fallback 12/22/28px), and rows use the control role. The list opens and closes with a reversible 160ms opacity/transform transition, without animating layout or changing the input's shape; reduced motion closes immediately.
 
 ## Search workspace
 

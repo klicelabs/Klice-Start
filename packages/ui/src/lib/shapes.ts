@@ -56,7 +56,7 @@ export const KliceShape = {
 		"klice-search-surface klice-squircle rounded-[var(--shape-search-collapsed,28px)] [--squircle-r:var(--shape-section-fallback,13px)]",
 	/** Detached result list: a little softer than other panels, tier-driven. */
 	searchResults:
-		"klice-squircle rounded-[var(--shape-search-results,32px)] [--squircle-r:var(--shape-search-results-fallback,20px)]",
+		"klice-squircle rounded-[var(--shape-search-results,36px)] [--squircle-r:var(--shape-search-results-fallback,22px)]",
 	/** Default search material geometry; detached result panels use panel. */
 	searchExpanded: `${SURFACE_SHAPE} klice-search-surface`,
 } as const;

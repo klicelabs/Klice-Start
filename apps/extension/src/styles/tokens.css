@@ -99,8 +99,8 @@ html.dark body {
 	/* Field and list are independent. Soft/Discreet use calibrated
 	   squircles; the Rounded field becomes a true capsule below. */
 	--shape-search-collapsed: 22px;
-	--shape-search-results: 32px;
-	--shape-search-results-fallback: 20px;
+	--shape-search-results: 36px;
+	--shape-search-results-fallback: 22px;
 	/* Icon corner geometry — the one shape role that is a FRACTION of the
 	   icon size, because icons come in three sizes (64/76/92) and every
 	   corner tier has to move them together.
@@ -134,8 +134,8 @@ html.dark body {
 	--shape-thumb: 8px;
 	--shape-thumb-fallback: 5px;
 	--shape-search-collapsed: 12px;
-	--shape-search-results: 18px;
-	--shape-search-results-fallback: 11px;
+	--shape-search-results: 20px;
+	--shape-search-results-fallback: 12px;
 	/* Icons stay rounder than furniture, but they follow the tier: a
 	   discreet icon is closer to a rounded square, a rounded one reads as a
 	   true squircle. */
@@ -164,8 +164,8 @@ html.dark body {
 	/* The field is a capsule at this tier; the list keeps its own
 	   larger squircle geometry, independently of the field height. */
 	--shape-search-collapsed: 28px;
-	--shape-search-results: 42px;
-	--shape-search-results-fallback: 26px;
+	--shape-search-results: 46px;
+	--shape-search-results-fallback: 28px;
 	/* The expressive end: icons become the roundest silhouette in the app,
 	   close to a home-screen icon. */
 	--icon-radius-ratio: 0.38;
