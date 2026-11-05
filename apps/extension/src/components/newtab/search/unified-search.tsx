@@ -28,6 +28,7 @@ import { useSetupStore } from "../../../stores/setup-store";
 import { SvgIcon } from "../../shared/svg-icon";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "../toolbar/glass-surface";
+import { searchAccess } from "./search-access";
 import {
 	createDestinationIndex,
 	type SiteDestination,
@@ -79,6 +80,7 @@ export const UnifiedSearch = forwardRef<
 >(function UnifiedSearch({ onNavigateFolder }, ref) {
 	const { isLiquid } = useAppearance();
 	const search = useSetupStore((s) => s.settings.search);
+	const { available } = searchAccess(search);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
 	const quickLinks = useSetupStore((s) => s.settings.quickLinks.items);
 	const cards = useSetupStore((s) => s.cards);
@@ -132,7 +134,9 @@ export const UnifiedSearch = forwardRef<
 	const placeholder =
 		search.placeholder.trim() || "Search saved pages or the web";
 	const { svgXml, isLoading } = useSvgIcon(
-		search.iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[search.engine] : null,
+		available && search.iconMode === "engine"
+			? SEARCH_ENGINE_TO_SVGL[search.engine]
+			: null,
 	);
 	const index = useMemo(
 		() => createSearchIndex(cards, folders),
@@ -192,10 +196,16 @@ export const UnifiedSearch = forwardRef<
 		/Mac|iPhone|iPad/.test(navigator.platform);
 	const ink = isLiquid ? glassForeground() : "text-foreground";
 
-	useSearchPosition(present, search.width, anchorRef, overlayRef);
+	useSearchPosition(
+		present,
+		search.width,
+		anchorRef,
+		overlayRef,
+		search.enabled,
+	);
 
 	const openSearch = useCallback(() => {
-		if (!search.enabled) return;
+		if (!available) return;
 		if (!open)
 			returnFocusRef.current =
 				document.activeElement instanceof HTMLElement &&
@@ -205,17 +215,17 @@ export const UnifiedSearch = forwardRef<
 		cancelFocusReturn();
 		show();
 		inputRef.current?.focus({ preventScroll: true });
-	}, [open, search.enabled, show, cancelFocusReturn]);
+	}, [open, available, show, cancelFocusReturn]);
 	useLayoutEffect(() => {
 		if (open) inputRef.current?.focus({ preventScroll: true });
 	}, [open]);
 
 	const close = useCallback(
-		(restoreFocus = false) => {
+		(restoreFocus = false, immediate = false) => {
 			cancelFocusReturn();
 			restoreFocusRef.current = restoreFocus;
 			inputRef.current?.blur();
-			hide();
+			hide(immediate);
 		},
 		[hide, cancelFocusReturn],
 	);
@@ -261,14 +271,19 @@ export const UnifiedSearch = forwardRef<
 					return;
 				if (trigger?.isConnected && trigger.getClientRects().length)
 					trigger.focus({ preventScroll: true });
-				else launcherRef.current?.focus({ preventScroll: true });
+				else if (search.enabled)
+					launcherRef.current?.focus({ preventScroll: true });
+				else
+					document
+						.querySelector<HTMLButtonElement>("[data-compact-search-control]")
+						?.focus({ preventScroll: true });
 			});
 		}
-	}, [present]);
+	}, [present, search.enabled]);
 
 	useEffect(() => {
-		if (!search.enabled) close();
-	}, [search.enabled, close]);
+		if (!available) close(false, true);
+	}, [available, close]);
 	useEffect(() => {
 		if (!present) return;
 		const outside = (event: PointerEvent) => {
@@ -289,7 +304,7 @@ export const UnifiedSearch = forwardRef<
 		};
 	}, [present, close]);
 	useEffect(() => {
-		if (!open) return;
+		if (!open || !available) return;
 		let cancelled = false;
 		// Reuse the icon catalogue's cache. No query is sent to this service.
 		void fetchAllSvgs()
@@ -300,9 +315,9 @@ export const UnifiedSearch = forwardRef<
 		return () => {
 			cancelled = true;
 		};
-	}, [open]);
+	}, [open, available]);
 	useEffect(() => {
-		if (!open) return;
+		if (!open || !available) return;
 		setResponse(null);
 		if (query.trim().length < 2 || (scope !== "all" && scope !== "web")) return;
 		const controller = new AbortController();
@@ -318,7 +333,7 @@ export const UnifiedSearch = forwardRef<
 			controller.abort();
 			window.clearTimeout(timer);
 		};
-	}, [engine, open, query, scope]);
+	}, [engine, open, query, scope, available]);
 
 	const navigate = useCallback(
 		(url: string) => {
@@ -396,7 +411,7 @@ export const UnifiedSearch = forwardRef<
 			list.scrollTop += rect.bottom - viewport.bottom;
 	}, [open, activeIndex, items]);
 
-	if (!search.enabled) return null;
+	if (!available) return null;
 	const engineIcon =
 		search.iconMode === "engine" && logoFailedFor !== search.engine;
 	const icon =
@@ -460,6 +475,7 @@ export const UnifiedSearch = forwardRef<
 	return (
 		<div
 			ref={anchorRef}
+			hidden={!search.enabled}
 			data-unified-search
 			data-search-open={open ? "true" : "false"}
 			className="klice-search-anchor"
@@ -488,7 +504,7 @@ export const UnifiedSearch = forwardRef<
 					<span className="min-w-0 flex-1 truncate text-left opacity-65">
 						{placeholder}
 					</span>
-					<kbd>{isMac ? "⌘ K" : "Ctrl K"}</kbd>
+					{search.quickAccessEnabled && <kbd>{isMac ? "⌘ K" : "Ctrl K"}</kbd>}
 				</button>
 			</GlassSurface>
 			{present &&

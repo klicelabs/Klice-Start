@@ -1741,7 +1741,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	align-items: flex-start;
 	justify-content: center;
 }
-.speed-dial-search-anchor:not(:has(> [data-unified-search])) {
+.speed-dial-search-anchor:not(:has(> [data-unified-search]:not([hidden]))) {
 	display: none;
 }
 .speed-dial-search-anchor > [data-unified-search] {

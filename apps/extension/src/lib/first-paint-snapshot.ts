@@ -11,11 +11,11 @@ import type { Setup } from "../types";
  *
  * Flag enumeration (verified in code; boot-deterministic or non-gating
  * state is deliberately excluded — see the report):
- *   INCLUDED (9): settings.clock.enabled, settings.clock.dateEnabled,
+ *   INCLUDED (10): settings.clock.enabled, settings.clock.dateEnabled,
  *     settings.clock.showSeconds, settings.clock.format24,
  *     settings.greeting.enabled, settings.greeting.name,
  *     settings.quickLinks.enabled, settings.dialLayout,
- *     settings.search.enabled.
+ *     settings.search.enabled, settings.search.quickAccessEnabled.
  *   EXCLUDED: restMode (local useState, always false at boot), settings
  *     panel phase (motion store, always "closed"), activeFolderId (needs
  *     card data to be meaningful — known gap), background.* (wallpaper
@@ -39,9 +39,10 @@ export interface FirstPaintSnapshot {
 	quickLinksVisible: boolean;
 	displayMode: "card" | "icon";
 	searchBarVisible: boolean;
+	searchQuickAccessEnabled: boolean;
 }
 
-/** Derive the mirror value from live state. Flat — one level, nine fields. */
+/** Derive the mirror value from live state. Flat — one level, ten fields. */
 export function snapshotFromSetup(state: Setup): FirstPaintSnapshot {
 	const settings = state.settings;
 	return {
@@ -54,6 +55,7 @@ export function snapshotFromSetup(state: Setup): FirstPaintSnapshot {
 		quickLinksVisible: settings.quickLinks.enabled,
 		displayMode: settings.dialLayout,
 		searchBarVisible: settings.search.enabled,
+		searchQuickAccessEnabled: settings.search.quickAccessEnabled !== false,
 	};
 }
 
@@ -96,6 +98,8 @@ export function parseFirstPaintSnapshot(
 		out.displayMode = v.displayMode;
 	if (typeof v.searchBarVisible === "boolean")
 		out.searchBarVisible = v.searchBarVisible;
+	if (typeof v.searchQuickAccessEnabled === "boolean")
+		out.searchQuickAccessEnabled = v.searchQuickAccessEnabled;
 	return out;
 }
 
@@ -154,6 +158,8 @@ export function snapshotPatch(
 			search: {
 				...search,
 				enabled: snap.searchBarVisible ?? search.enabled,
+				quickAccessEnabled:
+					snap.searchQuickAccessEnabled ?? search.quickAccessEnabled,
 			},
 		},
 	};

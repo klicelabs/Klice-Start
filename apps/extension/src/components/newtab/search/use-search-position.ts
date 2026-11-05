@@ -6,7 +6,7 @@ export function searchPlacement({
 	viewport,
 	preferredWidth,
 }: {
-	anchor: { left: number; top: number; width: number };
+	anchor: { left: number; top: number; width: number } | null;
 	frame: { left: number; top: number; width: number };
 	viewport: { left: number; top: number; width: number; height: number };
 	preferredWidth: number;
@@ -18,9 +18,10 @@ export function searchPlacement({
 		frame.left + frame.width - gutter,
 	);
 	const width = Math.max(0, Math.min(preferredWidth, rightEdge - leftEdge));
+	const origin = anchor ?? { left: frame.left, top: 0, width: frame.width };
 	const left = Math.max(
 		leftEdge,
-		Math.min(anchor.left + (anchor.width - width) / 2, rightEdge - width),
+		Math.min(origin.left + (origin.width - width) / 2, rightEdge - width),
 	);
 	const bottom = viewport.top + viewport.height;
 	const toolbarTop = Math.max(viewport.top + 12, frame.top + 68);
@@ -30,13 +31,13 @@ export function searchPlacement({
 	const minimumResults = Math.min(296, Math.max(0, bottom - safeTop - 78));
 	const top = Math.max(
 		safeTop,
-		Math.min(anchor.top, bottom - 78 - minimumResults),
+		Math.min(anchor?.top ?? safeTop, bottom - 78 - minimumResults),
 	);
 	return {
 		left,
 		top,
 		width,
-		floating: Math.abs(top - anchor.top) > 1,
+		floating: !anchor || Math.abs(top - anchor.top) > 1,
 		resultsHeight: Math.max(0, Math.min(432, bottom - top - 78)),
 	};
 }
@@ -46,6 +47,7 @@ export function useSearchPosition(
 	preferredWidth: number,
 	anchorRef: RefObject<HTMLDivElement | null>,
 	overlayRef: RefObject<HTMLElement | null>,
+	showBar = true,
 ) {
 	useLayoutEffect(() => {
 		if (!open) return;
@@ -58,7 +60,7 @@ export function useSearchPosition(
 			raf = 0;
 			const visual = window.visualViewport;
 			const position = searchPlacement({
-				anchor: anchor.getBoundingClientRect(),
+				anchor: showBar ? anchor.getBoundingClientRect() : null,
 				frame: frame.getBoundingClientRect(),
 				preferredWidth,
 				viewport: {
@@ -101,5 +103,5 @@ export function useSearchPosition(
 			window.visualViewport?.removeEventListener("scroll", schedule);
 			if (raf) cancelAnimationFrame(raf);
 		};
-	}, [open, preferredWidth, anchorRef, overlayRef]);
+	}, [open, preferredWidth, anchorRef, overlayRef, showBar]);
 }

@@ -41,7 +41,7 @@ function setup(overrides: Record<string, unknown> = {}) {
 	} as never;
 }
 
-test("writer stores exactly the nine display flags", () => {
+test("writer stores exactly the ten display flags", () => {
 	mem.clear();
 	writeFirstPaintSnapshot(setup());
 	expect(JSON.parse(mem.get(FIRST_PAINT_SNAPSHOT_KEY) as string)).toEqual({
@@ -54,6 +54,7 @@ test("writer stores exactly the nine display flags", () => {
 		quickLinksVisible: true,
 		displayMode: "card",
 		searchBarVisible: true,
+		searchQuickAccessEnabled: true,
 	});
 });
 
@@ -61,7 +62,12 @@ test("full snapshot round-trips and patches onto live state", () => {
 	mem.clear();
 	writeFirstPaintSnapshot(
 		setup({
-			clock: { enabled: false, dateEnabled: false, format24: false, showSeconds: true },
+			clock: {
+				enabled: false,
+				dateEnabled: false,
+				format24: false,
+				showSeconds: true,
+			},
 			greeting: { enabled: false, name: "Bo" },
 			quickLinks: { enabled: false, items: [] },
 			dialLayout: "icon",
@@ -79,6 +85,7 @@ test("full snapshot round-trips and patches onto live state", () => {
 		quickLinksVisible: false,
 		displayMode: "icon",
 		searchBarVisible: false,
+		searchQuickAccessEnabled: true,
 	});
 	const live = setup();
 	const patched = snapshotPatch(live, snap!) as unknown as {
@@ -140,5 +147,6 @@ test("partial snapshot keeps valid fields, live state covers the rest", () => {
 		quickLinksVisible: true,
 		displayMode: "card",
 		searchBarVisible: true,
+		searchQuickAccessEnabled: true,
 	});
 });

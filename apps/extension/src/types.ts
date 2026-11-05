@@ -83,7 +83,10 @@ export interface GreetingSettings {
 }
 
 export interface SearchSettings {
+	/** Show the search field on Home; quick access is independent. */
 	enabled: boolean;
+	/** Allow Search from the toolbar and Ctrl/Cmd+K. */
+	quickAccessEnabled: boolean;
 	engine: string;
 	/**
 	 * Placeholder text. When empty, the UI shows a dynamic default that names

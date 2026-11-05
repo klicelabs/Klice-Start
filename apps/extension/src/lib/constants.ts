@@ -263,6 +263,7 @@ export const SEARCH_ENGINES: SearchEngineDef[] = [
 
 export const DEFAULT_SEARCH: SearchSettings = {
 	enabled: true,
+	quickAccessEnabled: true,
 	engine: "google",
 	placeholder: "",
 	iconMode: "engine",

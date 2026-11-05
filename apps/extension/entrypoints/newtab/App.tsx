@@ -25,6 +25,10 @@ import { QuickLinks } from "../../src/components/newtab/quick-links";
 import { RefreshProgressToast } from "../../src/components/newtab/refresh-progress-toast";
 import { RestMode } from "../../src/components/newtab/rest-mode";
 import {
+	bindSearchShortcut,
+	searchAccess,
+} from "../../src/components/newtab/search/search-access";
+import {
 	UnifiedSearch,
 	type UnifiedSearchHandle,
 } from "../../src/components/newtab/search/unified-search";
@@ -49,10 +53,7 @@ import {
 	getChildren,
 	wouldCreateCycle,
 } from "../../src/lib/folder-tree";
-import {
-	type HistorySummary,
-	isHistoryEditableTarget,
-} from "../../src/lib/history";
+import type { HistorySummary } from "../../src/lib/history";
 import {
 	buildHistoryEntry,
 	clearGestureCapture,
@@ -359,6 +360,9 @@ export default function App() {
 	);
 	const itemOrder = useSetupStore((s) => s.itemOrder ?? {});
 	const searchEnabled = useSetupStore((s) => s.settings.search.enabled);
+	const searchQuickAccessEnabled = useSetupStore(
+		(s) => s.settings.search.quickAccessEnabled,
+	);
 	const appearanceMode = useSetupStore((s) => s.settings.appearanceMode);
 
 	const beginRename = useRenameStore((s) => s.begin);
@@ -623,6 +627,10 @@ export default function App() {
 	const [restMode, setRestMode] = useState(false);
 	const [wakeActive, setWakeActive] = useState(true);
 	const [compactSearch, setCompactSearch] = useState(false);
+	const searchControls = searchAccess(
+		{ enabled: searchEnabled, quickAccessEnabled: searchQuickAccessEnabled },
+		compactSearch,
+	);
 
 	const triggerWake = useCallback(() => {
 		setWakeActive(true);
@@ -1031,16 +1039,12 @@ export default function App() {
 	// M15: skipped while typing in an editable field (rename, search input,
 	// contenteditable) — the shortcut used to steal focus mid-typing.
 	useEffect(() => {
-		function handleKey(e: KeyboardEvent) {
-			if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-				if (isHistoryEditableTarget(e.target)) return;
-				e.preventDefault();
-				handleOpenSearch();
-			}
-		}
-		document.addEventListener("keydown", handleKey);
-		return () => document.removeEventListener("keydown", handleKey);
-	}, [handleOpenSearch]);
+		return bindSearchShortcut(
+			document,
+			searchControls.shortcutEnabled,
+			handleOpenSearch,
+		);
+	}, [handleOpenSearch, searchControls.shortcutEnabled]);
 
 	// Native scrolling owns all hero movement. React only observes the one
 	// discrete boundary that changes the compact Search affordance.
@@ -1077,7 +1081,7 @@ export default function App() {
 			const searchRect = searchAnchor?.getBoundingClientRect();
 			const toolbarBottom = toolbarElement.getBoundingClientRect().bottom;
 			const nextCompactSearch = Boolean(
-				searchRect && searchRect.bottom <= toolbarBottom,
+				searchEnabled && searchRect && searchRect.bottom <= toolbarBottom,
 			);
 
 			if (compactSearchRef.current !== nextCompactSearch) {
@@ -1099,7 +1103,7 @@ export default function App() {
 			window.removeEventListener("resize", onScroll);
 			if (frame !== 0) cancelAnimationFrame(frame);
 		};
-	}, [restMode]);
+	}, [restMode, searchEnabled]);
 
 	// Select every bookmark and subfolder in the current view. Keep native
 	// select-all available inside editable and settings-owned surfaces.
@@ -1172,7 +1176,9 @@ export default function App() {
 									wakeActive && "klice-wake",
 								)}
 								data-rest-mode={restMode ? "true" : undefined}
-								data-compact-search={compactSearch ? "true" : "false"}
+								data-compact-search={
+									searchControls.showToolbar ? "true" : "false"
+								}
 								data-active-folder-id={activeFolderId}
 								data-folder-depth={breadcrumb.length}
 								data-speed-dial-frame="true"
@@ -1212,7 +1218,7 @@ export default function App() {
 											<SettingsMotionToolbarActions
 												onSettings={handleToggleSettings}
 												onSearch={handleToggleSearch}
-												compactSearch={searchEnabled && compactSearch}
+												compactSearch={searchControls.showToolbar}
 											/>
 										</div>
 									</div>

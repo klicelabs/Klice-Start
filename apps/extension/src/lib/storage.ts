@@ -300,6 +300,10 @@ function normalizeSettings(
 		},
 		search: {
 			enabled: normalizeBoolean(search.enabled, DEFAULT_SEARCH.enabled),
+			quickAccessEnabled: normalizeBoolean(
+				search.quickAccessEnabled,
+				DEFAULT_SEARCH.quickAccessEnabled,
+			),
 			engine: normalizeString(search.engine, DEFAULT_SEARCH.engine),
 			placeholder: normalizeString(
 				search.placeholder,

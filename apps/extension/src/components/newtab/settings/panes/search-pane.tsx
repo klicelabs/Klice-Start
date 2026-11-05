@@ -7,6 +7,7 @@ import { SEARCH_ENGINE_TO_SVGL } from "../../../../lib/svgl-mapping";
 import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
 import { SvgIcon } from "../../../shared/svg-icon";
+import { searchAccess } from "../../search/search-access";
 import { SectionCard } from "../shared/section-card";
 import { SelectRow } from "../shared/select-row";
 import { SettingRow } from "../shared/setting-row";
@@ -52,13 +53,11 @@ const ICON_MODE_OPTIONS = [
 	{ value: "engine", label: "Engine logo" },
 ] as const;
 
-/**
- * Search owns one thing: the search bar. The bar switch gates everything else,
- * so the page shows a single decision until the user opts in.
- */
+/** Home visibility and toolbar/keyboard access are independent choices. */
 export function SearchPane() {
 	const search = useSetupStore((s) => s.settings.search);
 	const updateSearch = useSetupStore((s) => s.updateSearch);
+	const { available } = searchAccess(search);
 
 	const engineOptions = useMemo(
 		() =>
@@ -73,7 +72,11 @@ export function SearchPane() {
 	return (
 		<div className={SETTINGS_PAGE}>
 			<SectionCard>
-				<SettingRow label="Search bar" icon="search">
+				<SettingRow
+					label="Search bar"
+					icon="search"
+					tooltip="Show the search field on Home."
+				>
 					<Switch
 						className={SETTINGS_SWITCH}
 						aria-label="Show search bar"
@@ -83,9 +86,23 @@ export function SearchPane() {
 						}
 					/>
 				</SettingRow>
+				<SettingRow
+					label="Toolbar & shortcut"
+					icon="search"
+					tooltip="Keep Search beside Settings when the bar is hidden or scrolled away. Open it with Ctrl+K or ⌘K. Turn off both options to disable Search completely."
+				>
+					<Switch
+						className={SETTINGS_SWITCH}
+						aria-label="Enable search toolbar and keyboard shortcut"
+						checked={search.quickAccessEnabled}
+						onCheckedChange={(checked: boolean) =>
+							updateSearch({ quickAccessEnabled: checked })
+						}
+					/>
+				</SettingRow>
 			</SectionCard>
 
-			<SettingsExpandable expanded={search.enabled} label="Search options">
+			<SettingsExpandable expanded={available} label="Search options">
 				<SectionCard>
 					<SelectRow
 						label="Search engine"

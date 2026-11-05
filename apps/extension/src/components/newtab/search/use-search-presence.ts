@@ -45,7 +45,8 @@ export function useSearchPresence() {
 	}, [phase, reduceMotion]);
 	const show = useCallback(() => dispatch({ type: "open" }), []);
 	const hide = useCallback(
-		() => dispatch({ type: "close", immediate: reduceMotion }),
+		(immediate = false) =>
+			dispatch({ type: "close", immediate: immediate || reduceMotion }),
 		[reduceMotion],
 	);
 	return {
