@@ -416,7 +416,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	white-space: normal;
 }
 
-:root.light[data-klice-material="flat"] .icon-label {
+:root.light[data-klice-material="flat"] .icon-glass-tile .icon-label {
 	color: #000;
 	-webkit-text-fill-color: #000;
 	-webkit-text-stroke: 0;

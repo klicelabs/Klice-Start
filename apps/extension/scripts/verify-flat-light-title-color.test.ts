@@ -8,8 +8,9 @@ const tokens = readFileSync(
 );
 const stylesheet = postcss.parse(tokens);
 
-test("icon titles are black only in Flat + Light", () => {
-	const selector = ':root.light[data-klice-material="flat"] .icon-label';
+test("icon surface titles are black only with Flat + Light active", () => {
+	const selector =
+		':root.light[data-klice-material="flat"] .icon-glass-tile .icon-label';
 	const rule = stylesheet.nodes.find(
 		(node): node is Rule => node.type === "rule" && node.selector === selector,
 	);
