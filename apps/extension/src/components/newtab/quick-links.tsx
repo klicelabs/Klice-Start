@@ -28,7 +28,6 @@ export function QuickLinks() {
 	const updateQuickLink = useSetupStore((state) => state.updateQuickLink);
 	const removeQuickLink = useSetupStore((state) => state.removeQuickLink);
 	const addQuickLink = useSetupStore((state) => state.addQuickLink);
-	const moveQuickLink = useSetupStore((state) => state.moveQuickLink);
 	const [editor, setEditor] = useState<{ link: QuickLink | null } | null>(null);
 	const reorder = useQuickLinkReorder("horizontal");
 
@@ -50,7 +49,7 @@ export function QuickLinks() {
 				data-quick-links="true"
 			>
 				<div className="scrollbar-hidden flex max-w-full gap-2 overflow-x-auto px-1 py-1.5 sm:gap-2.5">
-					{quickLinks.items.map((link, index) => (
+					{quickLinks.items.map((link) => (
 						<ContextMenu key={link.id}>
 							<ContextMenuTrigger>
 								<a
@@ -105,32 +104,15 @@ export function QuickLinks() {
 									<Icon name="pencil" size={14} />
 									Edit link
 								</ContextMenuItem>
-								{index > 0 && (
-									<ContextMenuItem
-										className={glassDropdownItem(isLiquid, resolvedDark, {
-											pillOwned: true,
-										})}
-										onSelect={() => {
-											const target = quickLinks.items[index - 1];
-											if (target) moveQuickLink(link.id, target.id, "before");
-										}}
-									>
-										<Icon name="chevron-left" size={14} /> Move left
-									</ContextMenuItem>
-								)}
-								{index < quickLinks.items.length - 1 && (
-									<ContextMenuItem
-										className={glassDropdownItem(isLiquid, resolvedDark, {
-											pillOwned: true,
-										})}
-										onSelect={() => {
-											const target = quickLinks.items[index + 1];
-											if (target) moveQuickLink(link.id, target.id, "after");
-										}}
-									>
-										<Icon name="chevron-right" size={14} /> Move right
-									</ContextMenuItem>
-								)}
+								<ContextMenuItem
+									className={glassDropdownItem(isLiquid, resolvedDark, {
+										pillOwned: true,
+									})}
+									onSelect={() => setEditor({ link: null })}
+								>
+									<Icon name="plus" size={14} />
+									Add Quick Link
+								</ContextMenuItem>
 								<ContextMenuSeparator />
 								<ContextMenuItem
 									className={glassDropdownItem(isLiquid, resolvedDark, {
@@ -145,24 +127,6 @@ export function QuickLinks() {
 							</ContextMenuContent>
 						</ContextMenu>
 					))}
-					<button
-						type="button"
-						aria-label="Add Quick Link"
-						title="Add Quick Link"
-						className={cn(
-							"quick-link-icon",
-							ICON_MODE_SURFACE_CLASS,
-							glassFocusRing(isLiquid),
-						)}
-						onClick={() => setEditor({ link: null })}
-					>
-						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center">
-							<span className="icon-app-tile squircle flex size-[var(--icon-size)] items-center justify-center text-slate-600">
-								<Icon name="plus" size={22} aria-hidden="true" />
-							</span>
-							<span className="icon-label">Add link</span>
-						</div>
-					</button>
 				</div>
 				<span className="sr-only" aria-live="polite">
 					{reorder.announcement}
