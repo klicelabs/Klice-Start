@@ -578,6 +578,19 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transition: transform 200ms var(--ease-out);
 }
 
+/* Keep repeated surfaces cheap while they are outside the viewport, and
+   during the Settings shell's width animation. In a dense folder the grid
+   reflows throughout that transition; retaining dozens of live backdrop
+   filters can stall Chromium's compositor and leave stale rectangular tiles.
+   The tint, border and shape stay visible while the live blur is paused. */
+.icon-glass-tile[data-glass-backdrop="idle"],
+.settings-workspace[data-settings-motion-active="true"]
+	.dial-grid[data-layout="icon"]
+	.icon-glass-tile {
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+}
+
 /* The glass pane already separates the launcher from the wallpaper. Keep
    its icon face clean so its own inset rim does not read as a second frame. */
 .icon-glass-tile .icon-app-tile {

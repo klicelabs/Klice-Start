@@ -4,11 +4,16 @@ import type {
 	SettingsSidebarProps,
 } from "../components/newtab/settings";
 
-export type SettingsMotionPhase = "closed" | "open" | "closing";
+export type SettingsMotionPhase = "closed" | "opening" | "open" | "closing";
 
 /** The Home frame and its Settings-space reservation transition together. */
 export function isSettingsLayoutOpen(phase: SettingsMotionPhase): boolean {
-	return phase === "open";
+	return phase === "opening" || phase === "open";
+}
+
+/** Pause expensive repeated backdrops only while the shell is moving. */
+export function isSettingsMotionActive(phase: SettingsMotionPhase): boolean {
+	return phase === "opening" || phase === "closing";
 }
 
 type SettingsMotionState = {
@@ -20,6 +25,7 @@ type SettingsMotionState = {
 		action?: SettingsSidebarProps["initialAction"],
 	) => void;
 	close: () => void;
+	finishOpen: () => void;
 	finishClose: () => void;
 };
 
@@ -33,12 +39,21 @@ export const useSettingsMotionStore = create<SettingsMotionState>((set) => ({
 	phase: "closed",
 	pane: undefined,
 	action: undefined,
-	open: (pane, action) => set({ phase: "open", pane, action }),
+	open: (pane, action) =>
+		set((state) => ({
+			phase: state.phase === "open" ? "open" : "opening",
+			pane,
+			action,
+		})),
 	close: () =>
 		set((state) =>
 			state.phase === "closed"
 				? state
 				: { ...state, phase: "closing", action: undefined },
+		),
+	finishOpen: () =>
+		set((state) =>
+			state.phase === "opening" ? { ...state, phase: "open" } : state,
 		),
 	finishClose: () =>
 		set((state) =>

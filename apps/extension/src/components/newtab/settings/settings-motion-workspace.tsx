@@ -1,7 +1,14 @@
 import { SidebarProvider } from "@klice-start/ui/components/sidebar";
-import type { ComponentProps, CSSProperties, ReactNode } from "react";
+import {
+	type ComponentProps,
+	type CSSProperties,
+	type ReactNode,
+	useCallback,
+	useEffect,
+} from "react";
 import {
 	isSettingsLayoutOpen,
+	isSettingsMotionActive,
 	settingsMotionStore,
 	useSettingsMotionStore,
 } from "../../../stores/settings-motion-store";
@@ -31,6 +38,9 @@ export function SettingsMotionWorkspace({
 			}
 			className="settings-workspace relative h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]"
 			data-settings-layout-open={layoutOpen ? "true" : "false"}
+			data-settings-motion-active={
+				isSettingsMotionActive(phase) ? "true" : "false"
+			}
 		>
 			{children}
 		</SidebarProvider>
@@ -56,6 +66,15 @@ export function SettingsMotionSidebar() {
 	const phase = useSettingsMotionStore((state) => state.phase);
 	const pane = useSettingsMotionStore((state) => state.pane);
 	const action = useSettingsMotionStore((state) => state.action);
+	const finishOpen = useCallback(
+		() => settingsMotionStore.getState().finishOpen(),
+		[],
+	);
+	useEffect(() => {
+		if (phase !== "opening") return;
+		const timeout = window.setTimeout(finishOpen, 400);
+		return () => window.clearTimeout(timeout);
+	}, [finishOpen, phase]);
 
 	// P2 (perf/p2-unmount-overlays): unmount the whole settings subtree
 	// while closed. Re-mounts (chunk already cached) on every open —
@@ -66,8 +85,9 @@ export function SettingsMotionSidebar() {
 
 	return (
 		<SettingsSidebar
-			open={phase === "open"}
+			open={isSettingsLayoutOpen(phase)}
 			layoutOpen={layoutOpen}
+			onOpenComplete={finishOpen}
 			onClose={() => settingsMotionStore.getState().close()}
 			onCloseComplete={() => settingsMotionStore.getState().finishClose()}
 			initialPane={pane}

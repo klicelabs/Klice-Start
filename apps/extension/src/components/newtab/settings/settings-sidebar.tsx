@@ -140,6 +140,7 @@ function SettingsChromeButton({
 export function SettingsSidebar({
 	open,
 	onClose,
+	onOpenComplete,
 	layoutOpen = open,
 	onCloseComplete,
 	initialPane,
@@ -218,12 +219,13 @@ export function SettingsSidebar({
 				focusAfterEnterRef.current = false;
 				closeControlRef.current?.focus({ preventScroll: true });
 			}
+			onOpenComplete?.();
 			return;
 		}
 		if (open || !reduceMotion) return;
 		slotRef.current?.setAttribute("inert", "");
 		onCloseComplete?.();
-	}, [onCloseComplete, open, reduceMotion]);
+	}, [onCloseComplete, onOpenComplete, open, reduceMotion]);
 
 	const activePane: SettingsPaneId =
 		navigation.entries[navigation.index] ?? initialPane ?? "general";
@@ -318,6 +320,7 @@ export function SettingsSidebar({
 								focusAfterEnterRef.current = false;
 								closeControlRef.current?.focus({ preventScroll: true });
 							}
+							onOpenComplete?.();
 							return;
 						}
 						slotRef.current?.setAttribute("inert", "");

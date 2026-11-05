@@ -1,7 +1,12 @@
 import { LiquidGlass } from "@klice-start/ui/components/liquid-glass";
 import { glassVariantStyles } from "@klice-start/ui/lib/glass-variants";
 import { flatSurface } from "@klice-start/ui/lib/surface";
-import type { CSSProperties, HTMLAttributes } from "react";
+import {
+	type CSSProperties,
+	type HTMLAttributes,
+	useEffect,
+	useRef,
+} from "react";
 import {
 	type GlassShape,
 	type GlassTier,
@@ -11,6 +16,7 @@ import {
 	glassTierVariant,
 } from "../../../lib/glass";
 import { cn } from "../../../lib/utils";
+import { observeBackdropVisibility } from "../../../lib/visible-backdrops";
 import { useAppearance, useGlassAppearance } from "../appearance-provider";
 
 type GlassSurfaceProps = HTMLAttributes<HTMLDivElement> & {
@@ -97,6 +103,22 @@ export function GlassSurface({
 	);
 
 	if (isLiquid) {
+		if (variant === "tile")
+			return (
+				<ViewportGlassTile
+					{...props}
+					data-glass-role={variant}
+					data-glass-tone={resolvedDark ? "dark" : "light"}
+					className={cn(
+						"relative overflow-hidden text-[var(--klice-glass-foreground-primary)]",
+						surfaceClassName,
+						glassVariantStyles[glassVariant],
+					)}
+					style={style}
+				>
+					{children}
+				</ViewportGlassTile>
+			);
 		const refract = glassVariant === "liquid-refract";
 		const optics = glassLiquidProps(
 			glassParams,
@@ -139,6 +161,29 @@ export function GlassSurface({
 			)}
 			style={style}
 		>
+			{children}
+		</div>
+	);
+}
+
+/** Repeated tiles use the CSS material's own border/highlight, not another
+ * masked LiquidGlass rim. Keep all item DOM for DnD/layout, but only allocate
+ * live backdrop passes near the viewport (including one row of overscan). */
+function ViewportGlassTile({
+	children,
+	style,
+	...props
+}: HTMLAttributes<HTMLDivElement>) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const element = ref.current;
+		if (!element) return;
+		return observeBackdropVisibility(element, (visible) => {
+			element.dataset.glassBackdrop = visible ? "active" : "idle";
+		});
+	}, []);
+	return (
+		<div {...props} ref={ref} data-glass-backdrop="idle" style={style}>
 			{children}
 		</div>
 	);

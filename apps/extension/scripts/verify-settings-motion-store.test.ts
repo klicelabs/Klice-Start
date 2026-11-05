@@ -1,5 +1,6 @@
 import {
 	isSettingsLayoutOpen,
+	isSettingsMotionActive,
 	settingsMotionStore,
 } from "../src/stores/settings-motion-store";
 
@@ -18,9 +19,10 @@ test("stale close completion cannot dismiss a reopened sidebar", () => {
 	store.open("appearance");
 	store.finishClose();
 	expect(settingsMotionStore.getState()).toMatchObject({
-		phase: "open",
+		phase: "opening",
 		pane: "appearance",
 	});
+	store.finishOpen();
 	store.close();
 	store.finishClose();
 	expect(settingsMotionStore.getState()).toMatchObject({
@@ -32,19 +34,31 @@ test("uses one reversible phase path for open and close", () => {
 	const store = settingsMotionStore.getState();
 	store.open("appearance");
 	expect(settingsMotionStore.getState()).toMatchObject({
-		phase: "open",
+		phase: "opening",
 		pane: "appearance",
 	});
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(true);
+	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
+		true,
+	);
+	store.finishOpen();
+	expect(settingsMotionStore.getState().phase).toBe("open");
+	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
+		false,
+	);
 
 	store.close();
 	expect(settingsMotionStore.getState()).toMatchObject({
 		phase: "closing",
 		action: undefined,
 	});
+	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
+		true,
+	);
 
 	store.open("bookmarks", { type: "add-link" });
 	expect(settingsMotionStore.getState()).toMatchObject({
-		phase: "open",
+		phase: "opening",
 		pane: "bookmarks",
 		action: { type: "add-link" },
 	});
@@ -53,6 +67,7 @@ test("uses one reversible phase path for open and close", () => {
 test("starts the Home return while keeping Settings mounted through its exit", () => {
 	settingsMotionStore.getState().open();
 	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(true);
+	settingsMotionStore.getState().finishOpen();
 
 	settingsMotionStore.getState().close();
 	expect(settingsMotionStore.getState().phase).toBe("closing");
