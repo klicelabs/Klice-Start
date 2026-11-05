@@ -6,13 +6,15 @@ import {
 } from "@klice-start/ui/components/sidebar";
 import type { IconName } from "@klice-start/ui/icons/icon";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import {
+	startTransition,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
+	useSyncExternalStore,
 } from "react";
 import {
 	glassForeground,
@@ -54,10 +56,25 @@ import {
 	SETTINGS_SIDEBAR_SHELL,
 } from "./shared/settings-tokens";
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function subscribeReducedMotion(onChange: () => void) {
+	const query = window.matchMedia(REDUCED_MOTION_QUERY);
+	query.addEventListener("change", onChange);
+	return () => query.removeEventListener("change", onChange);
+}
+
+function readReducedMotion() {
+	return window.matchMedia(REDUCED_MOTION_QUERY).matches;
+}
+
+function serverReducedMotion() {
+	return false;
+}
+
 /**
- * Settings lives in the app's shared layout, not in a portal. The layout slot
- * reserves space atomically while the already-mounted panel enters on its
- * compositor-friendly transform path.
+ * Settings slides over a stable Home. Only the panel is transformed; neither
+ * its mount nor its travel changes the grid or the wallpaper's geometry.
  */
 
 /**
@@ -141,7 +158,6 @@ export function SettingsSidebar({
 	open,
 	onClose,
 	onOpenComplete,
-	layoutOpen = open,
 	onCloseComplete,
 	initialPane,
 	initialAction,
@@ -150,7 +166,26 @@ export function SettingsSidebar({
 		createSettingsNavigation(initialPane),
 	);
 	const [paneDirection, setPaneDirection] = useState<1 | -1>(1);
-	const reduceMotion = useReducedMotion() ?? false;
+	// Motion 13's hook snapshots this preference at mount. A retained drawer
+	// must also react to changes, or CSS can stop motion while JS awaits its end.
+	const reduceMotion = useSyncExternalStore(
+		subscribeReducedMotion,
+		readReducedMotion,
+		serverReducedMotion,
+	);
+	// Paint the small shell first. The controls mount in a concurrent render,
+	// so a cold open does not put their entire React tree in the input commit.
+	const [contentReady, setContentReady] = useState(false);
+	useEffect(() => {
+		// Let the browser present the shell and start its native transition
+		// before mounting the controls, including their layout measurements.
+		let frame = requestAnimationFrame(() => {
+			frame = requestAnimationFrame(() => {
+				startTransition(() => setContentReady(true));
+			});
+		});
+		return () => cancelAnimationFrame(frame);
+	}, []);
 	const paneMotionContext: PageMotionContext = {
 		direction: paneDirection === 1 ? "forward" : "back",
 		kind: "settings",
@@ -161,7 +196,7 @@ export function SettingsSidebar({
 	const rootScrollTopRef = useRef(0);
 	const closeControlRef = useRef<HTMLButtonElement>(null);
 	const wasOpenRef = useRef(open);
-	const focusAfterEnterRef = useRef(false);
+	const focusAfterEnterRef = useRef(open);
 	const restoreFocusRef = useRef(false);
 
 	// Keep the subtree inert while it is offscreen. During motion, changing
@@ -209,11 +244,18 @@ export function SettingsSidebar({
 				Boolean(activeElement.closest("[data-settings-sidebar-slot]")));
 		restoreFocusRef.current = false;
 		if (!focusReturnedFromSidebar) return;
-		document.getElementById("settings-trigger")?.focus();
+		// Home's trigger subscribes separately and may still be inert in this
+		// passive effect. Restore only after that sibling has committed too.
+		const frame = requestAnimationFrame(() => {
+			document
+				.getElementById("settings-trigger")
+				?.focus({ preventScroll: true });
+		});
+		return () => cancelAnimationFrame(frame);
 	}, [open]);
 
-	useEffect(() => {
-		if (open && reduceMotion) {
+	const completeTransition = useCallback(() => {
+		if (open) {
 			slotRef.current?.removeAttribute("inert");
 			if (focusAfterEnterRef.current) {
 				focusAfterEnterRef.current = false;
@@ -222,10 +264,20 @@ export function SettingsSidebar({
 			onOpenComplete?.();
 			return;
 		}
-		if (open || !reduceMotion) return;
 		slotRef.current?.setAttribute("inert", "");
 		onCloseComplete?.();
-	}, [onCloseComplete, onOpenComplete, open, reduceMotion]);
+	}, [onCloseComplete, onOpenComplete, open]);
+
+	useEffect(() => {
+		if (reduceMotion) {
+			completeTransition();
+			return;
+		}
+		// Cancellation, a hidden page or an interrupted first frame can omit
+		// transitionend. Finish both presence and inert/focus at the same boundary.
+		const timeout = window.setTimeout(completeTransition, 400);
+		return () => window.clearTimeout(timeout);
+	}, [completeTransition, reduceMotion]);
 
 	const activePane: SettingsPaneId =
 		navigation.entries[navigation.index] ?? initialPane ?? "general";
@@ -273,8 +325,10 @@ export function SettingsSidebar({
 			event.preventDefault();
 			handleClose();
 		}
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
+		// After nested controls, before Home's window-level clear-selection
+		// handler. Idle preparation must not make ownership registration-order dependent.
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
 	}, [handleClose, open]);
 
 	useEffect(() => {
@@ -296,9 +350,8 @@ export function SettingsSidebar({
 	return (
 		<div
 			ref={slotRef}
-			className="flex h-full min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
+			className="flex min-h-0 min-w-0 shrink-0 justify-end overflow-hidden"
 			data-settings-open={open ? "true" : "false"}
-			data-settings-layout-open={layoutOpen ? "true" : "false"}
 			data-settings-sidebar-slot="true"
 			aria-hidden={!open}
 		>
@@ -314,20 +367,14 @@ export function SettingsSidebar({
 						event.target === event.currentTarget &&
 						event.propertyName === "transform"
 					) {
-						if (open) {
-							slotRef.current?.removeAttribute("inert");
-							if (focusAfterEnterRef.current) {
-								focusAfterEnterRef.current = false;
-								closeControlRef.current?.focus({ preventScroll: true });
-							}
-							onOpenComplete?.();
-							return;
-						}
-						slotRef.current?.setAttribute("inert", "");
-						onCloseComplete?.();
+						completeTransition();
 					}
 				}}
-				className={cn("h-full min-w-0 shrink-0", SETTINGS_SIDEBAR_SHELL)}
+				className={cn(
+					"h-full min-w-0 shrink-0",
+					glassShape("panel"),
+					SETTINGS_SIDEBAR_SHELL,
+				)}
 			>
 				<SidebarHeader className="p-0">
 					<header
@@ -392,7 +439,7 @@ export function SettingsSidebar({
 									mode="popLayout"
 									custom={paneMotionContext}
 								>
-									{showRoot ? (
+									{!contentReady ? null : showRoot ? (
 										<motion.div
 											key="settings-root"
 											initial="initial"

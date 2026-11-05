@@ -71,8 +71,6 @@ export interface SettingsSidebarProps {
 	open: boolean;
 	onClose: () => void;
 	onOpenComplete?: () => void;
-	/** Whether the Home frame currently reserves the Settings lane. */
-	layoutOpen?: boolean;
 	onCloseComplete?: () => void;
 	initialPane?: SettingsPaneId;
 	initialAction?: {

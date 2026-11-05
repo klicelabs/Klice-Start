@@ -139,7 +139,16 @@ test("tier tables keep the semantic ladder monotonic", () => {
 	}
 });
 
-test("the workspace frame consumes the panel token, not a private literal", () => {
-	expect(tokens).toContain("border-radius: var(--shape-panel, 28px);");
-	expect(tokens).toContain("border-radius: var(--shape-panel-fallback, 17px);");
+test("Settings owns the panel shape while Home keeps its full-size clip", () => {
+	const sidebar = readFileSync(
+		new URL(
+			"../src/components/newtab/settings/settings-sidebar.tsx",
+			import.meta.url,
+		),
+		"utf8",
+	);
+	expect(sidebar).toContain('glassShape("panel")');
+	const frame = tokens.match(/\[data-speed-dial-frame\]\s*\{([^}]+)\}/)?.[1];
+	expect(frame).toContain("border-radius: 0");
+	expect(frame).not.toContain("transition:");
 });

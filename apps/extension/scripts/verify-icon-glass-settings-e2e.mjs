@@ -1,222 +1,243 @@
 /**
- * Reproduces Settings opening over a dense Glass Icon surfaces grid.
- *
- * Run after `bun run build` with:
- *   node scripts/verify-icon-glass-settings-e2e.mjs
- *
- * The assertion checks the compositor-heavy tile filters while the Settings
- * shell is mounted. A screenshot and frame sample are saved under results/.
+ * Settings regression and timing probe against a clean production build.
+ * node scripts/verify-icon-glass-settings-e2e.mjs [count=300] [icon|card] [--cold] [--no-surface]
+ * No timing threshold: rAF measures main-thread availability, not GPU FPS.
+ * Fails on Home reflow, filter changes, broken controls, focus or reversal.
  */
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { launchExtension, openNewtab, waitForGrid } from "./bench-lib.mjs";
+import {
+	buildSeed,
+	launchExtension,
+	openNewtab,
+	waitForGrid,
+} from "./bench-lib.mjs";
 
-const COUNT = 113;
+const count = Number(process.argv[2] ?? 300);
+const layout = process.argv[3] ?? "icon";
+const cold = process.argv.includes("--cold");
+const surface = !process.argv.includes("--no-surface");
+const resultsDir = path.resolve("scripts/results/sidebar-motion");
+fs.mkdirSync(resultsDir, { recursive: true });
+const { context, extensionId } = await launchExtension();
+const reports = [];
 
-function buildSeed() {
-	const folderId = "design";
-	const cards = Array.from({ length: COUNT }, (_, index) => ({
-		id: `design-${index + 1}`,
-		folderId,
-		title: `Design app ${index + 1}`,
-		url: `https://example.com/design/${index + 1}`,
-		favicon: null,
-		thumbId: null,
-		order: index,
-		titleSource: null,
-		origin: "local",
-		capturedAt: null,
-	}));
-	return {
-		state: {
-			folders: [{ id: folderId, name: "Design", order: 0, parentId: null }],
-			cards,
-			activeFolderId: folderId,
-			itemOrder: {
-				__root__: [`folder:${folderId}`],
-				[folderId]: cards.map((card) => `card:${card.id}`),
-			},
-			settings: {
-				tileSize: "medium",
-				maxColumns: 7,
-				showTitle: true,
-				showDeleteButton: false,
-				openInNewTab: true,
-				dialLayout: "icon",
-				iconTileSurface: true,
-				cardAspect: "horizontal",
-				iconShowLabel: true,
-				defaultTitleSource: null,
-				thumbnailCapture: { enabled: false, delayMs: 1200 },
-				background: {
-					type: "solid",
-					color: "#7c9cc4",
-					gradientId: null,
-					imageId: null,
-					wallpaperId: null,
-					customWallpaper: null,
-					blur: 0,
-					brightness: 100,
-					opacity: 100,
-					pexelsQuery: "nature",
-					pexelsFrequency: "daily",
-					pexelsPreviousFrequency: null,
-					pexelsLastFetched: null,
-					pexelsLastPeriod: null,
-					pexelsImageId: null,
-				},
-				clock: {
-					enabled: true,
-					dateEnabled: true,
-					format24: true,
-					showSeconds: false,
-					size: 72,
-					dateSize: 16,
-					timezone: "auto",
-				},
-				greeting: { enabled: true, name: "", size: 28 },
-				search: {
-					enabled: true,
-					engine: "https://duckduckgo.com/?q=%s",
-					placeholder: "Search the web",
-					iconMode: "search",
-					width: 560,
-				},
-				quickLinks: { enabled: true, items: [] },
-				appearanceMode: "liquid",
-				colorScheme: "dark",
-				accentColor: "blue",
-				glassIntensity: 60,
-			},
-		},
-		version: 0,
-	};
-}
-
-async function main() {
-	const { context, extensionId } = await launchExtension({ headless: true });
-	try {
-		const page = await openNewtab(context, extensionId, { seed: buildSeed() });
-		await page.setViewportSize({ width: 1600, height: 900 });
-		await waitForGrid(page, COUNT, 20000);
-		await page.waitForFunction(
-			(count) =>
-				document.querySelectorAll(
-					'.dial-grid[data-layout="icon"] .icon-glass-tile',
-				).length === count,
-			COUNT,
-		);
-
-		const before = await page.evaluate(() => {
-			const tiles = [
-				...document.querySelectorAll(
-					'.dial-grid[data-layout="icon"] .icon-glass-tile',
-				),
-			];
-			return {
-				tiles: tiles.length,
-				activeFilters: tiles.filter(
-					(tile) => getComputedStyle(tile).backdropFilter !== "none",
-				).length,
-			};
-		});
-		if (before.tiles !== COUNT || before.activeFilters === 0) {
-			throw new Error(
-				`Expected ${COUNT} active Glass tile filters before Settings; got ${JSON.stringify(before)}`,
-			);
-		}
-
-		await page.getByRole("button", { name: "Settings", exact: true }).click();
-		await page.waitForSelector(
-			'.settings-workspace[data-settings-motion-active="true"] [data-settings-sidebar-slot]',
-		);
-		const during = await page.evaluate(() => {
-			const tiles = [
-				...document.querySelectorAll(
-					'.dial-grid[data-layout="icon"] .icon-glass-tile',
-				),
-			];
-			return {
-				activeFilters: tiles.filter(
-					(tile) => getComputedStyle(tile).backdropFilter !== "none",
-				).length,
-			};
-		});
-		await page.waitForSelector(
-			'.settings-workspace[data-settings-motion-active="false"]',
-			{ timeout: 1500 },
-		);
-		await page.waitForFunction(
-			() =>
-				[
-					...document.querySelectorAll(
-						'.dial-grid[data-layout="icon"] .icon-glass-tile',
-					),
-				].some((tile) => getComputedStyle(tile).backdropFilter !== "none"),
-			null,
-			{ timeout: 3000 },
-		);
-
-		const after = await page.evaluate(() => {
-			const tiles = [
-				...document.querySelectorAll(
-					'.dial-grid[data-layout="icon"] .icon-glass-tile',
-				),
-			];
-			const filters = tiles.map(
+async function homeSnapshot(page) {
+	return page.evaluate(() => {
+		const frame = document.querySelector("[data-speed-dial-frame]");
+		const rect = frame.getBoundingClientRect();
+		return {
+			geometry: [rect.x, rect.y, rect.width, rect.height],
+			filters: [...document.querySelectorAll(".icon-glass-tile")].map(
 				(tile) => getComputedStyle(tile).backdropFilter,
-			);
-			return {
-				activeFilters: filters.filter((filter) => filter !== "none").length,
-				filterSamples: [...new Set(filters)].slice(0, 4),
-			};
-		});
-
-		const resultsDir = path.resolve(".output");
-		fs.mkdirSync(resultsDir, { recursive: true });
-		await page.screenshot({
-			path: path.join(resultsDir, "icon-glass-settings.png"),
-			fullPage: false,
-		});
-		await page
-			.getByRole("button", { name: "Close preferences", exact: true })
-			.click();
-		await page.waitForSelector("[data-settings-sidebar-slot]", {
-			state: "detached",
-		});
-		const restoredFilters = await page.evaluate(
-			() =>
-				[
-					...document.querySelectorAll(
-						'.dial-grid[data-layout="icon"] .icon-glass-tile',
-					),
-				].filter((tile) => getComputedStyle(tile).backdropFilter !== "none")
-					.length,
-		);
-		console.log(
-			JSON.stringify({ before, during, after, restoredFilters }, null, 2),
-		);
-		if (during.activeFilters !== 0) {
-			throw new Error(
-				`Settings motion retained ${during.activeFilters}/${COUNT} expensive Glass tile filters`,
-			);
-		}
-		if (after.activeFilters === 0) {
-			throw new Error(
-				"Glass tile filters did not restore after Settings settled",
-			);
-		}
-		if (restoredFilters === 0) {
-			throw new Error(
-				"Glass tile filters did not restore after Settings closed",
-			);
-		}
-	} finally {
-		await context.close();
-	}
+			),
+		};
+	});
 }
 
-main().catch((error) => {
-	console.error(error);
-	process.exitCode = 1;
-});
+async function measure(page, open) {
+	return page.evaluate(async (open) => {
+		const frame = document.querySelector("[data-speed-dial-frame]");
+		const widths = new Set();
+		const transforms = new Set();
+		const gaps = [];
+		const start = performance.now();
+		let previous = start;
+		await new Promise((resolve) => {
+			function sample(now) {
+				gaps.push(now - previous);
+				previous = now;
+				widths.add(frame.clientWidth);
+				const panel = document.querySelector("[data-settings-panel]");
+				if (panel) transforms.add(getComputedStyle(panel).transform);
+				if (now - start < 500) requestAnimationFrame(sample);
+				else resolve();
+			}
+			requestAnimationFrame(sample);
+			document
+				.querySelector(
+					open ? "#settings-trigger" : 'button[aria-label="Close preferences"]',
+				)
+				.click();
+		});
+		gaps.sort((a, b) => a - b);
+		return {
+			open,
+			homeWidths: [...widths],
+			panelPositions: transforms.size,
+			p95Ms: Math.round(gaps[Math.floor(gaps.length * 0.95)] * 10) / 10,
+			maxGapMs: Math.round(gaps.at(-1) * 10) / 10,
+		};
+	}, open);
+}
+
+try {
+	for (const mode of ["flat", "liquid"]) {
+		for (const scheme of ["light", "dark"]) {
+			const seed = buildSeed({ cardsPerFolder: count, folders: 1 });
+			Object.assign(seed.state.settings, {
+				appearanceMode: mode,
+				colorScheme: scheme,
+				dialLayout: layout,
+				iconTileSurface: surface,
+			});
+			const page = await openNewtab(context, extensionId, {
+				seed,
+				// Exercise a click before the idle preparation has run.
+				initScripts: cold
+					? [
+							"window.requestIdleCallback = () => 1; window.cancelIdleCallback = () => {};",
+						]
+					: [],
+			});
+			await page.setViewportSize({ width: 1600, height: 900 });
+			await waitForGrid(page, count);
+			if (!cold)
+				await page.waitForSelector("[data-settings-root]", {
+					state: "attached",
+				});
+			await page.waitForTimeout(500);
+			const before = await homeSnapshot(page);
+			const samples = [];
+			for (let rep = 0; rep < 2; rep++) {
+				for (const open of [true, false]) {
+					const sample = await measure(page, open);
+					assert.equal(
+						sample.homeWidths.length,
+						1,
+						"Settings reflows Home per frame",
+					);
+					assert.ok(
+						sample.panelPositions > 2,
+						"The panel must still slide in both directions",
+					);
+					assert.deepEqual(
+						await homeSnapshot(page),
+						before,
+						"Settings changes Home geometry or Glass",
+					);
+					assert.equal(
+						await page
+							.locator("[data-settings-sidebar-slot]")
+							.getAttribute("aria-hidden"),
+						String(!open),
+					);
+					assert.equal(
+						await page
+							.locator("[data-settings-sidebar-slot]")
+							.evaluate((slot) => slot.hasAttribute("inert")),
+						!open,
+					);
+					samples.push(sample);
+				}
+			}
+			// A real control remains interactive; Escape restores focus.
+			await page.locator("#settings-trigger").click();
+			if (count === 30 && !cold) {
+				await page.waitForFunction(
+					() =>
+						!document
+							.querySelector("[data-settings-sidebar-slot]")
+							.hasAttribute("inert"),
+				);
+				await page.screenshot({
+					path: path.join(resultsDir, `${mode}-${scheme}-desktop.png`),
+				});
+				await page.setViewportSize({ width: 480, height: 800 });
+				const box = await page.locator("[data-settings-panel]").boundingBox();
+				assert.ok(
+					box.x >= 0 && box.x + box.width <= 480 && box.y + box.height <= 800,
+					"Panel overflows a narrow viewport",
+				);
+				await page.screenshot({
+					path: path.join(resultsDir, `${mode}-${scheme}-narrow.png`),
+				});
+				await page.setViewportSize({ width: 1600, height: 900 });
+			}
+			const control = page.getByRole("button", {
+				name: "Use dark appearance",
+				exact: true,
+			});
+			await control.click();
+			assert.equal(await control.getAttribute("aria-pressed"), "true");
+			await page
+				.getByRole("combobox", { name: "Display style", exact: true })
+				.click();
+			await page.getByRole("listbox").waitFor({ state: "visible" });
+			await page.keyboard.press("Escape");
+			await page.getByRole("listbox").waitFor({ state: "hidden" });
+			assert.equal(
+				await page
+					.locator("[data-settings-sidebar-slot]")
+					.getAttribute("aria-hidden"),
+				"false",
+				"Escape in a Select must not close Settings",
+			);
+			await page
+				.getByRole("button", { name: "Close preferences", exact: true })
+				.focus();
+			await page.keyboard.press("Escape");
+			await page.waitForTimeout(450);
+			assert.equal(
+				await page.evaluate(() => document.activeElement?.id),
+				"settings-trigger",
+			);
+			// Reverse a close before its completion: stale callbacks must not win.
+			await page.evaluate(() =>
+				document.querySelector("#settings-trigger").click(),
+			);
+			await page.waitForTimeout(100);
+			await page.evaluate(() =>
+				document
+					.querySelector('button[aria-label="Close preferences"]')
+					.click(),
+			);
+			await page.waitForTimeout(60);
+			await page.evaluate(() =>
+				document.querySelector("#settings-trigger").click(),
+			);
+			await page.waitForTimeout(500);
+			assert.equal(
+				await page
+					.locator("[data-settings-sidebar-slot]")
+					.getAttribute("aria-hidden"),
+				"false",
+			);
+			assert.equal(
+				await page
+					.locator("[data-settings-sidebar-slot]")
+					.evaluate((slot) => slot.hasAttribute("inert")),
+				false,
+			);
+			await page.emulateMedia({ reducedMotion: "reduce" });
+			await page.keyboard.press("Escape");
+			await page.waitForTimeout(80);
+			assert.equal(
+				await page
+					.locator("[data-settings-sidebar-slot]")
+					.evaluate((slot) => getComputedStyle(slot).visibility),
+				"hidden",
+			);
+			await page.locator("#settings-trigger").click();
+			assert.equal(
+				await page
+					.locator("[data-settings-sidebar-slot]")
+					.evaluate((slot) => slot.hasAttribute("inert")),
+				false,
+			);
+			reports.push({ count, layout, surface, cold, mode, scheme, samples });
+			await page.close();
+		}
+	}
+	fs.writeFileSync(
+		path.join(
+			resultsDir,
+			`motion-${count}-${layout}${cold ? "-cold" : ""}${surface ? "" : "-no-surface"}.json`,
+		),
+		JSON.stringify(reports, null, 2),
+	);
+	console.log(JSON.stringify(reports, null, 2));
+} finally {
+	await context.close();
+}

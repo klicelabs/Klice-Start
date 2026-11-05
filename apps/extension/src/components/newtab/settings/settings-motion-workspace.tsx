@@ -3,12 +3,13 @@ import {
 	type ComponentProps,
 	type CSSProperties,
 	type ReactNode,
+	startTransition,
 	useCallback,
 	useEffect,
+	useState,
 } from "react";
 import {
 	isSettingsLayoutOpen,
-	isSettingsMotionActive,
 	settingsMotionStore,
 	useSettingsMotionStore,
 } from "../../../stores/settings-motion-store";
@@ -19,17 +20,14 @@ type SettingsMotionWorkspaceProps = {
 	children: ReactNode;
 };
 
-/** Owns the shell phase so Home's App tree does not rerender for motion. */
+/** Static Home boundary: Settings must never invalidate the grid's layout. */
 export function SettingsMotionWorkspace({
 	children,
 }: SettingsMotionWorkspaceProps) {
-	const phase = useSettingsMotionStore((state) => state.phase);
-	const layoutOpen = isSettingsLayoutOpen(phase);
-
 	return (
 		// SidebarProvider is intentionally uncontrolled here. Its generic open
 		// context wraps Home; changing it would propagate through the full grid.
-		// The Settings shell owns its phase through data attributes instead.
+		// Only the sibling Settings panel subscribes to its motion phase.
 		<SidebarProvider
 			style={
 				{
@@ -37,10 +35,6 @@ export function SettingsMotionWorkspace({
 				} as CSSProperties
 			}
 			className="settings-workspace relative h-screen min-h-screen w-screen min-w-0 overflow-hidden bg-neutral-100 dark:bg-[#252525]"
-			data-settings-layout-open={layoutOpen ? "true" : "false"}
-			data-settings-motion-active={
-				isSettingsMotionActive(phase) ? "true" : "false"
-			}
 		>
 			{children}
 		</SidebarProvider>
@@ -51,11 +45,8 @@ export function SettingsMotionFrame({
 	children,
 	...props
 }: ComponentProps<"div">) {
-	const phase = useSettingsMotionStore((state) => state.phase);
-	const open = isSettingsLayoutOpen(phase);
-
 	return (
-		<div {...props} data-settings-open={open ? "true" : "false"}>
+		<div {...props}>
 			<BackgroundLayer contained />
 			{children}
 		</div>
@@ -66,27 +57,32 @@ export function SettingsMotionSidebar() {
 	const phase = useSettingsMotionStore((state) => state.phase);
 	const pane = useSettingsMotionStore((state) => state.pane);
 	const action = useSettingsMotionStore((state) => state.action);
+	const [prepared, setPrepared] = useState(false);
+	useEffect(() => {
+		if (prepared) return;
+		if (phase !== "closed") {
+			setPrepared(true);
+			return;
+		}
+		// Do not add Settings to Home's initial render. Prepare it at idle and
+		// retain its controls/geometry so opening never has to rebuild them.
+		const prepare = () => startTransition(() => setPrepared(true));
+		if (typeof window.requestIdleCallback === "function") {
+			const idle = window.requestIdleCallback(prepare);
+			return () => window.cancelIdleCallback(idle);
+		}
+		const timeout = window.setTimeout(prepare, 1000);
+		return () => window.clearTimeout(timeout);
+	}, [phase, prepared]);
 	const finishOpen = useCallback(
 		() => settingsMotionStore.getState().finishOpen(),
 		[],
 	);
-	useEffect(() => {
-		if (phase !== "opening") return;
-		const timeout = window.setTimeout(finishOpen, 400);
-		return () => window.clearTimeout(timeout);
-	}, [finishOpen, phase]);
-
-	// P2 (perf/p2-unmount-overlays): unmount the whole settings subtree
-	// while closed. Re-mounts (chunk already cached) on every open —
-	// measured: 1st open −30% window, no warm-reopen regression (§6.6).
-	// (Computed before the early return so narrowing can't desync it.)
-	const layoutOpen = isSettingsLayoutOpen(phase);
-	if (phase === "closed") return null;
+	if (phase === "closed" && !prepared) return null;
 
 	return (
 		<SettingsSidebar
 			open={isSettingsLayoutOpen(phase)}
-			layoutOpen={layoutOpen}
 			onOpenComplete={finishOpen}
 			onClose={() => settingsMotionStore.getState().close()}
 			onCloseComplete={() => settingsMotionStore.getState().finishClose()}

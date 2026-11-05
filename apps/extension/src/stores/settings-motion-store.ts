@@ -6,14 +6,9 @@ import type {
 
 export type SettingsMotionPhase = "closed" | "opening" | "open" | "closing";
 
-/** The Home frame and its Settings-space reservation transition together. */
+/** Whether the panel is targeting its on-screen position. */
 export function isSettingsLayoutOpen(phase: SettingsMotionPhase): boolean {
 	return phase === "opening" || phase === "open";
-}
-
-/** Pause expensive repeated backdrops only while the shell is moving. */
-export function isSettingsMotionActive(phase: SettingsMotionPhase): boolean {
-	return phase === "opening" || phase === "closing";
 }
 
 type SettingsMotionState = {

@@ -585,15 +585,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transition: transform 200ms var(--ease-out);
 }
 
-/* Keep repeated surfaces cheap while they are outside the viewport, and
-   during the Settings shell's width animation. In a dense folder the grid
-   reflows throughout that transition; retaining dozens of live backdrop
-   filters can stall Chromium's compositor and leave stale rectangular tiles.
-   The tint, border and shape stay visible while the live blur is paused. */
-.icon-glass-tile[data-glass-backdrop="idle"],
-.settings-workspace[data-settings-motion-active="true"]
-	.dial-grid[data-layout="icon"]
-	.icon-glass-tile {
+/* Offscreen surfaces do not need a live backdrop. Settings leaves Home's
+   geometry and filters untouched, including while the drawer is moving. */
+.icon-glass-tile[data-glass-backdrop="idle"] {
 	-webkit-backdrop-filter: none !important;
 	backdrop-filter: none !important;
 }
@@ -1462,33 +1456,18 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	   controls (selects, menus, tooltips, dialogs) must paint above them.
 	   Isolation establishes that boundary without transforming their anchors. */
 	isolation: isolate;
-	--settings-sidebar-width: clamp(320px, 29vw, 408px);
+	--settings-sidebar-width: clamp(360px, 29vw, 408px);
 	--workspace-gutter: 8px;
-	/* One timing token keeps the panel and shell radius motion cohesive. */
+	/* The drawer travels on its own layer; Home never changes size. */
 	--workspace-motion-duration: 280ms;
 	--workspace-motion-ease: var(--ease-drawer);
 }
 
-/* Interpolate the actual inset rather than scaling a finished Home bitmap.
-   Layout work is bounded to this short shell transition; the wallpaper and
-   glass surfaces keep their native coordinate system and original squircle. */
+/* Do not animate or reserve space in the live grid. Per-frame padding caused
+   layout, glass geometry work and repainting proportional to page contents. */
 [data-settings-workspace-panels] {
 	position: relative;
 	padding: 0;
-	transition:
-		padding-top var(--workspace-motion-duration) var(--workspace-motion-ease),
-		padding-right var(--workspace-motion-duration) var(--workspace-motion-ease),
-		padding-bottom var(--workspace-motion-duration) var(--workspace-motion-ease),
-		padding-left var(--workspace-motion-duration) var(--workspace-motion-ease);
-}
-.settings-workspace[data-settings-layout-open="true"]
-	[data-settings-workspace-panels] {
-	padding: var(--workspace-gutter);
-	padding-inline-end: calc(
-		var(--settings-sidebar-width) +
-		2 *
-		var(--workspace-gutter)
-	);
 }
 
 [data-settings-sidebar-slot] {
@@ -1496,16 +1475,21 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	inset-block: var(--workspace-gutter);
 	right: var(--workspace-gutter);
 	z-index: var(--speed-dial-layer-app-toolbar);
-	width: calc(var(--settings-sidebar-width) + var(--workspace-gutter));
+	width: min(
+		var(--settings-sidebar-width),
+		calc(100% - 2 * var(--workspace-gutter))
+	);
+	contain: layout paint;
 	pointer-events: none;
 }
 [data-settings-sidebar-slot][data-settings-open="true"] {
 	pointer-events: auto;
 }
 
-/* Panel travel and Home inset use the same clock and curve in both directions. */
+/* Only this constant-size surface moves. CSS transform transitions run on
+   the compositor and retarget from their current position on reversal. */
 [data-settings-sidebar-slot] > [data-slot="sidebar"] {
-	will-change: transform;
+	width: 100%;
 	transform: translate3d(100%, 0, 0);
 	transition: transform var(--workspace-motion-duration)
 		var(--workspace-motion-ease);
@@ -1515,7 +1499,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transform: translate3d(0, 0, 0);
 }
 
-/* The Settings subtree mounts on open, so give its first visible frame the
+/* An open before idle preparation mounts the panel cold. Give its first frame the
    same off-canvas starting position as the existing close transition. */
 @starting-style {
 	[data-settings-sidebar-slot][data-settings-open="true"]
@@ -1524,22 +1508,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Keep the frame radius discrete with the layout commit. Gecko gets its
-   calibrated fallback radius while Chromium uses the larger radius with
-   corner-shape:squircle. The frame IS a panel-scale surface, so it follows
-   the semantic panel token instead of a private literal. */
+/* The original full-size Home clip and wallpaper stay stable. */
 [data-speed-dial-frame] {
 	border-radius: 0;
-	transition: border-radius var(--workspace-motion-duration)
-		var(--workspace-motion-ease);
-}
-[data-speed-dial-frame][data-settings-open="true"] {
-	border-radius: var(--shape-panel, 28px);
-}
-@supports not (corner-shape: squircle) {
-	[data-speed-dial-frame].squircle[data-settings-open="true"] {
-		border-radius: var(--shape-panel-fallback, 17px);
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1550,6 +1521,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	[data-settings-sidebar-slot] > [data-slot="sidebar"] {
 		transition: none;
 		transform: none;
+	}
+	[data-settings-sidebar-slot][data-settings-open="false"] {
+		visibility: hidden;
 	}
 }
 
@@ -1579,8 +1553,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	background: transparent;
 }
 
-/* Speed Dial composition primitives. Keeping the vertical zones authored in
-   CSS makes the same rhythm survive a pushed/narrowed Settings workspace. */
+/* Speed Dial composition primitives. The vertical zones keep one rhythm
+   across viewport sizes. */
 .speed-dial-app-toolbar {
 	position: absolute;
 	inset-inline: 0;

@@ -1,6 +1,5 @@
 import {
 	isSettingsLayoutOpen,
-	isSettingsMotionActive,
 	settingsMotionStore,
 } from "../src/stores/settings-motion-store";
 
@@ -10,6 +9,16 @@ beforeEach(() => {
 		pane: undefined,
 		action: undefined,
 	});
+});
+
+test("stale open completion cannot reopen a closing sidebar", () => {
+	const store = settingsMotionStore.getState();
+	store.open();
+	store.close();
+	store.finishOpen();
+	expect(settingsMotionStore.getState().phase).toBe("closing");
+	store.finishClose();
+	expect(settingsMotionStore.getState().phase).toBe("closed");
 });
 
 test("stale close completion cannot dismiss a reopened sidebar", () => {
@@ -38,23 +47,14 @@ test("uses one reversible phase path for open and close", () => {
 		pane: "appearance",
 	});
 	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(true);
-	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
-		true,
-	);
 	store.finishOpen();
 	expect(settingsMotionStore.getState().phase).toBe("open");
-	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
-		false,
-	);
 
 	store.close();
 	expect(settingsMotionStore.getState()).toMatchObject({
 		phase: "closing",
 		action: undefined,
 	});
-	expect(isSettingsMotionActive(settingsMotionStore.getState().phase)).toBe(
-		true,
-	);
 
 	store.open("bookmarks", { type: "add-link" });
 	expect(settingsMotionStore.getState()).toMatchObject({
@@ -64,7 +64,7 @@ test("uses one reversible phase path for open and close", () => {
 	});
 });
 
-test("starts the Home return while keeping Settings mounted through its exit", () => {
+test("keeps Settings mounted through its exit", () => {
 	settingsMotionStore.getState().open();
 	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(true);
 	settingsMotionStore.getState().finishOpen();

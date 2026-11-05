@@ -2,24 +2,23 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 
 /**
- * P2 regression guard (perf/p2-unmount-overlays): closed overlays stay
- * unmounted, and the mount-open path must never arm `inert` (a fresh mount
- * starts open, so no enter-transform transitionend would ever lift it —
- * the panel would render visible-but-dead). Live-verified once with a
- * throwaway playwright check (slot present without `inert` after
- * mount-open; a real "Show site titles" Switch click toggles state;
- * slot gone after close); these assertions pin the guards in place.
+ * Settings stays out of Home's initial render, then prepares at idle and
+ * retains its controls offscreen. Context menus still unmount while closed.
+ * A cold mount-open must never leave the panel visible-but-inert.
  * Run: cd apps/extension && bun test scripts/verify-p2-unmount.test.ts
  */
 function source(path: string): string {
 	return readFileSync(new URL(path, import.meta.url), "utf8");
 }
 
-test("settings subtree unmounts while closed", () => {
+test("settings starts unmounted and prepares only after Home's initial render", () => {
 	const workspace = source(
 		"../src/components/newtab/settings/settings-motion-workspace.tsx",
 	);
-	expect(workspace).toContain('if (phase === "closed") return null;');
+	expect(workspace).toContain(
+		'if (phase === "closed" && !prepared) return null;',
+	);
+	expect(workspace).toContain("window.requestIdleCallback(prepare)");
 });
 
 test("mount-open never arms the initial inert", () => {

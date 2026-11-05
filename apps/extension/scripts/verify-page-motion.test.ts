@@ -52,7 +52,7 @@ test("page motion is bounded, quick, and removes travel for reduced motion", () 
 	}
 });
 
-test("Settings uses synchronized frame and sidebar transitions", () => {
+test("Settings animates only its isolated panel, never Home layout or paint", () => {
 	const app = readFileSync(
 		new URL("../entrypoints/newtab/App.tsx", import.meta.url),
 		"utf8",
@@ -83,10 +83,14 @@ test("Settings uses synchronized frame and sidebar transitions", () => {
 	expect(sidebar).not.toContain("inert={!open}");
 	expect(sidebar).toContain('setAttribute("inert", "")');
 	expect(tokens).toContain("@starting-style");
-	expect(tokens).toContain(
+	expect(tokens).not.toContain("padding-top var(--workspace-motion-duration)");
+	expect(tokens).not.toContain("padding-inline-end: calc(");
+	expect(tokens).not.toContain(
 		"transition: border-radius var(--workspace-motion-duration)",
 	);
-	expect(tokens).toContain("padding-inline-end: calc(");
+	expect(tokens).toContain("contain: layout paint");
+	expect(motionWorkspace).not.toContain("data-settings-motion-active");
+	expect(motionWorkspace).not.toContain("data-settings-layout-open");
 	expect(tokens).toContain("position: absolute;");
 	expect(tokens).toContain("pointer-events: none");
 	expect(tokens).toContain("pointer-events: auto");
@@ -97,19 +101,23 @@ test("Settings uses synchronized frame and sidebar transitions", () => {
 
 test("wallpaper uses the original Home frame and a single squircle clip throughout Settings motion", () => {
 	try {
-		for (const phase of ["closed", "open", "closing"] as const) {
+		let initialMarkup: string | undefined;
+		for (const phase of ["closed", "opening", "open", "closing"] as const) {
 			settingsMotionStore.setState({ phase });
-			const { document } = parseHTML(
-				renderToStaticMarkup(
-					createElement(SettingsMotionWorkspace, {
-						// biome-ignore lint/correctness/noChildrenProp: required children prop in this non-JSX test.
-						children: createElement(SettingsMotionFrame, {
-							"data-speed-dial-frame": "true",
-							className: "squircle",
-						}),
+			const markup = renderToStaticMarkup(
+				createElement(SettingsMotionWorkspace, {
+					// biome-ignore lint/correctness/noChildrenProp: required children prop in this non-JSX test.
+					children: createElement(SettingsMotionFrame, {
+						"data-speed-dial-frame": "true",
+						className: "squircle",
 					}),
-				),
+				}),
 			);
+			initialMarkup ??= markup;
+			// No ancestor attribute, geometry or material changes may invalidate
+			// Home when Settings changes phase, regardless of the grid contents.
+			expect(markup).toBe(initialMarkup);
+			const { document } = parseHTML(markup);
 			const wallpaper = document.querySelector("#bg-layer");
 			expect(wallpaper).not.toBeNull();
 			expect(document.querySelectorAll("#bg-layer")).toHaveLength(1);
