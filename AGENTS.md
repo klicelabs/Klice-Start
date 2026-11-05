@@ -1,6 +1,6 @@
 # Agent Rules
 
-Klice Start is a local-only MV3 browser dashboard (newtab replacement). React 19.2 + TS 5.9 + WXT 0.20, Zustand 5, Tailwind 4. Manifest 1.2.4. Pre-launch; targets Chrome Web Store + Firefox AMO.
+Klice Start is a local-only MV3 browser dashboard (newtab replacement). React + TypeScript + WXT, Zustand, Tailwind. Pre-launch; targets Chrome Web Store + Firefox AMO. Read current versions from the package manifests and `wxt.config.ts`.
 
 ## Stack
 
@@ -11,16 +11,16 @@ React/react-dom 19.2.4, zustand ^5.0.0, motion ^13.2.0, Base UI ^1.6.0, tailwind
 Run in `apps/extension/`:
 
 - `bun run dev` — WXT dev, port 5555 strict. `bun run dev:firefox` for Firefox.
-- `bun run build` — production build to `.output/`. Rebuild clean (`rm -rf .output`) before any measurement.
+- `bun run build` — Chrome production build to `.output/chrome-mv3`. Before performance measurements, preserve existing release archives, then use `bunx wxt clean` and rebuild.
 - `bun run compile` — `tsc --noEmit`. Must pass before commit.
-- `bun test scripts/` — product tests (`bun:test`, ~169). Must pass before commit.
+- `bun test scripts/` — product tests (`bun:test`). Must pass before commit.
 - `bun run zip` — store artifact. `bun run zip:firefox` for AMO.
 
-Run at root: `bun run check` (Biome). There is no `bun run check` or `bun run test` inside `apps/extension` — do not invent them.
+Run at root: `bun run check` (read-only Biome); `bun run check:write` applies formatting/fixes intentionally. Existing lint debt is not a passing check: report it and keep cleanup scoped. There is no `bun run check` or `bun run test` inside `apps/extension`.
 
 ## Dev output freshness
 
-- At the end of every agent task, ensure both WXT outputs are current: `apps/extension/.output/chrome-mv3` and `apps/extension/.output/chrome-mv3-dev`.
+- After product code changes, ensure both Chrome outputs are current: `apps/extension/.output/chrome-mv3` and `apps/extension/.output/chrome-mv3-dev`. Documentation-only changes do not need another product build.
 - Refresh production output with `bun run build` from `apps/extension/`. Refresh dev output with `bun run dev` from the same directory, wait for its successful build, and let its watcher rebuild after source changes.
 - Keep the dev server running between tasks on strict port 5555; if it is stopped, start it hidden and wait for the initial build. Leave it running when the task ends. Both directories are generated, ignored, and must not be committed. The separate legacy-looking `apps/extension/dev/.output` is not produced by these commands.
 
@@ -44,20 +44,27 @@ Reference, not required reading. Consult on demand.
 
 ## Workflow
 
-- After every code update, run `bun test scripts/` and `bun run compile` from `apps/extension/` before reporting the task complete. Refresh both Chrome outputs after the update: run `bun run build`, then ensure `bun run dev` has successfully rebuilt `chrome-mv3-dev` and leave the dev server running on port 5555. If a check fails, report the failure and do not claim validation passed.
-- Branches: `feat/`, `fix/`, `chore/`, `docs/`, `perf/`, `polish/`, `refactor/`, `probe/`. Throwaway branches (`probe/`, `perf/probe-*`) never merge.
-- Conventional Commits in English: `feat|fix|ui|refactor|i18n|chore|docs(<scope>): <description>`. Present tense, <72 chars, no emojis.
-- Solo PR flow still applies: branch → commit → `compile` + `test` + `build` → merge → delete branch.
-- Keep diffs scoped: product files + docs/ + tests only. Never mix tasks in one branch.
+1. Inspect `git status`, the active branch and pending work before editing. Preserve unrelated work; stage explicit paths. Commit completed prior work only when authorized. Never use `git add .` to collect other tasks.
+2. Create a new branch for every task before editing: `feat/`, `fix/`, `chore/`, `docs/`, `perf/`, `polish/`, or `refactor/` plus a short English name. Start from approved `main`. When a task depends on an unmerged task, branch from its committed head, state the dependency, and merge in dependency order. Independent concurrent tasks use separate worktrees. Temporary `probe/` and `perf/probe-*` branches never merge.
+3. Keep one task per branch and commits focused. Conventional Commits in English: `feat|fix|ui|refactor|i18n|chore|docs|perf(<scope>): <description>`, present tense, <72 chars, no emojis.
+4. Before committing product changes, run `bun test scripts/`, `bun run compile`, and `bun run build` from `apps/extension/`; inspect the diff and `git diff --check`. Add meaningful behavior tests for new functionality or regressions. Refresh the dev output and leave its watcher on strict port 5555. Report any failing check accurately. The GitHub `extension-checks` job repeats compile, tests and Chrome build.
+5. Present the concrete branch, commit(s), behavior changes, checks and limitations for review. Wait for João's explicit approval of that result before merging. An agent's own review, passing tests, or approval of a plan is not merge approval. New material changes require renewed review.
+6. After approval, merge the reviewed head into `main`, verify the merge result and required checks, then delete only the merged task branch. Pushes, releases and store submissions follow the user's authorization; no force-push.
+
+Generated outputs, browser data, benchmark results, local agent state and secrets stay out of commits. See `CONTRIBUTING.md` for the human contributor flow and public-release checklist.
 
 ## Release
+
+Routine tasks update Chrome builds only. Keep the existing version; create no ZIP, tag, version bump or store submission until João explicitly requests or authorizes a release. Firefox builds are requested when needed for cross-browser validation or release.
+
+For an authorized release:
 
 1. Bump semver in `apps/extension/package.json`.
 2. `git tag -a vX.Y.Z -m "..."`.
 3. `bun run zip` (+ `:firefox`).
 4. Submit CWS + AMO.
 5. `git push origin main --tags`.
-6. Keep the previous zip for rollback.
+6. After verifying the new archives, remove older local extension/source ZIPs, per João's preference. Published store versions are changed only when explicitly requested.
 
 ## Env traps
 

@@ -1,145 +1,51 @@
 # Klice Start
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Self, and more.
+A local-only browser dashboard that replaces the new tab page. Save websites as visual cards, organize nested folders, search your saved resources, and personalize the dashboard with wallpapers, icons and glass surfaces.
 
-## Features
+The extension uses React, TypeScript, WXT, Zustand and Tailwind CSS. It does not require an account, backend or database to build and run.
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Biome** - Linting and formatting
-- **Turborepo** - Optimized monorepo build system
+## Get started
 
-## Getting Started
+Install the Bun version declared in the root `package.json`, then run:
 
-First, install the dependencies:
-
-```bash
-bun install
-```
-
-## Database Setup
-
-This project uses PostgreSQL with Drizzle ORM.
-
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/web/.env` file with your PostgreSQL connection details.
-
-3. Apply the schema to your database:
-
-```bash
-bun run db:push
-```
-
-Then, run the development server:
-
-```bash
+```sh
+bun install --frozen-lockfile
+cd apps/extension
 bun run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the fullstack application.
+The development server uses strict port 5555. Load `apps/extension/.output/chrome-mv3-dev` as an unpacked Chrome extension. For a production build, run `bun run build` from `apps/extension` and load `.output/chrome-mv3`.
 
-## UI Customization
+## Validate a change
 
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+From `apps/extension`:
 
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
-
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
-
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
+```sh
+bun test scripts/
+bun run compile
+bun run build
 ```
 
-Import shared components like this:
+From the repository root, `bun run check` runs read-only Biome checks. See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, review, commits and known lint limitations. Agents follow [AGENTS.md](AGENTS.md).
 
-```tsx
-import { Button } from "@klice-start/ui/components/button";
-```
+## Repository map
 
-### Add app-specific blocks
+| Directory | Purpose |
+| --- | --- |
+| `apps/extension` | Browser extension, product tests and diagnostic tooling |
+| `packages/ui` | Shared UI primitives, material and geometry |
+| `apps/web` | Separate web workspace; not required by the extension |
+| `apps/fumadocs` | Documentation website workspace |
+| `docs` | Product, architecture, decisions and performance records |
 
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
+Product context: [PRODUCT.md](docs/PRODUCT.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md), [DECISIONS.md](docs/DECISIONS.md).
 
-## Deployment
+## Firefox and release archives
 
-### Vercel Services
+From `apps/extension`, `bun run build:firefox` builds Firefox MV3. For an authorized release, `bun run zip:firefox` creates the Firefox archive and reproducible source ZIP under `.output` with filenames `klice-start-<version>-firefox.zip` and `klice-start-<version>-sources.zip`.
 
-- Target: web + server
-- Config: `vercel.json`
-- Link the project first: bun run deploy:setup
-- Local Vercel dev: bun run dev:vercel
-- Sync preview env: bun run env:preview
-- Sync production env: bun run env:production
-- Dry-run check (no upload): bun run deploy:check
-- Preview deploy: bun run deploy
-- Production deploy: bun run deploy:prod
-  Vercel Services share project environment variables, but deploys do not upload local `.env` files automatically. Link the project with `vercel link`, then run the env sync command before your first deploy (otherwise the deployment starts with no env vars), or pass one-off envs with `vercel deploy -e KEY=value`.
-  Pass Vercel CLI flags to the env sync command directly, for example: `bun run env:production --scope your-team`.
+The source archive includes the workspace packages and lockfile needed to rebuild the submitted extension. Routine development does not bump versions or generate release archives.
 
-For more details, see the guide on [Deploying to Vercel](https://www.better-t-stack.dev/docs/guides/vercel).
+## Project status
 
-## Git Hooks and Formatting
-
-- Run checks: `bun run check`
-
-## Project Structure
-
-```
-klice-start/
-├── apps/
-│   └── web/         # Fullstack application (Next.js)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   └── db/          # Database schema & queries
-```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
-- `bun run db:studio`: Open database studio UI
-- `bun run check`: Run Biome formatting and linting
-- `bun run deploy:setup`: Link this repo to a Vercel project (first-time setup)
-- `bun run dev:vercel`: Run the Vercel Services dev environment locally
-- `bun run env:preview`: Sync local env files to the Vercel preview environment
-- `bun run env:production`: Sync local env files to the Vercel production environment
-- `bun run deploy`: Create a Vercel preview deployment
-- `bun run deploy:prod`: Deploy to Vercel production
-
-- `bun run deploy:check`: Dry-run a deploy to preview framework detection and included files without uploading
-## Browser Extension (Firefox / AMO submission)
-
-The browser extension lives in `apps/extension` and is built with
-[WXT](https://wxt.dev) (Vite + React + TypeScript).
-
-To reproduce the extension ZIP submitted to Mozilla Add-ons:
-
-```bash
-# Requires Bun >= 1.3 (https://bun.sh)
-bun install --frozen-lockfile
-cd apps/extension
-bun run zip:firefox
-```
-
-This produces:
-
-- `.output/extension-<version>-firefox.zip` — the built extension (matches the submitted add-on file)
-- `.output/extension-<version>-sources.zip` — this source archive
-
-The build step bundles and minifies TypeScript/React sources with Vite/Rolldown;
-the minified output in the submitted XPI is generated entirely from the code in
-this repository. No additional environment variables or services are required to
-build it.
+Klice Start is being prepared for public contribution. The maintainer still needs to select an explicit license before the public open-source release. The public-readiness checklist is in [CONTRIBUTING.md](CONTRIBUTING.md#releases-and-public-readiness).
