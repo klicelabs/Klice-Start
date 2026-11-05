@@ -416,6 +416,13 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	white-space: normal;
 }
 
+:root.light[data-klice-material="flat"] .icon-label {
+	color: #000;
+	-webkit-text-fill-color: #000;
+	-webkit-text-stroke: 0;
+	text-shadow: none;
+}
+
 .dial-grid[data-layout="icon"][data-tile="small"] .icon-label {
 	--icon-label-lines: 1;
 	--icon-label-line-height: 13px;
