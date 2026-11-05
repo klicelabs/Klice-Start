@@ -67,57 +67,22 @@ test("toolbar surfaces stay capsules regardless of the corner tier", () => {
 	}
 });
 
-test("search field follows the corner tiers with finite morph endpoints", () => {
-	// rounded-full resolves to calc(infinity * 1px) in Tailwind 4; CSS cannot
-	// interpolate from infinity, so the surface would hold one radius through
-	// the transition and snap at the end. Both search roles stay finite.
+test("search surfaces keep tier geometry and calibrated squircle corners", () => {
+	for (const role of ["searchCollapsed", "searchExpanded", "panel"] as const) {
+		expect(KliceShape[role]).toContain("klice-squircle");
+		expect(KliceShape[role]).not.toContain("rounded-full");
+	}
 	expect(KliceShape.searchCollapsed).toContain("--shape-search-collapsed");
-	expect(KliceShape.searchCollapsed).not.toContain("rounded-full");
-	// The expanded results surface is not its own geometry: it resolves to
-	// the surface role, including the calibrated Gecko fallback. Only the
-	// resting field (and the toolbar) are capsules.
+	expect(KliceShape.searchCollapsed).toContain("--shape-section-fallback");
+	expect(KliceShape.panel).toContain("--shape-panel-fallback");
 	expect(KliceShape.searchExpanded.startsWith(KliceShape.surface)).toBe(true);
-	expect(KliceShape.searchExpanded).toContain("--shape-surface");
-	expect(KliceShape.searchExpanded).toContain("--shape-surface-fallback");
-	expect(KliceShape.searchExpanded).not.toContain("rounded-full");
-	// Both search states carry the marker that opts them out of the squircle
-	// curvature at Rounded, so the resting field is a true capsule and the
-	// corner shape cannot pop while the container opens.
-	expect(KliceShape.searchCollapsed).toContain("klice-search-surface");
-	expect(KliceShape.searchExpanded).toContain("klice-search-surface");
-	expect(tokens).toContain(
-		':root[data-klice-corner="rounded"] .klice-search-surface',
-	);
-	expect(tokens).toContain("corner-shape: round;");
-	// A stale expanded token would silently reintroduce the uncalibrated
-	// Firefox radius.
 	expect(tokens).not.toContain("--shape-search-expanded");
 
-	// The resting field is a tier surface like the rest: 12/22/28px. The
-	// 28px top step is exactly half the 56px field height (capsule ceiling),
-	// so Rounded reads as a true pill while the lower tiers do not.
 	const px = (block: string, token: string) =>
 		Number(block.match(new RegExp(`--shape-${token}: (\\d+)px`))?.[1]);
 	expect(px(softBlock(), "search-collapsed")).toBe(22);
 	expect(px(tierBlock("discreet"), "search-collapsed")).toBe(12);
 	expect(px(tierBlock("rounded"), "search-collapsed")).toBe(28);
-
-	// Focus must visibly reduce the radius: the expanded container sits one
-	// role below the field's section step in every tier.
-	for (const block of [
-		softBlock(),
-		tierBlock("discreet"),
-		tierBlock("rounded"),
-	]) {
-		expect(px(block, "surface")).toBeLessThan(px(block, "search-collapsed"));
-	}
-	// Gecko must read the calibrated surface fallback, never the raw
-	// Chromium radius on the large results panel.
-	const fallbackPx = (block: string) =>
-		Number(block.match(/--shape-surface-fallback: (\d+)px/)?.[1]);
-	expect(fallbackPx(softBlock())).toBe(11);
-	expect(fallbackPx(tierBlock("discreet"))).toBe(6);
-	expect(fallbackPx(tierBlock("rounded"))).toBe(14);
 });
 
 test("subfolder preview tiles consume the thumbnail role", () => {

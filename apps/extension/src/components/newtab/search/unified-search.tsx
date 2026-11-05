@@ -1,780 +1,631 @@
 "use client";
 
-import { SharedLayoutBg } from "@klice-start/ui/components/motion/shared-layout-bg";
 import { Icon } from "@klice-start/ui/icons/icon";
-import { useReducedMotion } from "motion/react";
+import { kliceShape } from "@klice-start/ui/lib/shapes";
 import {
 	type CSSProperties,
-	type FormEvent,
 	forwardRef,
-	type KeyboardEvent as ReactKeyboardEvent,
+	type KeyboardEvent,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
+	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useSvgIcon } from "../../../hooks/use-svg-icon";
 import { SEARCH_ENGINES } from "../../../lib/constants";
 import { getBreadcrumb } from "../../../lib/folder-tree";
-import { glassForeground, glassText } from "../../../lib/glass";
+import { glassForeground } from "../../../lib/glass";
 import { createSearchIndex } from "../../../lib/search-index";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
 import { useSetupStore } from "../../../stores/setup-store";
-import type { Card, Folder } from "../../../types";
 import { SvgIcon } from "../../shared/svg-icon";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "../toolbar/glass-surface";
+import {
+	activeSearchIndex,
+	buildSearchGroups,
+	type SearchItem,
+	type SearchScope,
+} from "./search-results";
 import { getSearchSuggestions } from "./search-suggestions";
-
-const SEARCH_MOTION_DURATION = 160;
-const SEARCH_MOTION_EASING = "var(--ease-out)";
-const SEARCH_GEOMETRY_CSS = `max-height ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}, border-radius ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}`;
-const SEARCH_CONTENT_CSS = `opacity ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}, transform ${SEARCH_MOTION_DURATION}ms ${SEARCH_MOTION_EASING}`;
+import { useSearchPosition } from "./use-search-position";
 
 export interface UnifiedSearchHandle {
 	focus: () => void;
 }
-
 interface UnifiedSearchProps {
 	onNavigateFolder: (id: string) => void;
 }
+const SCOPES: { id: SearchScope; label: string }[] = [
+	{ id: "all", label: "All" },
+	{ id: "saved", label: "Saved" },
+	{ id: "folders", label: "Folders" },
+	{ id: "web", label: "Web" },
+];
 
-type SearchItem =
-	| {
-			type: "suggestion";
-			id: string;
-			query: string;
-			source: "web" | "local";
-	  }
-	| { type: "folder"; id: string; data: Folder }
-	| { type: "bookmark"; id: string; data: Card }
-	| { type: "frequent"; id: string; data: Card }
-	| { type: "web"; id: string; query: string };
-
-function displayPath(folders: Folder[], folderId: string): string {
-	return getBreadcrumb(folders, folderId)
-		.map((folder) => folder.name)
-		.join(" / ");
+function displayHost(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./, "");
+	} catch {
+		return url;
+	}
 }
 
 export const UnifiedSearch = forwardRef<
 	UnifiedSearchHandle,
 	UnifiedSearchProps
 >(function UnifiedSearch({ onNavigateFolder }, ref) {
-	const { isLiquid, resolvedDark } = useAppearance();
-	const enabled = useSetupStore((s) => s.settings.search.enabled);
-	const engineId = useSetupStore((s) => s.settings.search.engine);
-	const customPlaceholder = useSetupStore((s) => s.settings.search.placeholder);
-	const iconMode = useSetupStore((s) => s.settings.search.iconMode);
-	const searchWidth = useSetupStore((s) => s.settings.search.width);
+	const { isLiquid } = useAppearance();
+	const search = useSetupStore((s) => s.settings.search);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
+	const quickLinks = useSetupStore((s) => s.settings.quickLinks.items);
 	const cards = useSetupStore((s) => s.cards);
 	const folders = useSetupStore((s) => s.folders);
 	const [query, setQuery] = useState("");
 	const [open, setOpen] = useState(false);
-	const [selectedIndex, setSelectedIndex] = useState(0);
+	const [scope, setScope] = useState<SearchScope>("all");
+	const [activeId, setActiveId] = useState<string | null>(null);
 	const [suggestions, setSuggestions] = useState<string[]>([]);
 	const [logoFailedFor, setLogoFailedFor] = useState<string | null>(null);
+	const anchorRef = useRef<HTMLDivElement>(null);
+	const launcherRef = useRef<HTMLButtonElement>(null);
+	const overlayRef = useRef<HTMLElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
-	const shellRef = useRef<HTMLDivElement>(null);
-	const resultsRef = useRef<HTMLDivElement>(null);
-	const closeCleanupRef = useRef<number | null>(null);
-	const compactTriggerRef = useRef<HTMLElement | null>(null);
-	const reduceMotion = useReducedMotion() ?? false;
-
+	const listRef = useRef<HTMLDivElement>(null);
+	const returnFocusRef = useRef<HTMLElement | null>(null);
 	const engine =
-		SEARCH_ENGINES.find((item) => item.id === engineId) ?? SEARCH_ENGINES[0];
+		SEARCH_ENGINES.find((item) => item.id === search.engine) ??
+		SEARCH_ENGINES[0];
 	const placeholder =
-		customPlaceholder.trim() || `Search with "${engine.label}"`;
-	const svglTitle =
-		iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[engineId] : null;
-	const { svgXml, isLoading } = useSvgIcon(svglTitle);
-	const showEngineLogo = iconMode === "engine" && logoFailedFor !== engineId;
-	const folderPathById = useMemo(() => {
-		const paths = new Map<string, string>();
-		for (const folder of folders) {
-			paths.set(folder.id, displayPath(folders, folder.id));
-		}
-		return paths;
-	}, [folders]);
-
-	// Klice does not persist visit telemetry in the Card model yet. Keep the
-	// empty state useful with a deterministic relevance fallback: authored
-	// folder names become local query suggestions and authored cards become the
-	// compact Frequently visited list. No fake links or recommendations are
-	// invented.
-	const fallbackSuggestionQueries = useMemo(() => {
-		const seen = new Set<string>();
-		const values: string[] = [];
-		const candidates = [
-			...folders
-				.slice()
-				.sort((a, b) => a.order - b.order)
-				.map((folder) => folder.name),
-			...cards
-				.slice()
-				.sort((a, b) => a.order - b.order)
-				.map((card) => card.title || card.url),
-		];
-		for (const candidate of candidates) {
-			const value = candidate.trim();
-			if (!value || seen.has(value.toLowerCase())) continue;
-			seen.add(value.toLowerCase());
-			values.push(value);
-			if (values.length === 4) break;
-		}
-		return values;
-	}, [cards, folders]);
-
-	const frequentCards = useMemo(
-		() =>
-			cards
-				.slice()
-				.sort((a, b) => a.order - b.order)
-				.slice(0, 4),
-		[cards],
+		search.placeholder.trim() || "Search saved pages or the web";
+	const { svgXml, isLoading } = useSvgIcon(
+		search.iconMode === "engine" ? SEARCH_ENGINE_TO_SVGL[search.engine] : null,
 	);
-
-	const localSearchIndex = useMemo(
+	const index = useMemo(
 		() => createSearchIndex(cards, folders),
 		[cards, folders],
 	);
-	const localResults = useMemo(
-		() => localSearchIndex(query),
-		[localSearchIndex, query],
+	const local = useMemo(() => index(query), [index, query]);
+	const folderCounts = useMemo(() => {
+		const counts = new Map<string, number>();
+		for (const card of cards)
+			counts.set(card.folderId, (counts.get(card.folderId) ?? 0) + 1);
+		return counts;
+	}, [cards]);
+	const paths = useMemo(
+		() =>
+			new Map(
+				folders.map((folder) => [
+					folder.id,
+					getBreadcrumb(folders, folder.id)
+						.map((part) => part.name)
+						.join(" / "),
+				]),
+			),
+		[folders],
 	);
+	const groups = useMemo(
+		() =>
+			buildSearchGroups({
+				query,
+				scope,
+				local,
+				cards,
+				folders,
+				quickLinks,
+				suggestions,
+			}),
+		[query, scope, local, cards, folders, quickLinks, suggestions],
+	);
+	const items = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+	const activeIndex = activeSearchIndex(items, activeId, !!query.trim());
+	const activeItem = items[activeIndex];
+	const isMac =
+		typeof navigator !== "undefined" &&
+		/Mac|iPhone|iPad/.test(navigator.platform);
+	const ink = isLiquid ? glassForeground() : "text-foreground";
+
+	useSearchPosition(open, search.width, anchorRef, overlayRef);
+
+	const openSearch = useCallback(() => {
+		if (!search.enabled) return;
+		if (!open)
+			returnFocusRef.current =
+				document.activeElement instanceof HTMLElement &&
+				document.activeElement !== document.body
+					? document.activeElement
+					: null;
+		setOpen(true);
+		inputRef.current?.focus({ preventScroll: true });
+	}, [open, search.enabled]);
+	useImperativeHandle(ref, () => ({ focus: openSearch }), [openSearch]);
+	useLayoutEffect(() => {
+		if (open) inputRef.current?.focus({ preventScroll: true });
+	}, [open]);
+
+	const close = useCallback((restoreFocus = false) => {
+		setOpen(false);
+		setQuery("");
+		setScope("all");
+		setActiveId(null);
+		setSuggestions([]);
+		if (restoreFocus) {
+			const trigger = returnFocusRef.current;
+			requestAnimationFrame(() => {
+				if (trigger?.isConnected && trigger.getClientRects().length)
+					trigger.focus({ preventScroll: true });
+				else launcherRef.current?.focus({ preventScroll: true });
+			});
+		}
+	}, []);
 
 	useEffect(() => {
+		if (!search.enabled) close();
+	}, [search.enabled, close]);
+	useEffect(() => {
 		if (!open) return;
+		const outside = (event: PointerEvent) => {
+			const target = event.target;
+			if (
+				!(target instanceof Node) ||
+				overlayRef.current?.contains(target) ||
+				anchorRef.current?.contains(target) ||
+				(target instanceof Element &&
+					target.closest("[data-compact-search-control]"))
+			)
+				return;
+			close();
+		};
+		document.addEventListener("pointerdown", outside);
+		return () => document.removeEventListener("pointerdown", outside);
+	}, [open, close]);
+	useEffect(() => {
 		setSuggestions([]);
+		if (
+			!open ||
+			query.trim().length < 2 ||
+			(scope !== "all" && scope !== "web")
+		)
+			return;
 		const controller = new AbortController();
 		const timer = window.setTimeout(() => {
-			getSearchSuggestions(engine, query, controller.signal, {
-				allowEmpty: query.trim().length === 0,
-			}).then((values) => {
-				if (!controller.signal.aborted) setSuggestions(values);
-			});
+			void getSearchSuggestions(engine, query, controller.signal).then(
+				(values) => {
+					if (!controller.signal.aborted) setSuggestions(values);
+				},
+			);
 		}, 180);
 		return () => {
 			controller.abort();
 			window.clearTimeout(timer);
 		};
-	}, [engine, open, query]);
+	}, [engine, open, query, scope]);
 
-	const items = useMemo<SearchItem[]>(() => {
-		const externalSuggestions = suggestions.slice(0, 4);
-		const emptySuggestions = externalSuggestions.length
-			? externalSuggestions
-			: fallbackSuggestionQueries;
-		const next: SearchItem[] = (
-			query.trim() ? externalSuggestions : emptySuggestions
-		).map((value) => ({
-			type: "suggestion",
-			id: `suggestion:${value}`,
-			query: value,
-			source: query.trim() || externalSuggestions.length > 0 ? "web" : "local",
-		}));
-		if (!query.trim()) {
-			for (const card of frequentCards) {
-				next.push({ type: "frequent", id: `frequent:${card.id}`, data: card });
-			}
-			return next;
-		}
-		for (const folder of localResults.folders) {
-			next.push({ type: "folder", id: `folder:${folder.id}`, data: folder });
-		}
-		for (const card of localResults.sites) {
-			next.push({ type: "bookmark", id: `bookmark:${card.id}`, data: card });
-		}
-		if (query.trim()) {
-			next.push({ type: "web", id: "web-search", query: query.trim() });
-		}
-		return next;
-	}, [
-		fallbackSuggestionQueries,
-		frequentCards,
-		localResults.folders,
-		localResults.sites,
-		query,
-		suggestions,
-	]);
-
-	// Reset the active option whenever the result identity changes so keyboard
-	// navigation always starts at the first visible result.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: items identity is the intentional reset signal.
-	useEffect(() => {
-		setSelectedIndex(0);
-	}, [items]);
-
-	const clearCloseCleanup = useCallback(() => {
-		if (closeCleanupRef.current === null) return;
-		window.clearTimeout(closeCleanupRef.current);
-		closeCleanupRef.current = null;
-	}, []);
-
-	useEffect(() => clearCloseCleanup, [clearCloseCleanup]);
-
-	const openSearch = useCallback(() => {
-		// Reopening during the closing frame cancels only the deferred cleanup;
-		// the existing geometry can retarget in place without remounting the
-		// search or flashing a second result surface.
-		clearCloseCleanup();
-		setOpen(true);
-	}, [clearCloseCleanup]);
-
-	const close = useCallback(() => {
-		clearCloseCleanup();
-		setOpen(false);
-		setSelectedIndex(0);
-		compactTriggerRef.current = null;
-
-		if (reduceMotion) {
-			setQuery("");
-			setSuggestions([]);
-			return;
-		}
-
-		// Keep the current result content mounted until the same geometry
-		// timeline finishes. Clearing it synchronously changes the measured
-		// height mid-close and produces the old radius/height hitch.
-		closeCleanupRef.current = window.setTimeout(() => {
-			closeCleanupRef.current = null;
-			setQuery("");
-			setSuggestions([]);
-		}, SEARCH_MOTION_DURATION);
-	}, [clearCloseCleanup, reduceMotion]);
-
-	useImperativeHandle(
-		ref,
-		() => ({
-			focus: () => {
-				const activeElement = document.activeElement;
-				compactTriggerRef.current =
-					activeElement instanceof Element
-						? activeElement.closest<HTMLElement>(
-								"[data-compact-search-control]",
-							)
-						: null;
-				openSearch();
-				// The compact toolbar trigger opens the mounted main Search. Wait one
-				// frame for the open state before focusing its input so the handoff
-				// remains reliable without moving the scroll position.
-				requestAnimationFrame(() => {
-					inputRef.current?.focus({ preventScroll: true });
-				});
-			},
-		}),
-		[openSearch],
-	);
-
-	useEffect(() => {
-		function closeOnOutsidePointer(event: PointerEvent) {
-			const target = event.target;
-			if (!(target instanceof Node)) return;
-			if (
-				shellRef.current?.contains(target) ||
-				resultsRef.current?.contains(target) ||
-				(target instanceof Element &&
-					target.closest("[data-compact-search-control]"))
-			) {
-				return;
-			}
-			close();
-		}
-		document.addEventListener("pointerdown", closeOnOutsidePointer);
-		return () =>
-			document.removeEventListener("pointerdown", closeOnOutsidePointer);
-	}, [close]);
-
-	const executeWebSearch = useCallback(
-		(searchQuery: string) => {
-			const url = engine.queryUrl.replace(
-				"%s",
-				encodeURIComponent(searchQuery),
+	const navigate = useCallback(
+		(url: string) => {
+			window.open(
+				url,
+				openInNewTab ? "_blank" : "_self",
+				"noopener,noreferrer",
 			);
-			window.open(url, openInNewTab ? "_blank" : "_self");
 			close();
 		},
-		[close, engine, openInNewTab],
+		[openInNewTab, close],
 	);
-
-	const selectItem = useCallback(
-		(item: SearchItem) => {
-			switch (item.type) {
-				case "suggestion":
-					if (item.source === "local") {
-						setQuery(item.query);
-						setSelectedIndex(0);
-						inputRef.current?.focus({ preventScroll: true });
-						return;
-					}
-					executeWebSearch(item.query);
-					return;
-				case "web":
-					executeWebSearch(item.query);
-					return;
-				case "folder":
-					onNavigateFolder(item.data.id);
-					close();
-					return;
-				case "bookmark":
-				case "frequent":
-					window.open(item.data.url, openInNewTab ? "_blank" : "_self");
-					close();
-			}
-		},
-		[close, executeWebSearch, onNavigateFolder, openInNewTab],
-	);
-
-	function handleSubmit(event: FormEvent) {
-		event.preventDefault();
-		const selected = items[selectedIndex];
-		if (selected) selectItem(selected);
-		else if (query.trim()) executeWebSearch(query.trim());
-	}
-
-	function handleKeyDown(event: ReactKeyboardEvent<HTMLFormElement>) {
+	const selectItem = (item: SearchItem) => {
+		switch (item.type) {
+			case "folder":
+				onNavigateFolder(item.data.id);
+				close();
+				break;
+			case "bookmark":
+			case "quick-link":
+				navigate(item.data.url);
+				break;
+			case "url":
+				navigate(item.url);
+				break;
+			case "web":
+			case "suggestion":
+				navigate(engine.queryUrl.replace("%s", encodeURIComponent(item.query)));
+				break;
+		}
+	};
+	const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+		if (event.nativeEvent.isComposing) return;
 		if (event.key === "Escape") {
 			event.preventDefault();
-			// M17: this Esc belongs to the search — without stopPropagation()
-			// it reaches the dial-grid window listener and clears the
-			// selection as a side effect (repo convention: Esc consumers
-			// stop their own event, see inline-rename-input.tsx).
 			event.stopPropagation();
-			close();
+			close(true);
 			return;
 		}
-		if (event.key === "ArrowDown" && items.length > 0) {
+		if (
+			(event.key === "ArrowDown" || event.key === "ArrowUp") &&
+			items.length
+		) {
 			event.preventDefault();
-			setSelectedIndex((index) => Math.min(index + 1, items.length - 1));
-		} else if (event.key === "ArrowUp" && items.length > 0) {
-			event.preventDefault();
-			setSelectedIndex((index) => Math.max(index - 1, 0));
+			const next =
+				activeIndex < 0
+					? event.key === "ArrowDown"
+						? 0
+						: items.length - 1
+					: (activeIndex +
+							(event.key === "ArrowDown" ? 1 : -1) +
+							items.length) %
+						items.length;
+			setActiveId(items[next]?.id ?? null);
 		} else if (event.key === "Enter") {
 			event.preventDefault();
-			handleSubmit(event);
+			if (activeItem) selectItem(activeItem);
 		}
-	}
-
-	useEffect(() => {
-		if (!open) return;
-
-		const results = resultsRef.current;
-		const active = results?.querySelector<HTMLElement>(
-			`[data-search-index="${selectedIndex}"]`,
+	};
+	useLayoutEffect(() => {
+		const list = listRef.current;
+		if (!open || !list) return;
+		if (!items[activeIndex]) {
+			list.scrollTop = 0;
+			return;
+		}
+		const active = list?.querySelector<HTMLElement>(
+			`[data-search-index="${activeIndex}"]`,
 		);
-		if (!results || !active) return;
+		if (!active) return;
+		const viewport = list.getBoundingClientRect();
+		const rect = active.getBoundingClientRect();
+		if (rect.top < viewport.top) list.scrollTop -= viewport.top - rect.top;
+		else if (rect.bottom > viewport.bottom)
+			list.scrollTop += rect.bottom - viewport.bottom;
+	}, [open, activeIndex, items]);
 
-		// Results are an absolute layer now. `scrollIntoView()` would walk up
-		// through the Glass shell and scroll the search field itself out of view.
-		// Keep keyboard navigation scoped to the results viewport instead.
-		const activeTop = active.offsetTop;
-		const activeBottom = activeTop + active.offsetHeight;
-		const viewTop = results.scrollTop;
-		const viewBottom = viewTop + results.clientHeight;
-
-		if (activeTop < viewTop) {
-			results.scrollTop = activeTop;
-		} else if (activeBottom > viewBottom) {
-			results.scrollTop = activeBottom - results.clientHeight;
-		}
-	}, [open, selectedIndex]);
-
-	if (!enabled) return null;
-
-	const inputIcon =
-		showEngineLogo && svgXml && !isLoading ? (
+	if (!search.enabled) return null;
+	const engineIcon =
+		search.iconMode === "engine" && logoFailedFor !== search.engine;
+	const icon =
+		engineIcon && svgXml && !isLoading ? (
 			<SvgIcon svgXml={svgXml} className="size-5 shrink-0" alt={engine.label} />
-		) : showEngineLogo ? (
+		) : engineIcon ? (
 			<img
 				src={faviconUrl(engine.homepage)}
 				alt=""
-				className="size-5 shrink-0 rounded-[5px]"
-				onError={() => setLogoFailedFor(engineId)}
+				className="size-5 shrink-0"
+				onError={() => setLogoFailedFor(search.engine)}
 			/>
 		) : (
-			<Icon
-				name="search"
-				size={19}
-				className={cn("shrink-0", glassForeground())}
-			/>
+			<Icon name="search" size={20} aria-hidden="true" />
 		);
-
-	const groupLabel = (label: string, key: string) => (
-		<div
-			key={key}
-			data-shared-bg-skip
-			className={cn(
-				"px-3 pt-2.5 pb-1 font-normal text-[12px]",
-				glassText(isLiquid, "muted", resolvedDark),
-			)}
-		>
-			{label}
-		</div>
-	);
-
-	let flatIndex = 0;
-	// The SharedLayoutBg pill owns the ONLY background: rows paint
-	// foreground (and keep selection semantics) but never a competing bg.
-	const option = (item: SearchItem, content: React.ReactNode) => {
-		const index = flatIndex++;
-		const selected = index === selectedIndex;
-		return (
-			<button
-				key={item.id}
-				type="button"
-				role="option"
-				aria-selected={selected}
-				tabIndex={-1}
-				id={`klice-search-option-${index}`}
-				data-search-index={index}
-				onMouseEnter={() => setSelectedIndex(index)}
-				onFocus={() => setSelectedIndex(index)}
-				onClick={() => selectItem(item)}
-				className={cn(
-					"relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none transition-colors duration-100",
-					selected
-						? "text-[var(--klice-accent-foreground)]"
-						: isLiquid
-							? glassForeground()
-							: "text-flat-ink-muted",
-					"focus-visible:ring-2 focus-visible:ring-[var(--klice-accent)] focus-visible:ring-inset",
-				)}
-			>
-				{content}
-			</button>
-		);
+	const describe = (item: SearchItem) => {
+		switch (item.type) {
+			case "bookmark":
+				return {
+					title: item.data.title || displayHost(item.data.url),
+					detail: `${displayHost(item.data.url)}${paths.get(item.data.folderId) ? ` · ${paths.get(item.data.folderId)}` : ""}`,
+					url: item.data.url,
+					icon: "globe" as const,
+				};
+			case "quick-link":
+				return {
+					title: item.data.label,
+					detail: displayHost(item.data.url),
+					url: item.data.url,
+					icon: "link" as const,
+				};
+			case "folder":
+				return {
+					title: item.data.name,
+					detail: `${paths.get(item.data.parentId ?? "") || "Your folders"} · ${folderCounts.get(item.data.id) ?? 0} saved`,
+					icon: "folder" as const,
+				};
+			case "url":
+				return {
+					title: `Open ${displayHost(item.url)}`,
+					detail: item.url,
+					icon: "external-link" as const,
+				};
+			case "web":
+				return {
+					title: item.query,
+					detail: `Search with ${engine.label}`,
+					icon: "search" as const,
+				};
+			case "suggestion":
+				return {
+					title: item.query,
+					detail: engine.label,
+					icon: "search" as const,
+				};
+		}
 	};
-
-	const bookmarkContent = (card: Card) => (
-		<>
-			<img
-				src={card.favicon || faviconUrl(card.url)}
-				alt=""
-				className="size-4 shrink-0 rounded-[4px]"
-				onError={(event) => {
-					event.currentTarget.style.visibility = "hidden";
-				}}
-			/>
-			<span className="min-w-0 truncate">
-				<span className="block truncate font-normal text-[14px]">
-					{card.title || card.url}
-				</span>
-				<span
-					className={cn(
-						"block truncate text-[11px]",
-						glassForeground("secondary"),
-					)}
-				>
-					{folderPathById.get(card.folderId) ?? ""}
-				</span>
-			</span>
-		</>
-	);
-
-	const resultNodes: React.ReactNode[] = [];
-	const trimmedQuery = query.trim();
-	if (!trimmedQuery) {
-		const emptySuggestionValues =
-			suggestions.length > 0
-				? suggestions.slice(0, 4)
-				: fallbackSuggestionQueries;
-		if (emptySuggestionValues.length > 0) {
-			resultNodes.push(groupLabel("Suggestions", "suggestions-label"));
-			for (const value of emptySuggestionValues) {
-				resultNodes.push(
-					option(
-						{
-							type: "suggestion",
-							id: `suggestion:${value}`,
-							query: value,
-							source: suggestions.length > 0 ? "web" : "local",
-						},
-						<>
-							<Icon
-								name="search"
-								size={16}
-								className={cn("shrink-0", glassForeground())}
-							/>
-							<span className="truncate text-[14px]">{value}</span>
-						</>,
-					),
-				);
-			}
-		}
-
-		if (frequentCards.length > 0) {
-			resultNodes.push(groupLabel("Suggested", "frequent-label"));
-			for (const card of frequentCards) {
-				resultNodes.push(
-					option(
-						{ type: "frequent", id: `frequent:${card.id}`, data: card },
-						bookmarkContent(card),
-					),
-				);
-			}
-		}
-
-		if (emptySuggestionValues.length === 0 && frequentCards.length === 0) {
-			resultNodes.push(
-				<p
-					key="empty-results"
-					data-shared-bg-skip
-					className={cn(
-						"px-3 py-8 text-center text-[13px]",
-						glassText(isLiquid, "muted", resolvedDark),
-					)}
-				>
-					Type to search Klice or the web
-				</p>,
-			);
-		}
-	} else {
-		if (suggestions.length > 0) {
-			resultNodes.push(groupLabel("Search suggestions", "suggestions-label"));
-			for (const value of suggestions.slice(0, 4)) {
-				resultNodes.push(
-					option(
-						{
-							type: "suggestion",
-							id: `suggestion:${value}`,
-							query: value,
-							source: "web",
-						},
-						<>
-							<Icon
-								name="search"
-								size={16}
-								className={cn("shrink-0", glassForeground())}
-							/>
-							<span className="truncate text-[14px]">{value}</span>
-						</>,
-					),
-				);
-			}
-		}
-
-		if (localResults.folders.length > 0 || localResults.sites.length > 0) {
-			resultNodes.push(groupLabel("Klice", "klice-label"));
-			for (const folder of localResults.folders) {
-				resultNodes.push(
-					option(
-						{ type: "folder", id: `folder:${folder.id}`, data: folder },
-						<>
-							<Icon
-								name="folder"
-								size={17}
-								className={cn("shrink-0", glassForeground())}
-							/>
-							<span className="min-w-0 truncate">
-								<span className="block truncate font-normal text-[14px]">
-									{folder.name}
-								</span>
-								<span
-									className={cn(
-										"block truncate text-[11px]",
-										glassForeground("secondary"),
-									)}
-								>
-									{folderPathById.get(folder.id) ?? ""}
-								</span>
-							</span>
-						</>,
-					),
-				);
-			}
-			for (const card of localResults.sites) {
-				resultNodes.push(
-					option(
-						{ type: "bookmark", id: `bookmark:${card.id}`, data: card },
-						bookmarkContent(card),
-					),
-				);
-			}
-		}
-
-		resultNodes.push(groupLabel("Web", "web-label"));
-		resultNodes.push(
-			option(
-				{ type: "web", id: "web-search", query: trimmedQuery },
-				<>
-					<Icon
-						name="globe"
-						size={16}
-						className={cn("shrink-0", glassForeground())}
-					/>
-					<span className="min-w-0 truncate">
-						<span className="block truncate font-normal text-[14px]">
-							Search {engine.label} for “{trimmedQuery}”
-						</span>
-						<span
-							className={cn(
-								"block truncate text-[11px]",
-								glassForeground("secondary"),
-							)}
-						>
-							Open web search
-						</span>
-					</span>
-				</>,
-			),
-		);
-	}
-
+	let rowIndex = 0;
 	return (
 		<div
-			ref={shellRef}
-			className="relative max-w-full"
+			ref={anchorRef}
 			data-unified-search
 			data-search-open={open ? "true" : "false"}
+			className="klice-search-anchor"
 			style={
 				{
-					"--speed-dial-search-width": `${searchWidth}px`,
-					width:
-						"min(var(--speed-dial-search-width), calc(100vw - var(--speed-dial-content-gutter) - var(--speed-dial-content-gutter)))",
+					"--speed-dial-search-width": `${search.width}px`,
+					width: "min(var(--speed-dial-search-width), 100%)",
 				} as CSSProperties
 			}
 		>
 			<GlassSurface
-				variant={open ? "search" : "hero"}
-				shape={open ? "searchExpanded" : "searchCollapsed"}
-				className={cn(
-					"relative w-full flex-col items-stretch overflow-hidden",
-					!open && "hover:brightness-[1.04]",
-				)}
-				style={{
-					// Keep input and results in one mounted material surface. The
-					// max-height transition clips the natural result list without a
-					// ResizeObserver/state feedback loop. Height and border-radius
-					// share one timeline: the shape role swaps from the finite
-					// capsule token to the surface role (one step below the field,
-					// so focus reduces the radius), and both properties interpolate
-					// continuously (never rounded-full/infinity, which cannot
-					// transition and snaps at the end). In Gecko the surface
-					// fallback is calibrated, so the results container never
-					// inherits the resting field's capsule radius.
-					height: open ? "auto" : 56,
-					maxHeight: open ? "min(504px, calc(100vh - 10rem))" : 56,
-					transition: reduceMotion ? "none" : SEARCH_GEOMETRY_CSS,
-				}}
+				variant="hero"
+				shape="searchCollapsed"
+				className={cn("klice-search-field", open && "invisible")}
 			>
-				<form
-					onSubmit={handleSubmit}
-					onKeyDown={handleKeyDown}
-					onPointerDown={(event) => {
-						if (event.button !== 0) return;
-						compactTriggerRef.current = null;
-						openSearch();
-						inputRef.current?.focus({ preventScroll: true });
-					}}
-					className="flex h-14 w-full shrink-0 items-center gap-3 px-5"
+				<button
+					ref={launcherRef}
+					type="button"
+					onClick={openSearch}
+					aria-label="Search saved pages or the web"
+					aria-haspopup="listbox"
+					aria-expanded={open}
+					className={cn("klice-search-launcher", ink)}
 				>
-					{inputIcon}
-					<input
-						ref={inputRef}
-						data-unified-search-input
-						type="text"
-						role="combobox"
-						value={query}
-						onFocus={openSearch}
-						onChange={(event) => {
-							setQuery(event.target.value);
-							openSearch();
-						}}
-						placeholder={placeholder}
-						aria-label={placeholder}
-						aria-expanded={open}
-						aria-controls="klice-search-results"
-						aria-activedescendant={
-							open && items[selectedIndex]
-								? `klice-search-option-${selectedIndex}`
-								: undefined
-						}
-						aria-autocomplete="list"
-						className={cn(
-							"min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:font-normal",
-							isLiquid
-								? // Expanded search is a dense frosted surface and the
-									// collapsed hero floats on the wallpaper: both pair
-									// dark ink with Light, white ink with Dark.
-									cn(
-										glassForeground(),
-										"placeholder:text-[var(--klice-glass-foreground-secondary)]",
-									)
-								: "text-foreground placeholder:text-muted-foreground",
-						)}
-						autoComplete="off"
-						spellCheck={false}
-					/>
-					{open && query && (
-						<button
-							type="button"
-							aria-label="Clear search"
-							onClick={() => {
-								setQuery("");
-								inputRef.current?.focus({ preventScroll: true });
-							}}
-							className={cn(
-								"flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
-								isLiquid
-									? `${glassForeground()} hover:bg-foreground/10 hover:text-[var(--klice-glass-foreground-primary)]`
-									: "text-muted-foreground hover:bg-flat-sunken-raised hover:text-foreground",
-							)}
-						>
-							<Icon name="x" size={15} />
-						</button>
-					)}
-					{!open && (
-						<kbd
-							className={cn(
-								"hidden rounded-md px-2 py-1 font-medium text-[10px] sm:block",
-								isLiquid
-									? "border border-foreground/10 bg-foreground/[0.06] text-[var(--klice-glass-foreground-secondary)]"
-									: "border border-flat-edge bg-flat-sunken text-flat-ink-muted",
-							)}
-						>
-							Ctrl K
-						</kbd>
-					)}
-				</form>
-
-				<div
-					ref={resultsRef}
-					id="klice-search-results"
-					role="listbox"
-					aria-label="Search results"
-					aria-hidden={!open}
-					inert={!open}
-					className={cn(
-						"max-h-[min(28rem,calc(100vh-10rem-3.5rem))] min-h-0 overflow-y-auto border-t px-2 pt-1 pb-2",
-						isLiquid ? "border-foreground/10" : "border-separator-groove",
-					)}
-					style={{
-						pointerEvents: open ? "auto" : "none",
-						opacity: open ? 1 : 0,
-						transform: open
-							? "translate3d(0, 0, 0)"
-							: "translate3d(0, -4px, 0)",
-						transition: reduceMotion ? "none" : SEARCH_CONTENT_CSS,
-					}}
-				>
-					<SharedLayoutBg
-						inset={8}
-						// The pill IS the selection surface (accent, both modes):
-						// rows own foreground only, so keyboard selection and
-						// pointer hover resolve to the same single highlight.
-						activeKey={items[selectedIndex]?.id ?? null}
-						pillClassName="rounded-xl bg-[var(--klice-accent)]"
-						className="gap-0.5"
-					>
-						{resultNodes}
-					</SharedLayoutBg>
-				</div>
+					{icon}
+					<span className="min-w-0 flex-1 truncate text-left opacity-65">
+						{placeholder}
+					</span>
+					<kbd>{isMac ? "⌘ K" : "Ctrl K"}</kbd>
+				</button>
 			</GlassSurface>
+			{open &&
+				createPortal(
+					<search
+						ref={overlayRef}
+						aria-label="Search"
+						className={cn("klice-search-overlay", ink)}
+						data-search-overlay
+						data-local-context-menu
+						onKeyDown={(event) => {
+							if (event.nativeEvent.isComposing) return;
+							if (event.key === "Escape") {
+								event.preventDefault();
+								event.stopPropagation();
+								close(true);
+							}
+						}}
+						onBlurCapture={(event) => {
+							if (
+								event.relatedTarget instanceof Node &&
+								!event.currentTarget.contains(event.relatedTarget) &&
+								!(
+									event.relatedTarget instanceof Element &&
+									event.relatedTarget.closest("[data-compact-search-control]")
+								)
+							)
+								close();
+						}}
+					>
+						<GlassSurface
+							variant="search"
+							shape="searchCollapsed"
+							className="klice-search-field"
+						>
+							<form
+								className="klice-search-input-row"
+								onSubmit={(event) => {
+									event.preventDefault();
+									if (activeItem) selectItem(activeItem);
+								}}
+							>
+								{icon}
+								<input
+									ref={inputRef}
+									data-unified-search-input
+									type="text"
+									role="combobox"
+									value={query}
+									onChange={(event) => {
+										setQuery(event.target.value);
+										setActiveId(null);
+									}}
+									onKeyDown={handleKeyDown}
+									placeholder={placeholder}
+									aria-label="Search saved pages or the web"
+									aria-expanded={open}
+									aria-controls="klice-search-results"
+									aria-activedescendant={
+										activeItem
+											? `klice-search-option-${activeIndex}`
+											: undefined
+									}
+									aria-autocomplete="list"
+									aria-describedby={
+										!items.length ? "klice-search-empty-help" : undefined
+									}
+									autoComplete="off"
+									autoCapitalize="off"
+									spellCheck={false}
+								/>
+								{query ? (
+									<button
+										type="button"
+										aria-label="Clear search"
+										className="klice-search-dismiss"
+										onClick={() => {
+											setQuery("");
+											setActiveId(null);
+											inputRef.current?.focus({ preventScroll: true });
+										}}
+									>
+										<Icon name="x" size={16} />
+									</button>
+								) : (
+									<button
+										type="button"
+										aria-label="Close search"
+										className="klice-search-dismiss"
+										onClick={() => close(true)}
+									>
+										<kbd>Esc</kbd>
+									</button>
+								)}
+							</form>
+						</GlassSurface>
+						<GlassSurface
+							variant="search"
+							shape="panel"
+							className="klice-search-results-panel"
+						>
+							<fieldset className="klice-search-scopes" aria-label="Search in">
+								{SCOPES.map((filter) => (
+									<button
+										type="button"
+										key={filter.id}
+										aria-pressed={scope === filter.id}
+										className={cn("klice-search-scope", kliceShape("pill"))}
+										onClick={() => {
+											setScope(filter.id);
+											setActiveId(null);
+											inputRef.current?.focus({ preventScroll: true });
+										}}
+									>
+										{filter.label}
+									</button>
+								))}
+							</fieldset>
+							<div ref={listRef} className="klice-search-results-list">
+								<div
+									id="klice-search-results"
+									role="listbox"
+									aria-label="Search results"
+								>
+									{groups.map((group) => (
+										// biome-ignore lint/a11y/useSemanticElements: this is an ARIA listbox option group, not a form fieldset.
+										<div
+											key={group.id}
+											role="group"
+											aria-label={group.label}
+											className="klice-search-result-group"
+										>
+											<div
+												aria-hidden="true"
+												className="klice-search-group-label"
+											>
+												{group.label}
+											</div>
+											{group.items.map((item) => {
+												const index = rowIndex++;
+												const selected = index === activeIndex;
+												const content = describe(item);
+												return (
+													<button
+														key={item.id}
+														type="button"
+														role="option"
+														aria-selected={selected}
+														tabIndex={-1}
+														id={`klice-search-option-${index}`}
+														data-search-index={index}
+														className={cn(
+															"klice-search-option",
+															kliceShape("control"),
+														)}
+														onMouseEnter={() => setActiveId(item.id)}
+														onPointerDown={(event) => {
+															if (event.pointerType === "mouse")
+																event.preventDefault();
+														}}
+														onClick={() => selectItem(item)}
+													>
+														<span
+															className={cn(
+																"klice-search-result-icon",
+																kliceShape("thumbnail"),
+															)}
+														>
+															<Icon
+																name={content.icon}
+																size={18}
+																aria-hidden="true"
+															/>
+															{content.url && (
+																<img
+																	key={content.url}
+																	src={faviconUrl(content.url)}
+																	alt=""
+																	onError={(event) => {
+																		event.currentTarget.hidden = true;
+																	}}
+																/>
+															)}
+														</span>
+														<span className="klice-search-result-copy">
+															<span>{content.title}</span>
+															<small>{content.detail}</small>
+														</span>
+														<Icon
+															name={
+																item.type === "folder"
+																	? "chevron-right"
+																	: "external-link"
+															}
+															size={15}
+															aria-hidden="true"
+															className="klice-search-row-action"
+														/>
+													</button>
+												);
+											})}
+										</div>
+									))}
+								</div>
+								{!items.length && (
+									<div className="klice-search-empty">
+										<Icon name="search" size={22} aria-hidden="true" />
+										<p role="status">
+											{query.trim()
+												? `No ${scope === "folders" ? "folders" : "saved pages"} found`
+												: scope === "web"
+													? `Search with ${engine.label}`
+													: "Your library starts here"}
+										</p>
+										<span id="klice-search-empty-help">
+											{query.trim()
+												? "Try a shorter name, a website, or search the web."
+												: scope === "web"
+													? "Type a question, a search, or a website address."
+													: "Save a page or add a folder to find it here."}
+										</span>
+										{query.trim() && (
+											<button
+												type="button"
+												onClick={() => {
+													setScope("web");
+													setActiveId(null);
+													inputRef.current?.focus();
+												}}
+											>
+												Search the web instead
+												<Icon name="external-link" size={14} />
+											</button>
+										)}
+									</div>
+								)}
+							</div>
+							<div className="klice-search-footer">
+								<span role="status" aria-live="polite">
+									{query.trim()
+										? `${items.length} ${items.length === 1 ? "result" : "results"}`
+										: "Find your next destination"}
+								</span>
+								<span aria-hidden="true">
+									<kbd>↑</kbd>
+									<kbd>↓</kbd> navigate <kbd>↵</kbd> open
+								</span>
+							</div>
+						</GlassSurface>
+					</search>,
+					document.body,
+				)}
 		</div>
 	);
 });

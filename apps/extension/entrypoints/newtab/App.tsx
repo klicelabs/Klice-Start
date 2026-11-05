@@ -312,8 +312,12 @@ const HomeSurface = memo(function HomeSurface({
 const SettingsMotionToolbarActions = memo(
 	function SettingsMotionToolbarActions({
 		onSettings,
+		onSearch,
+		compactSearch,
 	}: {
 		onSettings: () => void;
+		onSearch: () => void;
+		compactSearch: boolean;
 	}) {
 		const open = useSettingsMotionStore((state) => state.phase === "open");
 		return (
@@ -322,7 +326,11 @@ const SettingsMotionToolbarActions = memo(
 				aria-hidden={open}
 				inert={open}
 			>
-				<ToolbarActions onSettings={onSettings} />
+				<ToolbarActions
+					onSettings={onSettings}
+					onSearch={onSearch}
+					compactSearch={compactSearch}
+				/>
 			</div>
 		);
 	},
@@ -1184,8 +1192,6 @@ export default function App() {
 											canGoForward={navigationHistory.forward.length > 0}
 											onBack={handleBack}
 											onForward={handleForward}
-											searchEnabled={searchEnabled}
-											onOpenSearch={handleOpenSearch}
 											onSelectFolder={handleSelectFolder}
 											onAddFolder={handleAddRootFolder}
 											onNewRootFolder={() => handleNewSubfolder(null)}
@@ -1202,6 +1208,8 @@ export default function App() {
 										<div className="pointer-events-auto flex items-center">
 											<SettingsMotionToolbarActions
 												onSettings={handleToggleSettings}
+												onSearch={handleOpenSearch}
+												compactSearch={searchEnabled && compactSearch}
 											/>
 										</div>
 									</div>

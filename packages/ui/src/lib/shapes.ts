@@ -5,15 +5,10 @@
  * the Settings corner scale drives every role at once and no consumer ever
  * picks a rounded-* utility by feel. Chromium renders corner-shape: squircle
  * from the radius; the paired fallback var keeps the calibrated Gecko
- * radius. The collapsed search field is the deliberate exception: its
- * geometry is engine-agnostic (one shared value per tier, capped by the
- * field's half-height, never a radius/fallback pair). The expanded results
- * surface is the regular surface role, so it uses the same radius/fallback
- * pair as every other app surface — only the resting field and the toolbar
- * are ever full-rounded. At Rounded the search surface also opts out of
- * the squircle curvature (see `.klice-search-surface` in tokens.css) so the
- * resting field renders true circular capsule ends, and the expanded state
- * drops one role (section → surface) so focus visibly reduces the radius.
+ * radius. Search has independent field and results surfaces: both keep
+ * squircle geometry and follow the user's corner scale. The field uses
+ * the section's calibrated fallback; its detached result panel uses panel.
+ * Toolbar controls remain circular capsules.
  *
  * Consumers should use a role rather than choosing a rounded-* utility.
  */
@@ -56,30 +51,10 @@ export const KliceShape = {
 	 * globals.css), so the surface and its segments can never disagree.
 	 */
 	toolbarGroup: "klice-toolbar-group rounded-full",
-	/**
-	 * Collapsed search hero. Tier-driven (12/22/28px) like every other
-	 * surface: the resting field follows the corner preference, and at
-	 * Rounded the 28px token is exactly half the 56px field height (a true
-	 * capsule silhouette via overlap scaling). Values stay FINITE:
-	 * rounded-full resolves to calc(infinity * 1px), and border-radius
-	 * cannot interpolate from infinity — the surface would hold the pill
-	 * through the whole open transition and snap to the surface radius at
-	 * the end (the shape-morph regression). Finite endpoints interpolate
-	 * continuously, so expansion, radius and content share one timeline.
-	 */
+	/** Search field: finite tier radius with the section's Gecko calibration. */
 	searchCollapsed:
-		"klice-search-surface klice-squircle rounded-[var(--shape-search-collapsed,28px)] [--squircle-r:var(--shape-search-collapsed,28px)]",
-	/**
-	 * Expanded search surface. It is the regular surface role — one step
-	 * below the field's section step — so focus always REDUCES the radius
-	 * (28→24, 22→18, 12→10) instead of keeping the capsule value on a large
-	 * container. Keeping the surface radius/fallback pair also gives Gecko
-	 * the calibrated radius instead of a raw circular one. The endpoints
-	 * stay finite, so the open/close morph remains interpolable.
-	 * `klice-search-surface` lets the Rounded tier opt both search states
-	 * out of the squircle curvature, so the resting field is a true capsule
-	 * and the shape cannot pop mid-morph.
-	 */
+		"klice-search-surface klice-squircle rounded-[var(--shape-search-collapsed,28px)] [--squircle-r:var(--shape-section-fallback,13px)]",
+	/** Default search material geometry; detached result panels use panel. */
 	searchExpanded: `${SURFACE_SHAPE} klice-search-surface`,
 } as const;
 

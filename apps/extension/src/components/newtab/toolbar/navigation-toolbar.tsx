@@ -27,7 +27,6 @@ import type { InsertPosition } from "../../../stores/setup-store";
 import type { Folder } from "../../../types";
 import { useAppearance, useGlassAppearance } from "../appearance-provider";
 import { FolderTabs } from "./folder-tabs";
-import { ToolbarIconButton } from "./toolbar-icon-button";
 
 interface NavigationToolbarProps {
 	rootFolders: Folder[];
@@ -39,8 +38,6 @@ interface NavigationToolbarProps {
 	canGoForward: boolean;
 	onBack: () => void;
 	onForward: () => void;
-	searchEnabled: boolean;
-	onOpenSearch: () => void;
 	onSelectFolder: (id: string) => void;
 	onAddFolder: (name: string) => string;
 	/** Direct root-folder creation ("New Folder" + inline rename). */
@@ -88,8 +85,6 @@ export function NavigationToolbar({
 	canGoForward,
 	onBack,
 	onForward,
-	searchEnabled,
-	onOpenSearch,
 	onSelectFolder,
 	onAddFolder,
 	onNewRootFolder,
@@ -260,18 +255,6 @@ export function NavigationToolbar({
 							isRootFolder={isRootFolder}
 							canNestFolder={canNestFolder}
 						/>
-						{searchEnabled && (
-							<div
-								className="toolbar-compact-search"
-								data-compact-search-control="true"
-							>
-								<ToolbarIconButton
-									icon="search"
-									label="Search"
-									onClick={onOpenSearch}
-								/>
-							</div>
-						)}
 					</div>
 
 					<div

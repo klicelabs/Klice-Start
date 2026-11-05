@@ -96,18 +96,8 @@ html.dark body {
 	--shape-pill-fallback: 9px;
 	--shape-thumb: 12px;
 	--shape-thumb-fallback: 7px;
-	/* Collapsed search field geometry is engine-agnostic (single value, no
-	   pairing). The resting field follows the section step (12/22/28). At
-	   Rounded, 28px is exactly half of the 56px field height, so overlap
-	   scaling renders a true capsule; below that ceiling the field is a
-	   rounded rectangle. Unlike rounded-full (calc(infinity * 1px)) every
-	   value is FINITE, which lets border-radius interpolate smoothly through
-	   the open/close morph instead of holding the pill and snapping at the
-	   end. The expanded results surface is the regular surface role (see
-	   --shape-surface / --shape-surface-fallback), one step below the
-	   field's section step so focus reduces the radius; only the resting
-	   field and the toolbar are ever full-rounded. Keep the ceiling in
-	   sync with h-14. */
+	/* The field stays independent from the result panel. Both use squircle
+	   geometry and the shared tier calibration, including Firefox. */
 	--shape-search-collapsed: 22px;
 	/* Icon corner geometry — the one shape role that is a FRACTION of the
 	   icon size, because icons come in three sizes (64/76/92) and every
@@ -175,17 +165,6 @@ html.dark body {
 	   close to a home-screen icon. */
 	--icon-radius-ratio: 0.38;
 	--icon-radius-fallback-ratio: 0.228;
-}
-
-/* Rounded: the search surface renders circular (round) corners instead of
-   the squircle curvature. At 28px on the 56px field that makes the resting
-   input a true capsule rather than a rounded rectangle. Both search states
-   share the opt-out so the corner shape cannot pop while the container
-   opens; the expanded state uses the surface radius (24px at this tier),
-   so focus reduces the radius. Gecko ignores corner-shape and already
-   uses the fallback radius. */
-:root[data-klice-corner="rounded"] .klice-search-surface {
-	corner-shape: round;
 }
 
 /* Text painted directly on the Home wallpaper has its own contrast role. It
@@ -613,8 +592,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 /* Hover is pointer-only: the whole icon rises as one compact object. */
 @media (hover: hover) and (pointer: fine) {
 	/* With a glass pane, lift the pane and keep its icon face still inside it. */
-	.dial-grid[data-layout="icon"]:has(.icon-glass-tile)
-		.dial-icon-item:not([data-dragging="true"]):hover
+	.dial-grid[data-layout="icon"]:has(.icon-glass-tile) .dial-icon-item:not(
+			[data-dragging="true"]
+		):hover
 		.icon-app-tile,
 	.icon-mode-surface:has(.icon-glass-tile):not([data-dragging="true"]):hover
 		.icon-app-tile {
@@ -1087,8 +1067,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 }
 
 @media (hover: hover) and (pointer: fine) {
-	.dial-grid[data-layout="card"]
-		.dial-card:not([data-dragging="true"]):hover {
+	.dial-grid[data-layout="card"] .dial-card:not([data-dragging="true"]):hover {
 		transform: translateY(-3px);
 		box-shadow:
 			0 20px 38px -22px rgb(4 8 18 / 0.68),
@@ -1478,7 +1457,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	[data-settings-workspace-panels] {
 	padding: var(--workspace-gutter);
 	padding-inline-end: calc(
-		var(--settings-sidebar-width) + 2 * var(--workspace-gutter)
+		var(--settings-sidebar-width) +
+		2 *
+		var(--workspace-gutter)
 	);
 }
 
@@ -1650,33 +1631,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	pointer-events: auto;
 }
 
-/* Compact Search belongs to the Tabbar cluster. It is positioned from the
-   fixed-width Tabbar wrapper so it never consumes the center lane's width. */
-.toolbar-compact-search {
-	position: absolute;
-	top: 50%;
-	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
-	left: auto;
-	flex: 0 0 auto;
-	transform: translate3d(0, -50%, 0) scale(0.92);
-	opacity: 0;
-	visibility: hidden;
-	pointer-events: none;
-	transition:
-		transform var(--motion-toolbar-duration) var(--ease-out),
-		opacity var(--motion-toolbar-duration) var(--ease-out);
-}
-
-[data-speed-dial-frame][data-compact-search="true"] .toolbar-compact-search {
-	position: absolute;
-	top: 50%;
-	right: calc(100% + var(--speed-dial-toolbar-compact-gap));
-	left: auto;
-	transform: translate3d(0, -50%, 0) scale(1);
+[data-toolbar-actions] button:is(:hover, :active) .toolbar-action-hover {
 	opacity: 1;
-	visibility: visible;
-	pointer-events: auto;
-	transition-delay: 0s, 0s;
 }
 
 /* Semantic Liquid Glass toolbar foreground. Flat controls keep their
@@ -1787,6 +1743,257 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	z-index: var(--speed-dial-layer-search);
 }
 
+/* Search has two independent material surfaces. Its portal stays mounted
+   while the native page scroll moves the anchor; only its position changes.
+   Opening by keyboard is immediate, with no height/radius animation. */
+.klice-search-anchor {
+	height: 56px;
+}
+.klice-search-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	z-index: var(--speed-dial-layer-search, 80);
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	text-align: left;
+}
+.klice-search-field {
+	width: 100%;
+	height: 56px;
+	overflow: hidden;
+}
+.klice-search-launcher,
+.klice-search-input-row {
+	display: flex;
+	width: 100%;
+	height: 56px;
+	align-items: center;
+	gap: 13px;
+	padding-inline: 20px 14px;
+	font-size: 16px;
+}
+.klice-search-launcher {
+	cursor: text;
+	outline: none;
+}
+.klice-search-launcher:focus-visible {
+	box-shadow: inset 0 0 0 2px var(--klice-accent);
+	border-radius: inherit;
+}
+.klice-search-input-row input {
+	width: 100%;
+	min-width: 0;
+	flex: 1;
+	border: 0;
+	background: transparent;
+	color: inherit;
+	outline: none;
+	caret-color: var(--klice-accent);
+}
+.klice-search-input-row input::placeholder {
+	color: currentColor;
+	opacity: 0.65;
+}
+.klice-search-overlay kbd,
+.klice-search-launcher kbd {
+	font: inherit;
+	font-size: 11px;
+	white-space: nowrap;
+	opacity: 0.65;
+}
+.klice-search-dismiss {
+	display: flex;
+	min-width: 30px;
+	height: 30px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+}
+.klice-search-dismiss:hover {
+	background: color-mix(in srgb, currentColor 9%, transparent);
+}
+.klice-search-results-panel {
+	display: flex;
+	width: 100%;
+	max-height: var(--search-results-height, 432px);
+	min-height: 0;
+	flex-direction: column;
+	align-items: stretch;
+	overflow: hidden;
+}
+.klice-search-scopes {
+	display: flex;
+	flex-shrink: 0;
+	gap: 4px;
+	overflow-x: auto;
+	padding: 10px 12px 6px;
+}
+.klice-search-scope {
+	min-height: 30px;
+	padding: 5px 12px;
+	font-size: 12px;
+	white-space: nowrap;
+	opacity: 0.7;
+}
+.klice-search-scope[aria-pressed="true"] {
+	background: color-mix(in srgb, currentColor 12%, transparent);
+	font-weight: 500;
+	opacity: 1;
+}
+.klice-search-results-list {
+	min-height: 0;
+	overflow: auto;
+	overscroll-behavior: contain;
+	padding: 0 8px 6px;
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, currentColor 20%, transparent) transparent;
+}
+.klice-search-result-group + .klice-search-result-group {
+	margin-top: 8px;
+}
+.klice-search-group-label {
+	padding: 10px 12px 5px;
+	font-size: 11px;
+	font-weight: 500;
+	opacity: 0.65;
+}
+.klice-search-option {
+	position: relative;
+	display: flex;
+	width: 100%;
+	min-height: 56px;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	text-align: left;
+	outline: none;
+}
+.klice-search-option[aria-selected="true"] {
+	background: color-mix(in srgb, currentColor 11%, transparent);
+}
+.klice-search-result-icon {
+	position: relative;
+	display: flex;
+	width: 32px;
+	height: 32px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.klice-search-result-icon img {
+	position: absolute;
+	width: 20px;
+	height: 20px;
+	object-fit: contain;
+}
+.klice-search-result-icon:has(img:not([hidden])) > svg {
+	visibility: hidden;
+}
+.klice-search-result-copy {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	flex-direction: column;
+	gap: 2px;
+}
+.klice-search-result-copy > span {
+	overflow: hidden;
+	font-size: 14px;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.klice-search-result-copy small {
+	overflow: hidden;
+	font-size: 11px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.68;
+}
+.klice-search-row-action {
+	flex-shrink: 0;
+	opacity: 0;
+}
+.klice-search-option[aria-selected="true"] .klice-search-row-action {
+	opacity: 0.6;
+}
+.klice-search-footer {
+	display: flex;
+	min-height: 35px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 6px 20px 10px;
+	font-size: 10px;
+	opacity: 0.65;
+}
+.klice-search-footer > span:last-child {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	white-space: nowrap;
+}
+.klice-search-empty {
+	display: flex;
+	min-height: 170px;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 24px;
+	text-align: center;
+}
+.klice-search-empty p {
+	font-size: 14px;
+	font-weight: 500;
+}
+.klice-search-empty > span {
+	max-width: 32ch;
+	font-size: 12px;
+	opacity: 0.7;
+}
+.klice-search-empty button {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px;
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.klice-search-overlay button:focus-visible {
+	outline: 2px solid var(--klice-accent);
+	outline-offset: -2px;
+}
+.klice-search-overlay:is(
+		[data-search-layout="compact"],
+		[data-search-layout="minimal"]
+	)
+	.klice-search-footer,
+.klice-search-overlay[data-search-layout="minimal"] .klice-search-scopes {
+	display: none;
+}
+@media (max-width: 480px) {
+	.klice-search-launcher,
+	.klice-search-input-row {
+		gap: 10px;
+		padding-inline: 16px 10px;
+		font-size: 15px;
+	}
+	.klice-search-footer > span:last-child {
+		display: none;
+	}
+	.klice-search-option {
+		gap: 10px;
+		padding-inline: 8px;
+	}
+}
+
 .speed-dial-grid-region {
 	/* Spacing rhythm lives on .dial-grid-wrap below, so the interaction
 	   surface (marquee selection + DnD drops) covers the full content
@@ -1836,15 +2043,23 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	bottom: 6px;
 	width: 2px;
 }
-.quick-link-reorder-horizontal[data-quick-link-drop="before"]::after { left: -3px; }
-.quick-link-reorder-horizontal[data-quick-link-drop="after"]::after { right: -3px; }
+.quick-link-reorder-horizontal[data-quick-link-drop="before"]::after {
+	left: -3px;
+}
+.quick-link-reorder-horizontal[data-quick-link-drop="after"]::after {
+	right: -3px;
+}
 .quick-link-reorder-vertical[data-quick-link-drop]::after {
 	right: 0;
 	left: 0;
 	height: 2px;
 }
-.quick-link-reorder-vertical[data-quick-link-drop="before"]::after { top: 0; }
-.quick-link-reorder-vertical[data-quick-link-drop="after"]::after { bottom: 0; }
+.quick-link-reorder-vertical[data-quick-link-drop="before"]::after {
+	top: 0;
+}
+.quick-link-reorder-vertical[data-quick-link-drop="after"]::after {
+	bottom: 0;
+}
 
 /* The wrap is the full-bleed interaction surface: it owns the vertical
    rhythm (previously the region's padding) so presses and drags work
@@ -1853,14 +2068,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid-wrap {
 	padding-top: 0;
 	padding-bottom: var(--speed-dial-grid-bottom);
-}
-
-/* Navigation and the promoted Search surface share predictable frame-level
-   stacking boundaries while the scroll viewport remains non-stacking. */
-@media (prefers-reduced-motion: reduce) {
-	.toolbar-compact-search {
-		transition: none;
-	}
 }
 
 /* Accent-derived elevation for semantic primary actions. */
@@ -2011,7 +2218,9 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 
 [data-history-controls]:has(> [data-history-control]:not(:disabled):hover)
 	[data-history-divider],
-[data-history-controls]:has(> [data-history-control]:not(:disabled):focus-visible)
+[data-history-controls]:has(
+		> [data-history-control]:not(:disabled):focus-visible
+	)
 	[data-history-divider] {
 	opacity: 0;
 }
