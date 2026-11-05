@@ -4,7 +4,28 @@ import {
 } from "../src/stores/settings-motion-store";
 
 beforeEach(() => {
-	settingsMotionStore.getState().finishClose();
+	settingsMotionStore.setState({
+		phase: "closed",
+		pane: undefined,
+		action: undefined,
+	});
+});
+
+test("stale close completion cannot dismiss a reopened sidebar", () => {
+	const store = settingsMotionStore.getState();
+	store.open();
+	store.close();
+	store.open("appearance");
+	store.finishClose();
+	expect(settingsMotionStore.getState()).toMatchObject({
+		phase: "open",
+		pane: "appearance",
+	});
+	store.close();
+	store.finishClose();
+	expect(settingsMotionStore.getState()).toMatchObject({
+		phase: "closed",
+	});
 });
 
 test("uses one reversible phase path for open and close", () => {
@@ -35,9 +56,13 @@ test("starts the Home return while keeping Settings mounted through its exit", (
 
 	settingsMotionStore.getState().close();
 	expect(settingsMotionStore.getState().phase).toBe("closing");
-	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(false);
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(
+		false,
+	);
 
 	settingsMotionStore.getState().finishClose();
 	expect(settingsMotionStore.getState().phase).toBe("closed");
-	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(false);
+	expect(isSettingsLayoutOpen(settingsMotionStore.getState().phase)).toBe(
+		false,
+	);
 });

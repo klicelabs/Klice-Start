@@ -42,9 +42,9 @@ export const useSettingsMotionStore = create<SettingsMotionState>((set) => ({
 		),
 	finishClose: () =>
 		set((state) =>
-			state.phase === "closed"
-				? state
-				: { ...state, phase: "closed", action: undefined },
+			state.phase === "closing"
+				? { ...state, phase: "closed", action: undefined }
+				: state,
 		),
 }));
 

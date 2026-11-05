@@ -316,8 +316,15 @@ const SettingsMotionToolbarActions = memo(
 		onSettings: () => void;
 	}) {
 		const open = useSettingsMotionStore((state) => state.phase === "open");
-		if (open) return null;
-		return <ToolbarActions onSettings={onSettings} />;
+		return (
+			<div
+				className={open ? "invisible" : undefined}
+				aria-hidden={open}
+				inert={open}
+			>
+				<ToolbarActions onSettings={onSettings} />
+			</div>
+		);
 	},
 );
 

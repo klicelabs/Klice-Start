@@ -351,14 +351,12 @@ export function SettingsSidebar({
 							</h2>
 							<p className="sr-only">Klice Start preferences</p>
 						</div>
-						{open && (
-							<SettingsChromeButton
-								icon="x"
-								label="Close preferences"
-								buttonRef={closeControlRef}
-								onClick={handleClose}
-							/>
-						)}
+						<SettingsChromeButton
+							icon="x"
+							label="Close preferences"
+							buttonRef={closeControlRef}
+							onClick={handleClose}
+						/>
 					</header>
 				</SidebarHeader>
 
