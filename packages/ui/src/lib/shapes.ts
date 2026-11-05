@@ -54,9 +54,9 @@ export const KliceShape = {
 	/** Search field: finite tier radius with the section's Gecko calibration. */
 	searchCollapsed:
 		"klice-search-surface klice-squircle rounded-[var(--shape-search-collapsed,28px)] [--squircle-r:var(--shape-section-fallback,13px)]",
-	/** Detached result list: a little softer than other panels, tier-driven. */
+	/** Results match the field in Soft/Discreet; Rounded keeps a softer panel. */
 	searchResults:
-		"klice-squircle rounded-[var(--shape-search-results,36px)] [--squircle-r:var(--shape-search-results-fallback,22px)]",
+		"klice-squircle rounded-[var(--shape-search-results,22px)] [--squircle-r:var(--shape-search-results-fallback,13px)]",
 	/** Default search material geometry; detached result panels use panel. */
 	searchExpanded: `${SURFACE_SHAPE} klice-search-surface`,
 } as const;

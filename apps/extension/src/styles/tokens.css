@@ -62,13 +62,11 @@ html.dark body {
       engine-agnostic rounded-* utilities (menus, dialogs, inputs, selects,
       popovers, cards in packages/ui) derive from it, so they follow the
       preference without per-component overrides.
-   3. Search field geometry (--shape-search-*): a single-value token, no
-      engine pairing. The collapsed field follows the section step
+   3. Search geometry (--shape-search-*): the field follows the section step
       (12/22/28px; 28px is the capsule ceiling at half the 56px field
-      height). The expanded results container is the surface role (one
-      step below), so focus always reduces the radius; a large panel
-      reads wrong as a capsule, so Rounded never lifts it to the field
-      value.
+      height). Soft/Discreet results share the field radius and calibrated
+      Gecko fallback. Rounded keeps a capsule field and a separate,
+      softer squircle panel for the results.
 
    Deliberately OUTSIDE the scale (intentional geometry):
    - toolbar surfaces and controls: always true capsules (--klice-toolbar-
@@ -96,11 +94,10 @@ html.dark body {
 	--shape-pill-fallback: 9px;
 	--shape-thumb: 12px;
 	--shape-thumb-fallback: 7px;
-	/* Field and list are independent. Soft/Discreet use calibrated
-	   squircles; the Rounded field becomes a true capsule below. */
+	/* Share field/list geometry in Soft/Discreet; Rounded overrides the list. */
 	--shape-search-collapsed: 22px;
-	--shape-search-results: 36px;
-	--shape-search-results-fallback: 22px;
+	--shape-search-results: var(--shape-search-collapsed);
+	--shape-search-results-fallback: var(--shape-section-fallback);
 	/* Icon corner geometry — the one shape role that is a FRACTION of the
 	   icon size, because icons come in three sizes (64/76/92) and every
 	   corner tier has to move them together.
@@ -134,8 +131,6 @@ html.dark body {
 	--shape-thumb: 8px;
 	--shape-thumb-fallback: 5px;
 	--shape-search-collapsed: 12px;
-	--shape-search-results: 20px;
-	--shape-search-results-fallback: 12px;
 	/* Icons stay rounder than furniture, but they follow the tier: a
 	   discreet icon is closer to a rounded square, a rounded one reads as a
 	   true squircle. */

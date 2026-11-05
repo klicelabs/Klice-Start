@@ -88,7 +88,7 @@ One preference drives three coordinate systems, so every radius in the product m
 
 Deliberately outside the scale (intentional geometry): toolbar surfaces and controls are always true capsules (`--klice-toolbar-radius`), icon-mode tiles keep the Home-Screen squircle (`--icon-radius`), and micro details inside thumbnails (favicons) plus circles stay fixed.
 
-The search field reads `--shape-search-collapsed` (12/22/28px). Discreet and Soft use the section role's calibrated squircle fallback; Rounded is a true 28px capsule in both engines. The detached list keeps squircle geometry via `searchResults` (20/36/46px, calibrated Gecko fallback 12/22/28px), and rows use the control role. The list opens and closes with a reversible 160ms opacity/transform transition, without animating layout or changing the input's shape; reduced motion closes immediately.
+The search field reads `--shape-search-collapsed` (12/22/28px). Discreet and Soft use the section role's calibrated squircle fallback; their detached list aliases the same field radius and fallback, so both surfaces share identical corners. Rounded is a true 28px field capsule in both engines and keeps a separate 46px squircle list (28px calibrated Gecko fallback). Rows use the control role. The list opens and closes with a reversible 160ms opacity/transform transition, without animating layout or changing the input's shape; reduced motion closes immediately.
 
 ## Search workspace
 
