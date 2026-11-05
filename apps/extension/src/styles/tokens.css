@@ -1823,6 +1823,29 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	line-height: 13px;
 }
 
+.quick-link-reorder-horizontal[data-quick-link-drop]::after,
+.quick-link-reorder-vertical[data-quick-link-drop]::after {
+	position: absolute;
+	border-radius: 2px;
+	background: var(--klice-accent);
+	content: "";
+	pointer-events: none;
+}
+.quick-link-reorder-horizontal[data-quick-link-drop]::after {
+	top: 6px;
+	bottom: 6px;
+	width: 2px;
+}
+.quick-link-reorder-horizontal[data-quick-link-drop="before"]::after { left: -3px; }
+.quick-link-reorder-horizontal[data-quick-link-drop="after"]::after { right: -3px; }
+.quick-link-reorder-vertical[data-quick-link-drop]::after {
+	right: 0;
+	left: 0;
+	height: 2px;
+}
+.quick-link-reorder-vertical[data-quick-link-drop="before"]::after { top: 0; }
+.quick-link-reorder-vertical[data-quick-link-drop="after"]::after { bottom: 0; }
+
 /* The wrap is the full-bleed interaction surface: it owns the vertical
    rhythm (previously the region's padding) so presses and drags work
    anywhere in the blue content area. Track width/centering live on the

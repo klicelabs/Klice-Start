@@ -7,6 +7,7 @@ import {
 } from "@klice-start/ui/components/motion/context-menu";
 import { Icon } from "@klice-start/ui/icons/icon";
 import { useState } from "react";
+import { useQuickLinkReorder } from "../../hooks/use-quick-link-reorder";
 import { glassDropdownItem, glassFocusRing, glassMenu } from "../../lib/glass";
 import { faviconUrl } from "../../lib/url";
 import { cn } from "../../lib/utils";
@@ -26,9 +27,12 @@ export function QuickLinks() {
 	const openInNewTab = useSetupStore((state) => state.settings.openInNewTab);
 	const updateQuickLink = useSetupStore((state) => state.updateQuickLink);
 	const removeQuickLink = useSetupStore((state) => state.removeQuickLink);
-	const [editingLink, setEditingLink] = useState<QuickLink | null>(null);
+	const addQuickLink = useSetupStore((state) => state.addQuickLink);
+	const moveQuickLink = useSetupStore((state) => state.moveQuickLink);
+	const [editor, setEditor] = useState<{ link: QuickLink | null } | null>(null);
+	const reorder = useQuickLinkReorder("horizontal");
 
-	if (!quickLinks.enabled || quickLinks.items.length === 0) return null;
+	if (!quickLinks.enabled) return null;
 
 	function openLink(link: QuickLink) {
 		if (openInNewTab) {
@@ -46,10 +50,20 @@ export function QuickLinks() {
 				data-quick-links="true"
 			>
 				<div className="scrollbar-hidden flex max-w-full gap-2 overflow-x-auto px-1 py-1.5 sm:gap-2.5">
-					{quickLinks.items.map((link) => (
+					{quickLinks.items.map((link, index) => (
 						<ContextMenu key={link.id}>
 							<ContextMenuTrigger>
 								<a
+									{...reorder.dragProps(link.id)}
+									{...reorder.dropProps(link.id)}
+									data-dragging={
+										reorder.draggingId === link.id ? "true" : undefined
+									}
+									data-quick-link-drop={
+										reorder.dropTarget?.id === link.id
+											? reorder.dropTarget.position
+											: undefined
+									}
 									data-local-context-menu
 									href={link.url}
 									target={openInNewTab ? "_blank" : "_self"}
@@ -58,7 +72,7 @@ export function QuickLinks() {
 									title={link.label}
 									data-quick-link-id={link.id}
 									className={cn(
-										"quick-link-icon",
+										"quick-link-icon quick-link-reorder-horizontal",
 										ICON_MODE_SURFACE_CLASS,
 										glassFocusRing(isLiquid),
 									)}
@@ -86,11 +100,37 @@ export function QuickLinks() {
 									className={glassDropdownItem(isLiquid, resolvedDark, {
 										pillOwned: true,
 									})}
-									onSelect={() => setEditingLink(link)}
+									onSelect={() => setEditor({ link })}
 								>
 									<Icon name="pencil" size={14} />
 									Edit link
 								</ContextMenuItem>
+								{index > 0 && (
+									<ContextMenuItem
+										className={glassDropdownItem(isLiquid, resolvedDark, {
+											pillOwned: true,
+										})}
+										onSelect={() => {
+											const target = quickLinks.items[index - 1];
+											if (target) moveQuickLink(link.id, target.id, "before");
+										}}
+									>
+										<Icon name="chevron-left" size={14} /> Move left
+									</ContextMenuItem>
+								)}
+								{index < quickLinks.items.length - 1 && (
+									<ContextMenuItem
+										className={glassDropdownItem(isLiquid, resolvedDark, {
+											pillOwned: true,
+										})}
+										onSelect={() => {
+											const target = quickLinks.items[index + 1];
+											if (target) moveQuickLink(link.id, target.id, "after");
+										}}
+									>
+										<Icon name="chevron-right" size={14} /> Move right
+									</ContextMenuItem>
+								)}
 								<ContextMenuSeparator />
 								<ContextMenuItem
 									className={glassDropdownItem(isLiquid, resolvedDark, {
@@ -105,18 +145,40 @@ export function QuickLinks() {
 							</ContextMenuContent>
 						</ContextMenu>
 					))}
+					<button
+						type="button"
+						aria-label="Add Quick Link"
+						title="Add Quick Link"
+						className={cn(
+							"quick-link-icon",
+							ICON_MODE_SURFACE_CLASS,
+							glassFocusRing(isLiquid),
+						)}
+						onClick={() => setEditor({ link: null })}
+					>
+						<div className="icon-bookmark-layout flex h-full w-full flex-col items-center">
+							<span className="icon-app-tile squircle flex size-[var(--icon-size)] items-center justify-center text-slate-600">
+								<Icon name="plus" size={22} aria-hidden="true" />
+							</span>
+							<span className="icon-label">Add link</span>
+						</div>
+					</button>
 				</div>
+				<span className="sr-only" aria-live="polite">
+					{reorder.announcement}
+				</span>
 			</nav>
 
 			<QuickLinkEditorDialog
-				open={editingLink !== null}
-				link={editingLink}
+				open={editor !== null}
+				link={editor?.link ?? null}
 				isLiquid={isLiquid}
 				onOpenChange={(open) => {
-					if (!open) setEditingLink(null);
+					if (!open) setEditor(null);
 				}}
 				onSave={(changes) => {
-					if (editingLink) updateQuickLink(editingLink.id, changes);
+					if (editor?.link) updateQuickLink(editor.link.id, changes);
+					else addQuickLink(changes);
 				}}
 			/>
 		</>

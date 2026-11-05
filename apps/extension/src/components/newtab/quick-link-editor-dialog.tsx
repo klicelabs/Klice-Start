@@ -11,6 +11,7 @@ import { Icon } from "@klice-start/ui/icons/icon";
 import { useEffect, useState } from "react";
 import { SETTINGS_SCOPE_CLASS } from "../../lib/context-scope";
 import { glassShape } from "../../lib/glass";
+import { prepareQuickLink } from "../../lib/quick-links";
 import { cn } from "../../lib/utils";
 import type { QuickLink } from "../../types";
 import {
@@ -28,15 +29,6 @@ interface QuickLinkEditorDialogProps {
 	onSave: (changes: Pick<QuickLink, "label" | "url">) => void;
 }
 
-function isHttpUrl(value: string) {
-	try {
-		const parsed = new URL(value);
-		return parsed.protocol === "http:" || parsed.protocol === "https:";
-	} catch {
-		return false;
-	}
-}
-
 export function QuickLinkEditorDialog({
 	open,
 	link,
@@ -49,21 +41,20 @@ export function QuickLinkEditorDialog({
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (!open || !link) return;
-		setLabel(link.label);
-		setUrl(link.url);
+		if (!open) return;
+		setLabel(link?.label ?? "");
+		setUrl(link?.url ?? "");
 		setError(null);
 	}, [open, link]);
 
 	function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const nextUrl = url.trim();
-		if (!isHttpUrl(nextUrl)) {
+		const draft = prepareQuickLink(label, url);
+		if (!draft) {
 			setError("Enter a valid http(s) URL.");
 			return;
 		}
-		const nextLabel = label.trim() || nextUrl;
-		onSave({ label: nextLabel, url: nextUrl });
+		onSave(draft);
 		onOpenChange(false);
 	}
 
@@ -79,10 +70,12 @@ export function QuickLinkEditorDialog({
 			>
 				<form className="flex flex-col gap-5" onSubmit={handleSubmit}>
 					<DialogHeader>
-						<DialogTitle>Edit Quick Link</DialogTitle>
+						<DialogTitle>
+							{link ? "Edit Quick Link" : "Add Quick Link"}
+						</DialogTitle>
 						<DialogDescription>
-							Replace the destination or change the label used by this launch
-							icon.
+							Choose a destination and an optional label. The site icon is
+							automatic.
 						</DialogDescription>
 					</DialogHeader>
 
@@ -95,6 +88,7 @@ export function QuickLinkEditorDialog({
 							<Input
 								id="quick-link-label"
 								value={label}
+								placeholder="Site name"
 								onChange={(event) => setLabel(event.target.value)}
 								glassVariant="classic"
 								className={cn("h-10 text-[13px]", SETTINGS_INPUT)}
@@ -109,6 +103,9 @@ export function QuickLinkEditorDialog({
 								id="quick-link-url"
 								autoFocus
 								value={url}
+								placeholder="example.com"
+								inputMode="url"
+								autoComplete="url"
 								onChange={(event) => {
 									setUrl(event.target.value);
 									if (error) setError(null);

@@ -12,6 +12,7 @@ import {
 	snapshotPatch,
 } from "../lib/first-paint-snapshot";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
+import { prepareQuickLink, reorderQuickLinks } from "../lib/quick-links";
 import type { HistoryEntry, HistorySnapshot } from "../lib/history";
 import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
 import {
@@ -169,6 +170,12 @@ interface SetupActions {
 	updateGreeting: (changes: Partial<Settings["greeting"]>) => void;
 	updateSearch: (changes: Partial<Settings["search"]>) => void;
 	updateQuickLinks: (changes: Partial<Settings["quickLinks"]>) => void;
+	addQuickLink: (link: Omit<QuickLink, "id">) => string | null;
+	moveQuickLink: (
+		id: string,
+		targetId: string,
+		position: "before" | "after",
+	) => void;
 	updateQuickLink: (
 		id: string,
 		changes: Partial<Pick<QuickLink, "label" | "url">>,
@@ -1115,6 +1122,27 @@ export const useSetupStore = create<SetupStore>()(
 
 			updateQuickLinks: (changes) =>
 				set((s) => applyNestedSettingsUpdate(s, "quickLinks", changes)),
+
+			addQuickLink: (link) => {
+				const draft = prepareQuickLink(link.label, link.url);
+				if (!draft) return null;
+				const id = generateId();
+				set((s) =>
+					applyNestedSettingsUpdate(s, "quickLinks", {
+						items: [...s.settings.quickLinks.items, { id, ...draft }],
+					}),
+				);
+				return id;
+			},
+
+			moveQuickLink: (id, targetId, position) =>
+				set((s) => {
+					const items = s.settings.quickLinks.items;
+					const next = reorderQuickLinks(items, id, targetId, position);
+					return next === items
+						? {}
+						: applyNestedSettingsUpdate(s, "quickLinks", { items: next });
+				}),
 
 			updateQuickLink: (id, changes) =>
 				set((s) => {

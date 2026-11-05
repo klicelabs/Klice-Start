@@ -4,6 +4,7 @@ import type { IconName } from "@klice-start/ui/icons/icon";
 import { cn } from "../../../../lib/utils";
 import { useSetupStore } from "../../../../stores/setup-store";
 import type { CardAspect, TitleSource } from "../../../../types";
+import { QuickLinksSettings } from "../../quick-links-settings";
 import { SectionCard } from "../shared/section-card";
 import { SegmentedControl } from "../shared/segmented-control";
 import { SelectRow } from "../shared/select-row";
@@ -82,13 +83,11 @@ export function GeneralPane() {
 	);
 	const showTitle = useSetupStore((s) => s.settings.showTitle);
 	const openInNewTab = useSetupStore((s) => s.settings.openInNewTab);
-	const quickLinksEnabled = useSetupStore((s) => s.settings.quickLinks.enabled);
 	const clock = useSetupStore((s) => s.settings.clock);
 	const greeting = useSetupStore((s) => s.settings.greeting);
 	const updateSettings = useSetupStore((s) => s.updateSettings);
 	const updateClock = useSetupStore((s) => s.updateClock);
 	const updateGreeting = useSetupStore((s) => s.updateGreeting);
-	const updateQuickLinks = useSetupStore((s) => s.updateQuickLinks);
 
 	return (
 		<div className={SETTINGS_PAGE}>
@@ -221,22 +220,7 @@ export function GeneralPane() {
 				</fieldset>
 			</SectionCard>
 
-			<SectionCard>
-				<SettingRow
-					label="Quick links"
-					icon="link"
-					tooltip="Show common destinations above your bookmarks."
-				>
-					<Switch
-						className={SETTINGS_SWITCH}
-						aria-label="Show quick links"
-						checked={quickLinksEnabled}
-						onCheckedChange={(enabled: boolean) =>
-							updateQuickLinks({ enabled })
-						}
-					/>
-				</SettingRow>
-			</SectionCard>
+			<QuickLinksSettings />
 
 			{/* Clock — one widget, one block: only its own settings live here.
 			    The date was split out below so each widget's block matches its
