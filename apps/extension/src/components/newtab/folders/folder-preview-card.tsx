@@ -697,14 +697,14 @@ function IconFolderTile({
 					onCancel={onCancelRename}
 					className={cn(
 						"icon-label",
-						tileSurface ? "icon-label-glass" : "icon-label-wallpaper",
+						tileSurface && "icon-label-glass",
 					)}
 				/>
 			) : (
 				<span
 					className={cn(
 						"icon-label",
-						tileSurface ? "icon-label-glass" : "icon-label-wallpaper",
+					tileSurface && "icon-label-glass",
 					)}
 				>
 					{name}

@@ -315,7 +315,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	   label is the flex item that gets squeezed out of existence. */
 	--icon-glass-pad: 12px;
 	--icon-glass-gap: 6px;
-	--icon-hover-scale: 1.045;
+	--icon-hover-scale: 1.04;
 	--icon-press-scale: 0.96;
 	grid-auto-rows: var(--icon-cell-h);
 }
@@ -332,7 +332,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .dial-grid[data-layout="icon"][data-tile="large"] {
 	--icon-glass-pad: 14px;
 	--icon-glass-gap: 6px;
-	--icon-hover-scale: 1.05;
+	--icon-hover-scale: 1.045;
 	--icon-press-scale: 0.955;
 }
 
@@ -421,17 +421,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	line-height: var(--icon-label-line-height);
 	letter-spacing: 0.2px; /* launcher-grid research §5.2: +0.2px at tiny sizes */
 	text-align: center;
-	text-shadow: 0 1px 3px rgb(0 0 0 / 0.32);
+	color: #fff;
+	-webkit-text-fill-color: #fff;
+	-webkit-text-stroke: 0.3px rgb(0 0 0 / 0.52);
+	text-shadow: 0 1px 2px rgb(0 0 0 / 0.7);
 	overflow-wrap: anywhere;
 	white-space: normal;
-}
-
-.icon-label-wallpaper {
-	color: #24272c;
-}
-
-.dark .icon-label-wallpaper {
-	color: #fff;
 }
 
 .dial-grid[data-layout="icon"][data-tile="small"] .icon-label {
@@ -461,12 +456,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	box-shadow:
 		0 10px 20px -14px rgb(4 8 18 / 0.55),
 		0 1px 3px rgb(4 8 18 / 0.16),
-		inset 0 0 0 1px rgb(91 103 121 / 0.14);
+		inset 0 0 0 1px var(--icon-app-tile-rim, rgb(91 103 121 / 0.14));
 	/* Hover lift is a quick tween (research §5.3); press belongs to the
 	   surface below so the icon+label scale as one object. */
 	transition:
-		transform 120ms var(--ease-out),
-		box-shadow 160ms var(--ease-out),
+		transform 180ms var(--ease-out),
+		box-shadow 180ms var(--ease-out),
 		filter 160ms var(--ease-out);
 }
 
@@ -593,12 +588,17 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		var(--icon-glass-pad)
 	);
 	/* Panes lift as ONE object (research §5.3 applies transforms to the glass). */
-	transition: transform 120ms var(--ease-out);
+	transition: transform 200ms var(--ease-out);
 }
 
-/* Glass ink: theme ink instead of wallpaper text; one line with ellipsis
-   (research §5.4 — the pane is a label card, not a text block). The label
-   never shrinks: inside a fixed-size pane it is the icon that gives way. */
+/* The glass pane already separates the launcher from the wallpaper. Keep
+   its icon face clean so its own inset rim does not read as a second frame. */
+.icon-glass-tile .icon-app-tile {
+	--icon-app-tile-rim: transparent;
+}
+
+/* The glass variant only changes label fit: one line with ellipsis. Text
+   color and contrast stay shared with labels drawn directly over wallpaper. */
 .icon-label-glass {
 	display: block;
 	flex: 0 0 auto;
@@ -608,41 +608,25 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	max-width: 100%;
 	white-space: nowrap;
 	text-overflow: ellipsis;
-	color: #fff;
-	-webkit-text-fill-color: #fff;
-	-webkit-text-stroke: 0.3px rgb(0 0 0 / 0.52);
-	text-shadow: 0 1px 2px rgb(0 0 0 / 0.7);
 }
 
-.icon-glass-tile[data-glass-tone="light"] .icon-label-glass {
-	padding: 2px 7px;
-	border: 1px solid rgb(255 255 255 / 0.18);
-	border-radius: 999px;
-	background: rgb(20 24 30 / 0.72);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 0.16);
-	-webkit-text-stroke: 0;
-	text-shadow: none;
-}
+/* Hover is pointer-only: the whole icon rises as one compact object. */
+@media (hover: hover) and (pointer: fine) {
+	/* With a glass pane, lift the pane and keep its icon face still inside it. */
+	.dial-grid[data-layout="icon"]:has(.icon-glass-tile)
+		.dial-icon-item:not([data-dragging="true"]):hover
+		.icon-app-tile,
+	.icon-mode-surface:has(.icon-glass-tile):not([data-dragging="true"]):hover
+		.icon-app-tile {
+		transform: none;
+	}
 
-/* Hover: when glass panes exist, the tile keeps still inside the pane and
-   the pane takes the transform (:has is Chromium 105+ / Gecko 121+). */
-.dial-grid[data-layout="icon"]:has(.icon-glass-tile) .dial-icon-item:not(
-		[data-dragging="true"]
-	):hover
-	.icon-app-tile,
-.icon-mode-surface:has(.icon-glass-tile):not([data-dragging="true"]):hover
-	.icon-app-tile {
-	transform: none;
-}
-
-.dial-grid[data-layout="icon"]
-	.dial-icon-item:not([data-dragging="true"]):hover
-	.icon-glass-tile {
-	transform: scale(var(--icon-hover-scale));
-}
-
-.icon-mode-surface:not([data-dragging="true"]):hover .icon-glass-tile {
-	transform: scale(var(--icon-hover-scale));
+	.dial-grid[data-layout="icon"]
+		.dial-icon-item:not([data-dragging="true"]):hover
+		.icon-glass-tile,
+	.icon-mode-surface:not([data-dragging="true"]):hover .icon-glass-tile {
+		transform: translateY(-3px) scale(var(--icon-hover-scale));
+	}
 }
 
 /* Pressure: the surface class no longer hardcodes active:scale-[0.97] —
@@ -689,7 +673,7 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	}
 }
 
-/* Motion-reduce: keep hover/press feedback as brightness only. */
+/* Reduced motion keeps the hover and press states in place without travel. */
 @media (prefers-reduced-motion: reduce) {
 	.dial-grid[data-layout="icon"] .dial-icon-item:hover .icon-app-tile,
 	.icon-mode-surface:hover .icon-app-tile,
@@ -943,27 +927,24 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	transform: scale(0.97);
 }
 
-.dial-grid[data-layout="icon"]
-	.dial-icon-item:not([data-dragging="true"]):hover
-	.icon-app-tile {
-	transform: scale(var(--icon-hover-scale));
-	box-shadow:
-		0 16px 30px -17px rgb(4 8 18 / 0.68),
-		0 3px 8px -4px rgb(4 8 18 / 0.36);
-}
-.icon-mode-surface:not([data-dragging="true"]):hover .icon-app-tile {
-	transform: scale(var(--icon-hover-scale));
-	box-shadow:
-		0 16px 30px -17px rgb(4 8 18 / 0.68),
-		0 3px 8px -4px rgb(4 8 18 / 0.36);
-}
+@media (hover: hover) and (pointer: fine) {
+	.dial-grid[data-layout="icon"]
+		.dial-icon-item:not([data-dragging="true"]):hover
+		.icon-app-tile,
+	.icon-mode-surface:not([data-dragging="true"]):hover .icon-app-tile {
+		transform: translateY(-3px) scale(var(--icon-hover-scale));
+		box-shadow:
+			0 18px 32px -18px rgb(4 8 18 / 0.7),
+			0 4px 10px -5px rgb(4 8 18 / 0.4);
+	}
 
-.dial-grid[data-layout="icon"]
-	.dial-icon-folder-cell:not([data-dragging="true"]):hover
-	.icon-folder-tile {
-	box-shadow:
-		0 20px 36px -20px rgb(4 8 18 / 0.72),
-		0 4px 10px -5px rgb(4 8 18 / 0.38);
+	.dial-grid[data-layout="icon"]
+		.dial-icon-folder-cell:not([data-dragging="true"]):hover
+		.icon-folder-tile {
+		box-shadow:
+			0 20px 36px -20px rgb(4 8 18 / 0.72),
+			0 4px 10px -5px rgb(4 8 18 / 0.38);
+	}
 }
 
 .dark .icon-app-tile-drop-active,
@@ -1016,8 +997,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
    ========================================================= */
 .dial-card {
 	transition:
-		transform 150ms var(--ease-out),
-		box-shadow 150ms var(--ease-out);
+		transform 180ms var(--ease-out),
+		box-shadow 180ms var(--ease-out);
 }
 
 /* Card-mode title treatment. The old Liquid Glass footer remains available
@@ -1085,19 +1066,43 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	padding-right: 32px;
 }
 
-/* Minimal hover zoom on the cover image. 1.04 sits below the threshold where a
-   thumbnail reads as "moving" — the image settles rather than travels, so the
-   card gains depth without the layout appearing to animate. Clipping comes
-   from .thumb's own overflow-hidden, so no radius work is needed here.
-   Gated on real pointers: touch fires a phantom :hover that sticks after a tap
-   (the same reason useHoverCapable exists). */
+/* The image zoom is clipped by its own squircle, including Gecko's calibrated
+   radius. Hover stays pointer-only so touch cannot leave a stuck hover state. */
 .dial-card .thumb-media {
-	transition: transform 400ms var(--ease-out);
+	transition: transform 220ms var(--ease-out);
+}
+
+/* Give the zooming image its own top-corner clip. The outer card still clips
+   the whole card; this inner clip prevents Gecko's transformed image layer
+   from painting through the card's squircle edge. */
+.dial-grid[data-layout="card"] .dial-card .thumb {
+	border-radius: var(--shape-card, 18px) var(--shape-card, 18px) 0 0;
+}
+
+@supports not (corner-shape: squircle) {
+	.dial-grid[data-layout="card"] .dial-card .thumb {
+		border-radius: var(--shape-card-fallback, 10px)
+			var(--shape-card-fallback, 10px) 0 0;
+	}
 }
 
 @media (hover: hover) and (pointer: fine) {
-	.dial-card:hover .thumb-media {
-		transform: scale(1.04);
+	.dial-grid[data-layout="card"]
+		.dial-card:not([data-dragging="true"]):hover {
+		transform: translateY(-3px);
+		box-shadow:
+			0 20px 38px -22px rgb(4 8 18 / 0.68),
+			0 5px 12px -7px rgb(4 8 18 / 0.38);
+	}
+	.dial-grid[data-layout="card"]
+		.dial-card:not([data-dragging="true"]):hover:active {
+		transform: scale(0.97);
+	}
+
+	.dial-grid[data-layout="card"]
+		.dial-card:not([data-dragging="true"]):hover
+		.thumb-media {
+		transform: scale(1.045);
 	}
 }
 

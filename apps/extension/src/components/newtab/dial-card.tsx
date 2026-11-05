@@ -198,15 +198,15 @@ export function DialCard({
 					dialLayout === "card" ? CARD_FOOTER_VARIANT : undefined
 				}
 				className={cn(
-					// Calm by default: no hover lift/translate/glow. The card's
-					// material stays local to its own rounded surface.
+					// Hover motion is shared in CSS so the card and thumbnail rise
+					// together while the card's material stays local to its surface.
 					// `cursor-default` is explicit because the card renders as an
 					// <a href>, which the UA stylesheet would otherwise give a
 					// hand cursor — Klice Start uses the platform arrow.
 					// The silhouette is the semantic card role (--shape-card), so
 					// bookmark cards, folder cards and the drag image share one
 					// corner scale instead of three literals.
-					"dial-card group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden p-0 transition-[transform,box-shadow,opacity] duration-150 [-webkit-user-drag:element]",
+					"dial-card group relative isolate flex h-full w-full cursor-default select-none flex-col overflow-hidden p-0 transition-[transform,box-shadow,opacity] duration-200 [-webkit-user-drag:element]",
 					dialLayout === "card" && kliceShape("card"),
 					dialLayout === "card" && "active:scale-[0.97]",
 					dialLayout === "icon" && ICON_MODE_SURFACE_CLASS,
@@ -278,7 +278,10 @@ export function DialCard({
 											ariaLabel={`Rename ${label}`}
 											onCommit={handleCommitRename}
 											onCancel={cancelRename}
-											className={`icon-label w-full flex-none text-center ${iconTileSurface ? "icon-label-glass" : "icon-label-wallpaper"}`}
+											className={cn(
+												"icon-label w-full flex-none text-center",
+												iconTileSurface && "icon-label-glass",
+											)}
 										/>
 									) : undefined
 								}
@@ -294,7 +297,7 @@ export function DialCard({
 								{/* Cover fills the bounded media box without stretching or letterbox
 							    bands. The fallback keeps its gradient behind the site's favicon. */}
 								<div
-									className="thumb relative flex min-h-0 flex-1 items-center justify-center overflow-hidden"
+									className="thumb squircle relative flex min-h-0 flex-1 items-center justify-center overflow-hidden [--squircle-r:var(--shape-card-fallback,10px)]"
 									data-refreshing={refreshCapturing ? "true" : undefined}
 									aria-busy={refreshCapturing || decoding || undefined}
 									style={{ background: fallbackColor }}

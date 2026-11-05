@@ -57,7 +57,7 @@ export function IconModeTile({
 					<IconAppTile url={url} favicon={favicon} className={tileClassName} />
 					{(showLabel || labelContent) &&
 						(labelContent ?? (
-							<span className="icon-label icon-label-wallpaper">{label}</span>
+							<span className="icon-label">{label}</span>
 						))}
 				</>
 			)}
