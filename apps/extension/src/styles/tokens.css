@@ -1891,6 +1891,12 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	white-space: nowrap;
 	opacity: 0.7;
 }
+/* Match the search field's capsule geometry in Rounded, including Gecko. */
+:root[data-klice-corner="rounded"] .klice-search-scope {
+	border-radius: 9999px;
+	corner-shape: round;
+	--squircle-r: 9999px;
+}
 .klice-search-scope[aria-pressed="true"] {
 	background: color-mix(in srgb, currentColor 12%, transparent);
 	font-weight: 500;
