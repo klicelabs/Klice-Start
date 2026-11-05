@@ -746,9 +746,9 @@ function setPersistHealth(health: PersistHealth): void {
 }
 
 /** Bytes-in-use preflight; null when the browser does not report usage. */
-async function quotaUsageBytes(): Promise<number | null> {
+async function quotaUsageBytes(keys: string | null): Promise<number | null> {
 	try {
-		const info = await extApi().storage.local.getBytesInUse?.(null);
+		const info = await extApi().storage.local.getBytesInUse?.(keys);
 		return typeof info === "number" ? info : null;
 	} catch {
 		return null;
@@ -758,10 +758,19 @@ async function quotaUsageBytes(): Promise<number | null> {
 /** chrome.storage.local quota; navigator estimate as a coarse fallback. */
 const LOCAL_QUOTA_BYTES = 10 * 1024 * 1024; // 10 MiB per MV3 spec
 
-async function isQuotaExhausted(payloadBytes: number): Promise<boolean> {
-	const used = await quotaUsageBytes();
+async function isQuotaExhausted(
+	name: string,
+	payloadBytes: number,
+): Promise<boolean> {
+	const [used, replaced] = await Promise.all([
+		quotaUsageBytes(null),
+		quotaUsageBytes(name),
+	]);
 	if (used === null) return false; // cannot know -> do not block writes
-	return used + payloadBytes > LOCAL_QUOTA_BYTES * 0.95;
+	// storage.local.set replaces this key's value. Subtract its current size
+	// before adding the new payload; otherwise large existing setups are
+	// counted twice and Firefox can reject ordinary settings changes early.
+	return used - (replaced ?? 0) + payloadBytes > LOCAL_QUOTA_BYTES * 0.95;
 }
 
 function _doWrite(
@@ -777,9 +786,10 @@ function _doWrite(
 	const write = previous
 		.catch(() => undefined)
 		.then(async () => {
+			const payloadBytes = new TextEncoder().encode(json).byteLength;
 			// P5-A: fail explicitly on a nearly-full store instead of letting
 			// the write truncate/vanish silently inside the browser.
-			if (await isQuotaExhausted(json.length)) {
+			if (await isQuotaExhausted(name, payloadBytes)) {
 				throw new DOMException(
 					"Storage quota nearly full — state not saved.",
 					"QuotaExceededError",

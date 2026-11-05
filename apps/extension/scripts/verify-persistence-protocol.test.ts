@@ -16,6 +16,8 @@
 // global `chrome` at call time, so setting this before the dynamic import
 // (and even on a cached module instance) exercises the real protocol.
 const mem = new Map<string, unknown>();
+let quotaUsageOverride: number | null = null;
+let keyUsageOverride: number | null = null;
 const storageArea = {
 	async get(keys: string | string[] | Record<string, unknown>) {
 		const wanted = Array.isArray(keys)
@@ -37,6 +39,24 @@ const storageArea = {
 	},
 	async clear() {
 		mem.clear();
+	},
+	async getBytesInUse(keys: string | string[] | null) {
+		if (keys === null) {
+			if (quotaUsageOverride !== null) return quotaUsageOverride;
+			return [...mem.values()].reduce(
+				(total, value) => total + new TextEncoder().encode(String(value)).byteLength,
+				0,
+			);
+		}
+		if (keyUsageOverride !== null) return keyUsageOverride;
+		return (Array.isArray(keys) ? keys : [keys]).reduce(
+			(total, key) =>
+				total +
+				(mem.has(key)
+					? new TextEncoder().encode(String(mem.get(key))).byteLength
+					: 0),
+			0,
+		);
 	},
 };
 (globalThis as Record<string, unknown>).chrome = {
@@ -194,6 +214,22 @@ test("P5-A: persist health tracks queued, landed and failed writes", async () =>
 	expect(getPersistHealth()).toBe("ok");
 	expect(events[events.length - 1]).toBe("ok");
 	unsubscribe();
+});
+
+test("quota preflight accounts for replacing the existing setup value", async () => {
+	mem.clear();
+	quotaUsageOverride = Math.floor(9.5 * 1024 * 1024) - 100;
+	keyUsageOverride = 9 * 1024 * 1024;
+	try {
+		await chromeStorageAdapter.setItem("perch-setup", {
+			state: sampleSetup(),
+			version: 0,
+		} as never);
+		expect(getPersistHealth()).toBe("ok");
+	} finally {
+		quotaUsageOverride = null;
+		keyUsageOverride = null;
+	}
 });
 
 test("own storage change is recognized before the write promise resolves", async () => {
