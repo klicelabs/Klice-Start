@@ -1,5 +1,6 @@
 import { afterEach, expect, mock, test } from "bun:test";
 import { ext } from "../src/lib/extension-api";
+import { flushPersist } from "../src/lib/storage";
 
 // Force extension-api to load before the test installs its browser shim. The
 // background worker must resolve the namespace after that shim is available,
@@ -112,6 +113,11 @@ function createSetup(): Setup {
 test("auto-captures any missing-thumbnail bookmark after navigation settles", {
 	timeout: 25_000,
 }, async () => {
+	// Other suites leave debounced popup writes queued in the shared process.
+	// Drain them against their original storage shim before installing ours:
+	// otherwise a late write replaces this worker's fixture with another setup.
+	await flushPersist();
+
 	const onInstalled = createEvent();
 	const onStartup = createEvent();
 	const onStorageChanged = createEvent();
