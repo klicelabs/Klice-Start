@@ -78,8 +78,9 @@ export function ToolbarActions({
 				<span
 					key="divider"
 					aria-hidden="true"
+					data-toolbar-action-divider="true"
 					className={cn(
-						"h-[18px] w-px shrink-0 self-center",
+						"h-[18px] w-px shrink-0 self-center transition-opacity duration-150",
 						isLiquid ? "bg-foreground/15" : flatSeparator("vertical"),
 					)}
 				/>

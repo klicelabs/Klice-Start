@@ -27,6 +27,7 @@ import { useSetupStore } from "../../../stores/setup-store";
 import { SvgIcon } from "../../shared/svg-icon";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "../toolbar/glass-surface";
+import { SearchResultIcon } from "./search-result-icon";
 import {
 	activeSearchIndex,
 	buildSearchGroups,
@@ -35,9 +36,15 @@ import {
 } from "./search-results";
 import { getSearchSuggestions } from "./search-suggestions";
 import { useSearchPosition } from "./use-search-position";
+import {
+	canRestoreSearchFocus,
+	SEARCH_TRANSITION_MS,
+	useSearchPresence,
+} from "./use-search-presence";
 
 export interface UnifiedSearchHandle {
 	focus: () => void;
+	toggle: () => void;
 }
 interface UnifiedSearchProps {
 	onNavigateFolder: (id: string) => void;
@@ -68,7 +75,7 @@ export const UnifiedSearch = forwardRef<
 	const cards = useSetupStore((s) => s.cards);
 	const folders = useSetupStore((s) => s.folders);
 	const [query, setQuery] = useState("");
-	const [open, setOpen] = useState(false);
+	const { phase, open, present, show, hide } = useSearchPresence();
 	const [scope, setScope] = useState<SearchScope>("all");
 	const [activeId, setActiveId] = useState<string | null>(null);
 	const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -79,6 +86,32 @@ export const UnifiedSearch = forwardRef<
 	const inputRef = useRef<HTMLInputElement>(null);
 	const listRef = useRef<HTMLDivElement>(null);
 	const returnFocusRef = useRef<HTMLElement | null>(null);
+	const restoreFocusRef = useRef(false);
+	const wasPresent = useRef(false);
+	const restoreFrameRef = useRef<number | null>(null);
+	const focusVersionRef = useRef(0);
+	const phaseRef = useRef(phase);
+	phaseRef.current = phase;
+	const cancelFocusReturn = useCallback(() => {
+		restoreFocusRef.current = false;
+		focusVersionRef.current += 1;
+		if (restoreFrameRef.current !== null)
+			cancelAnimationFrame(restoreFrameRef.current);
+		restoreFrameRef.current = null;
+	}, []);
+	useEffect(() => cancelFocusReturn, [cancelFocusReturn]);
+	useEffect(() => {
+		const newerIntent = () => {
+			if (phaseRef.current !== "open" && restoreFocusRef.current)
+				cancelFocusReturn();
+		};
+		document.addEventListener("pointerdown", newerIntent, true);
+		document.addEventListener("keydown", newerIntent, true);
+		return () => {
+			document.removeEventListener("pointerdown", newerIntent, true);
+			document.removeEventListener("keydown", newerIntent, true);
+		};
+	}, [cancelFocusReturn]);
 	const engine =
 		SEARCH_ENGINES.find((item) => item.id === search.engine) ??
 		SEARCH_ENGINES[0];
@@ -131,7 +164,7 @@ export const UnifiedSearch = forwardRef<
 		/Mac|iPhone|iPad/.test(navigator.platform);
 	const ink = isLiquid ? glassForeground() : "text-foreground";
 
-	useSearchPosition(open, search.width, anchorRef, overlayRef);
+	useSearchPosition(present, search.width, anchorRef, overlayRef);
 
 	const openSearch = useCallback(() => {
 		if (!search.enabled) return;
@@ -141,35 +174,75 @@ export const UnifiedSearch = forwardRef<
 				document.activeElement !== document.body
 					? document.activeElement
 					: null;
-		setOpen(true);
+		cancelFocusReturn();
+		show();
 		inputRef.current?.focus({ preventScroll: true });
-	}, [open, search.enabled]);
-	useImperativeHandle(ref, () => ({ focus: openSearch }), [openSearch]);
+	}, [open, search.enabled, show, cancelFocusReturn]);
 	useLayoutEffect(() => {
 		if (open) inputRef.current?.focus({ preventScroll: true });
 	}, [open]);
 
-	const close = useCallback((restoreFocus = false) => {
-		setOpen(false);
+	const close = useCallback(
+		(restoreFocus = false) => {
+			cancelFocusReturn();
+			restoreFocusRef.current = restoreFocus;
+			inputRef.current?.blur();
+			hide();
+		},
+		[hide, cancelFocusReturn],
+	);
+	useImperativeHandle(
+		ref,
+		() => ({
+			focus: openSearch,
+			toggle: () => {
+				if (open) close();
+				else openSearch();
+			},
+		}),
+		[open, close, openSearch],
+	);
+	useEffect(() => {
+		if (present) {
+			wasPresent.current = true;
+			return;
+		}
+		if (!wasPresent.current) return;
+		wasPresent.current = false;
 		setQuery("");
 		setScope("all");
 		setActiveId(null);
 		setSuggestions([]);
-		if (restoreFocus) {
+		if (restoreFocusRef.current) {
 			const trigger = returnFocusRef.current;
-			requestAnimationFrame(() => {
+			const requestedVersion = focusVersionRef.current;
+			restoreFrameRef.current = requestAnimationFrame(() => {
+				restoreFrameRef.current = null;
+				const active = document.activeElement;
+				if (
+					!restoreFocusRef.current ||
+					!canRestoreSearchFocus(
+						phaseRef.current,
+						requestedVersion,
+						focusVersionRef.current,
+						!active ||
+							active === document.body ||
+							active === document.documentElement,
+					)
+				)
+					return;
 				if (trigger?.isConnected && trigger.getClientRects().length)
 					trigger.focus({ preventScroll: true });
 				else launcherRef.current?.focus({ preventScroll: true });
 			});
 		}
-	}, []);
+	}, [present]);
 
 	useEffect(() => {
 		if (!search.enabled) close();
 	}, [search.enabled, close]);
 	useEffect(() => {
-		if (!open) return;
+		if (!present) return;
 		const outside = (event: PointerEvent) => {
 			const target = event.target;
 			if (
@@ -183,16 +256,14 @@ export const UnifiedSearch = forwardRef<
 			close();
 		};
 		document.addEventListener("pointerdown", outside);
-		return () => document.removeEventListener("pointerdown", outside);
-	}, [open, close]);
+		return () => {
+			document.removeEventListener("pointerdown", outside);
+		};
+	}, [present, close]);
 	useEffect(() => {
+		if (!open) return;
 		setSuggestions([]);
-		if (
-			!open ||
-			query.trim().length < 2 ||
-			(scope !== "all" && scope !== "web")
-		)
-			return;
+		if (query.trim().length < 2 || (scope !== "all" && scope !== "web")) return;
 		const controller = new AbortController();
 		const timer = window.setTimeout(() => {
 			void getSearchSuggestions(engine, query, controller.signal).then(
@@ -306,6 +377,7 @@ export const UnifiedSearch = forwardRef<
 					title: item.data.title || displayHost(item.data.url),
 					detail: `${displayHost(item.data.url)}${paths.get(item.data.folderId) ? ` · ${paths.get(item.data.folderId)}` : ""}`,
 					url: item.data.url,
+					favicon: item.data.favicon,
 					icon: "globe" as const,
 				};
 			case "quick-link":
@@ -325,6 +397,7 @@ export const UnifiedSearch = forwardRef<
 				return {
 					title: `Open ${displayHost(item.url)}`,
 					detail: item.url,
+					url: item.url,
 					icon: "external-link" as const,
 				};
 			case "web":
@@ -358,7 +431,7 @@ export const UnifiedSearch = forwardRef<
 			<GlassSurface
 				variant="hero"
 				shape="searchCollapsed"
-				className={cn("klice-search-field", open && "invisible")}
+				className={cn("klice-search-field", present && "invisible")}
 			>
 				<button
 					ref={launcherRef}
@@ -376,13 +449,21 @@ export const UnifiedSearch = forwardRef<
 					<kbd>{isMac ? "⌘ K" : "Ctrl K"}</kbd>
 				</button>
 			</GlassSurface>
-			{open &&
+			{present &&
 				createPortal(
 					<search
 						ref={overlayRef}
 						aria-label="Search"
 						className={cn("klice-search-overlay", ink)}
 						data-search-overlay
+						data-search-state={phase}
+						style={
+							{
+								"--search-motion-duration": `${SEARCH_TRANSITION_MS}ms`,
+							} as CSSProperties
+						}
+						aria-hidden={!open}
+						inert={!open}
 						data-local-context-menu
 						onKeyDown={(event) => {
 							if (event.nativeEvent.isComposing) return;
@@ -405,7 +486,7 @@ export const UnifiedSearch = forwardRef<
 						}}
 					>
 						<GlassSurface
-							variant="search"
+							variant="hero"
 							shape="searchCollapsed"
 							className="klice-search-field"
 						>
@@ -472,7 +553,7 @@ export const UnifiedSearch = forwardRef<
 						</GlassSurface>
 						<GlassSurface
 							variant="search"
-							shape="panel"
+							shape="searchResults"
 							className="klice-search-results-panel"
 						>
 							<fieldset className="klice-search-scopes" aria-label="Search in">
@@ -506,12 +587,6 @@ export const UnifiedSearch = forwardRef<
 											aria-label={group.label}
 											className="klice-search-result-group"
 										>
-											<div
-												aria-hidden="true"
-												className="klice-search-group-label"
-											>
-												{group.label}
-											</div>
 											{group.items.map((item) => {
 												const index = rowIndex++;
 												const selected = index === activeIndex;
@@ -536,28 +611,11 @@ export const UnifiedSearch = forwardRef<
 														}}
 														onClick={() => selectItem(item)}
 													>
-														<span
-															className={cn(
-																"klice-search-result-icon",
-																kliceShape("thumbnail"),
-															)}
-														>
-															<Icon
-																name={content.icon}
-																size={18}
-																aria-hidden="true"
-															/>
-															{content.url && (
-																<img
-																	key={content.url}
-																	src={faviconUrl(content.url)}
-																	alt=""
-																	onError={(event) => {
-																		event.currentTarget.hidden = true;
-																	}}
-																/>
-															)}
-														</span>
+														<SearchResultIcon
+															url={content.url}
+															favicon={content.favicon}
+															icon={content.icon}
+														/>
 														<span className="klice-search-result-copy">
 															<span>{content.title}</span>
 															<small>{content.detail}</small>
@@ -617,10 +675,16 @@ export const UnifiedSearch = forwardRef<
 										? `${items.length} ${items.length === 1 ? "result" : "results"}`
 										: "Find your next destination"}
 								</span>
-								<span aria-hidden="true">
-									<kbd>↑</kbd>
-									<kbd>↓</kbd> navigate <kbd>↵</kbd> open
-								</span>
+								<button
+									type="button"
+									className="klice-search-go"
+									disabled={!activeItem}
+									onClick={() => {
+										if (activeItem) selectItem(activeItem);
+									}}
+								>
+									Open <kbd>↵</kbd>
+								</button>
 							</div>
 						</GlassSurface>
 					</search>,

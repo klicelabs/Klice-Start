@@ -68,13 +68,24 @@ test("toolbar surfaces stay capsules regardless of the corner tier", () => {
 });
 
 test("search surfaces keep tier geometry and calibrated squircle corners", () => {
-	for (const role of ["searchCollapsed", "searchExpanded", "panel"] as const) {
+	for (const role of [
+		"searchCollapsed",
+		"searchExpanded",
+		"searchResults",
+		"panel",
+	] as const) {
 		expect(KliceShape[role]).toContain("klice-squircle");
 		expect(KliceShape[role]).not.toContain("rounded-full");
 	}
 	expect(KliceShape.searchCollapsed).toContain("--shape-search-collapsed");
 	expect(KliceShape.searchCollapsed).toContain("--shape-section-fallback");
 	expect(KliceShape.panel).toContain("--shape-panel-fallback");
+	expect(KliceShape.searchResults).toContain("--shape-search-results-fallback");
+	const roundedField = tokens.match(
+		/:root\[data-klice-corner="rounded"\] \.klice-search-field\s*\{([^}]+)\}/,
+	)?.[1];
+	expect(roundedField).toContain("corner-shape: round;");
+	expect(roundedField).toContain("border-radius: 28px;");
 	expect(KliceShape.searchExpanded.startsWith(KliceShape.surface)).toBe(true);
 	expect(tokens).not.toContain("--shape-search-expanded");
 

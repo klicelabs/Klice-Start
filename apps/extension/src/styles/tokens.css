@@ -96,9 +96,11 @@ html.dark body {
 	--shape-pill-fallback: 9px;
 	--shape-thumb: 12px;
 	--shape-thumb-fallback: 7px;
-	/* The field stays independent from the result panel. Both use squircle
-	   geometry and the shared tier calibration, including Firefox. */
+	/* Field and list are independent. Soft/Discreet use calibrated
+	   squircles; the Rounded field becomes a true capsule below. */
 	--shape-search-collapsed: 22px;
+	--shape-search-results: 32px;
+	--shape-search-results-fallback: 20px;
 	/* Icon corner geometry — the one shape role that is a FRACTION of the
 	   icon size, because icons come in three sizes (64/76/92) and every
 	   corner tier has to move them together.
@@ -132,6 +134,8 @@ html.dark body {
 	--shape-thumb: 8px;
 	--shape-thumb-fallback: 5px;
 	--shape-search-collapsed: 12px;
+	--shape-search-results: 18px;
+	--shape-search-results-fallback: 11px;
 	/* Icons stay rounder than furniture, but they follow the tier: a
 	   discreet icon is closer to a rounded square, a rounded one reads as a
 	   true squircle. */
@@ -157,14 +161,23 @@ html.dark body {
 	--shape-pill-fallback: 10px;
 	--shape-thumb: 16px;
 	--shape-thumb-fallback: 10px;
-	/* The resting field is a true capsule; the expanded results surface
-	   falls back to the surface role (24px here), which is never a capsule
-	   and is deliberately smaller than the field (see the root comment). */
+	/* The field is a capsule at this tier; the list keeps its own
+	   larger squircle geometry, independently of the field height. */
 	--shape-search-collapsed: 28px;
+	--shape-search-results: 42px;
+	--shape-search-results-fallback: 26px;
 	/* The expressive end: icons become the roundest silhouette in the app,
 	   close to a home-screen icon. */
 	--icon-radius-ratio: 0.38;
 	--icon-radius-fallback-ratio: 0.228;
+}
+
+/* Rounded search is a true capsule in both engines; the other tiers retain
+   their calibrated squircle. Results remain an independent, softer panel. */
+:root[data-klice-corner="rounded"] .klice-search-field {
+	border-radius: 28px;
+	corner-shape: round;
+	--squircle-r: 28px;
 }
 
 /* Text painted directly on the Home wallpaper has its own contrast role. It
@@ -1631,8 +1644,14 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	pointer-events: auto;
 }
 
-[data-toolbar-actions] button:is(:hover, :active) .toolbar-action-hover {
+[data-toolbar-actions]
+	button:is(:hover, :active, :focus-visible)
+	.toolbar-action-hover {
 	opacity: 1;
+}
+[data-toolbar-actions]:has(> button:is(:hover, :active, :focus-visible))
+	[data-toolbar-action-divider] {
+	opacity: 0;
 }
 
 /* Semantic Liquid Glass toolbar foreground. Flat controls keep their
@@ -1743,9 +1762,8 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	z-index: var(--speed-dial-layer-search);
 }
 
-/* Search has two independent material surfaces. Its portal stays mounted
-   while the native page scroll moves the anchor; only its position changes.
-   Opening by keyboard is immediate, with no height/radius animation. */
+/* Search has two independent material surfaces. The input responds at once;
+   only the list settles in. Exit retains content and can reverse in place. */
 .klice-search-anchor {
 	height: 56px;
 }
@@ -1823,17 +1841,52 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	flex-direction: column;
 	align-items: stretch;
 	overflow: hidden;
+	opacity: 1;
+	transform: translate3d(0, 0, 0) scale(1);
+	transform-origin: top center;
+	transition:
+		opacity var(--search-motion-duration) var(--ease-out),
+		transform var(--search-motion-duration) var(--ease-out);
+}
+@starting-style {
+	.klice-search-results-panel {
+		opacity: 0;
+		transform: translate3d(0, -5px, 0) scale(0.985);
+	}
+}
+.klice-search-overlay[data-search-state="closing"] {
+	pointer-events: none;
+}
+.klice-search-overlay[data-search-state="closing"] .klice-search-results-panel {
+	opacity: 0;
+	transform: translate3d(0, -5px, 0) scale(0.985);
+}
+.klice-search-overlay[data-search-floating="true"] .klice-search-field {
+	transition: opacity var(--search-motion-duration) var(--ease-out);
+}
+.klice-search-overlay[data-search-state="closing"][data-search-floating="true"]
+	.klice-search-field {
+	opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+	.klice-search-results-panel,
+	.klice-search-overlay[data-search-floating="true"] .klice-search-field {
+		transition: none;
+	}
+	.klice-search-results-panel {
+		transform: none;
+	}
 }
 .klice-search-scopes {
 	display: flex;
 	flex-shrink: 0;
-	gap: 4px;
+	gap: 3px;
 	overflow-x: auto;
-	padding: 10px 12px 6px;
+	padding: 10px 14px 7px;
 }
 .klice-search-scope {
-	min-height: 30px;
-	padding: 5px 12px;
+	min-height: 27px;
+	padding: 4px 10px;
 	font-size: 12px;
 	white-space: nowrap;
 	opacity: 0.7;
@@ -1852,22 +1905,16 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	scrollbar-color: color-mix(in srgb, currentColor 20%, transparent) transparent;
 }
 .klice-search-result-group + .klice-search-result-group {
-	margin-top: 8px;
-}
-.klice-search-group-label {
-	padding: 10px 12px 5px;
-	font-size: 11px;
-	font-weight: 500;
-	opacity: 0.65;
+	margin-top: 4px;
 }
 .klice-search-option {
 	position: relative;
 	display: flex;
 	width: 100%;
-	min-height: 56px;
+	min-height: 44px;
 	align-items: center;
-	gap: 12px;
-	padding: 8px 12px;
+	gap: 10px;
+	padding: 7px 12px;
 	text-align: left;
 	outline: none;
 }
@@ -1877,42 +1924,53 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 .klice-search-result-icon {
 	position: relative;
 	display: flex;
-	width: 32px;
-	height: 32px;
+	width: 28px;
+	height: 28px;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	background: color-mix(in srgb, currentColor 6%, transparent);
+	color: inherit;
+	opacity: 0.7;
 }
-.klice-search-result-icon img {
-	position: absolute;
-	width: 20px;
-	height: 20px;
-	object-fit: contain;
+.klice-search-app-icon {
+	--icon-size: 28px;
+	width: 28px;
+	height: 28px;
+	background: #fff;
+	box-shadow: 0 1px 2px rgb(4 8 18 / 0.12);
 }
-.klice-search-result-icon:has(img:not([hidden])) > svg {
-	visibility: hidden;
+.klice-search-app-icon .icon-fallback-letter {
+	color: rgb(0 0 0 / 0.55);
 }
 .klice-search-result-copy {
 	display: flex;
 	min-width: 0;
 	flex: 1;
-	flex-direction: column;
-	gap: 2px;
+	flex-direction: row;
+	align-items: baseline;
+	gap: 7px;
 }
 .klice-search-result-copy > span {
 	overflow: hidden;
 	font-size: 14px;
 	font-weight: 500;
+	max-width: 70%;
+	flex: 0 1 auto;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 .klice-search-result-copy small {
 	overflow: hidden;
-	font-size: 11px;
+	min-width: 0;
+	flex: 1;
+	font-size: 12px;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	opacity: 0.68;
+	opacity: 0.6;
+}
+.klice-search-result-copy small::before {
+	content: "—";
+	margin-inline-end: 7px;
 }
 .klice-search-row-action {
 	flex-shrink: 0;
@@ -1930,13 +1988,22 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 	gap: 12px;
 	padding: 6px 20px 10px;
 	font-size: 10px;
-	opacity: 0.65;
 }
-.klice-search-footer > span:last-child {
+.klice-search-footer > span {
+	opacity: 0.6;
+}
+.klice-search-go {
 	display: flex;
 	align-items: center;
-	gap: 5px;
+	gap: 10px;
+	padding: 5px 10px;
+	border-radius: var(--shape-pill);
+	background: color-mix(in srgb, currentColor 9%, transparent);
+	font-size: 11px;
 	white-space: nowrap;
+}
+.klice-search-go:disabled {
+	opacity: 0.35;
 }
 .klice-search-empty {
 	display: flex;
@@ -1984,9 +2051,6 @@ html [data-slot="switch"][data-checked] [data-slot="switch-thumb"] {
 		gap: 10px;
 		padding-inline: 16px 10px;
 		font-size: 15px;
-	}
-	.klice-search-footer > span:last-child {
-		display: none;
 	}
 	.klice-search-option {
 		gap: 10px;

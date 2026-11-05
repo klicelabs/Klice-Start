@@ -3,12 +3,17 @@ import { parseHTML } from "linkedom";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AppearanceProvider } from "../src/components/newtab/appearance-provider";
+import { SearchResultIcon } from "../src/components/newtab/search/search-result-icon";
 import {
 	activeSearchIndex,
 	buildSearchGroups,
 	searchDestination,
 } from "../src/components/newtab/search/search-results";
 import { searchPlacement } from "../src/components/newtab/search/use-search-position";
+import {
+	canRestoreSearchFocus,
+	searchPresence,
+} from "../src/components/newtab/search/use-search-presence";
 import { ToolbarActions } from "../src/components/newtab/toolbar/toolbar-actions";
 import { createSearchIndex } from "../src/lib/search-index";
 import type { Card, Folder } from "../src/types";
@@ -87,6 +92,9 @@ test("compact Search shares one accessible group with Settings and keeps their o
 				),
 			).toEqual(compactSearch ? ["Search", "Settings"] : ["Settings"]);
 			expect(document.querySelectorAll("#settings-trigger")).toHaveLength(1);
+			expect(
+				group.querySelectorAll("[data-toolbar-action-divider]"),
+			).toHaveLength(compactSearch ? 1 : 0);
 		}
 	} finally {
 		if (owner) {
@@ -94,6 +102,44 @@ test("compact Search shares one accessible group with Settings and keeps their o
 			else Reflect.deleteProperty(owner, "matchMedia");
 		}
 	}
+});
+
+test("search exit retains content until completion and cannot close a reopened search", () => {
+	const closing = searchPresence("open", { type: "close", immediate: false });
+	expect(closing).toBe("closing");
+	expect(searchPresence(closing, { type: "finish" })).toBe("closed");
+	const reopened = searchPresence(closing, { type: "open" });
+	expect(searchPresence(reopened, { type: "finish" })).toBe("open");
+	expect(searchPresence("open", { type: "close", immediate: true })).toBe(
+		"closed",
+	);
+});
+
+test("exit only restores focus for the same closed interaction with no newer focus target", () => {
+	expect(canRestoreSearchFocus("closed", 3, 3, true)).toBe(true);
+	expect(canRestoreSearchFocus("open", 3, 3, true)).toBe(false);
+	expect(canRestoreSearchFocus("closing", 3, 3, true)).toBe(false);
+	expect(canRestoreSearchFocus("closed", 3, 4, true)).toBe(false);
+	expect(canRestoreSearchFocus("closed", 3, 3, false)).toBe(false);
+});
+
+test("search URL results use the actual Home app tile and its shared art pipeline", () => {
+	const { document } = parseHTML(
+		renderToStaticMarkup(
+			createElement(SearchResultIcon, {
+				url: "https://example.com",
+				icon: "globe",
+			}),
+		),
+	);
+	expect(
+		document.querySelector(".klice-search-app-icon.icon-app-tile"),
+	).not.toBeNull();
+	expect(document.querySelector(".klice-search-result-icon")).toBeNull();
+	const plain = parseHTML(
+		renderToStaticMarkup(createElement(SearchResultIcon, { icon: "search" })),
+	);
+	expect(plain.document.querySelector(".icon-app-tile")).toBeNull();
 });
 const groupsFor = (
 	query: string,

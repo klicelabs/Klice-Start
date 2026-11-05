@@ -714,6 +714,9 @@ export default function App() {
 	const handleOpenSearch = useCallback(() => {
 		unifiedSearchRef.current?.focus();
 	}, []);
+	const handleToggleSearch = useCallback(() => {
+		unifiedSearchRef.current?.toggle();
+	}, []);
 
 	// Drop one bookmark onto another: fold both into a fresh subfolder and
 	// immediately offer it for naming. Atomic — nothing is lost on failure —
@@ -1208,7 +1211,7 @@ export default function App() {
 										<div className="pointer-events-auto flex items-center">
 											<SettingsMotionToolbarActions
 												onSettings={handleToggleSettings}
-												onSearch={handleOpenSearch}
+												onSearch={handleToggleSearch}
 												compactSearch={searchEnabled && compactSearch}
 											/>
 										</div>
