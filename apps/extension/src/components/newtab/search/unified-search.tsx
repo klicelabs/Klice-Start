@@ -23,10 +23,15 @@ import { createSearchIndex } from "../../../lib/search-index";
 import { SEARCH_ENGINE_TO_SVGL } from "../../../lib/svgl-mapping";
 import { faviconUrl } from "../../../lib/url";
 import { cn } from "../../../lib/utils";
+import { fetchAllSvgs } from "../../../services/svgl";
 import { useSetupStore } from "../../../stores/setup-store";
 import { SvgIcon } from "../../shared/svg-icon";
 import { useAppearance } from "../appearance-provider";
 import { GlassSurface } from "../toolbar/glass-surface";
+import {
+	createDestinationIndex,
+	type SiteDestination,
+} from "./search-destinations";
 import { SearchResultIcon } from "./search-result-icon";
 import {
 	activeSearchIndex,
@@ -34,7 +39,11 @@ import {
 	type SearchItem,
 	type SearchScope,
 } from "./search-results";
-import { getSearchSuggestions } from "./search-suggestions";
+import {
+	EMPTY_SUGGESTIONS,
+	getSearchSuggestions,
+	type SearchSuggestions,
+} from "./search-suggestions";
 import { useSearchPosition } from "./use-search-position";
 import {
 	canRestoreSearchFocus,
@@ -78,7 +87,12 @@ export const UnifiedSearch = forwardRef<
 	const { phase, open, present, show, hide } = useSearchPresence();
 	const [scope, setScope] = useState<SearchScope>("all");
 	const [activeId, setActiveId] = useState<string | null>(null);
-	const [suggestions, setSuggestions] = useState<string[]>([]);
+	const [catalogue, setCatalogue] = useState<SiteDestination[]>([]);
+	const [response, setResponse] = useState<{
+		query: string;
+		engineId: string;
+		values: SearchSuggestions;
+	} | null>(null);
 	const [logoFailedFor, setLogoFailedFor] = useState<string | null>(null);
 	const anchorRef = useRef<HTMLDivElement>(null);
 	const launcherRef = useRef<HTMLButtonElement>(null);
@@ -143,6 +157,18 @@ export const UnifiedSearch = forwardRef<
 			),
 		[folders],
 	);
+	const findDestination = useMemo(
+		() => createDestinationIndex(catalogue),
+		[catalogue],
+	);
+	const destination = useMemo(
+		() => findDestination(query),
+		[findDestination, query],
+	);
+	const suggestions =
+		response?.query === query && response.engineId === engine.id
+			? response.values
+			: EMPTY_SUGGESTIONS;
 	const groups = useMemo(
 		() =>
 			buildSearchGroups({
@@ -152,9 +178,11 @@ export const UnifiedSearch = forwardRef<
 				cards,
 				folders,
 				quickLinks,
-				suggestions,
+				destination,
+				suggestions: suggestions.queries,
+				navigation: suggestions.navigation,
 			}),
-		[query, scope, local, cards, folders, quickLinks, suggestions],
+		[query, scope, local, cards, folders, quickLinks, destination, suggestions],
 	);
 	const items = useMemo(() => groups.flatMap((group) => group.items), [groups]);
 	const activeIndex = activeSearchIndex(items, activeId, !!query.trim());
@@ -212,7 +240,7 @@ export const UnifiedSearch = forwardRef<
 		setQuery("");
 		setScope("all");
 		setActiveId(null);
-		setSuggestions([]);
+		setResponse(null);
 		if (restoreFocusRef.current) {
 			const trigger = returnFocusRef.current;
 			const requestedVersion = focusVersionRef.current;
@@ -262,13 +290,27 @@ export const UnifiedSearch = forwardRef<
 	}, [present, close]);
 	useEffect(() => {
 		if (!open) return;
-		setSuggestions([]);
+		let cancelled = false;
+		// Reuse the icon catalogue's cache. No query is sent to this service.
+		void fetchAllSvgs()
+			.then((sites) => {
+				if (!cancelled && Array.isArray(sites)) setCatalogue(sites);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [open]);
+	useEffect(() => {
+		if (!open) return;
+		setResponse(null);
 		if (query.trim().length < 2 || (scope !== "all" && scope !== "web")) return;
 		const controller = new AbortController();
 		const timer = window.setTimeout(() => {
 			void getSearchSuggestions(engine, query, controller.signal).then(
 				(values) => {
-					if (!controller.signal.aborted) setSuggestions(values);
+					if (!controller.signal.aborted)
+						setResponse({ query, engineId: engine.id, values });
 				},
 			);
 		}, 180);
@@ -395,8 +437,8 @@ export const UnifiedSearch = forwardRef<
 				};
 			case "url":
 				return {
-					title: `Open ${displayHost(item.url)}`,
-					detail: item.url,
+					title: item.title || `Open ${displayHost(item.url)}`,
+					detail: item.title ? displayHost(item.url) : item.url,
 					url: item.url,
 					icon: "external-link" as const,
 				};

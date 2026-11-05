@@ -178,13 +178,18 @@ test("empty search uses authored shortcuts and folders, never invented visit his
 	).toBe(false);
 });
 
-test("saved results precede web suggestions and duplicate shortcut URLs are omitted", () => {
+test("the recognized website leads, saved results follow and duplicate shortcuts are omitted", () => {
 	const groups = groupsFor("figma", "all", [
 		"figma",
 		"figma tutorials",
 		"figma tutorials",
 	]);
-	expect(groups.map((group) => group.id)).toEqual(["saved", "web"]);
+	expect(groups.map((group) => group.id)).toEqual([
+		"destination",
+		"saved",
+		"web",
+	]);
+	expect(groups[0]?.items[0]?.id).toBe("bookmark:figma");
 	expect(groups.at(-1)?.items.map((item) => item.type)).toEqual([
 		"web",
 		"suggestion",
@@ -194,7 +199,10 @@ test("saved results precede web suggestions and duplicate shortcut URLs are omit
 test("scope filtering retains recovery for web while local no-match stays empty", () => {
 	expect(groupsFor("missing", "saved")).toEqual([]);
 	expect(groupsFor("figma", "folders")).toEqual([]);
-	expect(groupsFor("figma", "web").map((group) => group.id)).toEqual(["web"]);
+	expect(groupsFor("figma", "web").map((group) => group.id)).toEqual([
+		"destination",
+		"web",
+	]);
 	expect(groupsFor("", "saved")[0]?.items).toHaveLength(2);
 });
 
