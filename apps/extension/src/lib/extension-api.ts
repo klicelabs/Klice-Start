@@ -37,8 +37,12 @@ const scope = globalThis as unknown as {
 	chrome?: typeof Browser;
 };
 
-export const ext: typeof Browser =
-	scope.browser ?? (scope.chrome as typeof Browser);
+export const ext: typeof Browser = new Proxy({} as typeof Browser, {
+	get(_target, property) {
+		const api = scope.browser ?? (scope.chrome as typeof Browser | undefined);
+		return api?.[property as keyof typeof Browser];
+	},
+});
 
 /**
  * Late-binding variant: resolves the namespace at CALL time. Use this in

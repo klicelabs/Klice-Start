@@ -1,4 +1,10 @@
 import { afterEach, expect, mock, test } from "bun:test";
+import { ext } from "../src/lib/extension-api";
+
+// Force extension-api to load before the test installs its browser shim. The
+// background worker must resolve the namespace after that shim is available,
+// even when another module cached this surface earlier in the test process.
+void ext;
 
 const globals = globalThis as Record<string, unknown>;
 const originalGlobals = {
