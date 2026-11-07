@@ -33,6 +33,7 @@ import { AdvancedPane } from "./panes/advanced-pane";
 import { AppearancePane } from "./panes/appearance-pane";
 import { BookmarksPane } from "./panes/bookmarks-pane";
 import { GeneralPane } from "./panes/general-pane";
+import { PexelsDetailView } from "./panes/pexels-controls";
 import { SettingsRootPane } from "./panes/root-settings-pane";
 import { SearchPane } from "./panes/search-pane";
 import { WallpaperPane } from "./panes/wallpaper-pane";
@@ -387,7 +388,7 @@ export function SettingsSidebar({
 						{!showRoot && (
 							<SettingsChromeButton
 								icon="chevron-left"
-								label="Back to Preferences"
+								label={`Back to ${navigation.index > 0 ? SETTINGS_PANE_LABELS[navigation.entries[navigation.index - 1]] : "Preferences"}`}
 								onClick={goRoot}
 							/>
 						)}
@@ -468,7 +469,12 @@ export function SettingsSidebar({
 													onOpenWallpaper={() => navigateTo("wallpaper")}
 												/>
 											)}
-											{activePane === "wallpaper" && <WallpaperPane />}
+											{activePane === "wallpaper" && (
+												<WallpaperPane
+													onOpenPexels={() => navigateTo("pexels")}
+												/>
+											)}
+											{activePane === "pexels" && <PexelsDetailView />}
 											{activePane === "search" && <SearchPane />}
 											{activePane === "bookmarks" && (
 												<BookmarksPane initialAction={initialAction} />

@@ -1,7 +1,7 @@
 import { Input } from "@klice-start/ui/components/input";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	normalizePexelsQuery,
 	PEXELS_MAX_QUERY_LENGTH,
@@ -71,19 +71,13 @@ function ThemeThumb({ src, alt }: { src: string; alt: string }): ReactNode {
 	);
 }
 
-export function PexelsDetailView({
-	onBack,
-}: {
-	onBack: () => void;
-}): ReactNode {
+export function PexelsDetailView(): ReactNode {
 	const background = useSetupStore((state) => state.settings.background);
 	const updateBackground = useSetupStore((state) => state.updateBackground);
 	const status = useWallpaperStatus((state) => state.status);
 	const message = useWallpaperStatus((state) => state.message);
 	const [draft, setDraft] = useState(background.pexelsQuery);
 	const loading = status === "loading";
-	const headingRef = useRef<HTMLHeadingElement>(null);
-	useEffect(() => headingRef.current?.focus(), []);
 
 	useEffect(() => setDraft(background.pexelsQuery), [background.pexelsQuery]);
 
@@ -103,32 +97,6 @@ export function PexelsDetailView({
 
 	return (
 		<div className={SETTINGS_PAGE}>
-			<div className="flex items-center gap-2 pb-1">
-				<button
-					type="button"
-					onClick={onBack}
-					className={cn(
-						"inline-flex size-8 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-neutral-900/[0.06] hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/[0.08] dark:hover:text-white",
-						SETTINGS_FOCUS_RING,
-					)}
-					aria-label="Back to wallpapers"
-				>
-					<Icon name="chevron-left" size={18} aria-hidden="true" />
-				</button>
-				<div className="min-w-0">
-					<h2
-						ref={headingRef}
-						tabIndex={-1}
-						className="truncate font-semibold text-[15px] text-neutral-900 leading-tight dark:text-neutral-50"
-					>
-						Pexels
-					</h2>
-					<p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">
-						Random photography, changed at your pace
-					</p>
-				</div>
-			</div>
-
 			<SectionCard>
 				<fieldset
 					className="min-w-0 space-y-3 border-0"

@@ -2,6 +2,7 @@ export type SettingsPaneId =
 	| "general"
 	| "appearance"
 	| "wallpaper"
+	| "pexels"
 	| "search"
 	| "bookmarks"
 	| "advanced";
@@ -10,6 +11,7 @@ export const SETTINGS_PANE_LABELS: Record<SettingsPaneId, string> = {
 	general: "General",
 	appearance: "Appearance",
 	wallpaper: "Wallpaper",
+	pexels: "Pexels",
 	search: "Search",
 	bookmarks: "Bookmarks",
 	advanced: "Advanced",

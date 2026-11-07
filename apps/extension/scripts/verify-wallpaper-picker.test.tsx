@@ -1,8 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
+import { SidebarProvider } from "@klice-start/ui/components/sidebar";
 import { parseHTML } from "linkedom";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { PexelsDetailView } from "../src/components/newtab/settings/panes/pexels-controls";
 import { WallpaperPane } from "../src/components/newtab/settings/panes/wallpaper-pane";
+import { SettingsSidebar } from "../src/components/newtab/settings/settings-sidebar";
 import { useSetupStore } from "../src/stores/setup-store";
 
 const { window } = parseHTML(
@@ -37,7 +40,7 @@ Object.assign(globalThis, {
 	// Base UI's click-trigger path reads computed styles on open.
 	getComputedStyle: () => ({ getPropertyValue: () => "" }),
 	matchMedia: () => ({
-		matches: false,
+		matches: true,
 		addEventListener() {},
 		removeEventListener() {},
 	}),
@@ -46,6 +49,8 @@ Object.assign(globalThis, {
 	cancelAnimationFrame: (id: number) => clearTimeout(id),
 });
 
+// Layout scrolling is absent in linkedom; the shared sidebar resets it on navigation.
+window.HTMLElement.prototype.scrollTo = () => undefined;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let root: Root | null = null;
@@ -57,13 +62,30 @@ afterEach(() => {
 	document.body.innerHTML = "<div id=app></div>";
 });
 
-async function mountPane() {
+async function mountPane(inSidebar = false) {
 	const mount = document.getElementById("app");
 	if (!mount) throw new Error("test mount missing");
 	root = createRoot(mount);
 	await act(async () => {
-		root?.render(<WallpaperPane />);
+		root?.render(
+			inSidebar ? (
+				<SidebarProvider>
+					<SettingsSidebar
+						open
+						onClose={() => undefined}
+						initialPane="wallpaper"
+					/>
+				</SidebarProvider>
+			) : (
+				<WallpaperPane onOpenPexels={() => undefined} />
+			),
+		);
 	});
+
+	if (inSidebar)
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 30));
+		});
 }
 
 function solidTile() {
@@ -162,6 +184,9 @@ async function click(selector: string) {
 			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
 		);
 	});
+	await act(async () => {
+		await new Promise((resolve) => setTimeout(resolve, 50));
+	});
 }
 
 test("Pexels opens from a library card and preserves custom query and frequency", async () => {
@@ -170,7 +195,7 @@ test("Pexels opens from a library card and preserves custom query and frequency"
 		pexelsQuery: "Spider-Man Japan",
 		pexelsFrequency: "daylight",
 	});
-	await mountPane();
+	await mountPane(true);
 	const card = document.querySelector('[data-wallpaper-tile="pexels"]');
 	expect(card?.className).toContain("aspect-[4/3]");
 	expect(card?.querySelector("img")?.getAttribute("src")).toStartWith(
@@ -180,22 +205,33 @@ test("Pexels opens from a library card and preserves custom query and frequency"
 		"true",
 	);
 	expect(document.getElementById("pexels-query-input")).toBeNull();
+	expect(document.getElementById("settings-panel-title")?.textContent).toBe(
+		"Wallpaper",
+	);
 	await click('[data-wallpaper-tile="pexels"] button');
 	expect(
 		document.getElementById("pexels-query-input")?.getAttribute("value"),
 	).toBe("Spider-Man Japan");
 	expect(document.querySelectorAll("[data-pexels-theme]")).toHaveLength(6);
+	expect(document.getElementById("settings-panel-title")?.textContent).toBe(
+		"Pexels",
+	);
+	expect(document.querySelectorAll("h2")).toHaveLength(1);
 	expect(
 		document.querySelectorAll(
 			'fieldset img[src^="https://images.pexels.com/"]',
 		),
 	).toHaveLength(6);
-	expect(document.querySelector('[data-wallpaper-tile="solid"]')).toBeNull();
+	// AnimatePresence may retain the outgoing library while its exit completes.
+	expect(document.querySelectorAll("h2")).toHaveLength(1);
 	expect(document.body.textContent).toContain("Next photo");
-	await click('[aria-label="Back to wallpapers"]');
+	await click('[aria-label="Back to Wallpaper"]');
 	expect(
 		document.querySelector('[data-wallpaper-tile="solid"]'),
 	).not.toBeNull();
+	expect(document.getElementById("settings-panel-title")?.textContent).toBe(
+		"Wallpaper",
+	);
 	expect(useSetupStore.getState().settings.background.pexelsQuery).toBe(
 		"Spider-Man Japan",
 	);
@@ -208,7 +244,7 @@ test("browsing Pexels themes does not activate or replace the current wallpaper"
 	useSetupStore
 		.getState()
 		.updateBackground({ type: "wallpaper", wallpaperId: "tokyo-skyline" });
-	await mountPane();
+	await mountPane(true);
 	await click('[data-wallpaper-tile="pexels"] button');
 	expect(useSetupStore.getState().settings.background.type).toBe("wallpaper");
 	expect(useSetupStore.getState().settings.background.wallpaperId).toBe(
@@ -217,10 +253,21 @@ test("browsing Pexels themes does not activate or replace the current wallpaper"
 	expect(
 		document.querySelectorAll('[data-pexels-theme][aria-pressed="true"]'),
 	).toHaveLength(0);
-	await click('[aria-label="Back to wallpapers"]');
+	await click('[aria-label="Back to Wallpaper"]');
 	expect(
 		document
 			.querySelector('[data-wallpaper-tile="tokyo-skyline"] button')
 			?.getAttribute("aria-pressed"),
 	).toBe("true");
+});
+
+test("Pexels content uses the shared settings header without a duplicate title or back button", async () => {
+	const mount = document.getElementById("app");
+	if (!mount) throw new Error("test mount missing");
+	root = createRoot(mount);
+	await act(async () => {
+		root?.render(<PexelsDetailView />);
+	});
+	expect(document.querySelectorAll("h2")).toHaveLength(0);
+	expect(document.querySelector('[aria-label="Back to Wallpaper"]')).toBeNull();
 });

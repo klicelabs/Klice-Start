@@ -36,8 +36,6 @@ import {
 	SETTINGS_RADIUS,
 } from "../shared/settings-tokens";
 
-import { PexelsDetailView } from "./pexels-controls";
-
 type WallpaperLibraryItem =
 	| { kind: "wallpaper"; id: string; label: string; thumb: string }
 	| { kind: "gradient"; id: string; label: string; css: string }
@@ -481,7 +479,7 @@ function PexelsSourceTile({
 	);
 }
 
-export function WallpaperPane() {
+export function WallpaperPane({ onOpenPexels }: { onOpenPexels: () => void }) {
 	const bg = useSetupStore((state) => state.settings.background);
 	const updateBackground = useSetupStore((state) => state.updateBackground);
 	const commitCustomWallpaper = useSetupStore(
@@ -504,19 +502,6 @@ export function WallpaperPane() {
 		(state) => state.clearBackgroundPreview,
 	);
 	const customWallpaper = bg.customWallpaper;
-	const [view, setView] = useState<"library" | "pexels">("library");
-	const libraryRef = useRef<HTMLDivElement>(null);
-	const previousView = useRef(view);
-	useEffect(() => {
-		if (view === "library" && previousView.current === "pexels") {
-			libraryRef.current
-				?.querySelector<HTMLButtonElement>(
-					'[data-wallpaper-tile="pexels"] button',
-				)
-				?.focus();
-		}
-		previousView.current = view;
-	}, [view]);
 	const [pending, setPending] = useState<PendingUpload | null>(null);
 	const [customPreview, setCustomPreview] = useState<string | null>(null);
 	const uploadGenerationRef = useRef(0);
@@ -753,10 +738,6 @@ export function WallpaperPane() {
 		}
 	}
 
-	if (view === "pexels") {
-		return <PexelsDetailView onBack={() => setView("library")} />;
-	}
-
 	const customSelected =
 		!pending &&
 		customWallpaper !== null &&
@@ -766,11 +747,7 @@ export function WallpaperPane() {
 	const pexelsSelected = bg.type === "pexels";
 
 	return (
-		<div
-			ref={libraryRef}
-			className={SETTINGS_PAGE}
-			data-settings-wallpaper-page="true"
-		>
+		<div className={SETTINGS_PAGE} data-settings-wallpaper-page="true">
 			<SectionCard>
 				<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7.5rem),1fr))] gap-2.5">
 					<div
@@ -931,10 +908,7 @@ export function WallpaperPane() {
 						) : null}
 					</div>
 
-					<PexelsSourceTile
-						selected={pexelsSelected}
-						onOpen={() => setView("pexels")}
-					/>
+					<PexelsSourceTile selected={pexelsSelected} onOpen={onOpenPexels} />
 
 					{libraryItems.map((item) => (
 						<WallpaperTile
