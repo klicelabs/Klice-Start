@@ -29,6 +29,7 @@ import { writeFirstPaintSnapshot } from "./first-paint-snapshot";
 import { getDescendantIds } from "./folder-tree";
 import { idbDelete, STORE_BG } from "./idb";
 import { buildItemOrder, repairItemOrder } from "./item-order";
+import { PEXELS_MAX_QUERY_LENGTH } from "./pexels";
 import { isAbsoluteHttpUrl } from "./url";
 import { writeWallpaperSnapshot } from "./wallpaper-snapshot";
 
@@ -102,6 +103,41 @@ function isDaylightPeriod(value: unknown): value is DaylightPeriod {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizePexelsCredit(
+	value: unknown,
+): BackgroundSettings["pexelsPhoto"] {
+	if (
+		!isRecord(value) ||
+		!isFiniteNumber(value.id) ||
+		typeof value.photographer !== "string" ||
+		typeof value.url !== "string" ||
+		typeof value.photographerUrl !== "string" ||
+		!isFiniteNumber(value.width) ||
+		!isFiniteNumber(value.height)
+	)
+		return null;
+	try {
+		for (const link of [value.url, value.photographerUrl]) {
+			const url = new URL(link);
+			if (
+				url.protocol !== "https:" ||
+				!(url.hostname === "pexels.com" || url.hostname.endsWith(".pexels.com"))
+			)
+				return null;
+		}
+	} catch {
+		return null;
+	}
+	return {
+		id: value.id,
+		url: value.url,
+		photographer: value.photographer.slice(0, 150),
+		photographerUrl: value.photographerUrl,
+		width: value.width,
+		height: value.height,
+	};
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -519,8 +555,10 @@ function normalizeBackground(
 		brightness: finiteOrDefault(raw.brightness, defaults.brightness, 40, 140),
 		opacity: finiteOrDefault(raw.opacity, defaults.opacity, 20, 100),
 		pexelsQuery:
-			typeof raw.pexelsQuery === "string"
-				? raw.pexelsQuery
+			typeof raw.pexelsQuery === "string" &&
+			raw.pexelsQuery.trim() &&
+			raw.pexelsQuery !== "curated wallpaper"
+				? raw.pexelsQuery.slice(0, PEXELS_MAX_QUERY_LENGTH)
 				: defaults.pexelsQuery,
 		pexelsFrequency: frequency,
 		pexelsPreviousFrequency: previousFrequency,
@@ -530,6 +568,14 @@ function normalizeBackground(
 				: null,
 		pexelsLastPeriod: lastPeriod,
 		pexelsImageId: normalizeId(raw.pexelsImageId),
+		pexelsPosition:
+			raw.pexelsPosition === "top" ||
+			raw.pexelsPosition === "bottom" ||
+			raw.pexelsPosition === "left" ||
+			raw.pexelsPosition === "right"
+				? raw.pexelsPosition
+				: "center",
+		pexelsPhoto: normalizePexelsCredit(raw.pexelsPhoto),
 	};
 }
 

@@ -154,25 +154,73 @@ test("picking a colour on the solid tile applies it live", async () => {
 	expect(background.imageId).toBeNull();
 });
 
-test("Pexels is hidden from the picker without touching the applied source", async () => {
-	useSetupStore.setState({
-		settings: {
-			...useSetupStore.getState().settings,
-			background: {
-				...useSetupStore.getState().settings.background,
-				type: "pexels",
-				pexelsQuery: "minimalist landscape",
-			},
-		},
+async function click(selector: string) {
+	const element = document.querySelector(selector);
+	if (!element) throw new Error(`Missing control: ${selector}`);
+	await act(async () => {
+		element.dispatchEvent(
+			new window.MouseEvent("click", { bubbles: true, cancelable: true }),
+		);
+	});
+}
+
+test("Pexels opens from a library card and preserves custom query and frequency", async () => {
+	useSetupStore.getState().updateBackground({
+		type: "pexels",
+		pexelsQuery: "Spider-Man Japan",
+		pexelsFrequency: "daylight",
 	});
 	await mountPane();
-
-	// The section is gated behind a local flag, so no Pexels control renders.
-	expect(document.body.textContent).not.toContain("Pexels");
+	const card = document.querySelector('[data-wallpaper-tile="pexels"]');
+	expect(card?.className).toContain("aspect-[4/3]");
+	expect(card?.querySelector("img")?.getAttribute("src")).toStartWith(
+		"https://images.pexels.com/",
+	);
+	expect(card?.querySelector("button")?.getAttribute("aria-pressed")).toBe(
+		"true",
+	);
 	expect(document.getElementById("pexels-query-input")).toBeNull();
+	await click('[data-wallpaper-tile="pexels"] button');
+	expect(
+		document.getElementById("pexels-query-input")?.getAttribute("value"),
+	).toBe("Spider-Man Japan");
+	expect(document.querySelectorAll("[data-pexels-theme]")).toHaveLength(6);
+	expect(
+		document.querySelectorAll(
+			'fieldset img[src^="https://images.pexels.com/"]',
+		),
+	).toHaveLength(6);
+	expect(document.querySelector('[data-wallpaper-tile="solid"]')).toBeNull();
+	expect(document.body.textContent).toContain("Next photo");
+	await click('[aria-label="Back to wallpapers"]');
+	expect(
+		document.querySelector('[data-wallpaper-tile="solid"]'),
+	).not.toBeNull();
+	expect(useSetupStore.getState().settings.background.pexelsQuery).toBe(
+		"Spider-Man Japan",
+	);
+	expect(useSetupStore.getState().settings.background.pexelsFrequency).toBe(
+		"daylight",
+	);
+});
 
-	// Hiding the picker must never rewrite what the user already has applied.
-	const background = useSetupStore.getState().settings.background;
-	expect(background.type).toBe("pexels");
-	expect(background.pexelsQuery).toBe("minimalist landscape");
+test("browsing Pexels themes does not activate or replace the current wallpaper", async () => {
+	useSetupStore
+		.getState()
+		.updateBackground({ type: "wallpaper", wallpaperId: "tokyo-skyline" });
+	await mountPane();
+	await click('[data-wallpaper-tile="pexels"] button');
+	expect(useSetupStore.getState().settings.background.type).toBe("wallpaper");
+	expect(useSetupStore.getState().settings.background.wallpaperId).toBe(
+		"tokyo-skyline",
+	);
+	expect(
+		document.querySelectorAll('[data-pexels-theme][aria-pressed="true"]'),
+	).toHaveLength(0);
+	await click('[aria-label="Back to wallpapers"]');
+	expect(
+		document
+			.querySelector('[data-wallpaper-tile="tokyo-skyline"] button')
+			?.getAttribute("aria-pressed"),
+	).toBe("true");
 });

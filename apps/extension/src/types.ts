@@ -61,6 +61,15 @@ export interface BackgroundSettings {
 	pexelsLastFetched: number | null;
 	pexelsLastPeriod: "morning" | "afternoon" | "night" | null;
 	pexelsImageId: string | null;
+	pexelsPosition?: "center" | "top" | "bottom" | "left" | "right";
+	pexelsPhoto?: {
+		id: number;
+		url: string;
+		photographer: string;
+		photographerUrl: string;
+		width: number;
+		height: number;
+	} | null;
 }
 
 export interface ClockSettings {

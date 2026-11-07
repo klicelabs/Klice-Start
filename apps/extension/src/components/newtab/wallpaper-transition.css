@@ -1,0 +1,19 @@
+@keyframes wallpaper-outgoing {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+.wallpaper-outgoing {
+	animation: wallpaper-outgoing 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.wallpaper-outgoing {
+		display: none;
+		animation: none;
+	}
+}

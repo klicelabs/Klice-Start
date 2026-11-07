@@ -12,7 +12,6 @@ import {
 	snapshotPatch,
 } from "../lib/first-paint-snapshot";
 import { getSubtreeIds, wouldCreateCycle } from "../lib/folder-tree";
-import { prepareQuickLink, reorderQuickLinks } from "../lib/quick-links";
 import type { HistoryEntry, HistorySnapshot } from "../lib/history";
 import { nextHistoryEntryId, sameKeys } from "../lib/history-capture";
 import {
@@ -27,6 +26,7 @@ import {
 	reorderGroupKeys,
 	repairItemOrder,
 } from "../lib/item-order";
+import { prepareQuickLink, reorderQuickLinks } from "../lib/quick-links";
 import {
 	beginReset,
 	cancelPendingPersist,
@@ -35,6 +35,7 @@ import {
 	normalizeState,
 } from "../lib/storage";
 import { clampInt, uid as generateId, safeTileSize } from "../lib/utils";
+import { resetWallpaperCache } from "../lib/wallpaper-coordination";
 import type { Card, QuickLink, Settings, Setup } from "../types";
 import { useHistoryStore } from "./history-store";
 import { useImageStore } from "./image-store";
@@ -1234,12 +1235,12 @@ export const useSetupStore = create<SetupStore>()(
 				await cancelPendingPersist();
 				try {
 					// "perch-setup" is the legacy persist name; kept for data continuity.
-					await chrome.storage.local.remove("perch-setup");
-					await useImageStore.getState().clearAll();
-					set({
-						...normalizeState(null),
+					await resetWallpaperCache(async () => {
+						await chrome.storage.local.remove("perch-setup");
+						await useImageStore.getState().clearAll();
+						set({ ...normalizeState(null) });
+						await flushPersist();
 					});
-					await flushPersist();
 					// NPD-3: reset clears past+future — undoing into the pre-reset
 					// world (M20) must be impossible after a confirmed wipe.
 					useHistoryStore.getState().clearHistory();

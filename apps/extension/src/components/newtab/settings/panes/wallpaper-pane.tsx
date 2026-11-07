@@ -1,4 +1,3 @@
-import { Input } from "@klice-start/ui/components/input";
 import {
 	ColorPicker,
 	ColorPickerArea,
@@ -14,7 +13,6 @@ import {
 	FileUpload,
 	type FileUploadItem,
 } from "@klice-start/ui/components/motion/file-upload";
-import { Switch } from "@klice-start/ui/components/switch";
 import { Icon } from "@klice-start/ui/icons/icon";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -26,27 +24,19 @@ import {
 } from "../../../../lib/constants";
 import { flushPersist } from "../../../../lib/storage";
 import { cn } from "../../../../lib/utils";
-import { refreshWallpaper } from "../../../../services/wallpaper";
+import { PEXELS_LIBRARY_PREVIEW } from "../../../../lib/wallpaper-themes";
 import { useImageStore } from "../../../../stores/image-store";
 import { useSetupStore } from "../../../../stores/setup-store";
-import type {
-	CustomWallpaper,
-	Settings,
-	WallpaperFrequency,
-} from "../../../../types";
+import type { CustomWallpaper, Settings } from "../../../../types";
 import { SectionCard } from "../shared/section-card";
-import { SelectRow } from "../shared/select-row";
-import { SettingRow } from "../shared/setting-row";
 import { SettingsAction } from "../shared/settings-action";
-import { SettingsExpandable } from "../shared/settings-expandable";
 import {
-	SETTINGS_CONTROL_WIDTH,
 	SETTINGS_FOCUS_RING,
-	SETTINGS_INPUT,
 	SETTINGS_PAGE,
 	SETTINGS_RADIUS,
-	SETTINGS_SWITCH,
 } from "../shared/settings-tokens";
+
+import { PexelsDetailView } from "./pexels-controls";
 
 type WallpaperLibraryItem =
 	| { kind: "wallpaper"; id: string; label: string; thumb: string }
@@ -62,30 +52,10 @@ type PendingUpload = {
 };
 
 const WALLPAPER_TILE = cn(
-	"group squircle relative flex aspect-[4/3] min-w-0 overflow-hidden border border-neutral-900/10 bg-neutral-900/[0.04] shadow-none transition-[filter,box-shadow] duration-150 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04]",
+	"group squircle relative flex aspect-[4/3] min-w-0 items-end overflow-hidden border border-neutral-900/10 bg-neutral-900/[0.04] shadow-none transition-[filter,box-shadow] duration-150 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04]",
 	SETTINGS_RADIUS.surface,
 );
 const TILE_SELECTED = "ring-2 ring-inset ring-[var(--klice-accent)]";
-
-/**
- * Temporary UI gate. Pexels photography is hidden from the picker while the
- * source is reworked, but the code path, the persisted settings and the proxy
- * in `apps/web/api/pexels` all stay in place — flip this back to `true` to
- * restore the section. A background already set to `pexels` keeps rendering:
- * hiding the picker must never change what the user sees.
- */
-const SHOW_PEXELS = false;
-
-const PEXELS_FREQUENCY_OPTIONS: readonly {
-	value: WallpaperFrequency;
-	label: string;
-}[] = [
-	{ value: "daily", label: "Daily" },
-	{ value: "hourly", label: "Hourly" },
-	{ value: "per-tab", label: "Every new tab" },
-	{ value: "daylight", label: "Follow daylight" },
-	{ value: "locked", label: "Keep current" },
-];
 
 const SUPPORTED_IMAGE_TYPES: Record<string, readonly string[]> = {
 	"image/jpeg": ["jpg", "jpeg"],
@@ -452,6 +422,65 @@ function WallpaperTile({
 	);
 }
 
+function PexelsSourceTile({
+	selected,
+	onOpen,
+}: {
+	selected: boolean;
+	onOpen: () => void;
+}): ReactNode {
+	const [failed, setFailed] = useState(false);
+	return (
+		<div
+			className={cn(
+				WALLPAPER_TILE,
+				selected ? TILE_SELECTED : "hover:brightness-105",
+			)}
+			data-wallpaper-tile="pexels"
+		>
+			<button
+				type="button"
+				onClick={onOpen}
+				aria-label={
+					selected ? "Pexels photography (active)" : "Choose Pexels photography"
+				}
+				aria-pressed={selected}
+				className={cn(
+					"absolute inset-0 flex flex-col justify-end text-left focus-visible:outline-none",
+					SETTINGS_FOCUS_RING,
+				)}
+			>
+				{failed ? (
+					<span
+						aria-hidden="true"
+						className="absolute inset-0 bg-gradient-to-br from-neutral-700 to-neutral-900"
+					/>
+				) : (
+					<img
+						src={PEXELS_LIBRARY_PREVIEW}
+						alt=""
+						loading="lazy"
+						decoding="async"
+						referrerPolicy="no-referrer"
+						onError={() => setFailed(true)}
+						className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+					/>
+				)}
+			</button>
+			<div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
+			<span className="pointer-events-none relative z-10 flex items-center gap-1.5 truncate px-2.5 pb-2 font-medium text-[11px] text-white/95 drop-shadow-xs">
+				<Icon name="camera" size={11} aria-hidden="true" />
+				Pexels
+			</span>
+			{selected ? (
+				<span className="pointer-events-none absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
+					<Icon name="check" size={12} strokeWidth={3} aria-hidden="true" />
+				</span>
+			) : null}
+		</div>
+	);
+}
+
 export function WallpaperPane() {
 	const bg = useSetupStore((state) => state.settings.background);
 	const updateBackground = useSetupStore((state) => state.updateBackground);
@@ -475,6 +504,19 @@ export function WallpaperPane() {
 		(state) => state.clearBackgroundPreview,
 	);
 	const customWallpaper = bg.customWallpaper;
+	const [view, setView] = useState<"library" | "pexels">("library");
+	const libraryRef = useRef<HTMLDivElement>(null);
+	const previousView = useRef(view);
+	useEffect(() => {
+		if (view === "library" && previousView.current === "pexels") {
+			libraryRef.current
+				?.querySelector<HTMLButtonElement>(
+					'[data-wallpaper-tile="pexels"] button',
+				)
+				?.focus();
+		}
+		previousView.current = view;
+	}, [view]);
 	const [pending, setPending] = useState<PendingUpload | null>(null);
 	const [customPreview, setCustomPreview] = useState<string | null>(null);
 	const uploadGenerationRef = useRef(0);
@@ -490,12 +532,12 @@ export function WallpaperPane() {
 		pendingUrlRef.current = next;
 	}
 
-	function untrackPreviewUrl() {
+	const untrackPreviewUrl = useCallback(() => {
 		if (pendingUrlRef.current) {
 			URL.revokeObjectURL(pendingUrlRef.current);
 			pendingUrlRef.current = null;
 		}
-	}
+	}, []);
 
 	useEffect(() => {
 		let active = true;
@@ -528,7 +570,7 @@ export function WallpaperPane() {
 			clearBackgroundPreview();
 			untrackPreviewUrl();
 		},
-		[clearBackgroundPreview],
+		[clearBackgroundPreview, untrackPreviewUrl],
 	);
 
 	const libraryItems = useMemo<WallpaperLibraryItem[]>(
@@ -711,16 +753,24 @@ export function WallpaperPane() {
 		}
 	}
 
+	if (view === "pexels") {
+		return <PexelsDetailView onBack={() => setView("library")} />;
+	}
+
 	const customSelected =
 		!pending &&
 		customWallpaper !== null &&
 		bg.type === "image" &&
 		bg.imageId === customWallpaper.id;
 	const customTileHasPencil = customWallpaper !== null && !pending;
-	const lastAppliedPexelsQuery = useRef(bg.pexelsQuery);
+	const pexelsSelected = bg.type === "pexels";
 
 	return (
-		<div className={SETTINGS_PAGE} data-settings-wallpaper-page="true">
+		<div
+			ref={libraryRef}
+			className={SETTINGS_PAGE}
+			data-settings-wallpaper-page="true"
+		>
 			<SectionCard>
 				<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7.5rem),1fr))] gap-2.5">
 					<div
@@ -881,6 +931,11 @@ export function WallpaperPane() {
 						) : null}
 					</div>
 
+					<PexelsSourceTile
+						selected={pexelsSelected}
+						onOpen={() => setView("pexels")}
+					/>
+
 					{libraryItems.map((item) => (
 						<WallpaperTile
 							key={`${item.kind}-${item.id}`}
@@ -895,83 +950,6 @@ export function WallpaperPane() {
 
 			{/* Solid colour has no row of its own: the library tile IS the control
 			(see WallpaperTile), so a picker here would set the same value twice. */}
-
-			{/* Pexels is a wallpaper source: enable it here, tune the photo
-			theme and refresh cadence inside its sub-area. Gated behind
-			SHOW_PEXELS while the source is reworked — the code, the persisted
-			settings and the proxy in apps/web/api/pexels all stay in place, and a
-			background already set to "pexels" keeps rendering. */}
-			{SHOW_PEXELS && (
-				<SectionCard>
-					<SettingRow
-						label="Pexels photography"
-						icon="camera"
-						tooltip="Fresh photos on a schedule, instead of a fixed wallpaper."
-					>
-						<Switch
-							className={SETTINGS_SWITCH}
-							aria-label="Use Pexels photography"
-							checked={bg.type === "pexels"}
-							onCheckedChange={(enabled: boolean) => {
-								if (enabled) {
-									updateBackground({ type: "pexels" } as Partial<
-										Settings["background"]
-									>);
-									refreshWallpaper(true).catch(() => undefined);
-								} else {
-									updateBackground({
-										type: "wallpaper",
-										wallpaperId: "tokyo-skyline",
-									} as Partial<Settings["background"]>);
-								}
-							}}
-						/>
-					</SettingRow>
-
-					<SettingsExpandable
-						expanded={bg.type === "pexels"}
-						label="Pexels photography options"
-					>
-						<SettingRow label="Photo theme" icon="search">
-							<Input
-								id="pexels-query-input"
-								aria-label="Photo theme keywords"
-								placeholder="minimalist landscape"
-								value={bg.pexelsQuery}
-								onChange={(e) =>
-									updateBackground({ pexelsQuery: e.target.value })
-								}
-								onBlur={(e) => {
-									if (e.target.value === lastAppliedPexelsQuery.current) return;
-									lastAppliedPexelsQuery.current = e.target.value;
-									refreshWallpaper(true).catch(() => undefined);
-								}}
-								className={cn(
-									cn(
-										SETTINGS_CONTROL_WIDTH,
-										SETTINGS_RADIUS.control,
-										"h-9 px-3 text-sm",
-									),
-									SETTINGS_INPUT,
-								)}
-							/>
-						</SettingRow>
-
-						<SelectRow
-							label="Refresh"
-							icon="timer"
-							value={bg.pexelsFrequency}
-							options={PEXELS_FREQUENCY_OPTIONS}
-							onChange={(val) => {
-								const next = val as WallpaperFrequency;
-								updateBackground({ pexelsFrequency: next });
-								if (next !== "locked")
-									refreshWallpaper(true).catch(() => undefined);
-							}}
-						/>
-					</SettingsExpandable>
-				</SectionCard>
-			)}
 		</div>
 	);
 }

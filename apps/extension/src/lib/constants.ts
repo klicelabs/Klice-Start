@@ -195,12 +195,14 @@ export const DEFAULT_BACKGROUND: BackgroundSettings = {
 	blur: 0,
 	brightness: 100,
 	opacity: 100,
-	pexelsQuery: "curated wallpaper",
+	pexelsQuery: "cinematic nature landscape",
 	pexelsFrequency: "daily" as WallpaperFrequency,
 	pexelsPreviousFrequency: null,
 	pexelsLastFetched: null,
 	pexelsLastPeriod: null,
 	pexelsImageId: null,
+	pexelsPosition: "center",
+	pexelsPhoto: null,
 };
 
 export const DEFAULT_CLOCK: ClockSettings = {

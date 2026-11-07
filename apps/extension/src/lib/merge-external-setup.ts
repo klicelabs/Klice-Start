@@ -58,6 +58,11 @@ export function mergeConcurrentSetup(
 		local.settings,
 		incoming.settings,
 	);
+	settings.background = mergeBackground(
+		base.settings.background,
+		local.settings.background,
+		incoming.settings.background,
+	);
 	const activeFolderId = mergeScalar(
 		base.activeFolderId,
 		local.activeFolderId,
@@ -77,6 +82,33 @@ export function mergeConcurrentSetup(
 function mergeScalar<T>(base: T, local: T, incoming: T): T {
 	if (JSON.stringify(local) === JSON.stringify(base)) return incoming;
 	return local;
+}
+
+/** User preferences merge independently from automatic photo refresh writes. */
+function mergeBackground(
+	base: Setup["settings"]["background"],
+	local: Setup["settings"]["background"],
+	incoming: Setup["settings"]["background"],
+): Setup["settings"]["background"] {
+	const merged = mergeRecord(base, local, incoming);
+	const photo = (bg: Setup["settings"]["background"]) => ({
+		pexelsImageId: bg.pexelsImageId,
+		pexelsPhoto: bg.pexelsPhoto,
+		pexelsLastFetched: bg.pexelsLastFetched,
+		pexelsLastPeriod: bg.pexelsLastPeriod,
+	});
+	// Credits, bytes and timestamps describe one selection and always travel together.
+	const before = photo(base);
+	const left = photo(local);
+	const right = photo(incoming);
+	const selection = sameData(left, before)
+		? right
+		: sameData(right, before)
+			? left
+			: (incoming.pexelsLastFetched ?? 0) > (local.pexelsLastFetched ?? 0)
+				? right
+				: left;
+	return { ...merged, ...selection };
 }
 
 function mergeRecord<T extends object>(base: T, local: T, incoming: T): T {

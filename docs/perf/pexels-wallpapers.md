@@ -1,0 +1,70 @@
+# Pexels wallpapers: audit, deployment and operating limits
+
+Audit/research date: 2026-11-07. The dashboard owns the wallpaper experience; Pexels supplies an optional background feature. No manual image collection or paid wallpaper tier is introduced.
+
+## Existing flow and defects
+
+- `apps/web/src/app/api/pexels/route.ts` already held the server-only API key and searched the Pexels API. It selected one photo from only eight high-scoring candidates, requested a random page, had no shared cache, durable quota budget, concurrency coordination or abuse controls, and issued a second search when the first failed or returned no results. The second search silently replaced custom keywords with an unrelated category.
+- `apps/extension/src/services/wallpaper.ts` already downloaded and persisted a background in IndexedDB. Every rotation fetched metadata and downloaded one image. Daylight replaced the configured search, and independent new tabs could race the same persistent settings/image slot. Its retry helper repeated rate-limited requests.
+- The wallpaper settings pane already persisted Pexels query/frequency but hid the controls behind `SHOW_PEXELS`. Existing image storage, local wallpapers, gradients, screenshot/snapshot startup and background rendering provide the integration points; they are retained rather than replaced.
+
+## Official constraints and reference decisions
+
+The [Pexels API documentation](https://www.pexels.com/api/documentation/) specifies a maximum batch of 80, search orientation/size filters, default limits of 200 requests/hour and 20,000/month, and attribution to Pexels and photographers. Its statistics headers (`X-Ratelimit-Limit`, `X-Ratelimit-Remaining`, `X-Ratelimit-Reset`) describe the monthly quota and are returned on successful responses; 429 responses may omit them. The proxy records successful header values and conservatively blocks new upstream calls near exhaustion. It never attempts to evade a provider limit.
+
+Pexels recommends [normalizing searches, requesting batches and caching for 24 hours](https://help.pexels.com/hc/pt/articles/900006470063-Quais-passos-posso-seguir-para-evitar-atingir-o-limite-de-requisi%C3%A7%C3%B5es). [Its own response cache still counts repeated calls against quota](https://help.pexels.com/hc/en-us/articles/900005538826-Why-do-I-get-the-same-content-from-multiple-requests), so local/shared caches are essential.
+
+The [wallpaper-use guidance](https://help.pexels.com/hc/en-us/articles/4405588861721-Can-I-use-the-API-as-a-wallpaper-app) allows backgrounds within a product that primarily serves another purpose. Standalone wallpaper/gallery services replicating Pexels are prohibited. Automatically displayed images need attribution in the display, not only in search settings. [General API terms](https://help.pexels.com/hc/en-us/articles/900005880463-What-are-the-Terms-and-Conditions) also prohibit standalone redistribution, unaltered resale and bulk dataset collection. This feature does not provide a stock-photo download gallery. Search terms containing brands, such as Spider-Man, do not grant rights or guarantee corresponding results.
+
+[Bonjourr's background UX](https://bonjourr.fr/fr/docs/customisation/backgrounds/) demonstrates uncomplicated source/search selection, manual next, frequencies, framing and fades. Its [settings reference](https://bonjourr.fr/docs/reference/settings-reference/) keeps brightness and frequency separate. Its [open-source server architecture](https://github.com/victrme/bonjourr-apis/blob/main/docs/SERVICES.md) separates provider conversion from backgrounds and uses shared persistent collections. We adopt those separation/cache principles; curated Daylight collections and additional providers are outside this feature. Klice preserves the user's search during Daylight rather than choosing a different collection.
+
+## Proxy contract and safeguards
+
+POST `/api/pexels`: `{ "query": "cinematic nature landscape", "page": 1 }`. Query is Unicode-normalized, whitespace-collapsed, lowercased and bounded to 80 characters. Missing/empty query uses Nature. Pages are integers 1–5. Bodies are read with a 2 KiB limit. Each upstream call requests exactly 80 landscape/large results; returned candidates must be horizontal and at least 1920×1080, with HTTPS Pexels photo/photographer/image URLs.
+
+Success: `{ photos, query, page, cached, stale, rateLimit? }`. Photos retain the existing camelCase fields (`id`, `width`, `height`, `url`, `photographer`, `photographerUrl`, `src`). Empty results are cached as an empty batch for that exact query; they never fall back to another search. Failures contain a generic message and `retryAfter`, never raw provider response text or credentials. 429/503 responses include `Retry-After`.
+
+- Metadata batches are shared on disk for 24 hours. On errors/429/missing key, an existing matching batch may be served stale for up to seven days. No images are downloaded by the proxy.
+- One atomic filesystem lock serializes upstream activity and durable-state updates across Node processes on the **same persistent host/volume**. Waiting concurrent requests recheck cache after acquiring the lock, so matching searches become one upstream call. Upstream fetch/response handling has an eight-second timeout. Incoming request bodies have a two-second total deadline and are cancelled on timeout/disconnect without awaiting client-controlled cleanup. Admission is capped at 32 requests per process. Lock acquisition waits at most 12 seconds; abandoned locks fail closed and require the manual recovery procedure below. Locks are never deleted merely because they look old, and each release checks its unique ownership marker.
+- API reservations are persisted before upstream access, including requests that fail or time out. Rolling limits cap this integration at 150 upstream calls/hour and 18,000 per 31 days, leaving margin below the default provider quota. Provider remaining/reset information can block sooner. A provider 429 establishes a shared cooldown.
+- Arbitrary custom queries have a separate ceiling of 20 cache misses/hour. The six theme queries retain access to the global reserve when custom searches are exhausted. This prevents arbitrary-query cache busting from consuming the entire default key allocation.
+- Public traffic is throttled to 120 requests/minute when no trusted client identity is configured. With a reverse-proxy-controlled identity header, each hashed identity is limited to 30/minute. Only short-lived hashes are persisted; addresses are not stored. Raw client-supplied forwarding headers are ignored unless explicitly configured as trusted.
+- Metadata cache is bounded to 128 batches, client hashes to 512 entries/one minute, and quota timestamps to 31 days. Corrupt/unwritable persistent state fails closed rather than resetting quota. CORS permits extension requests but supplies **no authentication or quota protection**.
+
+The endpoint is public. A determined attacker can deny custom-search availability within its small budget, or saturate the host. These safeguards bound upstream consumption; they do not prove a caller is a legitimate extension installation. For larger public deployments use the existing hosting provider's free request/connection limits, a request-body timeout and optional account-based controls. No extension-embedded secret can solve this. No paid rate-limit service or new dependency is added.
+
+## Configuration
+
+Server (`apps/web/.env.local` for local Next development; host environment for production):
+
+```dotenv
+PEXELS_API_KEY=
+# Production: absolute path to a private, persistent volume on one host.
+PEXELS_CACHE_DIR=/var/lib/klice/pexels
+# Optional, only if a trusted reverse proxy overwrites/removes this header.
+PEXELS_TRUSTED_CLIENT_HEADER=
+```
+
+Keep the API key server-only, outside source control, frontend environment variables, logs and extension builds. In development the default cache directory is `apps/web/.cache/pexels`; `.cache` is ignored. Production requires an explicit persistent directory. Restrict its filesystem permissions to the application account. The state is quota accounting as well as a cache: retain it across deploys and restarts. Deleting it resets local budgets; provider headers cannot recover consumed hourly requests before the first new response.
+
+Run Next with `bun run dev` from `apps/web` (port 3001). Set `VITE_PEXELS_PROXY_URL=http://localhost:3001/api/pexels` for extension development, and the deployed HTTPS endpoint for extension production. The extension stores query/history/images locally; it sends only the search/page to the proxy and fetches image bytes directly from the Pexels image CDN. The proxy sees normal connection information; Pexels sees the server's API searches and the user's image-CDN request/IP. No bookmarks or browsing history are sent.
+
+**Supported production deployment:** one Node host with a persistent writable volume; multiple Node workers on that same host may share it. The process must be able to atomically create lock directories and rename state files. Independent disks or multiple hosts do not share the budget and are unsupported. The current route explicitly disables upstream access on detected Vercel, AWS Lambda and Netlify environments, even if a directory is provided; ephemeral serverless files are not a shared persistent cache. Without suitable storage or an API key it returns 503; the extension retains its last background or uses the bundled fallback. Deploying the web workspace to Vercel alone does not enable this service.
+
+After an unclean process termination, `request.lock` may remain. Recovery requires stopping **all** proxy workers using the directory, confirming none can resume an in-progress request, removing only the `request.lock` directory and its ownership marker, then restarting the workers. Retain `state.json`: it contains the consumed quota reservations. Never delete or replace a lock while any worker can still be running. This fail-closed recovery deliberately favors quota correctness over automatic recovery based on wall-clock age.
+
+A future multi-host deployment needs a genuinely shared transactional budget/cache (for example infrastructure already operated by the project), not a process-local map or `/tmp`. That is a deployment decision, not an additional paid dependency bundled into this feature.
+
+## Costs, scale and validation
+
+Pexels API access is [free with default limits](https://help.pexels.com/hc/en-us/articles/47677890260761-Is-the-Pexels-API-free-to-use). Do not assume unlimited access; [limit increases are currently paused](https://help.pexels.com/hc/en-us/articles/900005852323-How-do-I-get-unlimited-requests) as checked on the audit date. Hosting/storage/network charges depend on the existing host and are not made free by this implementation.
+
+Six themes × five pages × one fresh batch/day is at most 30 upstream calls/day when every page is requested. Each can serve many users and many rotations from its local batch. Twenty unique custom cache misses/hour is at most 480/day before global ceilings apply; spelling normalization and shared cache usually reduce that. User count alone does not determine API cost: unique query/page cache misses do. User rotation frequency is intentionally independent of API-call frequency.
+
+Server regression tests live in `apps/extension/scripts/verify-pexels-proxy.test.ts` and cover durable cache reuse/concurrency, input bounds, normalization, empty results, photo filtering, missing configuration, 429/stale handling, provider quota headers, global/custom budgets, corrupt-state fail-closed behavior and credential-safe errors. Run from the repository root with `bun test apps/extension/scripts/verify-pexels-proxy.test.ts`. Server typecheck: `bunx tsc --noEmit -p apps/web/tsconfig.json`.
+
+## Wallpaper picker
+
+Pexels is a source card in the existing wallpaper grid. Opening it navigates to a dedicated settings view without changing the background. Selecting a theme, submitting a search or requesting the next photo activates Pexels; going back preserves the current preferences. Six representative, 320�240 Pexels CDN thumbnails share the library cards� proportions and selection treatment. They use lazy image loading and browser HTTP caching, consume no API searches, and show a neutral fallback on image errors. These previews are illustrative; wallpaper selection remains random. Opening the library contacts the Pexels image CDN for its source preview, and opening the detail view may load the six theme previews (normal CDN connection information/IP applies).
+
+Validation for this branch: 327 product tests passed; extension and web TypeScript checks passed; Chrome and Firefox production builds passed. Feature-scoped Biome has no errors (seven existing optional-chain warnings in storage); the repository-wide check remains failing and is not a release gate claimed as passed. Isolated pane previews at 440px light and 320px dark loaded all six CDN thumbnails with no horizontal overflow. A source review verified Back focus restoration. Installed-extension end-to-end behavior on Chrome/Firefox and a live production proxy with a configured key were not verified in this environment.

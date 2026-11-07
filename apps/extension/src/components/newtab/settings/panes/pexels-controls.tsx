@@ -1,0 +1,283 @@
+import { Input } from "@klice-start/ui/components/input";
+import { Icon } from "@klice-start/ui/icons/icon";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+	normalizePexelsQuery,
+	PEXELS_MAX_QUERY_LENGTH,
+} from "../../../../lib/pexels";
+import { cn } from "../../../../lib/utils";
+import { PEXELS_THEMES } from "../../../../lib/wallpaper-themes";
+import {
+	refreshWallpaper,
+	useWallpaperStatus,
+} from "../../../../services/wallpaper";
+import { useSetupStore } from "../../../../stores/setup-store";
+import type { WallpaperFrequency } from "../../../../types";
+import { SectionCard } from "../shared/section-card";
+import { SelectRow } from "../shared/select-row";
+import { SettingsAction } from "../shared/settings-action";
+import {
+	SETTINGS_FOCUS_RING,
+	SETTINGS_INPUT,
+	SETTINGS_PAGE,
+	SETTINGS_RADIUS,
+} from "../shared/settings-tokens";
+import { SliderRow } from "../shared/slider-row";
+
+const FREQUENCIES: readonly { value: WallpaperFrequency; label: string }[] = [
+	{ value: "per-tab", label: "Every new tab" },
+	{ value: "hourly", label: "Hourly" },
+	{ value: "daily", label: "Daily" },
+	{ value: "daylight", label: "Follow daylight" },
+	{ value: "locked", label: "Manual" },
+];
+
+const POSITIONS = [
+	{ value: "center", label: "Center" },
+	{ value: "top", label: "Top" },
+	{ value: "bottom", label: "Bottom" },
+	{ value: "left", label: "Left" },
+	{ value: "right", label: "Right" },
+] as const;
+
+const THEME_TILE = cn(
+	"group squircle relative flex aspect-[4/3] min-w-0 overflow-hidden border border-neutral-900/10 bg-neutral-900/[0.04] text-left shadow-none transition-[filter,box-shadow] duration-150 focus-visible:outline-none dark:border-white/10 dark:bg-white/[0.04]",
+	SETTINGS_RADIUS.surface,
+	SETTINGS_FOCUS_RING,
+);
+const TILE_SELECTED = "ring-2 ring-inset ring-[var(--klice-accent)]";
+
+function ThemeThumb({ src, alt }: { src: string; alt: string }): ReactNode {
+	const [failed, setFailed] = useState(false);
+	if (failed) {
+		return (
+			<span
+				aria-hidden="true"
+				className="absolute inset-0 bg-gradient-to-br from-neutral-700 to-neutral-900"
+			/>
+		);
+	}
+	return (
+		<img
+			src={src}
+			alt={alt}
+			loading="lazy"
+			decoding="async"
+			referrerPolicy="no-referrer"
+			onError={() => setFailed(true)}
+			className="absolute inset-0 size-full object-cover transition-transform duration-300 motion-safe:group-hover:scale-105"
+		/>
+	);
+}
+
+export function PexelsDetailView({
+	onBack,
+}: {
+	onBack: () => void;
+}): ReactNode {
+	const background = useSetupStore((state) => state.settings.background);
+	const updateBackground = useSetupStore((state) => state.updateBackground);
+	const status = useWallpaperStatus((state) => state.status);
+	const message = useWallpaperStatus((state) => state.message);
+	const [draft, setDraft] = useState(background.pexelsQuery);
+	const loading = status === "loading";
+	const headingRef = useRef<HTMLHeadingElement>(null);
+	useEffect(() => headingRef.current?.focus(), []);
+
+	useEffect(() => setDraft(background.pexelsQuery), [background.pexelsQuery]);
+
+	function selectQuery(query: string) {
+		if (!query.trim()) return;
+		const normalized = normalizePexelsQuery(query);
+		setDraft(normalized);
+		if (background.type !== "pexels") {
+			updateBackground({ type: "pexels", pexelsQuery: normalized });
+			refreshWallpaper(true).catch(() => undefined);
+			return;
+		}
+		if (normalized === normalizePexelsQuery(background.pexelsQuery)) return;
+		updateBackground({ pexelsQuery: normalized });
+		refreshWallpaper(true).catch(() => undefined);
+	}
+
+	return (
+		<div className={SETTINGS_PAGE}>
+			<div className="flex items-center gap-2 pb-1">
+				<button
+					type="button"
+					onClick={onBack}
+					className={cn(
+						"inline-flex size-8 items-center justify-center rounded-full text-neutral-600 transition-colors hover:bg-neutral-900/[0.06] hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/[0.08] dark:hover:text-white",
+						SETTINGS_FOCUS_RING,
+					)}
+					aria-label="Back to wallpapers"
+				>
+					<Icon name="chevron-left" size={18} aria-hidden="true" />
+				</button>
+				<div className="min-w-0">
+					<h2
+						ref={headingRef}
+						tabIndex={-1}
+						className="truncate font-semibold text-[15px] text-neutral-900 leading-tight dark:text-neutral-50"
+					>
+						Pexels
+					</h2>
+					<p className="truncate text-[12px] text-neutral-500 dark:text-neutral-400">
+						Random photography, changed at your pace
+					</p>
+				</div>
+			</div>
+
+			<SectionCard>
+				<fieldset
+					className="min-w-0 space-y-3 border-0"
+					aria-label="Photo themes"
+				>
+					<legend className="font-medium text-[13px] text-neutral-800 dark:text-neutral-100">
+						Themes
+					</legend>
+					<div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7.5rem),1fr))] gap-2.5">
+						{PEXELS_THEMES.map((theme) => {
+							const selected =
+								background.type === "pexels" &&
+								normalizePexelsQuery(background.pexelsQuery) === theme.query;
+							return (
+								<button
+									key={theme.id}
+									type="button"
+									aria-pressed={selected}
+									onClick={() => selectQuery(theme.query)}
+									className={cn(
+										THEME_TILE,
+										selected ? TILE_SELECTED : "hover:brightness-105",
+									)}
+									data-pexels-theme={theme.id}
+								>
+									<ThemeThumb src={theme.preview} alt="" />
+									<span
+										aria-hidden="true"
+										className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent"
+									/>
+									<span className="pointer-events-none relative z-10 mt-auto truncate px-2.5 pb-2 font-medium text-[11px] text-white/95 drop-shadow-xs">
+										{theme.label}
+									</span>
+									{selected ? (
+										<span className="pointer-events-none absolute top-2 right-2 z-10 flex size-5 items-center justify-center rounded-full bg-[var(--klice-accent)] text-[var(--klice-accent-foreground)] shadow-sm">
+											<Icon
+												name="check"
+												size={12}
+												strokeWidth={3}
+												aria-hidden="true"
+											/>
+										</span>
+									) : null}
+								</button>
+							);
+						})}
+					</div>
+					<form
+						className="flex min-w-0 gap-2 pt-1"
+						onSubmit={(event) => {
+							event.preventDefault();
+							selectQuery(draft);
+						}}
+					>
+						<Input
+							id="pexels-query-input"
+							aria-label="Search Pexels photos"
+							placeholder="Search anything, e.g. Japan"
+							maxLength={PEXELS_MAX_QUERY_LENGTH}
+							value={draft}
+							onChange={(event) => setDraft(event.target.value)}
+							className={cn(
+								"h-9 min-w-0 flex-1 px-3 text-sm",
+								SETTINGS_RADIUS.control,
+								SETTINGS_INPUT,
+							)}
+						/>
+						<SettingsAction
+							type="submit"
+							disabled={!draft.trim()}
+							icon="search"
+						>
+							Search
+						</SettingsAction>
+					</form>
+				</fieldset>
+			</SectionCard>
+
+			<SectionCard>
+				<SelectRow
+					label="Change photo"
+					icon="timer"
+					value={background.pexelsFrequency}
+					options={FREQUENCIES}
+					onChange={(value) => {
+						updateBackground({ pexelsFrequency: value });
+					}}
+				/>
+				<SelectRow
+					label="Framing"
+					icon="image"
+					value={background.pexelsPosition ?? "center"}
+					options={POSITIONS}
+					onChange={(value) => updateBackground({ pexelsPosition: value })}
+				/>
+				<SliderRow
+					label="Dim wallpaper"
+					icon="sun"
+					value={Math.max(0, 100 - background.brightness)}
+					suffix="%"
+					min={0}
+					max={60}
+					step={5}
+					onChange={(value) => updateBackground({ brightness: 100 - value })}
+				/>
+			</SectionCard>
+
+			<SectionCard>
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<a
+						href="https://www.pexels.com/"
+						target="_blank"
+						rel="noopener noreferrer"
+						className={cn(
+							"text-xs underline decoration-current/40 underline-offset-4 hover:decoration-current",
+							SETTINGS_FOCUS_RING,
+						)}
+					>
+						Photos from Pexels
+					</a>
+					<SettingsAction
+						icon="refresh"
+						onClick={() => {
+							if (background.type !== "pexels") {
+								updateBackground({ type: "pexels" });
+							}
+							refreshWallpaper(true).catch(() => undefined);
+						}}
+						disabled={loading}
+					>
+						{loading ? "Loading photo…" : "Next photo"}
+					</SettingsAction>
+				</div>
+				<p
+					role="status"
+					aria-live="polite"
+					aria-atomic="true"
+					className="min-h-5 pt-2 text-xs leading-relaxed"
+				>
+					{loading
+						? "Finding your next photograph…"
+						: (message ??
+							"Photos are chosen randomly. Your current wallpaper stays until the next is ready.")}
+				</p>
+				<p className="pt-1 text-xs leading-relaxed opacity-75">
+					Searches go to Pexels through Klice. Recent photos are saved on this
+					device for offline use.
+				</p>
+			</SectionCard>
+		</div>
+	);
+}
